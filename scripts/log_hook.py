@@ -15,7 +15,14 @@ VN_TZ = timezone(timedelta(hours=7))
 
 def git(cmd):
     try:
-        return subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.DEVNULL).strip()
+        safe_dir = str(Path.cwd()).replace("\\", "/")
+        safe_cmd = cmd.replace("git ", f'git -c safe.directory="{safe_dir}" ', 1)
+        return subprocess.check_output(
+            safe_cmd,
+            shell=True,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
     except Exception:
         return ""
 
@@ -181,7 +188,8 @@ def main():
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     # Output valid JSON (required by some tools like Gemini)
-    print(json.dumps({"status": "logged"}))
+    if tool != "codex":
+        print(json.dumps({"status": "logged"}))
 
 
 if __name__ == "__main__":

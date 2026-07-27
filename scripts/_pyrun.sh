@@ -8,7 +8,11 @@
 # Exits 0 silently if no Python is found — hooks must never block the AI tool.
 set -u
 
-if command -v python3 >/dev/null 2>&1; then
+if [ -x ".venv/Scripts/python.exe" ]; then
+  PY=".venv/Scripts/python.exe"
+elif [ -x ".venv/bin/python" ]; then
+  PY=".venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
   PY=python3
 elif command -v python >/dev/null 2>&1; then
   PY=python
@@ -28,6 +32,11 @@ else
   shopt -u nullglob 2>/dev/null || true
   [ -n "$PY" ] || exit 0
 fi
+
+
+
+
+
 
 # shellcheck disable=SC2086
 exec $PY "$@"

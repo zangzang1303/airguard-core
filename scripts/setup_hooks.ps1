@@ -9,12 +9,21 @@ $HookFile = '.git/hooks/pre-push'
 $HookBody = @'
 #!/usr/bin/env bash
 # Pre-push: sweep recent Antigravity / Gemini prompts, then submit AI logs.
-bash scripts/_pyrun.sh scripts/log_antigravity.py --auto || true
-bash scripts/_pyrun.sh scripts/submit_log.py || true
+if command -v cmd.exe >/dev/null 2>&1; then
+  cmd.exe //c scripts\\\\_pyrun.cmd scripts\\\\log_antigravity.py --auto || true
+  cmd.exe //c scripts\\\\_pyrun.cmd scripts\\\\submit_log.py || true
+else
+  bash scripts/_pyrun.sh scripts/log_antigravity.py --auto || true
+  bash scripts/_pyrun.sh scripts/submit_log.py || true
+fi
 exit 0
 '@
 
-Set-Content -Path $HookFile -Value $HookBody -Encoding UTF8 -NoNewline
+[System.IO.File]::WriteAllText(
+    (Resolve-Path $HookFile).Path,
+    $HookBody,
+    [System.Text.UTF8Encoding]::new($false)
+)
 Write-Host "[ai-log] Git pre-push hook installed."
 
 if (-not (Test-Path .ai-log)) { New-Item -ItemType Directory -Path .ai-log | Out-Null }
