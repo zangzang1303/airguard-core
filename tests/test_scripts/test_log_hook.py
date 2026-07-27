@@ -47,3 +47,36 @@ def test_codex_normalize_reads_prompt_from_transcript(tmp_path, monkeypatch):
     assert entry["repo"] == "P-074"
     assert entry["prompt"] == "Xin chao tu transcript"
     assert entry["transcript_path"] == str(transcript_file)
+
+
+def test_terminal_transcript_prompt_is_ignored(tmp_path, monkeypatch):
+    module = load_log_hook_module()
+
+    def fake_git(command: str) -> str:
+        if command == "git remote get-url origin":
+            return "https://github.com/example/P-074.git"
+        if command == "git rev-parse --abbrev-ref HEAD":
+            return "main"
+        if command == "git rev-parse --short HEAD":
+            return "abc1234"
+        if command == "git config user.email":
+            return "student@example.com"
+        return ""
+
+    monkeypatch.setattr(module, "git", fake_git)
+
+    entry = module.normalize(
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "session-2",
+            "model": "",
+            "prompt": (
+                "PS E:\\Vinproject\\P-074> ruff check src/ tests/ --fix\n"
+                ">> ruff format src/ tests/\n"
+                "Found 1 error (1 fixed, 0 remaining)."
+            ),
+        },
+        "copilot",
+    )
+
+    assert entry is None

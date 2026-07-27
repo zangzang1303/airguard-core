@@ -5,12 +5,16 @@ Reads JSON from stdin, normalizes to common format, appends to .ai-log/session.j
 """
 import json
 import os
+import re
 import sys
 import subprocess
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 VN_TZ = timezone(timedelta(hours=7))
+_SHELL_TRANSCRIPT_RE = re.compile(
+    r"^(?:PS\s+[^>]+>\s+\S|\$\s+\S|[^@\n]+@[^:\n]+:.*[#$>]\s+\S|[A-Za-z]:\\[^\n>]*>\s+\S)",
+)
 
 
 def git(cmd):
@@ -94,6 +98,22 @@ def _read_transcript_prompt(transcript_path: str) -> str:
                                 return nested_value[:1000]
 
     return ""
+
+
+def _looks_like_terminal_transcript(prompt: str) -> bool:
+    """Return True when the text looks like a shell transcript, not an AI prompt."""
+    if not prompt:
+        return False
+
+    lines = [line.strip() for line in prompt.splitlines() if line.strip()]
+    if not lines:
+        return False
+
+    first_line = lines[0]
+    if _SHELL_TRANSCRIPT_RE.match(first_line):
+        return True
+
+    return first_line.startswith(("PS ", "C:\\", "D:\\", "$ ")) and len(lines) > 1
 
 
 def normalize(data: dict, tool: str) -> dict | None:
@@ -189,6 +209,9 @@ def normalize(data: dict, tool: str) -> dict | None:
             "tool_name": data.get("toolName", ""),
             "tool_args": data.get("toolArgs"),
         })
+
+    if _looks_like_terminal_transcript(base.get("prompt", "")):
+        return None
 
     # Skip only true noise: no prompt AND no tool-specific payload (tool_input,
     # response_summary, tool_response, tool_args, files_context). Previously
