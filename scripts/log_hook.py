@@ -2,6 +2,7 @@
 """
 Shared AI hook logger — works with Claude Code, Gemini CLI, Codex, Cursor, Copilot.
 Reads JSON from stdin, normalizes to common format, appends to .ai-log/session.jsonl
+fix
 """
 import json
 import os
