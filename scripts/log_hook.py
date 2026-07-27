@@ -50,6 +50,52 @@ def detect_tool(data: dict) -> str:
     return "unknown"
 
 
+def _read_transcript_prompt(transcript_path: str) -> str:
+    """Best-effort prompt extraction from a Codex transcript JSONL file."""
+    if not transcript_path:
+        return ""
+
+    transcript_file = Path(transcript_path)
+    if not transcript_file.exists():
+        return ""
+
+    try:
+        with open(transcript_file, encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+    except OSError:
+        return ""
+
+    for raw_line in reversed(lines):
+        try:
+            item = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+
+        if not isinstance(item, dict):
+            continue
+
+        for key in ("prompt", "content", "text", "message", "input"):
+            value = item.get(key)
+            if isinstance(value, str) and value.strip():
+                return value[:1000]
+            if isinstance(value, dict):
+                for nested_key in ("prompt", "content", "text", "message"):
+                    nested_value = value.get(nested_key)
+                    if isinstance(nested_value, str) and nested_value.strip():
+                        return nested_value[:1000]
+            if isinstance(value, list):
+                for element in reversed(value):
+                    if isinstance(element, str) and element.strip():
+                        return element[:1000]
+                    if isinstance(element, dict):
+                        for nested_key in ("prompt", "content", "text", "message"):
+                            nested_value = element.get(nested_key)
+                            if isinstance(nested_value, str) and nested_value.strip():
+                                return nested_value[:1000]
+
+    return ""
+
+
 def normalize(data: dict, tool: str) -> dict | None:
     """Normalize tool-specific payload to common log entry."""
     event = data.get("hook_event_name") or data.get("event", "")
@@ -121,10 +167,14 @@ def normalize(data: dict, tool: str) -> dict | None:
             base.update({"prompt": prompt, "response_summary": answer})
 
     elif tool == "codex":
+        transcript_path = data.get("transcript_path", "")
+        prompt = data.get("prompt", "")[:1000]
+        if not prompt:
+            prompt = _read_transcript_prompt(transcript_path)
         base.update({
-            "prompt": data.get("prompt", "")[:1000],
+            "prompt": prompt,
             "turn_id": data.get("turn_id", ""),
-            "transcript_path": data.get("transcript_path", ""),
+            "transcript_path": transcript_path,
         })
 
     elif tool == "cursor":
@@ -146,7 +196,8 @@ def normalize(data: dict, tool: str) -> dict | None:
     # tool_input has `command` / `file_path`, not `prompt` or `content`) and
     # any Gemini/Cursor/Copilot turn that carried context but no plain prompt.
     _PAYLOAD_KEYS = ("prompt", "tool_input", "response_summary",
-                     "tool_response", "tool_args", "files_context")
+                     "tool_response", "tool_args", "files_context",
+                     "transcript_path")
     _LIFECYCLE_EVENTS = ("Stop", "stop", "SessionEnd", "sessionEnd", "AfterModel")
     has_payload = any(base.get(k) for k in _PAYLOAD_KEYS)
     if not has_payload and event not in _LIFECYCLE_EVENTS:

@@ -165,7 +165,7 @@ Template đã tích hợp sẵn auto-logging hooks cho 6 AI tools:
 |------|--------|--------|
 | Claude Code | `.claude/settings.json` hooks | Tự động |
 | Cursor | `.cursor/hooks.json` | Tự động |
-| OpenAI Codex CLI | `.codex/hooks.json` | Tự động |
+| OpenAI Codex CLI | `.codex/hooks.json` (`scripts\\_pyrun.cmd` trên Windows) | Tự động |
 | Gemini CLI | `.gemini/settings.json` | Tự động |
 | GitHub Copilot | `.github/hooks/hooks.json` | Tự động |
 | Antigravity IDE | Pre-push scan transcript | Tự động trên `git push` |
