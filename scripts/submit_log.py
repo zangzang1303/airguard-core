@@ -126,7 +126,7 @@ def main():
         data=payload,
         headers=headers,
         method="POST",
-    )
+    )  
 
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
