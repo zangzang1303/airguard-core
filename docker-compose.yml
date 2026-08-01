@@ -1,19 +1,68 @@
-version: "3.8"
-
 services:
+  postgres:
+    image: postgres:16
+    container_name: airguard-postgres
+    environment:
+      POSTGRES_USER: airguard
+      POSTGRES_PASSWORD: airguard
+      POSTGRES_DB: airguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airguard -d airguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: airguard-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ./backend
+    container_name: airguard-backend
+    environment:
+      DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
+      CORS_ORIGINS: http://localhost:5173,http://frontend:5173
     ports:
       - "8000:8000"
-    env_file:
-      - .env
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: airguard-frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  sensor-simulator:
+    build:
+      context: ./simulators/sensor_simulator
+    container_name: airguard-sensor-simulator
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      SENSOR_INTERVAL_SECONDS: 10
+    depends_on:
+      - mqtt
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+
+volumes:
+  postgres_data:
