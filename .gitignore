@@ -29,7 +29,8 @@ env/
 Thumbs.db
 
 # Data (never commit large data)
-data/
+data/*
+!data/stations.json
 *.db
 *.sqlite3
 
