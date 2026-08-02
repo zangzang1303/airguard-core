@@ -161,3 +161,19 @@ git add .env.example .gitignore README.md docker-compose.yml backend data docs f
 git commit -m "feat: scaffold AirGuard AI MVP"
 git push
 ```
+
+
+## 11. Optional Celery background jobs
+
+Mode mac dinh trong .env.example la eager/in-memory, khong can RabbitMQ hoac Redis.
+
+Bat profile async that cho Demo 2:
+
+    $env:CELERY_BROKER_URL = 'amqp://airguard:airguard@rabbitmq:5672//'
+    $env:CELERY_RESULT_BACKEND = 'redis://redis:6379/0'
+    $env:CELERY_TASK_ALWAYS_EAGER = 'false'
+    docker compose --profile async-jobs up --build
+
+Kiem tra job qua POST /api/v1/agent/jobs hoac POST /api/v1/forecast/jobs, sau do GET /api/v1/jobs/{task_id}.
+
+Khong gui sensor telemetry vao Celery. Device command task chi publish MQTT sau khi PostgreSQL xac nhan HITL approval.

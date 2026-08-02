@@ -26,6 +26,34 @@ services:
     volumes:
       - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: airguard-rabbitmq
+    profiles: ["async-jobs"]
+    environment:
+      RABBITMQ_DEFAULT_USER: airguard
+      RABBITMQ_DEFAULT_PASS: airguard
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: airguard-redis
+    profiles: ["async-jobs"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -33,6 +61,10 @@ services:
     environment:
       DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
       CORS_ORIGINS: http://localhost:5173,http://frontend:5173
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-memory://}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-cache+memory://}
+      CELERY_TASK_ALWAYS_EAGER: ${CELERY_TASK_ALWAYS_EAGER:-true}
+      JOB_PERSISTENCE_ENABLED: "true"
     ports:
       - "8000:8000"
     volumes:
@@ -63,6 +95,30 @@ services:
     depends_on:
       - mqtt
     restart: unless-stopped
+
+  celery-worker:
+    build:
+      context: ./backend
+    container_name: airguard-celery-worker
+    profiles: ["async-jobs"]
+    command: celery -A app.celery_app:celery_app worker --loglevel=INFO
+    environment:
+      DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      CELERY_BROKER_URL: amqp://airguard:airguard@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_TASK_ALWAYS_EAGER: "false"
+      JOB_PERSISTENCE_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
 
 volumes:
   postgres_data:
