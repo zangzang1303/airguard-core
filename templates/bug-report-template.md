@@ -1,0 +1,1 @@
+﻿# Bug: <title>\n## Environment/version\n## Severity and user impact\n## Preconditions\n## Reproduction steps\n1. \n## Expected / actual\n## Evidence: logs/request/message/proposal IDs\n## Data/security impact\n## Suspected area\n## Workaround\n## Acceptance test for fix\n

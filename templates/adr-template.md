@@ -1,0 +1,1 @@
+﻿# ADR <number>: <title>\n\n## Status\nProposed | Accepted | Superseded\n## Context\n## Decision\n## Alternatives considered\n## Consequences\n## Security/safety impact\n## Contract and migration impact\n## Verification\n## Owner/date\n

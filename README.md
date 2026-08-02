@@ -1,173 +1,63 @@
-# AirGuard AI
+﻿# AirGuard AI
 
-AirGuard AI is a runnable MVP for monitoring outdoor PM2.5 in a campus or small urban zone. It combines five simulated sensors, Mosquitto MQTT, FastAPI, PostgreSQL, optional Celery jobs, and a React Leaflet dashboard on OpenStreetMap.
+AirGuard AI la MVP theo doi PM2.5 ngoai troi quanh VinUni/Vinhomes Ocean Park. He thong dung sensor simulator, MQTT, PostgreSQL, FastAPI, React va AI Agent co tool calling de hien thi data, canh bao, forecast ngan han va warning proposal co Human-in-the-Loop.
 
-## MVP Scope
+> Du lieu trong MVP la gia lap (`source=simulator`), khong phai quan trac chinh thuc va khong phuc vu chan doan y te.
 
-Included:
+## Muc tieu MVP
 
-- Five PM2.5 sensor simulators and MQTT topic design.
-- FastAPI station, measurement, alert, health, and background-job APIs.
-- PostgreSQL business schema and job history.
-- React Leaflet map with five markers.
-- Celery skeleton tasks for agent, forecast, notification, and approved device commands.
-- Base Docker Compose stack plus optional `async-jobs` services.
+- Quan sat PM2.5 tai 5 tram S01-S05 tren ban do.
+- Dua data tu simulator qua MQTT, validation, PostgreSQL, REST API va dashboard.
+- Tao alert bang Rule Engine khi PM2.5 vuot nguong duoc duyet.
+- Forecast ngan han 1-3 gio co source/freshness ro rang.
+- Agent tra loi dua tren backend tools, khong phat minh du lieu.
+- Agent chi tao warning proposal; manager approve/reject va moi action quan trong co audit log.
 
-Deferred: production AI reasoning, real forecasts/weather collection, MQTT consumer persistence, complete auth/HITL UI, and real device control.
-
-## Architecture
+## Kien truc
 
 ```text
-Sensor Simulator -> Mosquitto MQTT -> MQTT Consumer TODO -> FastAPI -> PostgreSQL
-                        |                                  |
-                        | approved device commands         | background jobs
-                        v                                  v
-                Device Simulator TODO              RabbitMQ -> Celery Worker
-                                                               |       |
-                                                               v       v
-                                                        Redis results  PostgreSQL job_runs
-
-React Leaflet Dashboard <---------------- FastAPI REST API
+Simulator -> MQTT -> Consumer -> PostgreSQL -> FastAPI -> React
+                                  |                 |
+                                  +-> Alert/Forecast +-> Agent tools -> HITL -> Audit
 ```
 
-The default configuration uses Celery eager/in-memory mode. The backend and original APIs therefore run without RabbitMQ, Redis, or a worker.
+## Moc
 
-## Infrastructure Responsibilities
+| Ngay | Cam ket |
+|---|---|
+| 05/08/2026 | Core modules chay doc lap, contracts va dashboard 5 tram co ban |
+| 08/08/2026 | MVP end-to-end co data path, alert, Agent grounded, HITL va audit |
 
-- **MQTT / Mosquitto:** IoT telemetry, station status, and approved device commands. Sensor messages are not routed through Celery.
-- **RabbitMQ / Celery:** coarse-grained agent, forecast, notification, and approved device-action jobs.
-- **Redis:** temporary Celery task status/results.
-- **PostgreSQL:** persistent stations, measurements, alerts, approvals, audit data, devices, and `job_runs`.
+## Quick start
 
-RabbitMQ does not replace Mosquitto.
+1. Doc [AGENTS.md](AGENTS.md) neu ban la contributor/agent moi.
+2. Copy `.env.example` thanh `.env`; khong commit `.env`.
+3. Khoi dong stack bang Docker Compose theo [docs/environment-setup.md](docs/environment-setup.md).
+4. Kiem tra `/health`, `/api/v1/stations`, logs simulator/consumer va dashboard.
+5. Chay scenario demo theo [docs/demo-runbook.md](docs/demo-runbook.md).
 
-## Background Jobs
+Lenh chinh xac phu thuoc vao compose/scripts hien co trong repo; khong tuyen bo pipeline da complete neu chi mock endpoint dang chay.
 
-Task modules:
+## Tai lieu chinh
 
-- `backend/app/tasks/agent_tasks.py`
-- `backend/app/tasks/forecast_tasks.py`
-- `backend/app/tasks/notification_tasks.py`
+| Nhu cau | Tai lieu |
+|---|---|
+| Handoff va quy tac agent | [AGENTS.md](AGENTS.md) |
+| Product, users, features | [specs/](specs) |
+| API, MQTT, data contracts | [specs/api-contracts.md](specs/api-contracts.md), [specs/data-contracts.md](specs/data-contracts.md) |
+| Architecture decisions | [adrs/](adrs) |
+| Roadmap va backlog | [planning/](planning) |
+| Work plans | [tasks/](tasks) |
+| Run/test/security/ops | [docs/](docs) |
 
-`backend/app/celery_app.py` reads broker/result-backend settings from environment variables. Tasks use stable IDs derived from idempotency keys, `acks_late`, and retry with backoff/jitter for temporary network failures. The device-command task must find a matching `approval_requests.status = 'approved'` row in PostgreSQL before publishing to Mosquitto.
+## Non-negotiables
 
-## Install
+- Frontend khong ket noi MQTT truc tiep.
+- Agent khong truy cap database truc tiep, khong bịa environmental facts, khong approve/reject.
+- Data invalid/stale/offline khong duoc kich hoat alert, forecast hay proposal.
+- Device command chi sau server-side approval; device demo luon la simulated.
+- Khong commit secret hay log secret/PII.
 
-All local Python commands use the root `.venv`.
+## Team work
 
-```powershell
-python -m venv --upgrade .venv
-.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
-.\.venv\Scripts\python.exe -m pip install -r simulators\sensor_simulator\requirements.txt
-
-cd frontend
-npm.cmd install
-cd ..
-Copy-Item .env.example .env
-```
-
-Do not commit secrets from `.env`.
-
-## Run Basic MVP
-
-```powershell
-docker compose up --build
-```
-
-Open dashboard at http://localhost:5173 and Swagger at http://localhost:8000/docs. MQTT uses port 1883 and PostgreSQL uses 5432.
-
-Without Docker, run in separate terminals:
-
-```powershell
-cd backend
-..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-```powershell
-cd frontend
-npm.cmd run dev -- --host 0.0.0.0 --port 5173
-```
-
-Job APIs execute mock tasks eagerly with the default settings.
-
-## Run Optional Async Jobs
-
-For Demo 2:
-
-```powershell
-$env:CELERY_BROKER_URL = 'amqp://airguard:airguard@rabbitmq:5672//'
-$env:CELERY_RESULT_BACKEND = 'redis://redis:6379/0'
-$env:CELERY_TASK_ALWAYS_EAGER = 'false'
-docker compose --profile async-jobs up --build
-```
-
-RabbitMQ management is at http://localhost:15672. If PostgreSQL was initialized before `job_runs` was added:
-
-```powershell
-Get-Content backend\db\schema.sql | docker compose exec -T postgres psql -U airguard -d airguard
-```
-
-## Job API Examples
-
-```powershell
-$agentBody = @{
-  user_id = 'demo-user'
-  message = 'Explain current PM2.5 conditions'
-  idempotency_key = 'agent-demo-001'
-} | ConvertTo-Json
-
-$job = Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/agent/jobs -ContentType 'application/json' -Body $agentBody
-Invoke-RestMethod "http://localhost:8000/api/v1/jobs/$($job.task_id)"
-```
-
-```powershell
-$forecastBody = @{
-  station_id = 'S03'
-  hours = 3
-  idempotency_key = 'forecast-s03-demo-001'
-} | ConvertTo-Json
-
-Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/forecast/jobs -ContentType 'application/json' -Body $forecastBody
-```
-
-Repeating the same idempotency key returns the same logical job and `task_id`.
-
-## Main APIs
-
-```text
-GET  /health
-GET  /api/v1/stations
-GET  /api/v1/stations/{station_id}/current
-GET  /api/v1/stations/{station_id}/history
-GET  /api/v1/alerts
-POST /api/v1/agent/jobs
-POST /api/v1/forecast/jobs
-GET  /api/v1/jobs/{task_id}
-```
-
-## MQTT Topics
-
-```text
-airguard/stations/{station_id}/measurements
-airguard/stations/{station_id}/status
-airguard/devices/{device_id}/command
-airguard/devices/{device_id}/status
-```
-
-## Data Model
-
-`backend/db/schema.sql` defines `stations`, `measurements`, `weather_observations`, `alerts`, `users`, `approval_requests`, `devices`, `audit_logs`, and `job_runs`.
-
-## References
-
-- [Celery: First Steps](https://docs.celeryq.dev/en/stable/getting-started/first-steps-with-celery.html)
-- [Celery: Tasks, idempotency, acknowledgement, and retry](https://docs.celeryq.dev/en/stable/userguide/tasks.html)
-- [Celery: Configuration](https://docs.celeryq.dev/en/stable/userguide/configuration.html)
-
-## Documents
-
-- `docs/architecture.md`
-- `docs/api-contract.md`
-- `docs/backlog.md`
-- `docs/agent-tools.md`
-- `docs/journal/2026-08-01/README.md`
+Dung conventional commits, PR co test evidence, va cap nhat docs/contracts khi thay doi interface. Chi tiet tai [docs/development-workflow.md](docs/development-workflow.md) va [docs/git-conventions.md](docs/git-conventions.md).
