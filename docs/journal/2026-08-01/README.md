@@ -38,7 +38,7 @@ API chinh:
 
 ## Database da code
 
-`backend/db/schema.sql` tao 8 bang:
+`backend/db/schema.sql` tao 9 bang:
 
 1. `stations`
 2. `measurements`
@@ -48,6 +48,7 @@ API chinh:
 6. `devices`
 7. `approval_requests`
 8. `audit_logs`
+9. `job_runs`
 
 Schema co index ban dau, seed 5 stations S01-S05 va thiet bi demo `FILTER-01`.
 
@@ -119,7 +120,7 @@ Frontend toolchain:
 - Import FastAPI app trong `.venv`: dat.
 - TestClient cho health, stations, current, history va alerts: deu HTTP 200.
 - Parse `data/stations.json`: dat, du 5 stations.
-- Kiem tra schema: co 8 lenh `CREATE TABLE`.
+- Kiem tra schema ban dau: co 8 lenh `CREATE TABLE`; sau cap nhat Celery co 9 bang.
 - Frontend production build: dat, 67 modules transformed.
 - `npm audit`: 0 vulnerabilities.
 - Backend dev server: `/health` tra HTTP 200.
@@ -135,3 +136,35 @@ Frontend toolchain:
 - Chua co MQTT consumer, weather collector that, auth, AI Agent that, du bao production va HITL workflow hoan chinh.
 
 Chi tiet cai dat va lenh chay xem [RUNBOOK.md](RUNBOOK.md). Danh sach file xem [FILES.md](FILES.md).
+
+
+## Cap nhat Celery background jobs
+
+Da bo sung kien truc task nen ma khong thay the Mosquitto:
+
+- backend/app/celery_app.py cau hinh broker/result backend qua environment.
+- agent_tasks.py, forecast_tasks.py va notification_tasks.py tra mock result.
+- API moi: POST /api/v1/agent/jobs, POST /api/v1/forecast/jobs, GET /api/v1/jobs/{task_id}.
+- Bang job_runs la bang thu 9, luu task ID, idempotency key, status, request/result, loi va so lan thu.
+- Task ID on dinh theo idempotency key; task retry loi mang tam thoi bang backoff va jitter.
+- Device-command task phai doc approval da duoc phe duyet trong PostgreSQL truoc khi publish MQTT.
+- RabbitMQ, Redis va Celery worker nam trong optional Compose profile async-jobs.
+- Mode mac dinh la eager/in-memory nen backend van chay khi chua bat Celery services.
+
+Ranh gioi: Mosquitto cho IoT; RabbitMQ/Celery cho background jobs; Redis cho ket qua tam thoi; PostgreSQL cho du lieu lau dai.
+
+## Kiem thu Celery update
+
+- Da cai celery 5.6.3 va Redis client vao root .venv.
+- Python compile dat cho celery_app, ba task module, job service va approval service.
+- Celery eager mode dat khi RabbitMQ/Redis khong chay.
+- Agent job va forecast job tra SUCCESS.
+- GET job status tra dung ket qua.
+- Goi lap cung job type va idempotency key tra lai cung task ID.
+- Hai job type co the dung cung idempotency key ma khong xung dot.
+- HITL guard block device command va khong goi MQTT khi PostgreSQL approval khong hop le.
+- Co 4 task Celery duoc register; retry toi da 3 lan, acks_late duoc bat.
+- Docker Compose YAML parse dat, co base services va optional async-jobs profile.
+- Schema co 9 bang va unique key theo job type + idempotency key.
+- Live backend 0.2.0 va frontend deu tra HTTP 200.
+- Chua chay RabbitMQ/Redis/worker that vi may hien tai chua co Docker.

@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +12,9 @@ from pydantic import BaseModel, Field
 
 from app.services.agent_service import build_placeholder_answer
 from app.services.forecast_service import baseline_forecast
+from app.services.job_service import get_job, mark_job_failed, reserve_job
+from app.tasks.agent_tasks import run_agent_job
+from app.tasks.forecast_tasks import run_forecast_job
 
 VIETNAM_TZ = timezone(timedelta(hours=7))
 DATA_PATHS = [Path("/app/data/stations.json"), Path(__file__).resolve().parents[2] / "data" / "stations.json"]
@@ -20,6 +23,16 @@ DATA_PATHS = [Path("/app/data/stations.json"), Path(__file__).resolve().parents[
 class AgentChatRequest(BaseModel):
     user_id: str = Field(..., examples=["demo-user"])
     message: str = Field(..., examples=["Hien tai co nen chay bo o cong vien khong?"])
+
+
+class AgentJobRequest(AgentChatRequest):
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=200)
+
+
+class ForecastJobRequest(BaseModel):
+    station_id: str = Field(..., examples=["S03"])
+    hours: int = Field(default=3, ge=1, le=3)
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=200)
 
 
 def load_stations() -> list[dict]:
@@ -70,7 +83,7 @@ def get_station_or_404(station_id: str) -> dict:
     raise HTTPException(status_code=404, detail="station_not_found")
 
 
-app = FastAPI(title="AirGuard AI API", version="0.1.0")
+app = FastAPI(title="AirGuard AI API", version="0.2.0")
 
 origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")]
 app.add_middleware(
@@ -84,7 +97,7 @@ app.add_middleware(
 
 @app.get("/health")
 def health_check() -> dict:
-    return {"status": "ok", "service": "airguard-api", "version": "0.1.0"}
+    return {"status": "ok", "service": "airguard-api", "version": "0.2.0"}
 
 
 @app.get("/api/v1/stations")
@@ -177,6 +190,48 @@ def get_station_forecast(station_id: str, hours: int = Query(default=3, ge=1, le
 @app.post("/api/v1/agent/chat")
 def agent_chat(request: AgentChatRequest) -> dict:
     return {"user_id": request.user_id, **build_placeholder_answer(request.message)}
+
+
+def dispatch_job(task, job_type: str, payload: dict, idempotency_key: str | None) -> dict:
+    key = idempotency_key or str(uuid4())
+    task_id = str(uuid5(NAMESPACE_URL, f"airguard:{job_type}:{key}"))
+    record, created = reserve_job(task_id, job_type, key, payload)
+    if not created:
+        return {**record, "reused": True, "status_url": f"/api/v1/jobs/{record['task_id']}"}
+
+    try:
+        task.apply_async(kwargs={**payload, "idempotency_key": key}, task_id=task_id)
+    except Exception as exc:
+        mark_job_failed(task_id, f"Task dispatch failed: {exc}", retrying=False)
+        raise HTTPException(status_code=503, detail="background_job_service_unavailable") from exc
+
+    current = get_job(task_id) or record
+    return {**current, "reused": False, "status_url": f"/api/v1/jobs/{task_id}"}
+
+
+@app.post("/api/v1/agent/jobs", status_code=202)
+def create_agent_job(request: AgentJobRequest) -> dict:
+    payload = {"user_id": request.user_id, "message": request.message}
+    return dispatch_job(run_agent_job, "agent", payload, request.idempotency_key)
+
+
+@app.post("/api/v1/forecast/jobs", status_code=202)
+def create_forecast_job(request: ForecastJobRequest) -> dict:
+    station = station_response(get_station_or_404(request.station_id))
+    payload = {
+        "station_id": request.station_id,
+        "current_pm25": station["pm25"],
+        "hours": request.hours,
+    }
+    return dispatch_job(run_forecast_job, "forecast", payload, request.idempotency_key)
+
+
+@app.get("/api/v1/jobs/{task_id}")
+def get_background_job(task_id: str) -> dict:
+    record = get_job(task_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="job_not_found")
+    return record
 
 
 @app.get("/api/v1/approvals")

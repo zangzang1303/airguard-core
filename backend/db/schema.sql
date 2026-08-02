@@ -105,6 +105,25 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS job_runs (
+    task_id VARCHAR(64) PRIMARY KEY,
+    job_type VARCHAR(50) NOT NULL,
+    idempotency_key VARCHAR(200) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    request_payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+    result_payload JSONB,
+    error_message TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (job_type, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_runs_type_created
+ON job_runs(job_type, created_at DESC);
+
 INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description)
 VALUES
     ('S01', 'Cong chinh', 'main_gate', 20.9441, 105.9439, 'Khu vuc cong chinh, PM2.5 tang vao gio cao diem'),
