@@ -1,18 +1,18 @@
-﻿# Backend Tasks
+﻿# Công việc Backend
 
-## Muc tieu va pham vi
+## Mục tiêu và phạm vi
 
 Xay dung FastAPI la system of record cho station, measurement, alert, approval va audit. Backend la cua vao duy nhat cho Frontend va AI Agent; MQTT Consumer dung service ingestion noi bo. Agent khong truy cap PostgreSQL truc tiep va khong co quyen publish MQTT.
 
-## Thu tu thuc hien
+## Thứ tự thực hiện
 
 `BE-001 -> BE-002 -> BE-003 -> BE-004 -> BE-005 -> BE-006 -> BE-007`.
 
-## BE-001 - Khoi tao API va health check
+## BE-001 - Khởi tạo API và kiểm tra sức khỏe
 
-**Muc tieu:** dich vu khoi dong duoc trong Docker Compose va bao cao dung tinh trang dependency.
+**Mục tiêu:** dich vu khoi dong duoc trong Docker Compose va bao cao dung tinh trang dependency.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Tao FastAPI app, prefix `/api/v1`, CORS tu environment va OpenAPI tai `/docs`.
 2. Tao config typed cho database URL, broker URL, allowed origins, log level va stale threshold; config sai phai fail fast khi startup.
@@ -20,17 +20,17 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 4. Tao middleware gan `request_id`, structured log va exception handler chung.
 5. Chot error envelope: `code`, `message`, `request_id`, `details`; khong tra stack trace cho client.
 
-**Dau ra:** service backend, Docker healthcheck, OpenAPI, va huong dan cac status `200/503`.
+**Đầu ra:** service backend, Docker healthcheck, OpenAPI, va huong dan cac status `200/503`.
 
-**Kiem thu:** app startup, config thieu, database down, CORS origin hop le/khong hop le, va error response schema.
+**Kiểm thử:** app startup, config thieu, database down, CORS origin hop le/khong hop le, va error response schema.
 
-**Xong khi:** `/health` tra 200 khi process song; `/ready` tra 503 khi DB down va logs co request id ma khong lo secret.
+**Hoàn thành khi:** `/health` tra 200 khi process song; `/ready` tra 503 khi DB down va logs co request id ma khong lo secret.
 
-## BE-002 - Station va measurement read API
+## BE-002 - API đọc trạm và phép đo
 
-**Muc tieu:** frontend va tools doc duoc du lieu cua S01-S05 tu PostgreSQL.
+**Mục tiêu:** frontend va tools doc duoc du lieu cua S01-S05 tu PostgreSQL.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Tao migration/schema cho `stations`, `measurements`, `station_status`; `station_id` bat bien, `message_id` unique, timestamp co timezone.
 2. Tao seed idempotent cho S01-S05: name, latitude, longitude, location type, active flag.
@@ -39,17 +39,17 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 5. Response phai co `source`, `updated_at`, `status`, `is_stale`; history sap xep tang dan theo `measured_at`.
 6. Dinh nghia 404 station khong ton tai, 422 filter sai, va `items: []` cho station chua co measurement.
 
-**Dau ra:** API contract dung `specs/api-contracts.md`; index `(station_id, measured_at)` phuc vu history.
+**Đầu ra:** API contract dung `specs/api-contracts.md`; index `(station_id, measured_at)` phuc vu history.
 
-**Kiem thu:** 5 tram seed, current co/khong co data, history boundary 1/72 gio, 404, pagination neu co, va schema snapshot.
+**Kiểm thử:** 5 tram seed, current co/khong co data, history boundary 1/72 gio, 404, pagination neu co, va schema snapshot.
 
-**Xong khi:** map co the render 5 tram tu API, khong can fallback hard-code o client.
+**Hoàn thành khi:** map co the render 5 tram tu API, khong can fallback hard-code o client.
 
-## BE-003 - Ingestion validation boundary
+## BE-003 - Biên kiểm tra dữ liệu đầu vào
 
-**Muc tieu:** chi measurement hop le moi duoc persist va duoc phep anh huong den current/alert/forecast.
+**Mục tiêu:** chi measurement hop le moi duoc persist va duoc phep anh huong den current/alert/forecast.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Dinh nghia Pydantic schema cho measurement va status MQTT theo `specs/data-contracts.md`.
 2. Validate topic/station id, `message_id`, PM2.5 khong am, numerical fields, timestamp RFC3339 timezone, source va max future skew.
@@ -58,17 +58,17 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 5. Luu reject metric/log co `reason`, topic, station neu co; khong log raw payload co secret.
 6. Chi phat event `measurement.accepted` sau khi transaction persist thanh cong.
 
-**Dau ra:** `MeasurementIngestionService` co contract noi bo va dashboard metrics accept/reject.
+**Đầu ra:** `MeasurementIngestionService` co contract noi bo va dashboard metrics accept/reject.
 
-**Kiem thu:** JSON loi, missing field, PM2.5 am, station la, duplicate, late event, timestamp tuong lai va stale boundary.
+**Kiểm thử:** JSON loi, missing field, PM2.5 am, station la, duplicate, late event, timestamp tuong lai va stale boundary.
 
-**Xong khi:** du lieu invalid/stale khong xuat hien trong current API, Alert Engine hay Agent tools.
+**Hoàn thành khi:** du lieu invalid/stale khong xuat hien trong current API, Alert Engine hay Agent tools.
 
-## BE-004 - Alert Engine PM2.5
+## BE-004 - Bộ máy cảnh báo PM2.5
 
-**Muc tieu:** tao alert nhat quan tu measurement valid, fresh va co kha nang truy vet rule.
+**Mục tiêu:** tao alert nhat quan tu measurement valid, fresh va co kha nang truy vet rule.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Can Mentor xac nhan threshold/severity/cooldown; tam thoi de bang rule trong config versioned, khong hard-code trong route.
 2. Tao entity `alerts`: station, rule id/version, observed/threshold value, severity, status, created/resolved time.
@@ -77,17 +77,17 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 5. Dinh nghia resolve policy khi gia tri ha thap hon nguong hoac manager resolve thu cong.
 6. Implement `GET /alerts?status=&station_id=` va action resolve co RBAC.
 
-**Dau ra:** active/resolved alerts va event log cho create/update/resolve.
+**Đầu ra:** active/resolved alerts va event log cho create/update/resolve.
 
-**Kiem thu:** duoi/bang/tren threshold, repeated spike, cooldown, stale measurement, manual resolve va authorization.
+**Kiểm thử:** duoi/bang/tren threshold, repeated spike, cooldown, stale measurement, manual resolve va authorization.
 
-**Xong khi:** spike tu simulator tao dung mot alert tren API va co the hien thi o frontend.
+**Hoàn thành khi:** spike tu simulator tao dung mot alert tren API va co the hien thi o frontend.
 
-## BE-005 - HITL approvals API
+## BE-005 - API phê duyệt HITL
 
-**Muc tieu:** manager la nguoi duy nhat chap thuan/tuchoi warning proposal; Agent khong the bypass luong nay.
+**Mục tiêu:** manager la nguoi duy nhat chap thuan/tuchoi warning proposal; Agent khong the bypass luong nay.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Tao `approval_requests` voi proposal content, evidence, requester, status, version va timestamps.
 2. Implement list/detail pending va `POST approve`, `POST reject`; reject note la bat buoc neu policy yeu cau.
@@ -96,17 +96,17 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 5. Approve tao dispatch intent; chi dispatcher moi duoc publish command, reject tuyet doi khong tao intent.
 6. Tra response co trang thai moi, reviewer, audit reference va command outcome neu co.
 
-**Dau ra:** API HITL versioned va state machine `pending -> approved|rejected`.
+**Đầu ra:** API HITL versioned va state machine `pending -> approved|rejected`.
 
-**Kiem thu:** 401/403, approve, reject, double-click, two reviewers, transition sai va dispatch failure.
+**Kiểm thử:** 401/403, approve, reject, double-click, two reviewers, transition sai va dispatch failure.
 
-**Xong khi:** khong co endpoint nao cho Agent hoac normal user tu approve/reject.
+**Hoàn thành khi:** khong co endpoint nao cho Agent hoac normal user tu approve/reject.
 
-## BE-006 - Audit log service
+## BE-006 - Dịch vụ nhật ký kiểm toán
 
-**Muc tieu:** truy vet duoc ai da de xuat, review va dispatch gi trong demo.
+**Mục tiêu:** truy vet duoc ai da de xuat, review va dispatch gi trong demo.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Tao append-only `audit_logs` voi actor, role, action, target type/id, outcome, correlation id, created_at va metadata da redact.
 2. Ghi event cho proposal create, approve, reject, dispatch attempt/success/failure va manual alert resolution.
@@ -114,17 +114,17 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 4. Cung cap query theo proposal, station, action va time range cho manager/debug.
 5. Dat retention va cam luu API key, password, raw prompt nhay cam.
 
-**Dau ra:** audit service, API read-only co RBAC va evidence cho runbook.
+**Đầu ra:** audit service, API read-only co RBAC va evidence cho runbook.
 
-**Kiem thu:** moi HITL action co event; dispatch failure van co audit; pagination, permission va redaction.
+**Kiểm thử:** moi HITL action co event; dispatch failure van co audit; pagination, permission va redaction.
 
-**Xong khi:** co the trace `proposal_id -> reviewer action -> dispatch outcome` bang audit log.
+**Hoàn thành khi:** co the trace `proposal_id -> reviewer action -> dispatch outcome` bang audit log.
 
-## BE-007 - Background jobs va status
+## BE-007 - Tác vụ nền và trạng thái
 
-**Muc tieu:** forecast va agent work khong block HTTP request va co kha nang theo doi.
+**Mục tiêu:** forecast va agent work khong block HTTP request va co kha nang theo doi.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Chot Celery/Redis hoac co che queue da duoc nhom duyet; tach worker khoi API process.
 2. Tao POST bat dong bo cho forecast/agent dung idempotency key va task id on dinh.
@@ -132,21 +132,34 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 4. Implement `GET /jobs/{task_id}`; khong tra raw exception/model response nhay cam.
 5. Dat timeout, retry capped va dead-letter/failed state ro rang.
 
-**Dau ra:** worker, job registry va status API.
+**Đầu ra:** worker, job registry va status API.
 
-**Kiem thu:** worker down, duplicate idempotency key, timeout, retry exhaustion, job khong ton tai.
+**Kiểm thử:** worker down, duplicate idempotency key, timeout, retry exhaustion, job khong ton tai.
 
-**Xong khi:** frontend co the poll job status va user nhan duoc loi co the hanh dong.
+**Hoàn thành khi:** frontend co the poll job status va user nhan duoc loi co the hanh dong.
 
-## Moc va phu thuoc
+## Mốc và phụ thuộc
 
 | Moc | Bat buoc | Phu thuoc chinh |
 |---|---|---|
 | 05/08 | BE-001..BE-004 | PostgreSQL schema, DI-001..DI-005 |
 | 08/08 | BE-005..BE-007 | AI-005, frontend manager UI, worker/queue |
 
-## DoD chung
+## Tiêu chí hoàn thành chung
 
 - Route co OpenAPI, unit test service va integration test API cho happy/error path.
 - Khong route truy cap DB truc tiep; khong secret trong response/log/audit.
 - API contract thay doi phai cap nhat `specs/api-contracts.md` va co test regression.
+
+
+## Bản đồ file theo task
+
+| Task | File hiện có cần sửa | File/directory cần tạo hoặc cập nhật | Tài liệu và test liên quan |
+|---|---|---|---|
+| BE-001 | `backend/app/main.py`, `docker-compose.yml` | `backend/app/core/config.py`, `backend/app/core/logging.py`, `backend/app/api/errors.py` | `tests/test_api/test_health.py`, `specs/api-contracts.md` |
+| BE-002 | `backend/app/main.py`, `backend/db/schema.sql`, `data/stations.json` | `backend/app/repositories/stations.py`, `backend/app/services/station_service.py` | `tests/test_api/test_stations.py`, `specs/domain-model.md` |
+| BE-003 | `backend/db/schema.sql` | `backend/app/schemas/measurements.py`, `backend/app/services/ingestion_service.py` | `tests/test_services/test_ingestion.py`, `specs/data-contracts.md` |
+| BE-004 | `backend/app/main.py` | `backend/app/services/alert_engine.py`, `backend/app/repositories/alerts.py` | `tests/test_services/test_alert_engine.py`, `adrs/0003-alert-and-hitl.md` |
+| BE-005 | `backend/app/services/approval_service.py` | `backend/app/api/approvals.py`, `backend/app/repositories/approvals.py` | `tests/test_api/test_approvals.py`, `specs/api-contracts.md` |
+| BE-006 | `backend/db/schema.sql` | `backend/app/services/audit_service.py`, `backend/app/repositories/audit_logs.py` | `tests/test_services/test_audit.py`, `docs/observability.md` |
+| BE-007 | `backend/app/celery_app.py`, `backend/app/tasks/*.py` | `backend/app/services/job_service.py` | `tests/test_api/test_jobs.py`, `docs/test-plan.md` |
