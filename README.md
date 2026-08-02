@@ -1,68 +1,149 @@
 # AirGuard AI
 
-AirGuard AI is an MVP for monitoring outdoor PM2.5 in a small campus or urban zone. This repository focuses on a runnable prototype: simulated sensor data, MQTT topic design, a FastAPI backend, a PostgreSQL schema, and a React Leaflet dashboard with five mock stations on a real OpenStreetMap map.
-
-## Project Overview
-
-The demo area is VinUniversity / Vinhomes Ocean Park. Five simulated PM2.5 stations publish measurements to MQTT topics. The backend exposes basic REST APIs for station status, current readings, history, alerts, and health checks. The dashboard displays the stations as map markers with PM2.5 levels.
-
-## Problem
-
-People in dense urban or campus areas often do not know which outdoor zones have elevated PM2.5 at the moment they plan to commute, exercise, or spend time outside. Managers also need a simple way to see sensor status and alerts before taking wider actions.
-
-## Proposed Solution
-
-AirGuard AI combines PM2.5 sensor simulation over MQTT, FastAPI service APIs, PostgreSQL schema, React Leaflet map UI, and placeholder AI Agent, forecast, device, and HITL services for later milestones.
+AirGuard AI is a runnable MVP for monitoring outdoor PM2.5 in a campus or small urban zone. It combines five simulated sensors, Mosquitto MQTT, FastAPI, PostgreSQL, optional Celery jobs, and a React Leaflet dashboard on OpenStreetMap.
 
 ## MVP Scope
 
-In scope for this first push:
+Included:
 
-- Five simulated PM2.5 stations.
-- MQTT topics for measurements, station status, device commands, and device status.
-- FastAPI APIs using mock in-memory data.
-- PostgreSQL initial schema.
-- React Leaflet map prototype.
-- Docker Compose for backend, frontend, PostgreSQL, Mosquitto, and simulator.
+- Five PM2.5 sensor simulators and MQTT topic design.
+- FastAPI station, measurement, alert, health, and background-job APIs.
+- PostgreSQL business schema and job history.
+- React Leaflet map with five markers.
+- Celery skeleton tasks for agent, forecast, notification, and approved device commands.
+- Base Docker Compose stack plus optional `async-jobs` services.
 
-Out of scope for this first push:
+Deferred: production AI reasoning, real forecasts/weather collection, MQTT consumer persistence, complete auth/HITL UI, and real device control.
 
-- Production AI Agent reasoning.
-- Real weather API integration.
-- Real sensor hardware.
-- Real HVAC/BMS control.
-- Full authentication and authorization.
-- Complete HITL workflow UI.
-
-## System Architecture
+## Architecture
 
 ```text
-Sensor Simulator -> MQTT Broker -> MQTT Consumer TODO -> FastAPI Backend -> PostgreSQL
-                                      |
-                                      v
-                     Forecast Service TODO + Alert Engine TODO + AI Agent TODO
-                                      |
-                                      v
-                            React Leaflet Dashboard
-                                      |
-                                      v
-                         HITL Approval Workflow TODO
+Sensor Simulator -> Mosquitto MQTT -> MQTT Consumer TODO -> FastAPI -> PostgreSQL
+                        |                                  |
+                        | approved device commands         | background jobs
+                        v                                  v
+                Device Simulator TODO              RabbitMQ -> Celery Worker
+                                                               |       |
+                                                               v       v
+                                                        Redis results  PostgreSQL job_runs
+
+React Leaflet Dashboard <---------------- FastAPI REST API
 ```
 
-The current MVP runs the simulator and MQTT broker, but the backend uses mock station data until the MQTT consumer and database access layer are completed.
+The default configuration uses Celery eager/in-memory mode. The backend and original APIs therefore run without RabbitMQ, Redis, or a worker.
 
-## Tech Stack
+## Infrastructure Responsibilities
 
-- Backend: FastAPI, Uvicorn, Pydantic
-- Database: PostgreSQL 16
-- Messaging: Eclipse Mosquitto MQTT
-- Simulator: Python, paho-mqtt
-- Frontend: React, Vite, React Leaflet, Leaflet
-- Container orchestration: Docker Compose
+- **MQTT / Mosquitto:** IoT telemetry, station status, and approved device commands. Sensor messages are not routed through Celery.
+- **RabbitMQ / Celery:** coarse-grained agent, forecast, notification, and approved device-action jobs.
+- **Redis:** temporary Celery task status/results.
+- **PostgreSQL:** persistent stations, measurements, alerts, approvals, audit data, devices, and `job_runs`.
 
-## Data Model
+RabbitMQ does not replace Mosquitto.
 
-The initial schema is in `backend/db/schema.sql` and includes `stations`, `measurements`, `weather_observations`, `alerts`, `users`, `approval_requests`, `devices`, and `audit_logs`.
+## Background Jobs
+
+Task modules:
+
+- `backend/app/tasks/agent_tasks.py`
+- `backend/app/tasks/forecast_tasks.py`
+- `backend/app/tasks/notification_tasks.py`
+
+`backend/app/celery_app.py` reads broker/result-backend settings from environment variables. Tasks use stable IDs derived from idempotency keys, `acks_late`, and retry with backoff/jitter for temporary network failures. The device-command task must find a matching `approval_requests.status = 'approved'` row in PostgreSQL before publishing to Mosquitto.
+
+## Install
+
+All local Python commands use the root `.venv`.
+
+```powershell
+python -m venv --upgrade .venv
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r simulators\sensor_simulator\requirements.txt
+
+cd frontend
+npm.cmd install
+cd ..
+Copy-Item .env.example .env
+```
+
+Do not commit secrets from `.env`.
+
+## Run Basic MVP
+
+```powershell
+docker compose up --build
+```
+
+Open dashboard at http://localhost:5173 and Swagger at http://localhost:8000/docs. MQTT uses port 1883 and PostgreSQL uses 5432.
+
+Without Docker, run in separate terminals:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+```powershell
+cd frontend
+npm.cmd run dev -- --host 0.0.0.0 --port 5173
+```
+
+Job APIs execute mock tasks eagerly with the default settings.
+
+## Run Optional Async Jobs
+
+For Demo 2:
+
+```powershell
+$env:CELERY_BROKER_URL = 'amqp://airguard:airguard@rabbitmq:5672//'
+$env:CELERY_RESULT_BACKEND = 'redis://redis:6379/0'
+$env:CELERY_TASK_ALWAYS_EAGER = 'false'
+docker compose --profile async-jobs up --build
+```
+
+RabbitMQ management is at http://localhost:15672. If PostgreSQL was initialized before `job_runs` was added:
+
+```powershell
+Get-Content backend\db\schema.sql | docker compose exec -T postgres psql -U airguard -d airguard
+```
+
+## Job API Examples
+
+```powershell
+$agentBody = @{
+  user_id = 'demo-user'
+  message = 'Explain current PM2.5 conditions'
+  idempotency_key = 'agent-demo-001'
+} | ConvertTo-Json
+
+$job = Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/agent/jobs -ContentType 'application/json' -Body $agentBody
+Invoke-RestMethod "http://localhost:8000/api/v1/jobs/$($job.task_id)"
+```
+
+```powershell
+$forecastBody = @{
+  station_id = 'S03'
+  hours = 3
+  idempotency_key = 'forecast-s03-demo-001'
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/forecast/jobs -ContentType 'application/json' -Body $forecastBody
+```
+
+Repeating the same idempotency key returns the same logical job and `task_id`.
+
+## Main APIs
+
+```text
+GET  /health
+GET  /api/v1/stations
+GET  /api/v1/stations/{station_id}/current
+GET  /api/v1/stations/{station_id}/history
+GET  /api/v1/alerts
+POST /api/v1/agent/jobs
+POST /api/v1/forecast/jobs
+GET  /api/v1/jobs/{task_id}
+```
 
 ## MQTT Topics
 
@@ -73,87 +154,20 @@ airguard/devices/{device_id}/command
 airguard/devices/{device_id}/status
 ```
 
-## How to Run
+## Data Model
 
-Run everything with Docker:
+`backend/db/schema.sql` defines `stations`, `measurements`, `weather_observations`, `alerts`, `users`, `approval_requests`, `devices`, `audit_logs`, and `job_runs`.
 
-```bash
-docker compose up --build
-```
+## References
 
-Then open:
-
-- Backend health: http://localhost:8000/health
-- Backend API docs: http://localhost:8000/docs
-- Frontend dashboard: http://localhost:5173
-- MQTT broker: `localhost:1883`
-
-Run services locally from the repository root. All Python commands use the existing root `.venv`:
-
-```powershell
-# Install Python dependencies once
-.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
-.\.venv\Scripts\python.exe -m pip install -r simulators\sensor_simulator\requirements.txt
-
-# Start MQTT and PostgreSQL
-# Requires Docker Desktop
-docker compose up -d postgres mqtt
-```
-
-```powershell
-# Run backend from the repository root
-cd backend
-..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-```powershell
-# Run sensor simulator from the repository root in another terminal
-.\.venv\Scripts\python.exe simulators\sensor_simulator\sensor_simulator.py
-```
-
-```powershell
-# Run frontend
-cd frontend
-npm.cmd install
-npm.cmd run dev -- --host 0.0.0.0 --port 5173
-```
-
-## API Quick Check
-
-```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/api/v1/stations
-curl http://localhost:8000/api/v1/stations/S01/current
-curl "http://localhost:8000/api/v1/stations/S01/history?hours=6"
-curl http://localhost:8000/api/v1/alerts
-```
-
-## Demo Flow
-
-1. Start Docker Compose.
-2. Open `/health` to confirm the API is alive.
-3. Open `/api/v1/stations` and `/api/v1/stations/S01/current`.
-4. Open the dashboard and inspect the five PM2.5 markers.
-5. Watch simulator logs publish to `airguard/stations/{station_id}/measurements`.
-6. Explain that MQTT consumer, DB reads, forecast, AI Agent, and HITL are planned TODO layers.
+- [Celery: First Steps](https://docs.celeryq.dev/en/stable/getting-started/first-steps-with-celery.html)
+- [Celery: Tasks, idempotency, acknowledgement, and retry](https://docs.celeryq.dev/en/stable/userguide/tasks.html)
+- [Celery: Configuration](https://docs.celeryq.dev/en/stable/userguide/configuration.html)
 
 ## Documents
 
 - `docs/architecture.md`
 - `docs/api-contract.md`
-- `docs/user-stories.md`
 - `docs/backlog.md`
-- `docs/team-roles.md`
 - `docs/agent-tools.md`
 - `docs/journal/2026-08-01/README.md`
-
-## Team Roles
-
-See `docs/team-roles.md`.
-
-## Mentor Questions
-
-- Which demo area should be finalized before presentation?
-- Should the first real integration prioritize weather data or MQTT consumer persistence?
-- What PM2.5 thresholds should the team use for local health recommendations?
-- What approval actions are most compelling for the HITL demo?

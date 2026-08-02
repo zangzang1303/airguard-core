@@ -62,3 +62,15 @@
 - `frontend/node_modules/`: npm dependencies local.
 - `frontend/dist/`: output production build.
 - `C:\tmp\airguard-windows-roots.pem`: CA bundle tam thoi phuc vu npm tren may hien tai.
+
+
+## Celery background job files da tao
+
+- backend/app/celery_app.py
+- backend/app/tasks/__init__.py
+- backend/app/tasks/task_support.py
+- backend/app/tasks/agent_tasks.py
+- backend/app/tasks/forecast_tasks.py
+- backend/app/tasks/notification_tasks.py
+- backend/app/services/job_service.py
+- backend/app/services/approval_service.py
