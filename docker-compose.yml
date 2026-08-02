@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16
     container_name: airguard-postgres
@@ -24,7 +24,7 @@ services:
       - "1883:1883"
       - "9001:9001"
     volumes:
-      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infra/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
   rabbitmq:
     image: rabbitmq:3.13-management
@@ -86,7 +86,7 @@ services:
 
   sensor-simulator:
     build:
-      context: ./simulators/sensor_simulator
+      context: ./services/sensor-simulator
     container_name: airguard-sensor-simulator
     environment:
       MQTT_HOST: mqtt
@@ -122,3 +122,4 @@ services:
 
 volumes:
   postgres_data:
+
