@@ -196,3 +196,113 @@ Danh sach song: [planning/dependencies.md](planning/dependencies.md), [planning/
 ## 14. Handoff note template
 
 Truoc khi dung mot phien lam viec dang do, cap nhat `.ai-log/` theo `templates/ai-log-template.md` voi: muc tieu, file da sua, decisions, tests da chay/khong chay, blockers, next command/next step. Handoff tot la nguoi ke tiep co the tiep tuc ma khong can doan y dinh cua nguoi truoc.
+
+## 15. Complete repository map
+
+This section is the single-file map of the repository. Read it before using broad search, moving folders, or choosing an entry point.
+
+```text
+.
+|-- apps/                         # application surfaces (migration in progress)
+|   |-- api/                      # target location for backend/; not moved yet if locked
+|   `-- web/                      # target location for frontend/; not moved yet if locked
+|-- backend/                      # current FastAPI API application; planned -> apps/api
+|   |-- app/                      # FastAPI routes, services, Celery tasks
+|   |-- db/schema.sql             # PostgreSQL bootstrap schema
+|   |-- Dockerfile
+|   `-- requirements.txt
+|-- frontend/                     # current Vite/React dashboard; planned -> apps/web
+|   |-- src/App.jsx               # current dashboard entry surface
+|   |-- src/main.jsx
+|   |-- src/styles.css
+|   |-- package.json
+|   `-- Dockerfile
+|-- src/                          # existing Python Agent/API package; preserve imports until planned migration
+|   |-- main.py                   # legacy/agent-facing FastAPI entry
+|   |-- config.py
+|   |-- api/                      # Agent API router
+|   |-- agents/                   # LangGraph graph, state, nodes, tools
+|   |-- models/                   # Pydantic schemas
+|   `-- services/                 # LLM service and shared logic
+|-- services/
+|   `-- sensor-simulator/         # MQTT simulator, moved from simulators/sensor_simulator
+|       |-- sensor_simulator.py
+|       |-- requirements.txt
+|       `-- Dockerfile
+|-- infra/
+|   `-- mqtt/mosquitto.conf       # broker configuration, moved from mqtt/
+|-- data/                         # non-secret station seed/fixtures mounted read-only where needed
+|-- tests/                        # pytest API and Agent tests
+|-- eval/                         # evaluation artifacts/scripts; preserve and document additions
+|-- scripts/                      # operational helper scripts; inspect before use
+|-- presentation/                 # presentation assets, not application runtime
+|-- docs/                         # canonical operational documentation
+|   |-- Gate 1/                   # protected Gate 1 product artifacts; do not overwrite casually
+|   |-- guide/                    # reference/training material, not current MVP contract
+|   `-- journal/                  # historical work records
+|-- specs/                        # product/domain/API/data/NFR acceptance truth
+|-- adrs/                         # accepted architecture decisions
+|-- planning/                     # roadmap, backlog, dependency, risk, sprints
+|-- tasks/                        # detailed execution plans by workstream
+|-- templates/                    # task/ADR/PR/bug/AI-log formats
+|-- .ai-log/                      # session handoffs; update for unfinished material work
+|-- docker-compose.yml            # local topology; update paths with any folder move
+|-- Dockerfile                    # root Python/Agent image; currently runs src.main
+|-- Makefile                      # root Python/Agent developer commands; currently targets src/ and tests/
+|-- requirements.txt              # root Agent/Python dependency set
+|-- ruff.toml                     # Python lint configuration
+|-- .env.example                  # non-secret environment variable template
+|-- .gitignore                    # ignored local/generated data
+|-- README.md                     # quick project overview
+`-- AGENTS.md                     # this full handoff guide
+```
+
+### Migration status
+
+The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`, plus shared `src/` until its own deliberate migration. At the time of this document update, `services/sensor-simulator` and `infra/mqtt` have already moved. `backend/` and `frontend/` remain at the repository root because Windows reported them locked by active processes. Do not update Compose paths to `apps/api` or `apps/web` until those moves complete in one change.
+
+### Runtime entry points
+
+| Surface | Current entry point | Runtime role | Notes |
+|---|---|---|---|
+| Main API | `backend/app/main.py` | REST API, current mock/business endpoints, jobs | Docker Compose builds `./backend` today |
+| Dashboard | `frontend/src/main.jsx` -> `frontend/src/App.jsx` | React + Leaflet UI | Docker Compose builds `./frontend` today |
+| Sensor simulator | `services/sensor-simulator/sensor_simulator.py` | MQTT measurement/status publisher | Compose must be updated from the old path before next run |
+| Agent package | `src/main.py`, `src/agents/graph.py` | legacy/Agent FastAPI and LangGraph flow | tests import `src.*` |
+| MQTT broker | `infra/mqtt/mosquitto.conf` | Mosquitto config | Compose must be updated from the old path before next run |
+| DB schema | `backend/db/schema.sql` | Postgres initialization | planned to move together with backend |
+
+### Immediate post-move repair checklist
+
+The partial folder migration means `docker-compose.yml` still has old paths for simulator and MQTT. Before running Compose again, update only these references after validating all target folders:
+
+- `./mqtt/mosquitto.conf` -> `./infra/mqtt/mosquitto.conf`
+- `./simulators/sensor_simulator` -> `./services/sensor-simulator`
+- After backend/frontend locks are released: `./backend` -> `./apps/api`, `./frontend` -> `./apps/web`, and database schema mount `./backend/db/schema.sql` -> `./apps/api/db/schema.sql`.
+- Update README, repository structure docs and any CI paths in the same change.
+- Run `docker compose config`, then build/start and verify health, MQTT publishing, station API and UI.
+
+### Files to edit by concern
+
+| Concern | Primary files | Required paired updates |
+|---|---|---|
+| REST endpoint | `backend/app/main.py`, backend services | API spec, tests, frontend/Agent client |
+| Database/schema | `backend/db/schema.sql` | domain model, migration/seed tests |
+| Dashboard UI | `frontend/src/` | API contract, UI test/screenshot, task status |
+| MQTT payload | simulator + future consumer | data contract, validator, integration tests |
+| Agent behavior | `src/agents/`, `src/api/` | ADR 0004, evaluation cases, safety tests |
+| Alert/HITL | backend services/routes | ADR 0003, acceptance criteria, audit tests |
+| Compose/infrastructure | `docker-compose.yml`, `infra/` | environment setup, demo runbook |
+| Docs/planning | relevant `specs/`, `adrs/`, `planning/`, `tasks/` | AGENTS navigation if ownership changes |
+
+### One-file start sequence for a new agent
+
+1. Read sections 1-14 for rules, domain, contracts and quality gates.
+2. Read this section for the exact current filesystem and partial migration warning.
+3. Run `git status --short`; do not stage/delete unrelated existing changes.
+4. Inspect `docker-compose.yml` before starting the stack; repair the two moved infrastructure paths as a scoped change if running Compose is needed.
+5. Choose a workstream and read its `tasks/*.md`, relevant spec and ADR.
+6. Trace current code with `rg`; verify whether a feature is mock, partial or real before promising completion.
+7. Implement, test, document and write a handoff entry.
+
+This file is intentionally comprehensive, but contracts remain authoritative in `specs/` and historical Gate 1/guide/journal content must not be silently rewritten.
