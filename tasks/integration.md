@@ -1,6 +1,6 @@
-﻿# Integration Tasks
+﻿# Công việc Tích hợp
 
-## Muc tieu va pham vi
+## Mục tiêu và phạm vi
 
 Ket noi va chung minh duoc luong AirGuard AI end-to-end, co kha nang lap lai tren moi truong demo:
 
@@ -13,15 +13,15 @@ Sensor Simulator -> MQTT -> Consumer -> PostgreSQL -> FastAPI -> Frontend
 
 Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc su dung trong demo phai hien source va gioi han ro rang.
 
-## Thu tu thuc hien
+## Thứ tự thực hiện
 
 `INT-001 -> INT-002 -> INT-003 -> INT-004 -> INT-005 -> INT-006`.
 
-## INT-001 - Docker Compose va environment contract
+## INT-001 - Docker Compose và contract môi trường
 
-**Muc tieu:** toan bo dependency chay bang mot quy trinh khoi dong co the tai lap.
+**Mục tiêu:** toan bo dependency chay bang mot quy trinh khoi dong co the tai lap.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Liet ke service: PostgreSQL, Mosquitto, backend API, MQTT Consumer, sensor simulator, frontend, worker/queue neu dung.
 2. Chot ten service, network, port expose, persistent volumes, dependencies va healthchecks.
@@ -30,17 +30,17 @@ Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc s
 5. Viet lenh start, stop, logs, health check va reset demo data an toan trong runbook.
 6. Kiem tra container khong chay root neu co the, logs stdout, va restart policy phu hop.
 
-**Dau ra:** Compose topology, environment matrix va troubleshooting notes.
+**Đầu ra:** Compose topology, environment matrix va troubleshooting notes.
 
-**Kiem thu:** clean startup, restart tung service, broker/DB unavailable, port conflict va environment missing.
+**Kiểm thử:** clean startup, restart tung service, broker/DB unavailable, port conflict va environment missing.
 
-**Xong khi:** thanh vien khac co the chay stack tu README ma khong can sua source.
+**Hoàn thành khi:** thanh vien khac co the chay stack tu README ma khong can sua source.
 
-## INT-002 - Xac nhan data path end-to-end
+## INT-002 - Xác nhận data path end-to-end
 
-**Muc tieu:** chung minh measurement tu simulator hien dung tren dashboard va truy vet duoc.
+**Mục tiêu:** chung minh measurement tu simulator hien dung tren dashboard va truy vet duoc.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Start normal scenario va chon mot message S01 lam trace sample.
 2. Kiem tra topic/payload tren MQTT log, validator result, row PostgreSQL, station current, history API va marker/detail UI.
@@ -49,17 +49,17 @@ Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc s
 5. Chay scenario duplicate, invalid, stale/offline va ghi expected behavior o tung layer.
 6. Luu evidence: request id, query/log command, screenshot UI va ket qua API phuc vu rehearsal.
 
-**Dau ra:** integration test matrix va trace table `message_id -> database -> API -> UI`.
+**Đầu ra:** integration test matrix va trace table `message_id -> database -> API -> UI`.
 
-**Kiem thu:** happy path, duplicate dedupe, malformed payload, stop simulator, restart consumer va database transient failure.
+**Kiểm thử:** happy path, duplicate dedupe, malformed payload, stop simulator, restart consumer va database transient failure.
 
-**Xong khi:** khong co gap gia tri/timestamp/source giua DB, API va UI cho message valid.
+**Hoàn thành khi:** khong co gap gia tri/timestamp/source giua DB, API va UI cho message valid.
 
-## INT-003 - Alert path
+## INT-003 - Luồng cảnh báo
 
-**Muc tieu:** alert duoc sinh boi rule, hien dung va khong spam.
+**Mục tiêu:** alert duoc sinh boi rule, hien dung va khong spam.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Chot threshold, severity va cooldown voi Mentor; ghi rule version cho demo.
 2. Chay simulator spike deterministically tai mot station va luu message ids lien quan.
@@ -68,17 +68,17 @@ Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc s
 5. Chay stale/invalid spike de xac minh khong tao alert.
 6. Do latency tu publish den UI va dat budget demo; neu qua budget, tim diem nghen truoc rehearsal.
 
-**Dau ra:** ba evidence cases create, dedupe, resolve; bang threshold duoc duyet.
+**Đầu ra:** ba evidence cases create, dedupe, resolve; bang threshold duoc duyet.
 
-**Kiem thu:** below/equal/above threshold, multi-station, repeated messages, stale/invalid, manual resolve va UI refresh.
+**Kiểm thử:** below/equal/above threshold, multi-station, repeated messages, stale/invalid, manual resolve va UI refresh.
 
-**Xong khi:** spike scenario tao expected alert trong mot time window da chot va no hien thi dung tram/severity.
+**Hoàn thành khi:** spike scenario tao expected alert trong mot time window da chot va no hien thi dung tram/severity.
 
-## INT-004 - Agent tool path
+## INT-004 - Luồng công cụ Agent
 
-**Muc tieu:** chung minh Agent chi dung backend tools va xu ly failure an toan.
+**Mục tiêu:** chung minh Agent chi dung backend tools va xu ly failure an toan.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Cau hinh Agent endpoint chi tro ve backend integration environment; kiem tra Agent khong co DB/MQTT variables.
 2. Chay golden prompts da duyet: current PM2.5, history, compare, weather, forecast, active alerts, user group, no-data.
@@ -87,17 +87,17 @@ Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc s
 5. Chay prompt injection/safety prompts; xac nhan Agent khong bo qua tools, khong chan doan y te, khong approve/reject.
 6. Chon 3-5 prompts ngan, on dinh, co expected result lam script demo.
 
-**Dau ra:** Agent smoke report, prompt script va trace evidence.
+**Đầu ra:** Agent smoke report, prompt script va trace evidence.
 
-**Kiem thu:** tool routing, factual assertions, timeout, tool error, stale data, injection va latency p95.
+**Kiểm thử:** tool routing, factual assertions, timeout, tool error, stale data, injection va latency p95.
 
-**Xong khi:** moi prompt demo co expected tool trace va khong co fact moi truong khong truy ve duoc.
+**Hoàn thành khi:** moi prompt demo co expected tool trace va khong co fact moi truong khong truy ve duoc.
 
-## INT-005 - HITL, dispatch va audit path
+## INT-005 - Luồng HITL, dispatch và kiểm toán
 
-**Muc tieu:** chung minh warning proposal khong the di qua manager va audit.
+**Mục tiêu:** chung minh warning proposal khong the di qua manager va audit.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Tao proposal bang Agent hoac fixture hop le, co evidence/current alert va proposal id.
 2. Kiem tra frontend manager queue lay duoc pending proposal va detail evidence.
@@ -106,17 +106,17 @@ Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc s
 5. Chay concurrent/double review va dispatch failure; UI/log phai phan anh server truth.
 6. Query audit theo proposal id de in/ghi bang evidence: create, review, dispatch outcome.
 
-**Dau ra:** trace `proposal -> review -> audit -> dispatch -> device status` va known limitation neu device simulator chua co.
+**Đầu ra:** trace `proposal -> review -> audit -> dispatch -> device status` va known limitation neu device simulator chua co.
 
-**Kiem thu:** RBAC 403, pending no dispatch, reject no dispatch, approve success/fail, 409 concurrency va idempotency.
+**Kiểm thử:** RBAC 403, pending no dispatch, reject no dispatch, approve success/fail, 409 concurrency va idempotency.
 
-**Xong khi:** demo khong bao gio tuyen bo device da thuc thi khi command khong duoc approved va acknowledged.
+**Hoàn thành khi:** demo khong bao gio tuyen bo device da thuc thi khi command khong duoc approved va acknowledged.
 
-## INT-006 - Demo rehearsal va release gate
+## INT-006 - Diễn tập demo và điều kiện phát hành
 
-**Muc tieu:** demo MVP lap lai duoc trong khung thoi gian, co fallback minh bach.
+**Mục tiêu:** demo MVP lap lai duoc trong khung thoi gian, co fallback minh bach.
 
-**Thuc hien:**
+**Thực hiện:**
 
 1. Cap nhat `docs/demo-runbook.md` voi prerequisite, startup order, roles, commands, expected evidence va rollback.
 2. Chuan bi 4 scenario: A normal dashboard, B spike -> alert, C Agent grounded, D proposal -> approve/reject -> audit.
@@ -126,13 +126,13 @@ Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc s
 6. Luu screenshot/API output/log request ids va danh sach known limitations sau rehearsal.
 7. Chi release khi tat ca critical gate pass; ghi nguoi chap thuan va thoi diem.
 
-**Dau ra:** runbook da duyet, rehearsal evidence, release checklist va fallback decisions.
+**Đầu ra:** runbook da duyet, rehearsal evidence, release checklist va fallback decisions.
 
-**Kiem thu:** full flow tu clean stack, mot service restart, browser refresh, loai bo stale data va manual recovery.
+**Kiểm thử:** full flow tu clean stack, mot service restart, browser refresh, loai bo stale data va manual recovery.
 
-**Xong khi:** rehearsal thanh cong it nhat mot lan va team co the lap lai demo theo runbook ma khong can nho thu tu ngam dinh.
+**Hoàn thành khi:** rehearsal thanh cong it nhat mot lan va team co the lap lai demo theo runbook ma khong can nho thu tu ngam dinh.
 
-## Lich thuc thi
+## Lịch thực hiện
 
 | Ngay | Muc tieu integration | Bang chung can luu |
 |---|---|---|
@@ -144,7 +144,7 @@ Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc s
 | 07/08 | INT-005 + INT-006 rehearsal 1 | approval/audit trace, screenshots |
 | 08/08 | release rehearsal | full MVP evidence va known limitations |
 
-## Release gate 08/08
+## Điều kiện phát hành 08/08
 
 - Simulator -> MQTT -> Consumer -> PostgreSQL -> FastAPI -> Frontend chay voi S01-S05.
 - Spike valid/fresh tao alert co severity dung, duplicate khong spam, stale/invalid khong tao alert.
@@ -153,7 +153,7 @@ Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc s
 - Khong co secret trong repository, logs, response, screenshot hay runbook.
 - Known limitations va fallback da duoc ghi ro; khong dien giai data simulator thanh quan trac chinh thuc.
 
-## Phu thuoc va escalation
+## Phụ thuộc và leo thang rủi ro
 
 | Rủi ro | Trigger | Hanh dong |
 |---|---|---|
@@ -161,3 +161,15 @@ Integration khong duoc che dau loi bang mock khong gan nhan. Moi fallback duoc s
 | Consumer chua san sang | API van mock sau 04/08 | Uu tien DI-005, dong bang feature Agent/proposal phu thuoc data that |
 | LLM/weather external loi | Rehearsal timeout/429 | Dung fallback fixture gan nhan ro, khong bo qua grounding |
 | HITL chua on dinh | Approve/reject khong audit duoc | Khong demo device command; chi demo pending/review an toan |
+
+
+## Bản đồ file theo task
+
+| Task | File hiện có cần sửa | File/directory cần tạo hoặc cập nhật | Tài liệu và test liên quan |
+|---|---|---|---|
+| INT-001 | `docker-compose.yml`, `.env.example` | healthcheck/run scripts nếu cần | `docs/environment-setup.md`, Compose validation |
+| INT-002 | `docker-compose.yml`, backend/API và frontend client | `tests/integration/test_data_path.py` | `docs/demo-runbook.md`, message trace |
+| INT-003 | alert service, simulator scenario, frontend alerts | `tests/integration/test_alert_path.py` | ADR 0003, threshold matrix |
+| INT-004 | `src/agents/`, backend Agent endpoints | `eval/golden_cases/` | `docs/agent-evaluation.md` |
+| INT-005 | approvals/audit services, frontend approvals | `tests/integration/test_hitl_path.py` | audit trace/runbook |
+| INT-006 | `docs/demo-runbook.md`, `presentation/` | rehearsal evidence folder | screenshots, known limitations |
