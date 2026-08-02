@@ -1,0 +1,1 @@
+﻿# Definition of Ready\n\nA task is ready when it has user/business value, owner, priority, scope boundary, acceptance criteria, dependencies, data/API/tool contract references, UX states if relevant, test plan and rollback/fallback. Open Mentor decisions must be explicit. Tasks without threshold, source policy or owner are not ready for implementation.
