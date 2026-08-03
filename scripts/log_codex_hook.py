@@ -29,11 +29,11 @@ def main() -> None:
             entry = normalize(data, "codex")
             if entry:
                 log_dir = Path(os.environ.get("AI_LOG_DIR", ".ai-log"))
-                log_dir.mkdir(exist_ok=True)
+                log_dir.mkdir(parents=True, exist_ok=True)
                 with open(log_dir / "session.jsonl", "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        except Exception:
-            pass  # never crash — hook must not block Codex
+        except Exception as exc:
+            print(f"[ai-log] Codex logging failed: {exc}", file=sys.stderr)
 
     # Codex requires valid JSON output from every hook
     print("{}")
