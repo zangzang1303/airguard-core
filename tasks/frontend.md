@@ -8,6 +8,10 @@ Xay dung dashboard React + TypeScript cho nguoi dung xem PM2.5 5 tram, alerts, T
 
 `FE-001 -> FE-002 -> FE-003 -> FE-004 -> FE-005 -> FE-006 -> FE-007`.
 
+## Đặc tả màn hình
+
+Dung [specs/frontend-screen-spec.md](../specs/frontend-screen-spec.md) lam tai lieu handoff canonical cho danh sach man hinh, route, user flow, field/button/table, validation, loading/empty/error states, role visibility va Figma checklist. Neu tai lieu nay yeu cau API/schema chua co trong [specs/api-contracts.md](../specs/api-contracts.md), phai chot contract truoc khi implement production UI.
+
 ## FE-001 - Bản đồ dashboard 5 trạm
 
 **Mục tiêu:** render ban do va station list tu API chinh thuc.
@@ -153,10 +157,10 @@ Xay dung dashboard React + TypeScript cho nguoi dung xem PM2.5 5 tram, alerts, T
 
 | Task | File hiện có cần sửa | File/directory cần tạo hoặc cập nhật | Tài liệu và test liên quan |
 |---|---|---|---|
-| FE-001 | `frontend/src/App.jsx`, `frontend/src/main.jsx` | `frontend/src/api/client.js`, `frontend/src/features/stations/` | `frontend/src/**/*.test.*`, `specs/api-contracts.md` |
-| FE-002 | `frontend/src/App.jsx`, `frontend/src/styles.css` | `frontend/src/features/stations/StationDetail.jsx` | `tasks/frontend.md`, screenshot test |
-| FE-003 | `frontend/src/App.jsx` | `frontend/src/features/stations/statusDisplay.js` | `specs/acceptance-criteria.md` |
-| FE-004 | `frontend/src/App.jsx` | `frontend/src/features/alerts/` | `specs/api-contracts.md`, UI smoke test |
-| FE-005 | `frontend/src/App.jsx` | `frontend/src/features/agent/`, `frontend/src/api/agent.js` | `docs/agent-evaluation.md` |
-| FE-006 | `frontend/src/App.jsx` | `frontend/src/features/approvals/` | `specs/api-contracts.md`, approval UI test |
-| FE-007 | `frontend/src/styles.css` | `frontend/e2e/`, Playwright config nếu được chọn | `docs/test-plan.md`, `docs/demo-runbook.md` |
+| FE-001 | `frontend/src/App.jsx`, `frontend/src/main.jsx` | `frontend/src/api/client.js`, `frontend/src/features/stations/` | `frontend/src/**/*.test.*`, `specs/api-contracts.md`, `specs/frontend-screen-spec.md` |
+| FE-002 | `frontend/src/App.jsx`, `frontend/src/styles.css` | `frontend/src/features/stations/StationDetail.jsx` | `tasks/frontend.md`, `specs/frontend-screen-spec.md`, screenshot test |
+| FE-003 | `frontend/src/App.jsx` | `frontend/src/features/stations/statusDisplay.js` | `specs/acceptance-criteria.md`, `specs/frontend-screen-spec.md` |
+| FE-004 | `frontend/src/App.jsx` | `frontend/src/features/alerts/` | `specs/api-contracts.md`, `specs/frontend-screen-spec.md`, UI smoke test |
+| FE-005 | `frontend/src/App.jsx` | `frontend/src/features/agent/`, `frontend/src/api/agent.js` | `docs/agent-evaluation.md`, `specs/frontend-screen-spec.md` |
+| FE-006 | `frontend/src/App.jsx` | `frontend/src/features/approvals/` | `specs/api-contracts.md`, `specs/frontend-screen-spec.md`, approval UI test |
+| FE-007 | `frontend/src/styles.css` | `frontend/e2e/`, Playwright config nếu được chọn | `docs/test-plan.md`, `docs/demo-runbook.md`, `specs/frontend-screen-spec.md` |
