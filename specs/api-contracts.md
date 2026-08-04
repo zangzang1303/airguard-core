@@ -22,7 +22,16 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 `station_id`, `station_name`, `latitude`, `longitude`, `pm25`, `level`, `status`, `is_stale`, `updated_at`, `source`. PM2.5 may be null when unavailable; client must render state, not invent value.
 
 ## Agent response
-`answer`, `used_tools`, `sources`, `request_id`, optional `proposal_id`. Facts must map to sources; tool failure returns a transparent insufficient-data answer.
+`POST /api/v1/agent/chat` accepts `{ "message": string }`. The legacy
+`POST /api/v1/chat` alias remains available during migration.
+
+The response contains `answer`, `used_tools`, `sources`, `request_id`, `trace`, and optional
+`proposal_id`. `sources[]` contains `tool_name` plus optional `station_id`, `observed_at`, and
+`source`. `trace` contains the policy version, routed intent, per-tool status/latency and final
+outcome; it must not contain the raw prompt, user id, secret, token or backend credential.
+Facts must map to sources from the same request. Tool failure or absent/stale/invalid/offline data
+returns a transparent insufficient-data answer and no environmental source. The additive
+`response` field is a deprecated alias of `answer` for the original template client.
 
 ## Compatibility
 Additive fields are safe. Renaming/removing/changing meaning/status requires version plan, consumer updates, contract tests and release note.
