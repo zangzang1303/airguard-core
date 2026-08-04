@@ -50,13 +50,39 @@ Lenh chinh xac phu thuoc vao compose/scripts hien co trong repo; khong tuyen bo 
 | Work plans | [tasks/](tasks) |
 | Run/test/security/ops | [docs/](docs) |
 
-## Non-negotiables
+## 🛠 Tech Stack
 
-- Frontend khong ket noi MQTT truc tiep.
-- Agent khong truy cap database truc tiep, khong bịa environmental facts, khong approve/reject.
-- Data invalid/stale/offline khong duoc kich hoat alert, forecast hay proposal.
-- Device command chi sau server-side approval; device demo luon la simulated.
-- Khong commit secret hay log secret/PII.
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| AI Agent | LangGraph + LangChain | Latest |
+| Backend | FastAPI + Uvicorn | 0.100+ |
+| LLM | OpenAI GPT-4o-mini | API |
+| Frontend | Next.js / Streamlit | 14+ / 1.30+ |
+| Database | SQLite (dev) / PostgreSQL (prod) | — |
+| DevOps | Docker + GitHub Actions | — |
+| Testing | pytest + pytest-asyncio | 8+ |
+
+## 📊 AI Usage Logging
+
+Template đã tích hợp sẵn auto-logging hooks cho 6 AI tools:
+
+| Tool | Cơ chế | Config |
+|------|--------|--------|
+| Claude Code | `.claude/settings.json` hooks | Tự động |
+| Cursor | `.cursor/hooks.json` | Tự động |
+| OpenAI Codex CLI | `.codex/hooks.json` | Tự động |
+| Gemini CLI | `.gemini/settings.json` | Tự động |
+| GitHub Copilot | `.github/hooks/hooks.json` | Tự động |
+| Antigravity IDE | Pre-push scan transcript | Tự động trên `git push` |
+
+Tất cả prompts và tool calls được log vào `.ai-log/session.jsonl` và tự động submit lên grading server mỗi khi `git push`.
+
+**ChatGPT / web tools khác** — log thủ công:
+```bash
+bash scripts/_pyrun.sh scripts/log_manual.py --tool chatgpt --prompt "What you asked"
+```
+
+> ⚠️ Chạy `bash scripts/setup_hooks.sh` một lần sau khi clone để cài pre-push hook.
 
 ## Team work
 

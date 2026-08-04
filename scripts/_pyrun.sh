@@ -16,7 +16,9 @@ elif command -v python3 >/dev/null 2>&1; then
   PY=python3
 elif command -v python >/dev/null 2>&1; then
   PY=python
-elif command -v py >/dev/null 2>&1; then
+elif command -v python3 >/dev/null 2>&1 && python3 --version >/dev/null 2>&1; then
+  PY=python3
+elif command -v py >/dev/null 2>&1 && py -3 --version >/dev/null 2>&1; then
   PY="py -3"
 else
   # PATH lookup failed — probe standard Windows install locations.
