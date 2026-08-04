@@ -10,6 +10,7 @@
 | Forecast | station_id, horizon, values, model_version, source, confidence | 1-3h; never mislabeled observation |
 | UserProfile | user_id, group, role | groups normal/sensitive/outdoor_sport |
 | WarningProposal | id, evidence, action, status, version | pending before manager review |
+| DeviceCommandIntent | command_intent_id, approval_request_id, device_id, command, status, idempotency_key | created only after approval |
 | AuditLog | id, actor, action, target, outcome, correlation_id | append-only |
 
 ## Relations and lifecycle
@@ -20,3 +21,4 @@ Station 1:N Measurement, Alert, Forecast. Alert/proposal evidence points to stat
 
 ## Ownership
 Consumer owns ingestion/status; backend owns domain state; Agent only reads via tools and requests proposal creation; frontend renders API state.
+

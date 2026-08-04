@@ -225,8 +225,12 @@ This section is the single-file map of the repository. Read it before using broa
 |   |-- models/                   # Pydantic schemas
 |   `-- services/                 # LLM service and shared logic
 |-- services/
-|   `-- sensor-simulator/         # MQTT simulator, moved from simulators/sensor_simulator
-|       |-- sensor_simulator.py
+|   |-- sensor-simulator/         # MQTT simulator, publishes measurements/status from data/stations.json
+|   |   |-- sensor_simulator.py
+|   |   |-- requirements.txt
+|   |   `-- Dockerfile
+|   `-- mqtt-consumer/            # MQTT consumer, validates payloads and persists to PostgreSQL
+|       |-- mqtt_consumer/
 |       |-- requirements.txt
 |       `-- Dockerfile
 |-- infra/
@@ -259,37 +263,34 @@ This section is the single-file map of the repository. Read it before using broa
 
 ### Migration status
 
-The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`, plus shared `src/` until its own deliberate migration. At the time of this document update, `services/sensor-simulator` and `infra/mqtt` have already moved. `backend/` and `frontend/` remain at the repository root because Windows reported them locked by active processes. Do not update Compose paths to `apps/api` or `apps/web` until those moves complete in one change.
+The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`, plus shared `src/` until its own deliberate migration. At the time of this document update, `services/sensor-simulator`, `services/mqtt-consumer` and `infra/mqtt` are in the active Compose topology. `backend/` and `frontend/` remain at the repository root because Windows reported them locked by active processes. Do not update Compose paths to `apps/api` or `apps/web` until those moves complete in one change.
 
 ### Runtime entry points
 
 | Surface | Current entry point | Runtime role | Notes |
 |---|---|---|---|
-| Main API | `backend/app/main.py` | REST API, current mock/business endpoints, jobs | Docker Compose builds `./backend` today |
+| Main API | `backend/app/main.py` | REST API, Postgres-backed station/alert/HITL/audit/jobs | Docker Compose builds `./backend` today |
 | Dashboard | `frontend/src/main.jsx` -> `frontend/src/App.jsx` | React + Leaflet UI | Docker Compose builds `./frontend` today |
-| Sensor simulator | `services/sensor-simulator/sensor_simulator.py` | MQTT measurement/status publisher | Compose must be updated from the old path before next run |
+| Sensor simulator | `services/sensor-simulator/sensor_simulator.py` | MQTT measurement/status publisher | Reads `data/stations.json`; supports `SENSOR_SCENARIO` |
 | Agent package | `src/main.py`, `src/agents/graph.py` | legacy/Agent FastAPI and LangGraph flow | tests import `src.*` |
-| MQTT broker | `infra/mqtt/mosquitto.conf` | Mosquitto config | Compose must be updated from the old path before next run |
-| DB schema | `backend/db/schema.sql` | Postgres initialization | planned to move together with backend |
+| MQTT broker | `infra/mqtt/mosquitto.conf` | Mosquitto config | Compose uses the current `infra/mqtt` path |
+| MQTT consumer | `services/mqtt-consumer/mqtt_consumer/main.py` | validates measurements/status and writes Postgres | Compose builds `./services/mqtt-consumer` today |
+| DB schema | `backend/db/schema.sql` | Postgres initialization | includes stations, station_status, measurements and mqtt_rejections |
 
 ### Immediate post-move repair checklist
 
-The partial folder migration means `docker-compose.yml` still has old paths for simulator and MQTT. Before running Compose again, update only these references after validating all target folders:
-
-- `./mqtt/mosquitto.conf` -> `./infra/mqtt/mosquitto.conf`
-- `./simulators/sensor_simulator` -> `./services/sensor-simulator`
-- After backend/frontend locks are released: `./backend` -> `./apps/api`, `./frontend` -> `./apps/web`, and database schema mount `./backend/db/schema.sql` -> `./apps/api/db/schema.sql`.
+The partial folder migration has already been repaired for MQTT broker, sensor simulator and MQTT consumer in `docker-compose.yml`. After backend/frontend locks are released: `./backend` -> `./apps/api`, `./frontend` -> `./apps/web`, and database schema mount `./backend/db/schema.sql` -> `./apps/api/db/schema.sql`.
 - Update README, repository structure docs and any CI paths in the same change.
-- Run `docker compose config`, then build/start and verify health, MQTT publishing, station API and UI.
+- Run `docker compose config`, then build/start and verify health, MQTT publishing, consumer persistence, station API and UI.
 
 ### Files to edit by concern
 
 | Concern | Primary files | Required paired updates |
 |---|---|---|
-| REST endpoint | `backend/app/main.py`, backend services | API spec, tests, frontend/Agent client |
+| REST endpoint | `backend/app/main.py`, `backend/app/services/`, `backend/app/schemas/` | API spec, tests, frontend/Agent client |
 | Database/schema | `backend/db/schema.sql` | domain model, migration/seed tests |
 | Dashboard UI | `frontend/src/` | API contract, UI test/screenshot, task status |
-| MQTT payload | simulator + future consumer | data contract, validator, integration tests |
+| MQTT payload | simulator + `services/mqtt-consumer` | data contract, validator, integration tests |
 | Agent behavior | `src/agents/`, `src/api/` | ADR 0004, evaluation cases, safety tests |
 | Alert/HITL | backend services/routes | ADR 0003, acceptance criteria, audit tests |
 | Compose/infrastructure | `docker-compose.yml`, `infra/` | environment setup, demo runbook |
@@ -306,3 +307,6 @@ The partial folder migration means `docker-compose.yml` still has old paths for 
 7. Implement, test, document and write a handoff entry.
 
 This file is intentionally comprehensive, but contracts remain authoritative in `specs/` and historical Gate 1/guide/journal content must not be silently rewritten.
+
+
+
