@@ -1,35 +1,58 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { MapPin, RefreshCw, TriangleAlert } from "lucide-react";
 import { api } from "../../api/client";
+import { AlertFilters } from "../../components/common/AlertFilters";
+import { Button } from "../../components/common/Button";
+import { PageHeader } from "../../components/common/PageHeader";
+import { StatusBadge } from "../../components/common/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
-import { Alert } from "../../types";
+import { Alert, Station } from "../../types";
 
 export const AlertList: React.FC = () => {
   const { navigateTo } = useAuth();
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [filterSeverity, setFilterSeverity] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("active");
+  const [stations, setStations] = useState<Station[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterSeverity, setFilterSeverity] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("active");
+
+  const fetchAlerts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [alertData, stationData] = await Promise.all([api.getAlerts(), api.getStations()]);
+      setAlerts(alertData);
+      setStations(stationData);
+    } catch {
+      setError("Không thể tải danh sách cảnh báo. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchAlerts = async () => {
-      setLoading(true);
-      try {
-        const data = await api.getAlerts();
-        setAlerts(data);
-      } catch (err) {
-        console.error("Error fetching alerts:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchAlerts();
   }, []);
 
-  const filteredAlerts = alerts.filter(a => {
-    if (filterSeverity !== "all" && a.severity !== filterSeverity) return false;
-    if (filterStatus !== "all" && a.status !== filterStatus) return false;
-    return true;
-  });
+  const stationNames = useMemo(
+    () => new Map(stations.map((station) => [station.station_id, station.station_name])),
+    [stations],
+  );
+
+  const filteredAlerts = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("vi");
+    return alerts.filter((alert) => {
+      const stationName = stationNames.get(alert.station_id) ?? "";
+      const matchesSearch = !query
+        || alert.station_id.toLocaleLowerCase("vi").includes(query)
+        || stationName.toLocaleLowerCase("vi").includes(query);
+      const matchesSeverity = filterSeverity === "all" || alert.severity === filterSeverity;
+      const matchesStatus = filterStatus === "all" || alert.status === filterStatus;
+      return matchesSearch && matchesSeverity && matchesStatus;
+    });
+  }, [alerts, filterSeverity, filterStatus, search, stationNames]);
 
   const handleFocusStation = (stationId: string) => {
     navigateTo("station-detail", { stationId });
@@ -37,86 +60,76 @@ export const AlertList: React.FC = () => {
 
   return (
     <div className="alerts-container">
-      <div className="alerts-header">
-        <div>
-          <h2>🔔 Danh sách Cảnh báo Môi trường (Alerts)</h2>
-          <p className="alerts-subtitle">Theo dõi trạng thái vượt ngưỡng PM2.5 tại các trạm quan trắc</p>
-        </div>
-        <button className="btn-refresh" onClick={() => api.getAlerts().then(setAlerts)}>
-          🔄 Làm mới
-        </button>
-      </div>
+      <PageHeader
+        title="Cảnh báo"
+        description="Theo dõi cảnh báo PM2.5 đang kích hoạt và lịch sử xử lý tại các trạm."
+        actions={(
+          <Button variant="outline" size="sm" onClick={fetchAlerts} disabled={loading}>
+            <RefreshCw className={loading ? "is-spinning" : ""} size={16} aria-hidden="true" />
+            {loading ? "Đang làm mới" : "Làm mới"}
+          </Button>
+        )}
+      />
 
-      {/* Filters */}
-      <div className="alerts-filters">
-        <div className="filter-group">
-          <label>Trạng thái:</label>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="role-select">
-            <option value="all">Tất cả trạng thái</option>
-            <option value="active">Đang kích hoạt (Active)</option>
-            <option value="resolved">Đã giải quyết (Resolved)</option>
-          </select>
-        </div>
+      <AlertFilters
+        search={search}
+        status={filterStatus}
+        severity={filterSeverity}
+        onSearchChange={setSearch}
+        onStatusChange={setFilterStatus}
+        onSeverityChange={setFilterSeverity}
+        onReset={() => {
+          setSearch("");
+          setFilterStatus("active");
+          setFilterSeverity("all");
+        }}
+      />
 
-        <div className="filter-group">
-          <label>Mức độ nghiêm trọng:</label>
-          <select value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)} className="role-select">
-            <option value="all">Tất cả mức độ</option>
-            <option value="warning">Cảnh báo (Warning)</option>
-            <option value="moderate">Trung bình (Moderate)</option>
-            <option value="critical">Rất nghiêm trọng (Critical)</option>
-          </select>
+      {error && (
+        <div className="alert-box alert-error">
+          <TriangleAlert size={17} aria-hidden="true" />
+          {error}
         </div>
-      </div>
+      )}
 
-      {/* Table */}
-      {loading ? (
-        <div className="skeleton-card" style={{ height: 250 }}></div>
+      {loading && alerts.length === 0 ? (
+        <div className="skeleton-card" style={{ height: 250 }} />
       ) : filteredAlerts.length === 0 ? (
-        <div className="empty-state">
-          <span>✅ Không có cảnh báo nào phù hợp với bộ lọc.</span>
-        </div>
+        <div className="empty-state">Không có cảnh báo phù hợp với bộ lọc.</div>
       ) : (
         <div className="table-wrapper">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Mã Alert</th>
-                <th>Trạm ID</th>
+                <th>Mã cảnh báo</th>
+                <th>Trạm</th>
                 <th>Mức độ</th>
-                <th>Nội dung thông báo</th>
+                <th>Nội dung</th>
                 <th>Thực đo / Ngưỡng</th>
-                <th>Thời gian kích hoạt</th>
+                <th>Thời gian</th>
                 <th>Trạng thái</th>
                 <th>Hành động</th>
               </tr>
             </thead>
             <tbody>
-              {filteredAlerts.map((a) => (
-                <tr key={a.alert_id}>
-                  <td><strong>{a.alert_id}</strong></td>
+              {filteredAlerts.map((alert) => (
+                <tr key={alert.alert_id}>
+                  <td><strong>{alert.alert_id}</strong></td>
                   <td>
-                    <button className="btn-link" onClick={() => handleFocusStation(a.station_id)}>
-                      📍 {a.station_id}
+                    <button className="btn-link table-station-link" onClick={() => handleFocusStation(alert.station_id)}>
+                      <MapPin size={15} aria-hidden="true" />
+                      <span>{stationNames.get(alert.station_id) ?? alert.station_id}</span>
                     </button>
                   </td>
+                  <td><span className={`badge level-${alert.severity}`}>{alert.severity.toUpperCase()}</span></td>
+                  <td>{alert.message}</td>
+                  <td><strong>{alert.observed_value}</strong> / {alert.threshold} µg/m³</td>
+                  <td>{new Date(alert.created_at).toLocaleString("vi-VN")}</td>
+                  <td><StatusBadge status={alert.status} /></td>
                   <td>
-                    <span className={`badge level-${a.severity}`}>
-                      {a.severity.toUpperCase()}
-                    </span>
-                  </td>
-                  <td>{a.message}</td>
-                  <td><strong>{a.observed_value}</strong> / {a.threshold} µg/m³</td>
-                  <td>{new Date(a.created_at).toLocaleTimeString("vi-VN")}</td>
-                  <td>
-                    <span className={`status-pill ${a.status}`}>
-                      {a.status === "active" ? "🔴 Active" : "🟢 Resolved"}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="btn-secondary-sm" onClick={() => handleFocusStation(a.station_id)}>
+                    <Button variant="outline" size="sm" onClick={() => handleFocusStation(alert.station_id)}>
                       Xem trạm
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}

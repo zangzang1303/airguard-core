@@ -9,14 +9,21 @@ import { AlertList } from "./features/alerts/AlertList";
 import { ApprovalQueue } from "./features/approvals/ApprovalQueue";
 import { AuditLog } from "./features/audit/AuditLog";
 import { Profile } from "./features/profile/Profile";
+import { Login } from "./features/auth/Login";
+import { Register } from "./features/auth/Register";
 import "./theme.css";
 import "./styles.css";
 
 const MainContent: React.FC = () => {
-  const { currentScreen } = useAuth();
+  const { currentScreen, isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    if (currentScreen === "register") return <Register />;
+    return <Login />;
+  }
 
   return (
-    <>
+    <AppShell>
       {currentScreen === "dashboard" && <Dashboard />}
       {currentScreen === "station-detail" && <StationDetail />}
       {currentScreen === "compare" && <CompareStations />}
@@ -25,16 +32,14 @@ const MainContent: React.FC = () => {
       {currentScreen === "approvals" && <ApprovalQueue />}
       {currentScreen === "audit" && <AuditLog />}
       {currentScreen === "profile" && <Profile />}
-    </>
+    </AppShell>
   );
 };
 
 export default function App() {
   return (
     <AuthProvider>
-      <AppShell>
-        <MainContent />
-      </AppShell>
+      <MainContent />
     </AuthProvider>
   );
 }

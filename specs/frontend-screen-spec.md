@@ -24,6 +24,8 @@ Tai lieu nay khong tu tao backend capability. Neu mot man hinh chua co endpoint/
 8. Action phan quyen chi an/hien de cai thien UX; backend RBAC van la quyet dinh cuoi cung.
 9. Moi API surface co `loading`, `empty`, `error` va `retry`; action mutation co `submitting`, `success`, `conflict` va `failure` khi phu hop.
 10. Khong render Agent answer bang `dangerouslySetInnerHTML`; content, link va markdown phai duoc sanitize/allowlist.
+11. Moi route chi co mot Page Header ben duoi breadcrumb, gom H1, mo ta ngan va page action ben phai; khong dung eyebrow/tag de lap lai section name.
+12. Emoji khong duoc dung lam UI icon. Dung Lucide icon voi accessible label; button theo hierarchy `primary`, `outline`, `ghost/icon`, `destructive`.
 
 ## 3. Vai tro va navigation
 
@@ -105,6 +107,8 @@ Route la frontend convention de xuat; phai duoc chot cung router implementation.
 
 **MVP mode:** neu auth provider chua duoc chot, dung "Demo access" voi pre-seeded identities. Khong dien dat day la production authentication va khong public password that.
 
+**Current frontend demo implementation (04/08/2026):** ba identity `resident@vinuni.edu.vn`, `manager@vinuni.edu.vn`, `admin@vinuni.edu.vn` duoc seed trong client voi mot mat khau demo dung chung. Role duoc gan theo identity va chi hien read-only; nguoi dung khong the doi role trong Profile. Credential nay chi phuc vu demo local, khong phai secret/credential that va khong thay the backend session/RBAC.
+
 **Production-auth fields (contract pending):**
 
 | Field | Required | Validation |
@@ -137,6 +141,8 @@ Role luon la `resident`. Khong thu thap benh ly chi tiet. Notification consent t
 **States:** idle, validation errors theo field, duplicate email, submitting, verification required, success, provider unavailable, generic failure khong lo account enumeration neu security policy cam.
 
 **API dependency:** register/session/email verification chua co trong `api-contracts.md`; khong implement production form truoc khi contract va provider duoc chot.
+
+**Current frontend demo implementation (04/08/2026):** form duoc trien khai de review UI/validation. Account moi luon la `resident`, luu in-memory trong phien browser va mat khi reload; UI phai hien ro gioi han nay. Manager/Admin chi co the dung identity seed, khong co self-service privilege escalation.
 
 ### S02 - Dashboard
 
@@ -196,6 +202,8 @@ Role luon la `resident`. Khong thu thap benh ly chi tiet. Notification consent t
 
 **Displayed response:** answer; station/time/source/freshness; insufficient-data reason; optional proposal id/status. `used_tools`, request id va technical trace nam trong debug/details panel theo environment/role policy.
 
+Technical details mac dinh collapsed va co the an hoan toan theo environment/role policy; end user khong bi bat doc tool trace trong message body.
+
 **Canonical tool labels:** `get_current_pm25`, `get_station_history`, `compare_stations`, `get_weather_context`, `get_pm25_forecast`, `get_active_alerts`, `get_user_profile`, `create_warning_proposal`.
 
 **States:** empty conversation; sending; synchronous success; job queued/running; cancelled; tool timeout; provider/API failure; malformed response; no-data/stale/invalid refusal; out-of-scope; proposal created; proposal creation denied/failed.
@@ -207,6 +215,8 @@ Role luon la `resident`. Khong thu thap benh ly chi tiet. Notification consent t
 **Muc dich:** tim active/resolved alert va trace ve tram.
 
 **Filters:** station (optional catalog id), severity (optional enum tu backend), status (`active/resolved`), time range/sort neu contract ho tro. Unknown query phai duoc backend validate; UI khong tu tao severity.
+
+Toolbar can co search theo station id va station name tu station catalog. Badge `active` dung destructive/warning treatment, badge `resolved` dung neutral treatment; khong dung success green cho active alert.
 
 **Table/card fields:** alert id; station; alert type; observed value; threshold; severity; created time; status; action.
 

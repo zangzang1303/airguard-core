@@ -12,6 +12,13 @@ Xay dung dashboard React + TypeScript cho nguoi dung xem PM2.5 5 tram, alerts, T
 
 Dung [specs/frontend-screen-spec.md](../specs/frontend-screen-spec.md) lam tai lieu handoff canonical cho danh sach man hinh, route, user flow, field/button/table, validation, loading/empty/error states, role visibility va Figma checklist. Neu tai lieu nay yeu cau API/schema chua co trong [specs/api-contracts.md](../specs/api-contracts.md), phai chot contract truoc khi implement production UI.
 
+## Demo auth UI (implemented, production contract pending)
+
+- Login va Resident registration da co de review luong va responsive theo Figma S01/S01B.
+- Ba identity Resident/Manager/Admin duoc seed trong frontend; role read-only va dieu khien navigation demo.
+- Tai khoan dang ky moi chi ton tai in-memory va luon la Resident.
+- Chua co production session, password storage, email verification hay server-side RBAC; khong duoc tuyen bo auth da production-ready truoc khi API/provider contract duoc chot.
+
 ## FE-001 - Bản đồ dashboard 5 trạm
 
 **Mục tiêu:** render ban do va station list tu API chinh thuc.
@@ -134,6 +141,7 @@ Dung [specs/frontend-screen-spec.md](../specs/frontend-screen-spec.md) lam tai l
 3. Them skeleton/no data/error cho moi screen; khong de blank screen khi API loi.
 4. Viet Playwright smoke: load dashboard, open station, see alert, send chat stub, approve/reject fixture.
 5. Chay screenshot review truoc rehearsal va chot known limitations.
+6. Dung Page Header duy nhat cho moi route; chuan hoa Lucide icon va button hierarchy, khong dung emoji lam icon UI.
 
 **Đầu ra:** test checklist, screenshots va demo-ready UI.
 

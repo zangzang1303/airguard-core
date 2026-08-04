@@ -1,4 +1,5 @@
 import React from "react";
+import { AlertTriangle, CheckCircle2, CircleOff, Clock3 } from "lucide-react";
 import { StationStatus } from "../../types";
 
 export interface Pm25SeverityInfo {
@@ -28,19 +29,19 @@ export const DataQualityBadge: React.FC<DataQualityBadgeProps> = ({
 }) => {
   // Data quality precedence: invalid > offline > stale > PM2.5 severity
   if (status === "invalid") {
-    return <span className="badge badge-invalid" title="Dữ liệu bị lỗi kiểm định">⚠️ Invalid Data</span>;
+    return <span className="badge badge-invalid" title="Dữ liệu bị lỗi kiểm định"><AlertTriangle size={14} aria-hidden="true" /> Dữ liệu không hợp lệ</span>;
   }
   if (status === "offline") {
-    return <span className="badge badge-offline" title="Trạm quan trắc đang mất kết nối">🔴 Station Offline</span>;
+    return <span className="badge badge-offline" title="Trạm đang mất kết nối"><CircleOff size={14} aria-hidden="true" /> Trạm offline</span>;
   }
   if (isStale) {
-    return <span className="badge badge-stale" title="Dữ liệu trễ so với thời gian thực">⏳ Stale Data</span>;
+    return <span className="badge badge-stale" title="Dữ liệu đã quá độ mới cho phép"><Clock3 size={14} aria-hidden="true" /> Dữ liệu cũ</span>;
   }
 
   const severity = getPm25Severity(pm25);
   return (
     <span className={`badge ${severity.class}`} style={{ borderLeft: `4px solid ${severity.color}` }}>
-      🟢 {severity.label}
+      <CheckCircle2 size={14} aria-hidden="true" /> {severity.label}
     </span>
   );
 };

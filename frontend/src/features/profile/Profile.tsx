@@ -1,111 +1,53 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Activity, BellOff, CheckCircle2, HeartPulse, Save, UserRound } from "lucide-react";
+import { Button } from "../../components/common/Button";
+import { PageHeader } from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { UserGroup } from "../../types";
 
+const groupOptions: Array<{ value: UserGroup; title: string; description: string; icon: typeof UserRound }> = [
+  { value: "normal", title: "Bình thường", description: "Không có nhu cầu cảnh báo ưu tiên.", icon: UserRound },
+  { value: "sensitive", title: "Nhạy cảm", description: "Ưu tiên cách trình bày thận trọng hơn.", icon: HeartPulse },
+  { value: "outdoor_sport", title: "Hoạt động ngoài trời", description: "Quan tâm thời điểm vận động phù hợp.", icon: Activity },
+];
+
 export const Profile: React.FC = () => {
-  const { userName, setUserName, role, setRole, userGroup, setUserGroup } = useAuth();
-  const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+  const { userName, setUserName, userEmail, organization, role, userGroup, setUserGroup } = useAuth();
+  const [formName, setFormName] = useState(userName);
+  const [formGroup, setFormGroup] = useState<UserGroup>(userGroup);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setFormName(userName); setFormGroup(userGroup); }, [userGroup, userName]);
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+  const handleSave = (event: React.FormEvent) => {
+    event.preventDefault();
+    setUserName(formName.trim());
+    setUserGroup(formGroup);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 2500);
   };
+  const resetForm = () => { setFormName(userName); setFormGroup(userGroup); };
+  const roleLabel = role === "resident" ? "Cư dân" : role === "manager" ? "Manager" : "Admin";
 
-  return (
-    <div className="profile-container">
-      <div className="profile-header">
-        <h2>👤 Hồ sơ Nối mạng Người dùng (User Profile & Group Policy)</h2>
-        <p className="profile-subtitle">Thiết lập nhóm đối tượng sức khỏe để Agent cá nhân hóa thông điệp cảnh báo PM2.5</p>
-      </div>
+  return <div className="profile-container">
+    <PageHeader title="Hồ sơ người dùng" description="Quản lý thông tin hiển thị và nhóm người dùng áp dụng cho trải nghiệm AirGuard AI." />
+    {saved && <div className="alert-box alert-success" role="status"><CheckCircle2 size={18} />Đã lưu thay đổi hồ sơ.</div>}
+    <form className="profile-layout" onSubmit={handleSave}>
+      <section className="profile-card profile-account-card">
+        <div className="profile-section-heading"><div className="profile-avatar">{formName.trim().charAt(0).toUpperCase() || "U"}</div><div><span className="dashboard-eyebrow">Thông tin tài khoản</span><h2>{formName || "Người dùng AirGuard"}</h2><p>Identity và vai trò được cấp bởi hệ thống.</p></div></div>
+        <div className="profile-form">
+          <label className="form-group"><span>Họ và tên</span><input value={formName} onChange={(event) => setFormName(event.target.value)} required /></label>
+          <div className="profile-identity-grid"><label className="form-group"><span>Email</span><div className="readonly-field" aria-readonly="true">{userEmail}</div></label><label className="form-group"><span>Vai trò</span><div className={`readonly-field role-readonly role-readonly--${role}`} aria-readonly="true">{roleLabel}</div></label><label className="form-group"><span>Đơn vị</span><div className="readonly-field" aria-readonly="true">{organization}</div></label></div>
+        </div>
+      </section>
 
-      <div className="profile-card">
-        {savedSuccess && (
-          <div className="alert-box alert-success">
-            ✅ Đã lưu cấu hình Hồ sơ người dùng thành công! Các truy vấn Agent tiếp theo sẽ áp dụng chính sách ưu tiên này.
-          </div>
-        )}
+      <section className="profile-card">
+        <div className="profile-section-heading profile-section-heading--compact"><div><span className="dashboard-eyebrow">Cá nhân hóa</span><h2>Nhóm người dùng</h2><p>Chỉ dùng để lựa chọn policy và cách trình bày; không thu thập chẩn đoán chi tiết.</p></div></div>
+        <fieldset className="group-options"><legend className="sr-only">Nhóm người dùng</legend>{groupOptions.map((option) => { const Icon = option.icon; return <label key={option.value} className={`radio-card ${formGroup === option.value ? "active" : ""}`}><input type="radio" name="userGroup" checked={formGroup === option.value} onChange={() => setFormGroup(option.value)} /><div><strong><Icon size={17} />{option.title}</strong><p>{option.description}</p></div></label>; })}</fieldset>
+      </section>
 
-        <form onSubmit={handleSave} className="profile-form">
-          <div className="form-group">
-            <label>Họ và Tên:</label>
-            <input
-              type="text"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              className="chat-input"
-              required
-            />
-          </div>
+      <section className="profile-card profile-notification-card"><div className="profile-section-heading profile-section-heading--compact"><BellOff size={22} /><div><span className="dashboard-eyebrow">Tùy chọn thông báo · P2</span><h2>Chưa cấu hình trong MVP</h2><p>Push Notification và email hàng ngày sẽ được bật sau khi có contract phía backend.</p></div></div><div className="profile-disabled-options"><label><span>Push Notification</span><input type="checkbox" disabled /></label><label><span>Email hàng ngày</span><input type="checkbox" disabled /></label></div></section>
 
-          <div className="form-group">
-            <label>Vai trò Hiện tại trong Hệ thống (Role):</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as any)}
-              className="role-select"
-            >
-              <option value="resident">Resident (Cư dân)</option>
-              <option value="manager">Manager (Quản lý)</option>
-              <option value="admin">Admin (Hệ thống)</option>
-            </select>
-            <small className="form-hint">Trong hệ thống thực tế, Vai trò Manager/Admin do quản trị viên cấp quyền server-side.</small>
-          </div>
-
-          <div className="form-group">
-            <label>Nhóm Đối tượng Sức khỏe / Rủi ro PM2.5 (User Group):</label>
-            <div className="group-options">
-              <label className={`radio-card ${userGroup === "normal" ? "active" : ""}`}>
-                <input
-                  type="radio"
-                  name="userGroup"
-                  value="normal"
-                  checked={userGroup === "normal"}
-                  onChange={() => setUserGroup("normal")}
-                />
-                <div>
-                  <strong>🟢 Normal (Thông thường)</strong>
-                  <p>Cơ thể khỏe mạnh, ít nhạy cảm với sự thay đổi của nồng độ chất lượng không khí.</p>
-                </div>
-              </label>
-
-              <label className={`radio-card ${userGroup === "sensitive" ? "active" : ""}`}>
-                <input
-                  type="radio"
-                  name="userGroup"
-                  value="sensitive"
-                  checked={userGroup === "sensitive"}
-                  onChange={() => setUserGroup("sensitive")}
-                />
-                <div>
-                  <strong>🟡 Sensitive (Nhạy cảm sức khỏe)</strong>
-                  <p>Trẻ em, người cao tuổi, người có tiền sử hô hấp/tim mạch. Ưu tiên phát cảnh báo sớm khi PM2.5 vượt 35 µg/m³.</p>
-                </div>
-              </label>
-
-              <label className={`radio-card ${userGroup === "outdoor_sport" ? "active" : ""}`}>
-                <input
-                  type="radio"
-                  name="userGroup"
-                  value="outdoor_sport"
-                  checked={userGroup === "outdoor_sport"}
-                  onChange={() => setUserGroup("outdoor_sport")}
-                />
-                <div>
-                  <strong>🏃 Outdoor Sport (Tập luyện ngoài trời)</strong>
-                  <p>Thường xuyên chạy bộ, đá bóng, đạp xe ngoài trời. Khuyên thời điểm tập luyện an toàn nhất trong ngày.</p>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div className="form-actions">
-            <button type="submit" className="btn-primary">
-              💾 Lưu Cấu hình Hồ sơ
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+      <div className="profile-actions"><Button type="button" variant="outline" onClick={resetForm}>Hủy thay đổi</Button><Button type="submit" variant="primary" disabled={!formName.trim()}><Save size={17} />Lưu thay đổi</Button></div>
+    </form>
+  </div>;
 };

@@ -217,7 +217,7 @@
 .app-topbar__actions,
 .app-breadcrumb,
 .topbar-profile,
-.topbar-role,
+.topbar-role-badge,
 .topbar-search {
   display: flex;
   align-items: center;
@@ -326,27 +326,20 @@
   font-weight: 800;
 }
 
-.topbar-role {
+.topbar-role-badge {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
   gap: 7px;
-  padding-left: var(--space-3);
-  border-left: 1px solid var(--color-border);
-}
-
-.topbar-role > span {
-  color: var(--color-text-subtle);
-  font-size: 0.68rem;
-}
-
-.topbar-role select {
-  height: 36px;
-  padding: 0 28px 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-slate-700);
-  background: var(--color-surface);
+  padding: 0 10px;
+  border-radius: var(--radius-full);
   font-size: var(--font-size-xs);
-  font-weight: 600;
+  font-weight: 700;
 }
+
+.topbar-role-badge--resident { color: #0f766e; background: #ccfbf1; }
+.topbar-role-badge--manager { color: var(--color-primary-700); background: var(--color-primary-100); }
+.topbar-role-badge--admin { color: #b45309; background: #fef3c7; }
 
 .topbar-profile {
   min-width: 0;
@@ -421,46 +414,13 @@
   scroll-behavior: smooth;
 }
 
-.page-heading,
 .page-content,
 .app-footer {
   width: min(1440px, 100%);
   margin-inline: auto;
 }
 
-.page-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-6);
-  padding: 28px 32px 20px;
-}
-
-.page-heading__eyebrow {
-  display: block;
-  margin-bottom: 7px;
-  color: var(--color-primary-600);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.page-heading h1 {
-  margin-bottom: 7px;
-  font-size: clamp(1.5rem, 2.6vw, 2rem);
-  line-height: 1.2;
-}
-
-.page-heading p {
-  max-width: 720px;
-  margin-bottom: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  line-height: 1.55;
-}
-
-.page-content { padding: 0 32px 32px; }
+.page-content { padding: 28px 32px 32px; }
 
 .app-footer {
   padding: 10px 32px 28px;
@@ -485,7 +445,6 @@
   .topbar-search { width: min(230px, 24vw); }
 
   .topbar-search kbd,
-  .topbar-role > span,
   .topbar-profile__copy { display: none; }
 }
 
@@ -531,11 +490,10 @@
 
   .app-breadcrumb button,
   .app-breadcrumb svg,
-  .topbar-role { display: none; }
+  .topbar-role-badge { display: none; }
 
   .app-topbar__actions { gap: var(--space-2); }
-  .page-heading { padding: 22px 16px 16px; }
-  .page-content { padding: 0 16px 24px; }
+  .page-content { padding: 22px 16px 24px; }
   .app-footer { padding-inline: 16px; }
 }
 

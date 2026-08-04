@@ -1,18 +1,23 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Check, RefreshCw, Search, ShieldCheck, ShieldX, X } from "lucide-react";
 import { api } from "../../api/client";
+import { Button } from "../../components/common/Button";
+import { IconButton } from "../../components/common/IconButton";
+import { PageHeader } from "../../components/common/PageHeader";
+import { StatusBadge } from "../../components/common/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { Proposal } from "../../types";
 
+type ApprovalTab = "pending" | "approved" | "rejected";
+
 export const ApprovalQueue: React.FC = () => {
-  const { role, setPendingApprovalsCount, navigateTo } = useAuth();
+  const { role, setPendingApprovalsCount } = useAuth();
   const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<ApprovalTab>("pending");
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null);
-  
-  // Modal states
-  const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
-  const [reviewNote, setReviewNote] = useState<string>("");
-  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [reviewNote, setReviewNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
@@ -21,25 +26,38 @@ export const ApprovalQueue: React.FC = () => {
     try {
       const data = await api.getProposals();
       setProposals(data);
-      const pendingCount = data.filter(p => p.status === "pending").length;
-      setPendingApprovalsCount(pendingCount);
-    } catch (err) {
-      console.error("Error fetching proposals:", err);
+      setPendingApprovalsCount(data.filter((proposal) => proposal.status === "pending").length);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchProposals();
-  }, []);
+  useEffect(() => { fetchProposals(); }, []);
 
-  const handleOpenReview = (p: Proposal) => {
-    setSelectedProposal(p);
+  const tabCounts = useMemo(() => ({
+    pending: proposals.filter((proposal) => proposal.status === "pending").length,
+    approved: proposals.filter((proposal) => proposal.status === "approved").length,
+    rejected: proposals.filter((proposal) => proposal.status === "rejected").length,
+  }), [proposals]);
+  const visibleProposals = proposals.filter((proposal) => proposal.status === activeTab);
+
+  const openReview = (proposal: Proposal) => {
+    setSelectedProposal(proposal);
     setReviewNote("");
     setActionError(null);
     setActionSuccess(null);
-    setShowReviewModal(true);
+  };
+
+  const updateProposal = (status: "approved" | "rejected") => {
+    if (!selectedProposal) return;
+    setProposals((current) => current.map((proposal) => proposal.proposal_id === selectedProposal.proposal_id ? {
+      ...proposal,
+      status,
+      review_note: reviewNote,
+      reviewed_by: "Manager (Demo)",
+      dispatch_status: status === "approved" ? "succeeded" : "not_configured",
+    } : proposal));
+    setPendingApprovalsCount((count) => Math.max(0, count - 1));
   };
 
   const handleApprove = async () => {
@@ -47,222 +65,92 @@ export const ApprovalQueue: React.FC = () => {
     setSubmitting(true);
     setActionError(null);
     try {
-      const res = await api.approveProposal(selectedProposal.proposal_id, reviewNote);
-      setActionSuccess(`✅ Đã Phê duyệt đề xuất ${selectedProposal.proposal_id} thành công. Lệnh Dispatcher: SUCCESS.`);
-      
-      // Update local state
-      setProposals(prev => prev.map(p => p.proposal_id === selectedProposal.proposal_id ? {
-        ...p,
-        status: "approved",
-        review_note: reviewNote,
-        reviewed_by: "Manager (Demo)",
-        dispatch_status: "succeeded"
-      } : p));
-
-      setPendingApprovalsCount(c => Math.max(0, c - 1));
-      setTimeout(() => setShowReviewModal(false), 1800);
-    } catch (err: any) {
-      if (err?.message?.includes("409")) {
-        setActionError("⚠️ Xung đột (409): Đề xuất này đã được một Manager khác xử lý trước đó. Đang tải lại server state...");
-        fetchProposals();
-      } else {
-        setActionError("❌ Không thể thực hiện phê duyệt. Vui lòng kiểm tra lại kết nối backend.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
+      await api.approveProposal(selectedProposal.proposal_id, reviewNote);
+      updateProposal("approved");
+      setActionSuccess(`Đã phê duyệt ${selectedProposal.proposal_id}. Quyết định đã được ghi nhận.`);
+    } catch {
+      setActionError("Không thể phê duyệt đề xuất. Vui lòng tải lại trạng thái server và thử lại.");
+    } finally { setSubmitting(false); }
   };
 
   const handleReject = async () => {
     if (!selectedProposal) return;
     if (!reviewNote.trim()) {
-      setActionError("⚠️ Bắt buộc phải nhập Lý do Từ chối (Reject Note) theo quy định kiểm soát HITL.");
+      setActionError("Vui lòng nhập lý do từ chối.");
       return;
     }
     setSubmitting(true);
     setActionError(null);
     try {
       await api.rejectProposal(selectedProposal.proposal_id, reviewNote);
-      setActionSuccess(`❌ Đã Từ chối đề xuất ${selectedProposal.proposal_id}. Đã lưu nhật ký Audit.`);
-
-      setProposals(prev => prev.map(p => p.proposal_id === selectedProposal.proposal_id ? {
-        ...p,
-        status: "rejected",
-        review_note: reviewNote,
-        reviewed_by: "Manager (Demo)",
-        dispatch_status: "not_configured"
-      } : p));
-
-      setPendingApprovalsCount(c => Math.max(0, c - 1));
-      setTimeout(() => setShowReviewModal(false), 1800);
-    } catch (err: any) {
-      setActionError("❌ Không thể từ chối proposal. Vui lòng thử lại.");
-    } finally {
-      setSubmitting(false);
-    }
+      updateProposal("rejected");
+      setActionSuccess(`Đã từ chối ${selectedProposal.proposal_id}. Không có hành động nào được dispatch.`);
+    } catch {
+      setActionError("Không thể từ chối đề xuất. Vui lòng thử lại.");
+    } finally { setSubmitting(false); }
   };
 
   if (role === "resident") {
-    return (
-      <div className="approvals-container">
-        <div className="alert-box alert-warning">
-          🚫 <strong>Quyền truy cập bị từ chối (403):</strong> Màn hình Phê duyệt Human-in-the-Loop chỉ dành cho vai trò <strong>Manager</strong> hoặc <strong>Admin</strong>.
-        </div>
-      </div>
-    );
+    return <div className="approvals-container"><PageHeader title="Phê duyệt đề xuất" description="Xem xét bằng chứng trước khi đưa ra quyết định." /><div className="alert-box alert-warning"><ShieldX size={18} /> Màn hình chỉ dành cho Manager hoặc Admin.</div></div>;
   }
-
-  const pendingList = proposals.filter(p => p.status === "pending");
-  const historyList = proposals.filter(p => p.status !== "pending");
 
   return (
     <div className="approvals-container">
-      <div className="approvals-header">
-        <div>
-          <h2>✅ Phê duyệt Đề xuất Cảnh báo (Human-in-the-Loop)</h2>
-          <p className="approvals-subtitle">Xem xét bằng chứng môi trường và phê duyệt trước khi phát thông báo / điều khiển thiết bị</p>
-        </div>
-        <button className="btn-refresh" onClick={fetchProposals}>
-          🔄 Refresh Queue
-        </button>
-      </div>
+      <PageHeader
+        title="Phê duyệt đề xuất cảnh báo"
+        description="Hàng chờ Human-in-the-Loop · kiểm tra evidence trước khi phê duyệt hoặc từ chối."
+        actions={<Button variant="outline" size="sm" onClick={fetchProposals} disabled={loading}><RefreshCw className={loading ? "is-spinning" : ""} size={16} />{loading ? "Đang làm mới" : "Làm mới"}</Button>}
+      />
 
-      {/* Pending Section */}
-      <section className="queue-section">
-        <h3>⏳ Hàng chờ Phê duyệt Pending ({pendingList.length})</h3>
-        {loading ? (
-          <div className="skeleton-card" style={{ height: 150 }}></div>
-        ) : pendingList.length === 0 ? (
-          <div className="empty-state">
-            <span>🎉 Không có proposal nào đang chờ phê duyệt. Tất cả đã được xử lý!</span>
-          </div>
+      <section className="approval-workspace">
+        <div className="approval-tabs" role="tablist" aria-label="Trạng thái đề xuất">
+          {(["pending", "approved", "rejected"] as ApprovalTab[]).map((tab) => (
+            <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} className={activeTab === tab ? "is-active" : ""} onClick={() => setActiveTab(tab)}>
+              {tab === "pending" ? "Chờ phê duyệt" : tab === "approved" ? "Đã phê duyệt" : "Đã từ chối"}
+              <span>{tabCounts[tab]}</span>
+            </button>
+          ))}
+        </div>
+
+        {loading ? <div className="skeleton-card" style={{ height: 240 }} /> : visibleProposals.length === 0 ? (
+          <div className="empty-state">Không có đề xuất trong trạng thái này.</div>
         ) : (
-          <div className="proposals-grid">
-            {pendingList.map(p => (
-              <div key={p.proposal_id} className="proposal-card-item">
-                <div className="card-top">
-                  <span className="prop-id">{p.proposal_id}</span>
-                  <span className="badge level-warning">{p.severity.toUpperCase()}</span>
-                </div>
-                <h4>{p.target}</h4>
-                <p className="prop-action"><strong>Hành động:</strong> {p.action}</p>
-                <p className="prop-rationale"><strong>Lý do:</strong> {p.rationale}</p>
-                <div className="card-bottom">
-                  <span className="prop-time">Tạo lúc: {new Date(p.created_at).toLocaleTimeString("vi-VN")}</span>
-                  <button className="btn-primary" onClick={() => handleOpenReview(p)}>
-                    🔍 Review & Duyệt →
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="table-wrapper">
+            <table className="data-table approval-table">
+              <thead><tr><th>Mã proposal</th><th>Trạm / Mục tiêu</th><th>Severity</th><th>Thời gian</th><th>Trạng thái</th><th>Hành động</th></tr></thead>
+              <tbody>{visibleProposals.map((proposal) => (
+                <tr key={proposal.proposal_id}>
+                  <td><strong>{proposal.proposal_id}</strong></td>
+                  <td><strong>{proposal.station_id}</strong><small>{proposal.target}</small></td>
+                  <td><span className="badge level-warning">{proposal.severity.toUpperCase()}</span></td>
+                  <td>{new Date(proposal.created_at).toLocaleString("vi-VN")}</td>
+                  <td><StatusBadge status={proposal.status} /></td>
+                  <td><Button variant={proposal.status === "pending" ? "primary" : "outline"} size="sm" onClick={() => openReview(proposal)}><Search size={15} />{proposal.status === "pending" ? "Xem xét" : "Xem chi tiết"}</Button></td>
+                </tr>
+              ))}</tbody>
+            </table>
           </div>
         )}
       </section>
 
-      {/* History Section */}
-      <section className="queue-section" style={{ marginTop: 32 }}>
-        <h3>📜 Lịch sử Phê duyệt ({historyList.length})</h3>
-        {historyList.length === 0 ? (
-          <div className="empty-state">Chưa có lịch sử phê duyệt.</div>
-        ) : (
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Mã Proposal</th>
-                  <th>Mục tiêu</th>
-                  <th>Hành động đề xuất</th>
-                  <th>Trạng thái</th>
-                  <th>Người duyệt</th>
-                  <th>Ghi chú</th>
-                  <th>Dispatch Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyList.map(p => (
-                  <tr key={p.proposal_id}>
-                    <td><strong>{p.proposal_id}</strong></td>
-                    <td>{p.target}</td>
-                    <td>{p.action}</td>
-                    <td>
-                      <span className={`status-pill ${p.status}`}>
-                        {p.status === "approved" ? "🟢 Approved" : "🔴 Rejected"}
-                      </span>
-                    </td>
-                    <td>{p.reviewed_by || "Manager"}</td>
-                    <td>{p.review_note || "--"}</td>
-                    <td>
-                      <span className="source-tag">{p.dispatch_status || "succeeded"}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-        </div>
-      )}
-      </section>
-
-      {/* Review & HITL Modal */}
-      {showReviewModal && selectedProposal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>🔍 Phê duyệt Đề xuất {selectedProposal.proposal_id}</h3>
-              <button className="close-btn" onClick={() => setShowReviewModal(false)}>✕</button>
-            </div>
-
+      {selectedProposal && (
+        <div className="modal-overlay" role="presentation">
+          <div className="modal-content approval-detail-modal" role="dialog" aria-modal="true" aria-labelledby="approval-detail-title">
+            <div className="modal-header"><div><span className="dashboard-eyebrow">Proposal detail</span><h3 id="approval-detail-title">{selectedProposal.proposal_id}</h3></div><IconButton label="Đóng" onClick={() => setSelectedProposal(null)}><X size={18} /></IconButton></div>
             <div className="modal-body">
               {actionError && <div className="alert-box alert-warning">{actionError}</div>}
               {actionSuccess && <div className="alert-box alert-success">{actionSuccess}</div>}
-
-              <div className="evidence-box">
-                <h4>📊 Minh chứng Môi trường (Evidence Grounding):</h4>
-                <ul>
-                  <li>Trạm: <strong>{selectedProposal.station_id}</strong></li>
-                  <li>PM2.5 Thực đo: <strong>{selectedProposal.evidence?.pm25 ?? 66.1} µg/m³</strong></li>
-                  <li>Độ ẩm không khí: <strong>{selectedProposal.evidence?.humidity ?? 78} %</strong></li>
-                  <li>Tốc độ gió: <strong>{selectedProposal.evidence?.wind_speed ?? 1.2} m/s</strong></li>
-                </ul>
+              <div className="approval-evidence-grid">
+                <div><span>Trạm</span><strong>{selectedProposal.station_id}</strong></div>
+                <div><span>PM2.5</span><strong>{selectedProposal.evidence?.pm25 ?? "—"} µg/m³</strong></div>
+                <div><span>Độ ẩm</span><strong>{selectedProposal.evidence?.humidity ?? "—"}%</strong></div>
+                <div><span>Gió</span><strong>{selectedProposal.evidence?.wind_speed ?? "—"} m/s</strong></div>
               </div>
-
-              <div className="detail-field">
-                <strong>Target khu vực:</strong> {selectedProposal.target}
-              </div>
-              <div className="detail-field">
-                <strong>Hành động cảnh báo đề xuất:</strong> {selectedProposal.action}
-              </div>
-              <div className="detail-field">
-                <strong>Cơ sở AI đề xuất:</strong> {selectedProposal.rationale}
-              </div>
-
-              <div className="form-group" style={{ marginTop: 16 }}>
-                <label>Ghi chú của Manager (Bắt buộc nếu Từ chối):</label>
-                <textarea
-                  rows={3}
-                  placeholder="Nhập lý do duyệt hoặc lý do từ chối proposal..."
-                  value={reviewNote}
-                  onChange={(e) => setReviewNote(e.target.value)}
-                  className="chat-input"
-                  disabled={submitting}
-                />
-              </div>
+              <dl className="approval-detail-list"><div><dt>Mục tiêu</dt><dd>{selectedProposal.target}</dd></div><div><dt>Hành động đề xuất</dt><dd>{selectedProposal.action}</dd></div><div><dt>Cơ sở đề xuất</dt><dd>{selectedProposal.rationale}</dd></div></dl>
+              {selectedProposal.status === "pending" && <label className="form-group"><span>Ghi chú của Manager</span><textarea rows={3} value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Nhập ghi chú; bắt buộc khi từ chối" disabled={submitting} /></label>}
             </div>
-
             <div className="modal-footer">
-              <button
-                className="btn-danger"
-                onClick={handleReject}
-                disabled={submitting || selectedProposal.status !== "pending"}
-              >
-                ❌ Từ chối Proposal
-              </button>
-              <button
-                className="btn-success"
-                onClick={handleApprove}
-                disabled={submitting || selectedProposal.status !== "pending"}
-              >
-                ✅ Phê duyệt & Phát lệnh Dispatcher
-              </button>
+              {selectedProposal.status === "pending" ? <><Button variant="destructive" onClick={handleReject} disabled={submitting}><X size={16} />Từ chối</Button><Button variant="success" onClick={handleApprove} disabled={submitting}><Check size={16} />Phê duyệt</Button></> : <Button variant="outline" onClick={() => setSelectedProposal(null)}>Đóng</Button>}
             </div>
           </div>
         </div>

@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { Bot, Droplets, GitCompareArrows, Thermometer, Wind } from "lucide-react";
 import { api } from "../../api/client";
+import { Button } from "../../components/common/Button";
 import { DataQualityBadge, getPm25Severity } from "../../components/common/DataQualityBadge";
+import { PageHeader } from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { Station, StationDetailData } from "../../types";
 
@@ -10,10 +13,12 @@ export const CompareStations: React.FC = () => {
   const [stationA, setStationA] = useState<StationDetailData | null>(null);
   const [stationB, setStationB] = useState<StationDetailData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadCompare = async () => {
       setLoading(true);
+      setError(null);
       try {
         const [list, dataA, dataB] = await Promise.all([
           api.getStations(),
@@ -25,6 +30,7 @@ export const CompareStations: React.FC = () => {
         setStationB(dataB);
       } catch (err) {
         console.error("Error loading comparison data:", err);
+        setError("Không thể tải dữ liệu so sánh. Vui lòng thử lại.");
       } finally {
         setLoading(false);
       }
@@ -39,6 +45,11 @@ export const CompareStations: React.FC = () => {
   if (loading || !stationA || !stationB) {
     return (
       <div className="compare-container">
+        <PageHeader
+          title="So sánh khu vực"
+          description="Đối chiếu PM2.5 và độ mới dữ liệu giữa hai trạm."
+        />
+        {error && <div className="alert-box alert-error">{error}</div>}
         <div className="skeleton-card" style={{ height: 400 }}></div>
       </div>
     );
@@ -46,15 +57,25 @@ export const CompareStations: React.FC = () => {
 
   const sevA = getPm25Severity(stationA.pm25);
   const sevB = getPm25Severity(stationB.pm25);
+  const canCompare = [stationA, stationB].every(
+    (station) => station.status === "online" && !station.is_stale && station.pm25 !== null,
+  );
+  const difference = canCompare
+    ? Math.abs(Number(stationA.pm25) - Number(stationB.pm25)).toFixed(1)
+    : null;
 
   return (
     <div className="compare-container">
-      <div className="compare-header">
-        <h2>⚖️ So sánh Chất lượng Không khí giữa 2 Trạm</h2>
-        <button className="btn-primary" onClick={handleAskAICompare}>
-          🤖 Hỏi AI Phân tích sự Khác biệt
-        </button>
-      </div>
+      <PageHeader
+        title="So sánh khu vực"
+        description="Đối chiếu PM2.5, thời tiết ngữ cảnh và độ mới dữ liệu giữa hai trạm."
+        actions={(
+          <Button variant="primary" onClick={handleAskAICompare}>
+            <Bot size={17} aria-hidden="true" />
+            Hỏi AI phân tích
+          </Button>
+        )}
+      />
 
       {/* Selectors */}
       <div className="compare-selectors">
@@ -103,9 +124,9 @@ export const CompareStations: React.FC = () => {
           <DataQualityBadge status={stationA.status} isStale={stationA.is_stale} pm25={stationA.pm25} />
           
           <div className="compare-details">
-            <div>🌡️ Nhiệt độ: <strong>{stationA.weather?.temperature ?? 29} °C</strong></div>
-            <div>💧 Độ ẩm: <strong>{stationA.weather?.humidity ?? 75} %</strong></div>
-            <div>💨 Tốc độ gió: <strong>{stationA.weather?.wind_speed ?? 2.1} m/s</strong></div>
+            <div><Thermometer size={16} aria-hidden="true" /> Nhiệt độ: <strong>{stationA.weather?.temperature ?? "Không khả dụng"}{stationA.weather ? " °C" : ""}</strong></div>
+            <div><Droplets size={16} aria-hidden="true" /> Độ ẩm: <strong>{stationA.weather?.humidity ?? "Không khả dụng"}{stationA.weather ? " %" : ""}</strong></div>
+            <div><Wind size={16} aria-hidden="true" /> Tốc độ gió: <strong>{stationA.weather?.wind_speed ?? "Không khả dụng"}{stationA.weather ? " m/s" : ""}</strong></div>
             <div>Cập nhật: {new Date(stationA.updated_at).toLocaleTimeString("vi-VN")}</div>
           </div>
         </div>
@@ -120,9 +141,9 @@ export const CompareStations: React.FC = () => {
           <DataQualityBadge status={stationB.status} isStale={stationB.is_stale} pm25={stationB.pm25} />
 
           <div className="compare-details">
-            <div>🌡️ Nhiệt độ: <strong>{stationB.weather?.temperature ?? 29} °C</strong></div>
-            <div>💧 Độ ẩm: <strong>{stationB.weather?.humidity ?? 75} %</strong></div>
-            <div>💨 Tốc độ gió: <strong>{stationB.weather?.wind_speed ?? 2.1} m/s</strong></div>
+            <div><Thermometer size={16} aria-hidden="true" /> Nhiệt độ: <strong>{stationB.weather?.temperature ?? "Không khả dụng"}{stationB.weather ? " °C" : ""}</strong></div>
+            <div><Droplets size={16} aria-hidden="true" /> Độ ẩm: <strong>{stationB.weather?.humidity ?? "Không khả dụng"}{stationB.weather ? " %" : ""}</strong></div>
+            <div><Wind size={16} aria-hidden="true" /> Tốc độ gió: <strong>{stationB.weather?.wind_speed ?? "Không khả dụng"}{stationB.weather ? " m/s" : ""}</strong></div>
             <div>Cập nhật: {new Date(stationB.updated_at).toLocaleTimeString("vi-VN")}</div>
           </div>
         </div>
@@ -130,13 +151,12 @@ export const CompareStations: React.FC = () => {
 
       {/* Difference Analysis Box */}
       <div className="difference-box">
-        <h4>📌 Kết luận So sánh Nhanh:</h4>
-        <p>
-          Chênh lệch PM2.5 giữa 2 khu vực là <strong>{Math.abs(Number(stationA.pm25 || 0) - Number(stationB.pm25 || 0)).toFixed(1)} µg/m³</strong>.
-          {Number(stationA.pm25) > Number(stationB.pm25)
-            ? ` Khu vực ${stationA.station_name} có chất lượng không khí kém hơn.`
-            : ` Khu vực ${stationB.station_name} có chất lượng không khí kém hơn.`}
-        </p>
+        <h4><GitCompareArrows size={18} aria-hidden="true" /> Kết quả so sánh</h4>
+        {difference ? (
+          <p>Chênh lệch PM2.5 giữa hai trạm là <strong>{difference} µg/m³</strong>. Hãy dùng AI Agent nếu cần phân tích nguyên nhân dựa trên dữ liệu backend.</p>
+        ) : (
+          <p>Không đủ dữ liệu hợp lệ để tính chênh lệch. Một trong hai trạm đang offline, stale, invalid hoặc không có giá trị PM2.5.</p>
+        )}
       </div>
     </div>
   );

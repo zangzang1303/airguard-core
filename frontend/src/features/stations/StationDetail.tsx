@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
+import { ArrowLeft, Bot, ChartNoAxesCombined, Droplets, GitCompareArrows, Sparkles, Thermometer, Wind } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../../api/client";
+import { Button } from "../../components/common/Button";
 import { DataQualityBadge, getPm25Severity } from "../../components/common/DataQualityBadge";
+import { PageHeader } from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { ForecastData, HistoryPoint, StationDetailData } from "../../types";
 
@@ -48,6 +51,7 @@ export const StationDetail: React.FC = () => {
   if (loading || !station) {
     return (
       <div className="detail-container">
+        <PageHeader title="Chi tiết trạm" description="Đang tải dữ liệu hiện tại, lịch sử và dự báo ngắn hạn." />
         <div className="skeleton-card" style={{ height: 200 }}></div>
         <div className="skeleton-card" style={{ height: 350 }}></div>
       </div>
@@ -58,24 +62,25 @@ export const StationDetail: React.FC = () => {
 
   return (
     <div className="detail-container">
-      {/* Back button & Action Header */}
-      <div className="detail-header">
-        <div>
-          <button className="btn-secondary-sm" onClick={() => navigateTo("dashboard")}>
-            ← Quay lại Bản đồ
-          </button>
-          <h2>{station.station_name} ({station.station_id})</h2>
-          <p className="detail-subtitle">Vị trí: Lat {station.latitude}, Lon {station.longitude}</p>
-        </div>
-        <div className="detail-header-actions">
-          <button className="btn-outline" onClick={handleCompare}>
-            ⚖️ So sánh với trạm khác
-          </button>
-          <button className="btn-primary" onClick={handleAskAI}>
-            🤖 Hỏi AI về trạm này
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title={`${station.station_name} (${station.station_id})`}
+        description={`Vị trí: Lat ${station.latitude}, Lon ${station.longitude}`}
+        leading={(
+          <Button variant="ghost" size="sm" onClick={() => navigateTo("dashboard")}>
+            <ArrowLeft size={16} aria-hidden="true" /> Quay lại bản đồ
+          </Button>
+        )}
+        actions={(
+          <>
+            <Button variant="outline" onClick={handleCompare}>
+              <GitCompareArrows size={17} aria-hidden="true" /> So sánh
+            </Button>
+            <Button variant="primary" onClick={handleAskAI}>
+              <Bot size={17} aria-hidden="true" /> Hỏi AI
+            </Button>
+          </>
+        )}
+      />
 
       {/* Current Real-time Metrics Card */}
       <div className="metrics-grid">
@@ -90,9 +95,9 @@ export const StationDetail: React.FC = () => {
         <div className="metric-card">
           <div className="metric-label">Thời tiết Ngữ cảnh</div>
           <div className="weather-info">
-            <div>🌡️ Nhiệt độ: <strong>{station.weather?.temperature ?? 29} °C</strong></div>
-            <div>💧 Độ ẩm: <strong>{station.weather?.humidity ?? 75} %</strong></div>
-            <div>💨 Tốc độ gió: <strong>{station.weather?.wind_speed ?? 2.1} m/s</strong></div>
+            <div><Thermometer size={16} aria-hidden="true" /> Nhiệt độ: <strong>{station.weather?.temperature ?? "Không khả dụng"}{station.weather ? " °C" : ""}</strong></div>
+            <div><Droplets size={16} aria-hidden="true" /> Độ ẩm: <strong>{station.weather?.humidity ?? "Không khả dụng"}{station.weather ? " %" : ""}</strong></div>
+            <div><Wind size={16} aria-hidden="true" /> Tốc độ gió: <strong>{station.weather?.wind_speed ?? "Không khả dụng"}{station.weather ? " m/s" : ""}</strong></div>
           </div>
         </div>
 
@@ -109,7 +114,7 @@ export const StationDetail: React.FC = () => {
       {/* Forecast 1-3h Panel */}
       {forecast && (
         <section className="forecast-section">
-          <h3>🔮 Dự báo PM2.5 ngắn hạn (1 - 3 giờ)</h3>
+          <h3><Sparkles size={18} aria-hidden="true" /> Dự báo PM2.5 ngắn hạn (1 - 3 giờ)</h3>
           <p className="forecast-meta">Mô hình: {forecast.source} | Độ tin cậy: {forecast.confidence}</p>
           <div className="forecast-grid">
             {forecast.forecasts.map((fc, idx) => (
@@ -126,7 +131,7 @@ export const StationDetail: React.FC = () => {
       {/* History Recharts Graph */}
       <section className="history-section">
         <div className="history-header">
-          <h3>📊 Lịch sử PM2.5 theo thời gian</h3>
+          <h3><ChartNoAxesCombined size={18} aria-hidden="true" /> Lịch sử PM2.5 theo thời gian</h3>
           <div className="range-presets">
             {[1, 6, 24, 72].map((h) => (
               <button

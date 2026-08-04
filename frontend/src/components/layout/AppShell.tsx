@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Bot,
@@ -18,7 +18,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ScreenType, useAuth } from "../../context/AuthContext";
-import { UserRole } from "../../types";
 import { SimulatorBanner } from "../common/SimulatorBanner";
 import "./AppShell.css";
 
@@ -34,59 +33,49 @@ interface NavigationItem {
   badge?: number;
 }
 
-const screenMetadata: Record<ScreenType, { label: string; eyebrow: string; description: string }> = {
+const screenMetadata: Record<ScreenType, { label: string }> = {
   dashboard: {
     label: "Dashboard",
-    eyebrow: "Tổng quan",
-    description: "Theo dõi chất lượng không khí tại 5 trạm quanh VinUni và Ocean Park.",
   },
   "station-detail": {
     label: "Chi tiết trạm",
-    eyebrow: "Quan trắc",
-    description: "Giá trị hiện tại, lịch sử, độ mới dữ liệu và dự báo ngắn hạn.",
   },
   compare: {
     label: "So sánh khu vực",
-    eyebrow: "Phân tích",
-    description: "Đối chiếu PM2.5 giữa hai trạm trong cùng khoảng thời gian.",
   },
   agent: {
     label: "AI Agent",
-    eyebrow: "Trợ lý dữ liệu",
-    description: "Hỏi đáp dựa trên dữ liệu backend và tạo đề xuất có Human-in-the-Loop.",
   },
   alerts: {
     label: "Cảnh báo",
-    eyebrow: "Giám sát",
-    description: "Theo dõi cảnh báo đang hoạt động và lịch sử trạng thái tại các trạm.",
   },
   approvals: {
     label: "Phê duyệt",
-    eyebrow: "Human-in-the-Loop",
-    description: "Xem xét bằng chứng trước khi phê duyệt hoặc từ chối đề xuất cảnh báo.",
   },
   audit: {
     label: "Audit Log",
-    eyebrow: "Quản trị",
-    description: "Truy vết các hành động quan trọng và kết quả xử lý trong hệ thống.",
   },
   profile: {
     label: "Hồ sơ người dùng",
-    eyebrow: "Tài khoản",
-    description: "Quản lý thông tin hiển thị và nhóm người dùng nhận khuyến nghị.",
   },
   login: {
     label: "Đăng nhập",
-    eyebrow: "Tài khoản",
-    description: "Đăng nhập vào AirGuard AI.",
+  },
+  register: {
+    label: "Đăng ký",
   },
 };
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
-  const { currentScreen, navigateTo, role, setRole, userName, pendingApprovalsCount } = useAuth();
+  const { currentScreen, navigateTo, role, userName, pendingApprovalsCount, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const contentRef = useRef<HTMLElement>(null);
   const meta = screenMetadata[currentScreen];
   const isManagerOrAdmin = role === "manager" || role === "admin";
+
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [currentScreen]);
 
   const navigationItems = useMemo<NavigationItem[]>(
     () => [
@@ -193,7 +182,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <span>Hệ thống đang hoạt động</span>
             </div>
           </div>
-          <button type="button" className="sidebar-logout" disabled title="Chưa cấu hình trong MVP">
+          <button type="button" className="sidebar-logout" onClick={logout}>
             <LogOut size={18} aria-hidden="true" />
             <span>Đăng xuất</span>
           </button>
@@ -235,13 +224,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <Bell size={20} />
               {pendingApprovalsCount > 0 && isManagerOrAdmin && <span>{pendingApprovalsCount}</span>}
             </button>
-            <div className="topbar-role">
-              <span>Vai trò</span>
-              <select value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
-                <option value="resident">Cư dân</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </select>
+            <div className={`topbar-role-badge topbar-role-badge--${role}`} aria-label={`Vai trò: ${roleLabel}`}>
+              <ShieldCheck size={15} aria-hidden="true" />
+              {roleLabel}
             </div>
             <button type="button" className="topbar-profile" onClick={() => handleNavigate("profile")}>
               <span className="topbar-profile__avatar" aria-hidden="true">
@@ -257,14 +242,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
         <SimulatorBanner />
 
-        <main className="app-shell__content" id="main-content">
-          <div className="page-heading">
-            <div>
-              <span className="page-heading__eyebrow">{meta.eyebrow}</span>
-              <h1>{meta.label}</h1>
-              <p>{meta.description}</p>
-            </div>
-          </div>
+        <main ref={contentRef} className="app-shell__content" id="main-content">
           <div className="page-content">{children}</div>
           <footer className="app-footer">
             AirGuard AI © 2026 · Dữ liệu mô phỏng cho mục đích học tập và trình diễn MVP
