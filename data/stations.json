@@ -1,0 +1,7 @@
+[
+  {"station_id":"S01","station_name":"Cong chinh","location_type":"main_gate","latitude":20.9441,"longitude":105.9439,"base_pm25":38,"description":"Khu vuc cong chinh, PM2.5 tang vao gio cao diem"},
+  {"station_id":"S02","station_name":"Bai do xe","location_type":"parking","latitude":20.9450,"longitude":105.9435,"base_pm25":42,"description":"Khu vuc bai do xe, anh huong boi xe ra vao"},
+  {"station_id":"S03","station_name":"Truc duong chinh","location_type":"main_road","latitude":20.9445,"longitude":105.9452,"base_pm25":45,"description":"Tuyen duong chinh, co mat do giao thong cao"},
+  {"station_id":"S04","station_name":"Cong vien","location_type":"park","latitude":20.9455,"longitude":105.9458,"base_pm25":28,"description":"Khu cong vien, PM2.5 thuong thap hon khu giao thong"},
+  {"station_id":"S05","station_name":"Khu the thao ngoai troi","location_type":"sport_area","latitude":20.9437,"longitude":105.9448,"base_pm25":34,"description":"Khu the thao, dung cho khuyen nghi hoat dong ngoai troi"}
+]

@@ -1,0 +1,1 @@
+﻿# Task: <ID - title>\n\n## Outcome\n## Owner / priority / milestone\n## Scope and non-scope\n## Dependencies and open decisions\n## Contract/data impact\n## Steps\n1. \n## Acceptance criteria\n## Test cases and evidence\n## Observability/audit impact\n## Rollback/fallback\n## Handoff notes\n
