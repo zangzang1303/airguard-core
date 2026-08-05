@@ -54,7 +54,6 @@ def publish_approved_device_command(
                 "device_id": device_id,
             }
 
-<<<<<<< HEAD
         command_id = str(uuid4())
         topic = f"airguard/devices/{device_id}/command"
         payload = {
@@ -64,13 +63,7 @@ def publish_approved_device_command(
             "approval_id": approval_request_id,
             "idempotency_key": idempotency_key,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-=======
-        topic = f"airguard/devices/{device_id}/command"
-        payload = {
-            "approval_request_id": approval_request_id,
-            "device_id": device_id,
-            "command": command,
->>>>>>> origin/Dungpt
+
         }
         client = None
         try:
