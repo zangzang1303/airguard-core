@@ -183,7 +183,9 @@ class FakeBackendToolClient:
                 {"hour": hour, "pm25": round(current["pm25"] + hour * 0.8, 2), "confidence": 0.7, "source": "fixture_forecast"}
                 for hour in range(1, args.hours + 1)
             ]
-            data = Pm25Forecast.model_validate({"station_id": args.station_id, "items": items}).model_dump(mode="json")
+            data = Pm25Forecast.model_validate(
+                {"station_id": args.station_id, "is_stale": False, "items": items}
+            ).model_dump(mode="json")
         except KeyError:
             return self._error(ToolName.GET_PM25_FORECAST, request_id, ToolErrorCode.NOT_FOUND, "Station fixture not found.")
         except ValidationError as exc:

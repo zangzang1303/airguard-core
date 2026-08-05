@@ -21,6 +21,14 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 ## Station response
 `station_id`, `station_name`, `latitude`, `longitude`, `pm25`, `level`, `status`, `is_stale`, `updated_at`, `source`. PM2.5 may be null when unavailable; client must render state, not invent value.
 
+## Agent tool-facing environmental responses
+
+All environmental timestamps are ISO-8601 and timezone-aware. Current measurements and weather
+context carry explicit `is_stale`; missing freshness is schema drift, not an implicit fresh value.
+History items are ordered by `measured_at`. Forecast responses carry explicit `is_stale`, and each
+point contains a source plus either `forecast_at` or a 1-3 hour offset. Active-alert source metadata
+comes from the backend response. Stale/offline/invalid results cannot be presented as current facts.
+
 ## Agent response
 `POST /api/v1/agent/chat` accepts `{ "message": string }`. The legacy
 `POST /api/v1/chat` alias remains available during migration.
@@ -32,6 +40,8 @@ outcome; it must not contain the raw prompt, user id, secret, token or backend c
 Facts must map to sources from the same request. Tool failure or absent/stale/invalid/offline data
 returns a transparent insufficient-data answer and no environmental source. The additive
 `response` field is a deprecated alias of `answer` for the original template client.
+Every environmental answer identifies its source and states that AirGuard MVP data is not official
+monitoring data; fixture or fallback sources must remain visibly labeled.
 
 ## Compatibility
 Additive fields are safe. Renaming/removing/changing meaning/status requires version plan, consumer updates, contract tests and release note.

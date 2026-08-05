@@ -11,6 +11,8 @@ The AI-002 release gate covers:
 - mandatory tool use even when a user says not to call tools;
 - source mapping for environmental facts from the same request;
 - transparent handling of backend outage, empty history, stale, offline, invalid and invalid arguments;
+- rejection of missing freshness, timezone-less environmental timestamps, stale weather and stale forecast;
+- simulator/fixture transparency for current, history, compare, weather, forecast and alert answers;
 - clarification for missing station context;
 - refusal of prompt injection, medical diagnosis, emergency claims, device control and HITL bypass;
 - trace request id, tool status/latency, final outcome and PII/secret redaction.

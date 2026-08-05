@@ -52,7 +52,24 @@ class UngroundedForecastAdapter(FakeBackendToolClient):
         return ToolEnvelope(
             tool_name=ToolName.GET_PM25_FORECAST,
             request_id=request_id,
-            data={"station_id": "S01", "items": [{"hour": 1, "pm25": 999, "source": ""}]},
+            data={
+                "station_id": "S01",
+                "is_stale": False,
+                "items": [{"hour": 1, "pm25": 999, "source": ""}],
+            },
+        )
+
+
+class StaleForecastAdapter(FakeBackendToolClient):
+    async def get_pm25_forecast(self, payload, request_id="fixture-request"):
+        return ToolEnvelope(
+            tool_name=ToolName.GET_PM25_FORECAST,
+            request_id=request_id,
+            data={
+                "station_id": "S01",
+                "is_stale": True,
+                "items": [{"hour": 1, "pm25": 999, "source": "stale_forecast_fixture"}],
+            },
         )
 
 
@@ -186,6 +203,18 @@ async def test_measurement_missing_explicit_freshness_is_blocked():
 
 
 @pytest.mark.asyncio
+async def test_current_without_measurement_value_is_blocked_as_no_data():
+    fixture = dict(DEFAULT_FIXTURES["current"]["S01"])
+    fixture.update({"pm25": None, "status": "offline", "is_stale": True})
+    graph = build_graph(FakeBackendToolClient({"current": {"S01": fixture}}))
+    result = await graph.ainvoke({"query": "PM2.5 S01"})
+
+    assert result["answer"] == INSUFFICIENT_DATA_MESSAGE
+    assert result["sources"] == []
+    assert result["trace"]["final_outcome"] == "insufficient_data"
+
+
+@pytest.mark.asyncio
 async def test_stale_weather_is_blocked():
     graph = build_graph(StaleWeatherAdapter())
     result = await graph.ainvoke({"query": "weather now"})
@@ -198,6 +227,16 @@ async def test_stale_weather_is_blocked():
 @pytest.mark.asyncio
 async def test_forecast_without_source_is_blocked():
     graph = build_graph(UngroundedForecastAdapter())
+    result = await graph.ainvoke({"query": "forecast S01 in 1 hour"})
+
+    assert result["answer"] == INSUFFICIENT_DATA_MESSAGE
+    assert "999" not in result["answer"]
+    assert result["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_stale_forecast_is_blocked():
+    graph = build_graph(StaleForecastAdapter())
     result = await graph.ainvoke({"query": "forecast S01 in 1 hour"})
 
     assert result["answer"] == INSUFFICIENT_DATA_MESSAGE
@@ -224,6 +263,7 @@ async def test_weather_forecast_and_alert_sources_come_from_tool_payload(query, 
     assert all(source["tool_name"] == expected_tool for source in result["sources"])
     assert all(source["source"] == expected_source for source in result["sources"])
     assert all(source["observed_at"] is not None for source in result["sources"])
+    assert "không phải quan trắc chính thức" in result["answer"]
 
 
 @pytest.mark.asyncio

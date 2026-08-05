@@ -152,12 +152,12 @@ class WarningProposalInput(StrictModel):
 
 class StationMeasurement(BackendOutputModel):
     station_id: str
-    pm25: float = Field(..., ge=0)
+    pm25: float | None = Field(..., ge=0)
     status: Literal["online", "offline", "stale", "invalid"]
     level: str | None = None
     is_stale: bool
     updated_at: AwareDatetime
-    source: str = Field(..., min_length=1, max_length=100)
+    source: Literal["simulator"]
 
     @field_validator("station_id")
     @classmethod
@@ -169,7 +169,7 @@ class HistoryPoint(BackendOutputModel):
     station_id: str
     measured_at: AwareDatetime
     pm25: float = Field(..., ge=0)
-    source: str = Field(..., min_length=1, max_length=100)
+    source: Literal["simulator"]
 
     @field_validator("station_id")
     @classmethod
@@ -238,6 +238,7 @@ class ForecastPoint(BackendOutputModel):
 
 class Pm25Forecast(BackendOutputModel):
     station_id: str
+    is_stale: bool
     items: list[ForecastPoint]
 
     @field_validator("station_id")

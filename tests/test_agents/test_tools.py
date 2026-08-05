@@ -227,6 +227,18 @@ def test_environmental_contracts_require_grounding_metadata():
         )
 
     with pytest.raises(ValidationError):
+        StationMeasurement.model_validate(
+            {
+                "station_id": "S01",
+                "pm25": 22.4,
+                "status": "online",
+                "is_stale": False,
+                "updated_at": "2026-08-04T09:00:00+07:00",
+                "source": "official_monitor",
+            }
+        )
+
+    with pytest.raises(ValidationError):
         WeatherContext.model_validate(
             {
                 "area_id": "vinuni-ocean-park",
@@ -238,7 +250,19 @@ def test_environmental_contracts_require_grounding_metadata():
 
     with pytest.raises(ValidationError):
         Pm25Forecast.model_validate(
-            {"station_id": "S01", "items": [{"pm25": 25.0, "source": "fixture_forecast"}]}
+            {
+                "station_id": "S01",
+                "is_stale": False,
+                "items": [{"pm25": 25.0, "source": "fixture_forecast"}],
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        Pm25Forecast.model_validate(
+            {
+                "station_id": "S01",
+                "items": [{"hour": 1, "pm25": 25.0, "source": "fixture_forecast"}],
+            }
         )
 
 

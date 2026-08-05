@@ -69,8 +69,9 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
             weather.get(field) is not None for field in ("temperature", "humidity", "wind_speed", "rainfall")
         )
     if intent == Intent.FORECAST:
-        items = data_items[0].get("items", [])
-        return bool(items) and all(
+        forecast = data_items[0]
+        items = forecast.get("items", [])
+        return forecast.get("is_stale") is False and bool(items) and all(
             bool(item.get("source"))
             and (item.get("forecast_at") is not None or item.get("hour") is not None)
             and (
@@ -135,7 +136,7 @@ def _compose_weather(data_items: list[Mapping[str, Any]]) -> str:
     values = ", ".join(f"{labels[field]} {data[field]:g}" for field in labels if data.get(field) is not None)
     return (
         f"Bối cảnh thời tiết tại {data['area_id']} lúc {data['observed_at']}: {values}. "
-        f"Nguồn: {data['source']}."
+        f"Nguồn: {data['source']}. {SIMULATOR_NOTICE}"
     )
 
 
@@ -151,7 +152,10 @@ def _compose_forecast(data_items: list[Mapping[str, Any]]) -> str:
         confidence = f", confidence {item['confidence']:.0%}" if item.get("confidence") is not None else ""
         source = f", nguồn {item['source']}" if item.get("source") else ""
         points.append(f"{horizon}: {value}{confidence}{source}")
-    return f"Dự báo PM2.5 cho {data['station_id']} (không phải quan sát hiện tại): {'; '.join(points)}."
+    return (
+        f"Dự báo PM2.5 cho {data['station_id']} (không phải quan sát hiện tại): {'; '.join(points)}. "
+        f"{SIMULATOR_NOTICE}"
+    )
 
 
 def _compose_alerts(data_items: list[Mapping[str, Any]]) -> str:
@@ -163,7 +167,7 @@ def _compose_alerts(data_items: list[Mapping[str, Any]]) -> str:
         f"{item['observed_value']:g}, threshold {item['threshold_value']:g}, tạo lúc {item['created_at']}"
         for item in items
     )
-    return f"Cảnh báo active từ backend: {alerts}."
+    return f"Cảnh báo active từ backend: {alerts}. {SIMULATOR_NOTICE}"
 
 
 def _compose_profile(data_items: list[Mapping[str, Any]]) -> str:
