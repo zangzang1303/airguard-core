@@ -265,6 +265,7 @@ This section is the single-file map of the repository. Read it before using broa
 
 The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`, plus shared `src/` until its own deliberate migration. At the time of this document update, `services/sensor-simulator`, `services/mqtt-consumer` and `infra/mqtt` are in the active Compose topology. `backend/` and `frontend/` remain at the repository root because Windows reported them locked by active processes. Do not update Compose paths to `apps/api` or `apps/web` until those moves complete in one change.
 
+
 ### Runtime entry points
 
 | Surface | Current entry point | Runtime role | Notes |
@@ -282,6 +283,7 @@ The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`,
 The partial folder migration has already been repaired for MQTT broker, sensor simulator and MQTT consumer in `docker-compose.yml`. After backend/frontend locks are released: `./backend` -> `./apps/api`, `./frontend` -> `./apps/web`, and database schema mount `./backend/db/schema.sql` -> `./apps/api/db/schema.sql`.
 - Update README, repository structure docs and any CI paths in the same change.
 - Run `docker compose config`, then build/start and verify health, MQTT publishing, consumer persistence, station API and UI.
+
 
 ### Files to edit by concern
 
@@ -307,6 +309,3 @@ The partial folder migration has already been repaired for MQTT broker, sensor s
 7. Implement, test, document and write a handoff entry.
 
 This file is intentionally comprehensive, but contracts remain authoritative in `specs/` and historical Gate 1/guide/journal content must not be silently rewritten.
-
-
-

@@ -1,4 +1,3 @@
-﻿from __future__ import annotations
 
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
@@ -90,7 +89,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or str(uuid4())
@@ -164,9 +162,11 @@ def readiness_check() -> dict:
     return {"status": "ready", "dependencies": {"database": "ok"}}
 
 
+
 @app.get("/api/v1/stations")
 def get_stations() -> dict:
     return {"items": station_service.list_stations()}
+
 
 
 @app.get("/api/v1/stations/{station_id}")
@@ -174,9 +174,11 @@ def get_station(station_id: str) -> dict:
     return station_service.get_station(station_id)
 
 
+
 @app.get("/api/v1/stations/{station_id}/current")
 def get_station_current(station_id: str) -> dict:
     return station_service.get_station(station_id)
+
 
 
 @app.get("/api/v1/stations/{station_id}/history")
@@ -226,10 +228,10 @@ def resolve_alert(
 
 weather_service = WeatherService()
 
-
 @app.get("/api/v1/weather/current")
 def get_current_weather() -> dict:
     return weather_service.current_weather()
+
 
 
 @app.get("/api/v1/stations/{station_id}/forecast")
@@ -252,6 +254,7 @@ def agent_chat(request: Request, body: AgentChatRequest) -> dict:
 def dispatch_job(task, job_type: str, payload: dict, idempotency_key: str | None) -> dict:
     if task is None:
         raise ServiceError("background_job_dependency_missing", "Background job dependency is not installed", 503)
+
     key = idempotency_key or str(uuid4())
     task_id = str(uuid5(NAMESPACE_URL, f"airguard:{job_type}:{key}"))
     record, created = reserve_job(task_id, job_type, key, payload)
@@ -263,6 +266,7 @@ def dispatch_job(task, job_type: str, payload: dict, idempotency_key: str | None
     except Exception as exc:
         mark_job_failed(task_id, f"Task dispatch failed: {exc}", retrying=False)
         raise ServiceError("background_job_service_unavailable", "Background job service is unavailable", 503) from exc
+
 
     current = get_job(task_id) or record
     return {**current, "reused": False, "status_url": f"/api/v1/jobs/{task_id}"}
@@ -280,6 +284,7 @@ def create_forecast_job(request: ForecastJobRequest) -> dict:
     if station["pm25"] is None or station["is_stale"]:
         raise ServiceError("insufficient_fresh_data", "Fresh PM2.5 data is required for forecast", 503)
     payload = {"station_id": request.station_id, "current_pm25": station["pm25"], "hours": request.hours}
+
     return dispatch_job(run_forecast_job, "forecast", payload, request.idempotency_key)
 
 
@@ -378,6 +383,7 @@ def get_audit_logs(
     return {"items": audit_service.list_logs(entity_type=entity_type, entity_id=entity_id, limit=limit)}
 
 
+
 @app.get("/api/v1/devices")
 def get_devices() -> dict:
     with db.connection() as conn:
@@ -392,6 +398,7 @@ def get_devices() -> dict:
                 """
             )
             return {"items": [dict(row) for row in cur.fetchall()]}
+
 
 
 @app.get("/api/v1/devices/{device_id}/status")

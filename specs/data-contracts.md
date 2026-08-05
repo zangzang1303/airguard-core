@@ -1,6 +1,8 @@
+
 # Data Contracts
 
 ## MQTT measurement
+
 
 Topic: `airguard/stations/{station_id}/measurements`.
 
@@ -8,6 +10,7 @@ Topic: `airguard/stations/{station_id}/measurements`.
 {"message_id":"MSG-S01-0001","station_id":"S01","pm25":42.5,"temperature":30.1,"humidity":72,"wind_speed":2.4,"rainfall":0,"timestamp":"2026-08-05T09:00:00+07:00","source":"simulator"}
 ```
 
+<<<<<<< HEAD
 Required fields: `message_id`, `station_id`, `pm25`, `timestamp`, `source`.
 
 Optional weather fields: `temperature`, `humidity`, `wind_speed`, `wind_direction`, `rainfall`.
@@ -51,5 +54,4 @@ Required fields: `station_id`, `status`, `timestamp`, `source`. Status is `onlin
 Topic `airguard/devices/{device_id}/command`: command_id, device_id, action, approval_id, idempotency_key, timestamp. Dispatcher only publishes approved commands; simulator rejects all other states. Status topic returns command_id, device_id, status, timestamp, `is_simulated`.
 
 ## Tool contracts
-
 Tools map only to backend services: current, history, compare, weather, forecast, alerts, profile, create proposal. Mutating proposal tool needs idempotency key and evidence; never retry blindly.

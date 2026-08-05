@@ -52,4 +52,5 @@ Accepted measurement returns `accepted=true`, `duplicate=false`, `measurement`, 
 
 ## Compatibility
 
+
 Additive fields are safe. Renaming/removing/changing meaning/status requires version plan, consumer updates, contract tests and release note.

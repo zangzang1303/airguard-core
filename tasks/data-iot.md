@@ -1,3 +1,4 @@
+
 # Công việc Dữ liệu và IoT
 
 ## Mục tiêu và phạm vi
@@ -162,6 +163,7 @@ Xay dung pipeline du lieu PM2.5 gia lap cho 5 tram S01-S05: simulator -> MQTT ->
 | DI-005 | `docker-compose.yml`, `backend/db/schema.sql` | `services/mqtt-consumer/main.py`, Dockerfile, requirements | pipeline integration test |
 | DI-006 | - | `services/device-simulator/` | command contract, HITL/audit test |
 | DI-007 | `backend/app/main.py` | `backend/app/services/weather_service.py` | weather contract and fallback test |
+<<<<<<< HEAD
 ## Trạng thái triển khai hiện tại
 
 Phần cần thiết để backend đọc dữ liệu thật đã được triển khai ở mức MVP:
@@ -177,4 +179,5 @@ Phần cần thiết để backend đọc dữ liệu thật đã được tri�
 | DI-007 | Chưa triển khai provider thật; backend vẫn cần weather service/fallback riêng | `backend/app/services/weather_service.py` chưa tạo |
 
 Ghi chú kiểm chứng: đã compile Python cho `services/mqtt-consumer`, `services/sensor-simulator`, `backend/app`; đã chạy smoke test thủ công cho validator vì máy hiện không có `pytest`; chưa chạy được `docker compose config` vì Docker CLI không có trên máy.
+
 

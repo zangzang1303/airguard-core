@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import json
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Event
 from typing import Any
+
 
 import paho.mqtt.client as mqtt
 
@@ -30,6 +32,7 @@ def load_stations() -> list[dict[str, Any]]:
     with STATION_CATALOG_PATH.open("r", encoding="utf-8") as file:
         stations = json.load(file)
     return [station for station in stations if station.get("station_id")]
+
 
 
 def is_rush_hour(now: datetime) -> bool:
@@ -141,6 +144,7 @@ def main() -> None:
                 if SCENARIO == "duplicate" and station_id == "S03" and counter % 3 == 0:
                     publish_measurement(client, station, counter, timestamp, duplicate=True)
             stop_event.wait(INTERVAL_SECONDS)
+
     finally:
         client.loop_stop()
         client.disconnect()

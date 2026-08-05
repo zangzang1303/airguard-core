@@ -1,3 +1,4 @@
+
 # Repository Structure
 
 `backend/` FastAPI/services/jobs; `frontend/` React UI; `services/sensor-simulator/` MQTT sensor simulator; `services/mqtt-consumer/` MQTT validation and persistence service; `infra/mqtt/` broker config; `data/` non-secret seed/fixtures; `src/` legacy Agent/domain modules; `tests/` automated tests.

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Manual AI usage logger — for team members using ANY AI tool.
-Use this when your AI tool does NOT have automatic hook integration.
+Manual AI usage logger for web tools without automatic hook integration.
 
 Usage (interactive):
   python scripts/log_manual.py
@@ -24,6 +23,7 @@ import os
 import sys
 import subprocess
 import argparse
+import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -35,6 +35,12 @@ def git(cmd):
         return subprocess.check_output(cmd.split(), shell=False, text=True, stderr=subprocess.DEVNULL).strip()
     except Exception:
         return ""
+
+
+def repo_name(origin: str) -> str:
+    tail = origin.rstrip("/\\").replace("\\", "/").rsplit("/", 1)[-1]
+    tail = tail.rsplit(":", 1)[-1]
+    return tail[:-4] if tail.endswith(".git") else tail
 
 
 def interactive_mode():
@@ -88,9 +94,9 @@ def main():
         "ts": ts,
         "tool": tool,
         "event": "ManualLog",
-        "entry_id": f"manual-{datetime.now(VN_TZ).strftime('%Y%m%d-%H%M%S')}",
+        "entry_id": f"manual-{uuid.uuid4()}",
         "model": model,
-        "repo": git("git remote get-url origin").split("/")[-1].replace(".git", ""),
+        "repo": repo_name(git("git remote get-url origin")),
         "branch": git("git rev-parse --abbrev-ref HEAD"),
         "commit": git("git rev-parse --short HEAD"),
         "student": student,
@@ -99,7 +105,7 @@ def main():
     }
 
     log_dir = Path(os.environ.get("AI_LOG_DIR", ".ai-log"))
-    log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "session.jsonl"
 
     with open(log_file, "a", encoding="utf-8") as f:

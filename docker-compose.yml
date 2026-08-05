@@ -106,6 +106,7 @@
       - mqtt
     restart: unless-stopped
 
+
   mqtt-consumer:
     build:
       context: ./services/mqtt-consumer
@@ -126,6 +127,7 @@
       mqtt:
         condition: service_started
     restart: unless-stopped
+
 
   celery-worker:
     build:
@@ -154,4 +156,7 @@
 volumes:
   postgres_data:
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/Dungpt

@@ -1,12 +1,21 @@
 {
+<<<<<<< HEAD
   "description": "AI20K AI usage logging",
+=======
+>>>>>>> origin/Dungpt
   "hooks": {
     "UserPromptSubmit": [
       {
         "hooks": [
           {
+<<<<<<< HEAD
             "type": "command",
             "command": "bash scripts/_pyrun.sh scripts/log_hook.py --tool=codex",
+=======
+            "name": "log-prompt",
+            "type": "command",
+            "command": "scripts\\_pyrun.cmd scripts\\log_codex_hook.py",
+>>>>>>> origin/Dungpt
             "timeout": 10
           }
         ]
@@ -16,8 +25,14 @@
       {
         "hooks": [
           {
+<<<<<<< HEAD
             "type": "command",
             "command": "bash scripts/_pyrun.sh scripts/log_hook.py --tool=codex",
+=======
+            "name": "log-stop",
+            "type": "command",
+            "command": "scripts\\_pyrun.cmd scripts\\log_codex_hook.py",
+>>>>>>> origin/Dungpt
             "timeout": 10
           }
         ]

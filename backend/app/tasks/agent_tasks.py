@@ -4,7 +4,6 @@ from ..celery_app import celery_app
 from ..services.agent_service import build_placeholder_answer
 from .task_support import RETRY_TASK_OPTIONS, run_idempotent
 
-
 @celery_app.task(name="airguard.agent.run", **RETRY_TASK_OPTIONS)
 def run_agent_job(self, user_id: str, message: str, idempotency_key: str) -> dict:
     task_id = self.request.id
