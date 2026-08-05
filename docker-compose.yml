@@ -61,6 +61,10 @@
     environment:
       DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
       CORS_ORIGINS: http://localhost:5173,http://frontend:5173
+      STALE_AFTER_SECONDS: 300
+      PM25_WARNING_THRESHOLD: 50
+      PM25_CRITICAL_THRESHOLD: 100
+      PM25_ALERT_RULE_VERSION: pm25-threshold-v1
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-memory://}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-cache+memory://}
       CELERY_TASK_ALWAYS_EAGER: ${CELERY_TASK_ALWAYS_EAGER:-true}
@@ -91,9 +95,36 @@
     environment:
       MQTT_HOST: mqtt
       MQTT_PORT: 1883
+      MQTT_QOS: 1
       SENSOR_INTERVAL_SECONDS: 10
+      SENSOR_SCENARIO: ${SENSOR_SCENARIO:-normal}
+      SENSOR_RANDOM_SEED: ${SENSOR_RANDOM_SEED:-740}
+      STATION_CATALOG_PATH: /app/data/stations.json
+    volumes:
+      - ./data:/app/data:ro
     depends_on:
       - mqtt
+    restart: unless-stopped
+
+  mqtt-consumer:
+    build:
+      context: ./services/mqtt-consumer
+    container_name: airguard-mqtt-consumer
+    environment:
+      DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      STALE_AFTER_SECONDS: 300
+      MAX_FUTURE_SKEW_SECONDS: 60
+      STATION_CATALOG_PATH: /app/data/stations.json
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
     restart: unless-stopped
 
   celery-worker:
@@ -122,4 +153,5 @@
 
 volumes:
   postgres_data:
+
 

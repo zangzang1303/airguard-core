@@ -5,9 +5,11 @@ import os
 
 import paho.mqtt.client as mqtt
 
-from app.celery_app import celery_app
-from app.services.approval_service import ApprovalStoreUnavailableError, require_approved_device_action
-from app.tasks.task_support import RETRY_TASK_OPTIONS, TransientTaskError, run_idempotent
+from ..celery_app import celery_app
+from ..services.approval_service import ApprovalStoreUnavailableError, require_approved_device_action
+from .task_support import RETRY_TASK_OPTIONS, TransientTaskError, run_idempotent
+from datetime import datetime, timezone
+from uuid import uuid4
 
 
 @celery_app.task(name="airguard.notification.send", **RETRY_TASK_OPTIONS)
@@ -52,11 +54,15 @@ def publish_approved_device_command(
                 "device_id": device_id,
             }
 
+        command_id = str(uuid4())
         topic = f"airguard/devices/{device_id}/command"
         payload = {
-            "approval_request_id": approval_request_id,
+            "command_id": command_id,
             "device_id": device_id,
-            "command": command,
+            "action": command,
+            "approval_id": approval_request_id,
+            "idempotency_key": idempotency_key,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         client = None
         try:
