@@ -163,19 +163,3 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 | BE-005 | `backend/app/services/approval_service.py` | `backend/app/api/approvals.py`, `backend/app/repositories/approvals.py` | `tests/test_api/test_approvals.py`, `specs/api-contracts.md` |
 | BE-006 | `backend/db/schema.sql` | `backend/app/services/audit_service.py`, `backend/app/repositories/audit_logs.py` | `tests/test_services/test_audit.py`, `docs/observability.md` |
 | BE-007 | `backend/app/celery_app.py`, `backend/app/tasks/*.py` | `backend/app/services/job_service.py` | `tests/test_api/test_jobs.py`, `docs/test-plan.md` |
-## Trạng thái triển khai hiện tại
-
-Backend MVP theo BE-001..BE-007 đã được triển khai ở mức cần cho demo/local stack:
-
-| Task | Trạng thái | File chính |
-|---|---|---|
-| BE-001 | Hoàn thành: app startup, CORS env, `/health`, `/ready`, request id middleware, error envelope | `backend/app/main.py`, `backend/app/core.py`, `backend/app/services/database.py` |
-| BE-002 | Hoàn thành: station/current/history đọc PostgreSQL, stale/offline gate, schema và seed idempotent | `backend/app/services/station_service.py`, `backend/db/schema.sql` |
-| BE-003 | Hoàn thành: schema ingestion, validation timezone/range/source, idempotent insert, duplicate response | `backend/app/schemas/measurements.py`, `backend/app/services/ingestion_service.py` |
-| BE-004 | Hoàn thành: alert engine versioned, threshold config, dedupe active alert, auto/manual resolve, audit | `backend/app/services/alert_engine.py`, `backend/db/schema.sql` |
-| BE-005 | Hoàn thành: approval create/list/detail, manager-only approve/reject, optimistic version, command intent | `backend/app/services/approval_service.py`, `backend/app/main.py` |
-| BE-006 | Hoàn thành: audit service, manager query API, append-only DB trigger, metadata redaction | `backend/app/services/audit_service.py`, `backend/db/schema.sql` |
-| BE-007 | Hoàn thành ở mức MVP: job registry/status endpoint giữ idempotency; Celery optional, trả 503 nếu dependency thiếu | `backend/app/services/job_service.py`, `backend/app/main.py`, `backend/app/tasks/*.py` |
-
-Ghi chú kiểm chứng: đã compile `backend/app`, import `app.main` thành công khi thiếu DB/Celery local, chạy smoke tests service/API contract ở mức không cần PostgreSQL. Chưa chạy full `pytest` vì máy hiện không có `pytest/httpx`; chưa chạy Compose vì máy hiện không có Docker CLI. Cần chạy lại integration test với Docker Desktop trên máy có Docker để xác nhận Postgres init, consumer persistence và API end-to-end.
-
