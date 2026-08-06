@@ -14,6 +14,8 @@
   min-width: 0;
   height: 100dvh;
   flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
 }
@@ -21,6 +23,7 @@
 .app-sidebar__brand {
   display: flex;
   min-height: var(--topbar-height);
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--space-5);
@@ -217,8 +220,7 @@
 .app-topbar__actions,
 .app-breadcrumb,
 .topbar-profile,
-.topbar-role-badge,
-.topbar-search {
+.topbar-role-badge {
   display: flex;
   align-items: center;
 }
@@ -250,44 +252,6 @@
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.topbar-search {
-  width: min(290px, 26vw);
-  height: 40px;
-  gap: var(--space-2);
-  padding: 0 11px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-subtle);
-  background: var(--color-slate-50);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.topbar-search:focus-within {
-  border-color: var(--color-primary-500);
-  box-shadow: 0 0 0 3px var(--color-primary-100);
-}
-
-.topbar-search input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  color: var(--color-text);
-  background: transparent;
-  font-size: var(--font-size-sm);
-}
-
-.topbar-search input::placeholder { color: var(--color-text-subtle); }
-
-.topbar-search kbd {
-  padding: 2px 5px;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  color: var(--color-text-subtle);
-  background: var(--color-surface);
-  font: 0.62rem/1.3 "Inter", sans-serif;
 }
 
 .topbar-icon-button {
@@ -407,7 +371,11 @@
   box-shadow: 0 0 0 4px var(--color-warning-100);
 }
 
+/* position: relative neo mọi con position:absolute (ví dụ .sr-only) vào vùng cuộn này.
+   Thiếu nó, chúng lấy initial containing block làm gốc, thoát khỏi overflow:hidden của
+   .app-shell và kéo dài documentElement -> trang sinh thanh cuộn dọc thừa + mảng trắng. */
 .app-shell__content {
+  position: relative;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -424,8 +392,8 @@
 
 .app-footer {
   padding: 10px 32px 28px;
-  color: var(--color-text-subtle);
-  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
   text-align: center;
 }
 
@@ -442,9 +410,6 @@
 }
 
 @media (max-width: 1180px) {
-  .topbar-search { width: min(230px, 24vw); }
-
-  .topbar-search kbd,
   .topbar-profile__copy { display: none; }
 }
 
@@ -458,9 +423,13 @@
     transform: translateX(-102%);
     box-shadow: var(--shadow-lg);
     transition: transform 220ms ease;
+    visibility: hidden;
   }
 
-  .app-sidebar.is-open { transform: translateX(0); }
+  .app-sidebar.is-open {
+    transform: translateX(0);
+    visibility: visible;
+  }
 
   .app-sidebar__close,
   .app-topbar__menu { display: grid !important; }
@@ -481,8 +450,6 @@
     visibility: visible;
     opacity: 1;
   }
-
-  .topbar-search { display: none; }
 }
 
 @media (max-width: 640px) {
