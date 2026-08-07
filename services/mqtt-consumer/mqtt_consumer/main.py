@@ -4,6 +4,9 @@ import json
 import logging
 import signal
 import time
+import os
+import urllib.error
+import urllib.request
 from threading import Event
 from typing import Any
 
@@ -23,6 +26,24 @@ from .validator import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("airguard.mqtt_consumer")
 stop_event = Event()
+BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000").rstrip("/")
+
+
+def trigger_alert_evaluation(station_id: str, correlation_id: str) -> None:
+    """Notify backend after DB commit; ingestion remains durable if API is unavailable."""
+    body = json.dumps({"station_id": station_id}).encode("utf-8")
+    request = urllib.request.Request(
+        f"{BACKEND_URL}/api/v1/internal/ingestion/evaluate-alerts",
+        data=body,
+        headers={"Content-Type": "application/json", "X-Request-ID": correlation_id},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=3) as response:
+            if response.status >= 300:
+                logger.warning("alert evaluation rejected station=%s status=%s", station_id, response.status)
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        logger.warning("alert evaluation unavailable station=%s error=%s", station_id, exc)
 
 
 def _payload_excerpt(raw_payload: bytes) -> dict[str, Any]:
@@ -91,6 +112,7 @@ def build_client(settings: ConsumerSettings, catalog: StationCatalog, store: Pos
                 result.payload.station_id,
                 result.payload.pm25,
             )
+            trigger_alert_evaluation(result.payload.station_id, result.payload.message_id)
             return
 
         if topic.endswith("/status"):

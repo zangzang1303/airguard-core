@@ -31,21 +31,12 @@ CREATE TABLE IF NOT EXISTS measurements (
     message_id VARCHAR(100) UNIQUE NOT NULL,
     station_id VARCHAR(50) NOT NULL REFERENCES stations(station_id),
     measured_at TIMESTAMPTZ NOT NULL,
-<<<<<<< HEAD
     pm25 DOUBLE PRECISION NOT NULL CHECK (pm25 >= 0 AND pm25 <= 500),
     temperature DOUBLE PRECISION CHECK (temperature IS NULL OR (temperature >= -20 AND temperature <= 60)),
     humidity DOUBLE PRECISION CHECK (humidity IS NULL OR (humidity >= 0 AND humidity <= 100)),
     wind_speed DOUBLE PRECISION CHECK (wind_speed IS NULL OR (wind_speed >= 0 AND wind_speed <= 60)),
     wind_direction DOUBLE PRECISION CHECK (wind_direction IS NULL OR (wind_direction >= 0 AND wind_direction <= 360)),
     rainfall DOUBLE PRECISION CHECK (rainfall IS NULL OR (rainfall >= 0 AND rainfall <= 500)),
-=======
-    pm25 DOUBLE PRECISION NOT NULL,
-    temperature DOUBLE PRECISION,
-    humidity DOUBLE PRECISION,
-    wind_speed DOUBLE PRECISION,
-    wind_direction DOUBLE PRECISION,
-    rainfall DOUBLE PRECISION,
->>>>>>> origin/Dungpt
     source VARCHAR(30) NOT NULL DEFAULT 'simulator',
     quality_flag VARCHAR(20) NOT NULL DEFAULT 'valid',
     quality_reason TEXT,
@@ -55,7 +46,6 @@ CREATE TABLE IF NOT EXISTS measurements (
 CREATE INDEX IF NOT EXISTS idx_measurements_station_time
 ON measurements(station_id, measured_at DESC);
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS mqtt_rejections (
     rejection_id BIGSERIAL PRIMARY KEY,
     topic TEXT NOT NULL,
@@ -70,8 +60,6 @@ CREATE TABLE IF NOT EXISTS mqtt_rejections (
 CREATE INDEX IF NOT EXISTS idx_mqtt_rejections_created
 ON mqtt_rejections(created_at DESC);
 
-=======
->>>>>>> origin/Dungpt
 CREATE TABLE IF NOT EXISTS weather_observations (
     weather_id BIGSERIAL PRIMARY KEY,
     area_id VARCHAR(50) NOT NULL,
@@ -89,10 +77,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     alert_id UUID PRIMARY KEY,
     station_id VARCHAR(50) REFERENCES stations(station_id),
     alert_type VARCHAR(50) NOT NULL,
-<<<<<<< HEAD
     rule_version VARCHAR(50) NOT NULL DEFAULT 'pm25-threshold-v1',
-=======
->>>>>>> origin/Dungpt
     severity VARCHAR(20) NOT NULL,
     observed_value DOUBLE PRECISION,
     threshold_value DOUBLE PRECISION,
@@ -100,7 +85,6 @@ CREATE TABLE IF NOT EXISTS alerts (
     description TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-<<<<<<< HEAD
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     resolved_at TIMESTAMPTZ
 );
@@ -108,11 +92,6 @@ CREATE TABLE IF NOT EXISTS alerts (
 ALTER TABLE IF EXISTS alerts ADD COLUMN IF NOT EXISTS rule_version VARCHAR(50) NOT NULL DEFAULT 'pm25-threshold-v1';
 ALTER TABLE IF EXISTS alerts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
-=======
-    resolved_at TIMESTAMPTZ
-);
-
->>>>>>> origin/Dungpt
 CREATE TABLE IF NOT EXISTS users (
     user_id UUID PRIMARY KEY,
     email VARCHAR(200) UNIQUE NOT NULL,
@@ -141,13 +120,9 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     device_id VARCHAR(50) REFERENCES devices(device_id),
     proposed_action VARCHAR(100) NOT NULL,
     reason TEXT NOT NULL,
-<<<<<<< HEAD
     evidence JSONB NOT NULL DEFAULT '{}'::JSONB,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     version INTEGER NOT NULL DEFAULT 1,
-=======
-    status VARCHAR(20) NOT NULL DEFAULT 'pending',
->>>>>>> origin/Dungpt
     created_by VARCHAR(50) NOT NULL DEFAULT 'ai_agent',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     reviewed_by UUID REFERENCES users(user_id),
@@ -155,7 +130,12 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     review_note TEXT
 );
 
-<<<<<<< HEAD
+ALTER TABLE IF EXISTS approval_requests
+    ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(200);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_approval_requests_idempotency
+    ON approval_requests(idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+
 ALTER TABLE IF EXISTS approval_requests ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE IF EXISTS approval_requests ADD COLUMN IF NOT EXISTS evidence JSONB NOT NULL DEFAULT '{}'::JSONB;
 
@@ -175,29 +155,20 @@ CREATE TABLE IF NOT EXISTS device_command_intents (
 
 CREATE INDEX IF NOT EXISTS idx_device_command_intents_approval
 ON device_command_intents(approval_request_id);
-=======
->>>>>>> origin/Dungpt
 CREATE TABLE IF NOT EXISTS audit_logs (
     audit_id BIGSERIAL PRIMARY KEY,
     actor_type VARCHAR(30) NOT NULL,
     actor_id VARCHAR(100),
-<<<<<<< HEAD
     actor_role VARCHAR(30),
     action VARCHAR(100) NOT NULL,
     entity_type VARCHAR(50),
     entity_id VARCHAR(100),
     outcome VARCHAR(30) NOT NULL DEFAULT 'success',
     correlation_id VARCHAR(100),
-=======
-    action VARCHAR(100) NOT NULL,
-    entity_type VARCHAR(50),
-    entity_id VARCHAR(100),
->>>>>>> origin/Dungpt
     details JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-<<<<<<< HEAD
 ALTER TABLE IF EXISTS audit_logs ADD COLUMN IF NOT EXISTS actor_role VARCHAR(30);
 ALTER TABLE IF EXISTS audit_logs ADD COLUMN IF NOT EXISTS outcome VARCHAR(30) NOT NULL DEFAULT 'success';
 ALTER TABLE IF EXISTS audit_logs ADD COLUMN IF NOT EXISTS correlation_id VARCHAR(100);
@@ -214,8 +185,6 @@ DROP TRIGGER IF EXISTS audit_logs_no_update ON audit_logs;
 CREATE TRIGGER audit_logs_no_update
 BEFORE UPDATE OR DELETE ON audit_logs
 FOR EACH ROW EXECUTE FUNCTION prevent_audit_log_mutation();
-=======
->>>>>>> origin/Dungpt
 CREATE TABLE IF NOT EXISTS job_runs (
     task_id VARCHAR(64) PRIMARY KEY,
     job_type VARCHAR(50) NOT NULL,
@@ -235,7 +204,6 @@ CREATE TABLE IF NOT EXISTS job_runs (
 CREATE INDEX IF NOT EXISTS idx_job_runs_type_created
 ON job_runs(job_type, created_at DESC);
 
-<<<<<<< HEAD
 INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description, active)
 VALUES
     ('S01', 'Cong chinh', 'main_gate', 20.9441, 105.9439, 'Khu vuc cong chinh, PM2.5 tang vao gio cao diem', TRUE),
@@ -255,23 +223,8 @@ ON CONFLICT (station_id) DO UPDATE SET
 INSERT INTO station_status (station_id, status, last_seen_at, source)
 SELECT station_id, 'offline', NULL, 'simulator'
 FROM stations
-=======
-INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description)
-VALUES
-    ('S01', 'Cong chinh', 'main_gate', 20.9441, 105.9439, 'Khu vuc cong chinh, PM2.5 tang vao gio cao diem'),
-    ('S02', 'Bai do xe', 'parking', 20.9450, 105.9435, 'Khu vuc bai do xe, anh huong boi xe ra vao'),
-    ('S03', 'Truc duong chinh', 'main_road', 20.9445, 105.9452, 'Tuyen duong chinh, co mat do giao thong cao'),
-    ('S04', 'Cong vien', 'park', 20.9455, 105.9458, 'Khu cong vien, PM2.5 thuong thap hon khu giao thong'),
-    ('S05', 'Khu the thao ngoai troi', 'sport_area', 20.9437, 105.9448, 'Khu the thao, dung cho khuyen nghi hoat dong ngoai troi')
->>>>>>> origin/Dungpt
 ON CONFLICT (station_id) DO NOTHING;
 
 INSERT INTO devices (device_id, device_name, device_type, station_id, status, is_simulated)
 VALUES ('FILTER-01', 'Simulated outdoor filtration unit', 'air_filter', 'S03', 'offline', TRUE)
 ON CONFLICT (device_id) DO NOTHING;
-<<<<<<< HEAD
-
-
-
-=======
->>>>>>> origin/Dungpt

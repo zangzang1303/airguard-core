@@ -163,7 +163,6 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 | BE-005 | `backend/app/services/approval_service.py` | `backend/app/api/approvals.py`, `backend/app/repositories/approvals.py` | `tests/test_api/test_approvals.py`, `specs/api-contracts.md` |
 | BE-006 | `backend/db/schema.sql` | `backend/app/services/audit_service.py`, `backend/app/repositories/audit_logs.py` | `tests/test_services/test_audit.py`, `docs/observability.md` |
 | BE-007 | `backend/app/celery_app.py`, `backend/app/tasks/*.py` | `backend/app/services/job_service.py` | `tests/test_api/test_jobs.py`, `docs/test-plan.md` |
-<<<<<<< HEAD
 ## Trạng thái triển khai hiện tại
 
 Backend MVP theo BE-001..BE-007 đã được triển khai ở mức cần cho demo/local stack:

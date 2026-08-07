@@ -163,7 +163,6 @@ Xay dung pipeline du lieu PM2.5 gia lap cho 5 tram S01-S05: simulator -> MQTT ->
 | DI-005 | `docker-compose.yml`, `backend/db/schema.sql` | `services/mqtt-consumer/main.py`, Dockerfile, requirements | pipeline integration test |
 | DI-006 | - | `services/device-simulator/` | command contract, HITL/audit test |
 | DI-007 | `backend/app/main.py` | `backend/app/services/weather_service.py` | weather contract and fallback test |
-<<<<<<< HEAD
 ## Trạng thái triển khai hiện tại
 
 Phần cần thiết để backend đọc dữ liệu thật đã được triển khai ở mức MVP:

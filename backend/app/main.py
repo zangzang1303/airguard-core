@@ -1,4 +1,5 @@
 
+from datetime import datetime, timezone
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import Body, FastAPI, Header, Query, Request
@@ -43,6 +44,16 @@ class ForecastJobRequest(BaseModel):
     station_id: str = Field(..., examples=["S03"])
     hours: int = Field(default=3, ge=1, le=3)
     idempotency_key: str | None = Field(default=None, min_length=8, max_length=200)
+
+
+class CompareStationsRequest(BaseModel):
+    station_ids: list[str] = Field(min_length=1, max_length=5)
+
+
+class UserProfileResponse(BaseModel):
+    user_id: str
+    role: str
+    user_group: str | None = None
 
 
 class ApprovalCreateRequest(BaseModel):
@@ -177,13 +188,18 @@ def get_station(station_id: str) -> dict:
 
 @app.get("/api/v1/stations/{station_id}/current")
 def get_station_current(station_id: str) -> dict:
-    return station_service.get_station(station_id)
+    return {**station_service.get_station(station_id), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 
 @app.get("/api/v1/stations/{station_id}/history")
 def get_station_history(station_id: str, hours: int = Query(default=24, ge=1, le=72)) -> dict:
-    return station_service.get_history(station_id, hours)
+    return {**station_service.get_history(station_id, hours), "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+@app.post("/api/v1/stations/compare")
+def compare_stations(body: CompareStationsRequest) -> dict:
+    return {**station_service.compare_stations(body.station_ids), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @app.post("/api/v1/internal/ingestion/measurements", status_code=202)
@@ -208,7 +224,7 @@ def evaluate_ingested_measurement(
 
 @app.get("/api/v1/alerts")
 def get_alerts(status: str | None = Query(default=None), station_id: str | None = Query(default=None)) -> dict:
-    return {"items": alert_engine.list_alerts(status=status, station_id=station_id)}
+    return {"items": alert_engine.list_alerts(status=status, station_id=station_id), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @app.post("/api/v1/alerts/{alert_id}/resolve")
@@ -230,7 +246,7 @@ weather_service = WeatherService()
 
 @app.get("/api/v1/weather/current")
 def get_current_weather() -> dict:
-    return weather_service.current_weather()
+    return {**weather_service.current_weather(), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 
@@ -243,7 +259,28 @@ def get_station_forecast(station_id: str, hours: int = Query(default=3, ge=1, le
         "station_id": station_id,
         "items": baseline_forecast(float(station["pm25"]), hours),
         "source": "baseline_current_pm25",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "freshness": "fresh",
+        "confidence": "low",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)
+def get_user_profile(user_id: str) -> UserProfileResponse:
+    with db.connection() as conn:
+        from .services.database import dict_cursor
+        with dict_cursor(conn) as cur:
+            cur.execute(
+                "SELECT user_id, role, sensitivity_group FROM users WHERE user_id = %s",
+                (user_id,),
+            )
+            row = cur.fetchone()
+    if not row:
+        raise ServiceError("user_not_found", "User profile was not found", 404, {"user_id": user_id})
+    return UserProfileResponse(
+        user_id=str(row["user_id"]), role=row["role"], user_group=row.get("sensitivity_group")
+    )
 
 
 @app.post("/api/v1/agent/chat")
@@ -297,7 +334,23 @@ def get_background_job(task_id: str) -> dict:
 
 
 @app.post("/api/v1/approvals", status_code=201)
-def create_approval(request: Request, body: ApprovalCreateRequest) -> dict:
+@app.post("/api/v1/proposals", status_code=201)
+def create_approval(
+    request: Request,
+    body: ApprovalCreateRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
+    if idempotency_key is not None and len(idempotency_key) < 8:
+        raise ServiceError("invalid_idempotency_key", "Idempotency-Key must be at least 8 characters", 422)
+    if body.request_type == "warning_proposal":
+        if not body.station_id or not body.evidence:
+            raise ServiceError("proposal_evidence_required", "Warning proposals require station_id and evidence", 422)
+        station = station_service.get_station(body.station_id)
+        if station["status"] in {"offline", "stale"} or station["pm25"] is None:
+            raise ServiceError("proposal_data_not_eligible", "Fresh online station data is required", 409)
+        active_alerts = alert_engine.list_alerts(status="active", station_id=body.station_id)
+        if not active_alerts:
+            raise ServiceError("proposal_alert_required", "An active alert is required for a warning proposal", 409)
     return approval_service.create_request(
         request_type=body.request_type,
         station_id=body.station_id,
@@ -307,22 +360,26 @@ def create_approval(request: Request, body: ApprovalCreateRequest) -> dict:
         evidence=body.evidence,
         created_by=body.created_by,
         correlation_id=_request_id(request),
+        idempotency_key=idempotency_key,
     )
 
 
 @app.get("/api/v1/approvals")
+@app.get("/api/v1/proposals")
 def get_approvals(status: str | None = Query(default=None), x_user_role: str = Header(default="viewer")) -> dict:
     _require_manager_role(x_user_role)
     return {"items": approval_service.list_requests(status=status)}
 
 
 @app.get("/api/v1/approvals/{request_id}")
+@app.get("/api/v1/proposals/{request_id}")
 def get_approval(request_id: str, x_user_role: str = Header(default="viewer")) -> dict:
     _require_manager_role(x_user_role)
     return approval_service.get_request(request_id)
 
 
 @app.post("/api/v1/approvals/{request_id}/approve")
+@app.post("/api/v1/proposals/{request_id}/approve")
 def approve_request(
     request: Request,
     request_id: str,
@@ -348,12 +405,22 @@ def approve_request(
                     "idempotency_key": result["command_intent"]["idempotency_key"],
                 }
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            audit_service.record(
+                actor_type="system",
+                actor_role="backend",
+                action="approval.dispatch.failure",
+                entity_type="approval_request",
+                entity_id=request_id,
+                correlation_id=_request_id(request),
+                outcome="failure",
+                details={"error": str(exc)[:200]},
+            )
     return result
 
 
 @app.post("/api/v1/approvals/{request_id}/reject")
+@app.post("/api/v1/proposals/{request_id}/reject")
 def reject_request(
     request: Request,
     request_id: str,

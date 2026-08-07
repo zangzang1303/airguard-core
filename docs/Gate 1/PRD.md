@@ -1,227 +1,299 @@
-# Tài liệu Yêu cầu Sản phẩm (PRD) — AirGuard AI
+# PRD — AirGuard AI
 
-**Phiên bản:** 1.0  
-**Ngày cập nhật:** 02/08/2026  
-**Trạng thái:** Gate 1 — Chốt đề tài và thiết kế  
+**Phiên bản:** 1.2  
+**Ngày cập nhật:** 06/08/2026  
 **Thời gian thực hiện:** 6 tuần  
 **Quy mô nhóm:** 4 thành viên  
+**Trạng thái:** Đang triển khai MVP  
 
 ---
 
-## 1. Tổng quan
+# 1. Tổng quan dự án
 
-AirGuard AI là hệ thống AI Agent hỗ trợ giám sát môi trường đô thị hoặc campus theo nhiều điểm đo. MVP tập trung vào chỉ số PM2.5 ngoài trời tại khu vực VinUni và vùng lân cận trong Vinhomes Ocean Park.
+## Phần này gồm những gì?
 
-Hệ thống thu thập dữ liệu từ các cảm biến giả lập qua MQTT, hiển thị tình trạng hiện tại trên bản đồ thật, phát hiện bất thường, dự báo xu hướng PM2.5 ngắn hạn và cho phép người dùng đặt câu hỏi bằng ngôn ngữ tự nhiên.
+| Nội dung | Ý nghĩa |
+|---|---|
+| Bài toán | Vấn đề thực tế mà dự án muốn giải quyết |
+| Giải pháp | AirGuard AI hoạt động như thế nào |
+| Giá trị chính | Vì sao sản phẩm hữu ích hơn dashboard thông thường |
+| Phạm vi địa lý | Khu vực được dùng để xây dựng và demo MVP |
 
-AI Agent không tự tạo số liệu. Agent lựa chọn và gọi các công cụ nội bộ để lấy dữ liệu hiện tại, lịch sử, thời tiết, cảnh báo, dự báo và hồ sơ người dùng. Khi cần phát cảnh báo diện rộng, Agent chỉ tạo đề xuất để ban quản lý phê duyệt hoặc từ chối thông qua cơ chế Human-in-the-Loop.
+## Giải thích ngắn
 
-Tầm nhìn của sản phẩm là biến dữ liệu môi trường rời rạc thành thông tin dễ hiểu, có căn cứ và có thể hỗ trợ hành động.
+AirGuard AI là hệ thống hỗ trợ theo dõi chất lượng không khí ngoài trời trong khu đô thị hoặc campus. MVP tập trung vào **PM2.5** tại 5 vị trí quanh VinUni và Vinhomes Ocean Park.
 
----
+Hệ thống không chỉ hiển thị số liệu. Nó còn cho phép người dùng hỏi AI Agent bằng ngôn ngữ tự nhiên, so sánh khu vực, nhận khuyến nghị và xem cảnh báo có bằng chứng.
 
-## 2. Mục tiêu
+## Chi tiết
 
-- Cung cấp một giao diện thống nhất để theo dõi PM2.5 tại nhiều vị trí.
-- Giúp cư dân nhanh chóng xác định khu vực có chất lượng không khí xấu.
-- Hỗ trợ người nhạy cảm và người hoạt động ngoài trời đưa ra quyết định phù hợp hơn.
-- Phát hiện PM2.5 vượt ngưỡng, dữ liệu bất thường và cảm biến mất kết nối.
-- Dự báo xu hướng PM2.5 trong 1–3 giờ tiếp theo.
-- Cho phép người dùng hỏi AI Agent về tình trạng hiện tại, so sánh khu vực, cảnh báo và khuyến nghị.
-- Bảo đảm mọi số liệu trong câu trả lời của Agent đều đến từ tool và dữ liệu của hệ thống.
-- Cho phép Agent tạo đề xuất cảnh báo có bằng chứng.
-- Bắt buộc con người phê duyệt trước khi phát cảnh báo diện rộng.
-- Hoàn thành một MVP có thể demo end-to-end trong 6 tuần.
+Luồng tổng thể:
 
----
+```text
+Sensor Simulator
+→ MQTT Broker
+→ Backend
+→ Database
+→ Dashboard / AI Agent
+→ Warning Proposal
+→ Manager Approve hoặc Reject
+```
 
-## 3. Không phải mục tiêu
+Nguyên tắc quan trọng:
 
-- Triển khai trên phạm vi toàn thành phố.
-- Lắp đặt cảm biến vật lý trên diện rộng.
-- Điều khiển trực tiếp hệ thống thông gió, lọc khí, HVAC, BMS hoặc SCADA thật.
-- Chẩn đoán hoặc tư vấn điều trị y tế.
-- Xây dựng ứng dụng mobile riêng.
-- Triển khai multi-agent.
-- Xây dựng vector database hoặc RAG tài liệu quy mô lớn.
-- Tích hợp SMS, cuộc gọi tự động hoặc hạ tầng gửi thông báo thương mại.
-- Bắt buộc sử dụng mô hình deep learning như LSTM trong MVP.
-- Xây dựng hạ tầng production với Kubernetes hoặc auto-scaling.
-- Theo dõi đầy đủ mọi chỉ số môi trường trong MVP.
-
-Kiến trúc có thể mở rộng để hỗ trợ CO₂, PM10, tiếng ồn, nhiệt độ, độ ẩm, NO₂, SO₂ và O₃ trong tương lai, nhưng MVP tập trung vào PM2.5 ngoài trời.
+- AI Agent không tự tạo số liệu.
+- Mọi số liệu môi trường phải đến từ tool.
+- Alert threshold do Rule Engine quyết định.
+- Agent chỉ tạo Warning Proposal ở trạng thái `pending`.
+- Manager là người approve hoặc reject.
 
 ---
 
-## 4. Đối tượng người dùng
+# 2. Mục tiêu MVP
 
-### 4.1 Cư dân
+## Phần này gồm những gì?
 
-Cư dân muốn hiểu nhanh chất lượng không khí tại khu vực sinh sống hoặc học tập. Họ không nhất thiết có kiến thức chuyên sâu về môi trường và cần câu trả lời ngắn gọn, dễ hiểu.
+| Nhóm mục tiêu | Nội dung |
+|---|---|
+| Theo dõi dữ liệu | Hiển thị PM2.5 tại 5 vị trí |
+| Phát hiện vấn đề | Phát hiện PM2.5 cao, stale, invalid và offline |
+| Hỏi đáp bằng AI | Cho phép người dùng hỏi Agent bằng ngôn ngữ tự nhiên |
+| Khuyến nghị | Đưa ra lời khuyên theo từng nhóm người dùng |
+| Cảnh báo có kiểm soát | Agent tạo proposal, Manager duyệt |
+| Đánh giá | Có metric, test case và E2E scenario |
 
-Nhu cầu chính:
+## Giải thích ngắn
 
-- Xem PM2.5 theo vị trí.
-- Biết khu vực nào nên tránh.
-- Hiểu ý nghĩa của cảnh báo.
-- Nhận khuyến nghị hành động đơn giản.
+Mục tiêu MVP không phải xây một hệ thống hoàn hảo cho toàn thành phố. Mục tiêu là chứng minh được luồng chính hoạt động từ dữ liệu cảm biến đến dashboard, Agent và Human-in-the-Loop.
 
-### 4.2 Người nhạy cảm
+## Mục tiêu chi tiết
 
-Nhóm này gồm người cao tuổi, trẻ nhỏ hoặc những người dễ bị ảnh hưởng bởi ô nhiễm không khí.
+- Theo dõi PM2.5 tại 5 trạm.
+- Hiển thị dữ liệu mới nhất và lịch sử.
+- Phát hiện PM2.5 vượt ngưỡng.
+- Phát hiện sensor offline.
+- Nhận biết dữ liệu stale hoặc invalid.
+- Hỗ trợ 3 nhóm người dùng:
+  - `normal`
+  - `sensitive`
+  - `outdoor_sport`
+- Cho phép Agent:
+  - hỏi PM2.5 hiện tại;
+  - xem xu hướng;
+  - so sánh khu vực;
+  - giải thích cảnh báo;
+  - đưa ra khuyến nghị;
+  - tạo Warning Proposal.
+- Cho phép Manager approve hoặc reject proposal.
+- Lưu Agent trace và audit log.
+- Chạy thành công ít nhất 3 kịch bản E2E.
 
-Nhu cầu chính:
+---
 
-- Nhận khuyến nghị thận trọng hơn.
-- Biết khu vực nào có PM2.5 thấp hơn.
+# 3. Những phần không làm trong MVP
+
+## Phần này gồm những gì?
+
+| Không triển khai | Lý do |
+|---|---|
+| Sensor vật lý thật | Vượt phạm vi và thời gian của nhóm |
+| Mobile app | Không cần thiết để chứng minh MVP |
+| Deep learning bắt buộc | Baseline đủ để kiểm chứng hướng đi |
+| Multi-agent network tự trị | Khó kiểm soát và debug |
+| Điều khiển thiết bị thật | Có rủi ro và cần hạ tầng thực |
+| Production scaling lớn | Không phải mục tiêu của Gate hiện tại |
+
+## Giải thích ngắn
+
+Việc chốt rõ phần không làm giúp nhóm tránh mở rộng phạm vi, giảm xung đột và tập trung vào demo end-to-end.
+
+## Danh sách ngoài phạm vi
+
+- Sensor vật lý thật.
+- Mobile application.
+- HVAC/BMS/SCADA thật.
+- Multi-agent network tự trị.
+- Agent tự approve/reject.
+- Deep learning/LSTM bắt buộc.
+- Kubernetes và auto-scaling.
+- Theo dõi toàn bộ chỉ số môi trường.
+- Vector database nếu chưa thực sự cần.
+
+---
+
+# 4. Đối tượng người dùng
+
+## Phần này gồm những gì?
+
+| Người dùng | Nhu cầu chính | Quyền chính |
+|---|---|---|
+| Resident/User | Xem dữ liệu và hỏi Agent | Xem dashboard, station, alert |
+| Sensitive User | Nhận khuyến nghị thận trọng hơn | Xem khu vực nên tránh |
+| Outdoor Sport User | Biết có nên tập ngoài trời | Xem current, forecast, recommendation |
+| Manager | Theo dõi và phê duyệt cảnh báo | Approve/reject proposal |
+| Admin | Quản trị hệ thống nếu có | Quản lý user, station, config |
+
+## Giải thích ngắn
+
+Mỗi nhóm người dùng có nhu cầu khác nhau. Agent phải dùng user profile để tạo khuyến nghị phù hợp, nhưng không được chẩn đoán y tế.
+
+## Chi tiết từng nhóm
+
+### 4.1. Resident/User
+
+Có thể:
+
+- Login.
+- Xem dashboard.
+- Xem trạm.
+- Xem lịch sử.
+- Hỏi AI Agent.
+- Xem cảnh báo công khai.
+- Xem profile.
+
+Không thể:
+
+- Approve hoặc reject proposal.
+- Thay đổi threshold.
+- Quản lý station.
+
+### 4.2. Sensitive User
+
+Cần:
+
+- Khuyến nghị thận trọng hơn.
+- Biết khu vực nên tránh.
 - Biết khi nào nên hạn chế hoạt động ngoài trời.
 
-Sản phẩm không lưu bệnh án và không đưa ra chẩn đoán y tế. Người dùng chỉ lựa chọn nhóm nhạy cảm ở mức hồ sơ sử dụng.
+Lưu ý:
 
-### 4.3 Người hoạt động thể thao ngoài trời
+- Không lưu bệnh án.
+- Không chẩn đoán y tế.
+- Chỉ sử dụng nhóm hồ sơ để cá nhân hóa khuyến nghị.
 
-Nhóm này gồm người chạy bộ hoặc thường xuyên tập luyện ngoài trời.
+### 4.3. Outdoor Sport User
 
-Nhu cầu chính:
+Cần:
 
-- Biết có nên tập tại một khu vực hay không.
-- So sánh khu thể thao, công viên và các vị trí khác.
-- Xem xu hướng PM2.5 trong vài giờ tiếp theo.
+- Biết có nên chạy bộ không.
+- So sánh khu thể thao với công viên.
+- Xem forecast ngắn hạn.
 
-### 4.4 Ban quản lý
+### 4.4. Manager
 
-Ban quản lý cần một dashboard tập trung để theo dõi:
+Có thể:
 
-- Trạng thái cảm biến.
-- PM2.5 tại từng điểm.
-- Cảnh báo đang hoạt động.
-- Đề xuất do Agent tạo.
-- Lịch sử phê duyệt và từ chối.
+- Xem dashboard.
+- Xem active alert.
+- Xem Warning Proposal.
+- Xem evidence.
+- Approve hoặc reject.
+- Nhập review note.
+- Xem audit log.
 
-Ban quản lý cần xem được bằng chứng trước khi quyết định phát cảnh báo.
+### 4.5. Admin
 
----
-
-## 5. Các giải pháp hiện có và hạn chế
-
-### 5.1 Ứng dụng thời tiết và chất lượng không khí phổ thông
-
-- Thường cung cấp dữ liệu ở cấp thành phố hoặc quận.
-- Không phản ánh rõ khác biệt giữa cổng chính, bãi xe, trục đường, công viên và khu thể thao.
-- Chủ yếu hiển thị số liệu và màu sắc.
-- Ít hỗ trợ khuyến nghị theo từng nhóm người dùng.
-- Không có quy trình phê duyệt cảnh báo cục bộ.
-
-### 5.2 Dashboard cảm biến độc lập
-
-- Có thể hiển thị số liệu nhưng khó giải thích cho người dùng phổ thông.
-- Người dùng phải tự đọc biểu đồ và ngưỡng.
-- Không hỗ trợ hỏi đáp bằng ngôn ngữ tự nhiên.
-- Không có AI Agent tạo đề xuất có căn cứ.
-
-### 5.3 Chatbot AI thông thường
-
-- Có thể giải thích kiến thức PM2.5.
-- Không tự động truy cập dữ liệu sensor hiện tại nếu không được kết nối tool.
-- Có nguy cơ bịa số liệu.
-- Không hỗ trợ quy trình phê duyệt và audit log.
-
-### 5.4 Theo dõi thủ công bởi ban quản lý
-
-- Phải kiểm tra nhiều nguồn dữ liệu.
-- Khó so sánh nhiều vị trí nhanh chóng.
-- Dễ chậm cảnh báo.
-- Thiếu lịch sử quyết định có cấu trúc.
-
-AirGuard AI kết hợp dữ liệu cục bộ, bản đồ, dự báo, AI Agent dùng tool và cơ chế Human-in-the-Loop trong một hệ thống thống nhất.
+Chỉ triển khai khi nhóm chốt Admin nằm trong MVP.
 
 ---
 
-## 6. Các giả định
+# 5. Kiến trúc hệ thống
 
-Các giả định dưới đây cần được xác nhận qua Mentor, phỏng vấn người dùng hoặc kiểm thử prototype.
+## Phần này gồm những gì?
 
-- Người dùng thích bản đồ và khuyến nghị ngắn gọn hơn bảng dữ liệu thô.
-- Người dùng có nhu cầu so sánh các khu vực gần nhau.
-- Người nhạy cảm cần khuyến nghị thận trọng hơn người dùng bình thường.
-- Ban quản lý cần bằng chứng trước khi duyệt cảnh báo.
-- Sensor giả lập qua MQTT được chấp nhận cho MVP nếu ghi rõ nguồn dữ liệu.
-- Năm vị trí đại diện đủ để chứng minh giá trị sản phẩm.
-- PM2.5 là chỉ số chính phù hợp cho MVP.
-- Dự báo ngắn hạn có giá trị thực tế hơn dự báo dài hạn.
-- Người dùng hiểu sản phẩm là công cụ hỗ trợ, không phải cơ quan quan trắc chính thức.
-- Câu trả lời của Agent đáng tin hơn khi có số liệu, vị trí, timestamp và nguồn.
+| Thành phần | Vai trò |
+|---|---|
+| Sensor Simulator | Sinh dữ liệu PM2.5 |
+| MQTT Broker | Truyền dữ liệu sensor |
+| Backend | Validate, xử lý và cung cấp API |
+| PostgreSQL | Lưu dữ liệu chính |
+| Alert Engine | Tạo cảnh báo theo rule |
+| Frontend | Hiển thị dữ liệu và thao tác người dùng |
+| AI Agent | Gọi tool và tạo câu trả lời |
+| HITL | Manager kiểm soát cảnh báo |
 
-### Trạng thái xác thực
+## Giải thích ngắn
 
-| Giả định | Bằng chứng hiện tại | Trạng thái |
+Kiến trúc được tách lớp để mỗi thành viên có thể làm độc lập nhưng vẫn tích hợp theo contract chung.
+
+## Sơ đồ luồng
+
+```text
+Sensor Simulator
+      |
+      v
+MQTT Broker
+      |
+      v
+Backend MQTT Consumer
+      |
+      v
+Validation + Data Quality
+      |
+      v
+PostgreSQL
+      |
+      +----------------------------+
+      |                            |
+      v                            v
+REST API                      Alert Engine
+      |                            |
+      v                            v
+Frontend                     Active Alert
+      |
+      v
+AI Agent API
+      |
+      v
+Tool Calling
+      |
+      v
+Warning Proposal
+      |
+      v
+Manager Approve/Reject
+```
+
+## Ràng buộc kiến trúc
+
+- Frontend không kết nối MQTT trực tiếp.
+- Frontend không truy cập Database.
+- Agent không truy cập Database.
+- Agent chỉ gọi API/tool.
+- Rule Engine không phụ thuộc LLM.
+- Proposal phải qua Human-in-the-Loop.
+
+---
+
+# 6. Các tính năng cốt lõi
+
+## Phần này gồm những gì?
+
+| Tính năng | Người dùng chính | Kết quả mong đợi |
 |---|---|---|
-| Người dùng cần cách diễn giải đơn giản | Phân tích ban đầu của nhóm | Cần kiểm thử |
-| Bản đồ là giao diện chính phù hợp | Quyết định thiết kế | Cần kiểm thử với người dùng |
-| Người nhạy cảm cần khuyến nghị riêng | Yêu cầu dự án | Chấp nhận cho MVP |
-| Ban quản lý cần quyền phê duyệt | Ràng buộc đề bài | Đã chấp nhận |
-| Sensor giả lập được chấp nhận | Chưa có xác nhận chính thức | Cần hỏi Mentor |
-| Chỉ làm PM2.5 là đủ | Chưa có xác nhận chính thức | Cần hỏi Mentor |
+| Dashboard bản đồ | User, Manager | Xem 5 trạm và PM2.5 |
+| Chi tiết trạm | User, Manager | Xem current và history |
+| Alert Engine | Hệ thống | Phát hiện bất thường |
+| AI Agent Chat | User | Hỏi bằng ngôn ngữ tự nhiên |
+| Khuyến nghị | User | Nhận lời khuyên theo profile |
+| Warning Proposal | Agent, Manager | Tạo và duyệt cảnh báo |
+| Audit Log | Manager/Admin | Theo dõi quyết định |
 
-Sau khi có phỏng vấn, cần bổ sung link biên bản hoặc ghi chú vào phần này.
+## Giải thích ngắn
 
----
-
-## 7. Các ràng buộc
-
-- Nhóm có 4 thành viên.
-- Thời gian thực hiện là 6 tuần.
-- MVP phải có AI Agent hoạt động, không chỉ có dashboard.
-- Chỉ số chính là PM2.5 ngoài trời.
-- MVP sử dụng 5 vị trí cảm biến.
-- Telemetry được truyền qua MQTT.
-- Bản đồ phải sử dụng khu vực địa lý thật.
-- Mọi dữ liệu giả lập phải được gắn nhãn rõ.
-- Backend phải chống lưu message MQTT trùng.
-- Agent chỉ được gọi tool, không truy cập database trực tiếp.
-- Agent không được bịa số liệu.
-- Ngưỡng cảnh báo phải do rule engine quyết định.
-- Cảnh báo diện rộng phải qua Human-in-the-Loop.
-- MVP phải có thể chạy bằng Docker Compose.
-- Không commit secret hoặc API key lên GitHub.
-- Frontend không kết nối trực tiếp với MQTT.
-- Mọi hành động quan trọng phải có audit log.
-- Thiết kế phải đủ đơn giản để nhóm có thể debug và demo.
+Các tính năng này là phần tối thiểu để chứng minh sản phẩm có giá trị. Mỗi tính năng đều cần có acceptance criteria rõ ràng.
 
 ---
 
-## 8. Các trường hợp sử dụng chính
+## 6.1. Dashboard bản đồ
 
-- Theo dõi PM2.5 hiện tại tại 5 vị trí.
-- Xem trạng thái và lịch sử của một cảm biến.
-- Phát hiện PM2.5 cao hoặc cảm biến offline.
-- Hỏi khu vực nào ô nhiễm nhất.
-- So sánh hai khu vực.
-- Hỏi có nên hoạt động ngoài trời hay không.
-- Nhận khuyến nghị cho người nhạy cảm.
-- Hỏi lý do tạo cảnh báo.
-- Xem dự báo PM2.5 trong 1–3 giờ.
-- Tạo đề xuất cảnh báo.
-- Approve hoặc reject đề xuất.
-- Xem lịch sử hành động quan trọng.
+### Mục đích
 
----
+Cho người dùng nhìn nhanh chất lượng không khí ở từng khu vực.
 
-## 9. Theo dõi PM2.5 tại nhiều vị trí
+### 5 trạm trong MVP
 
-Dashboard chính hiển thị 5 điểm cảm biến trên OpenStreetMap.
-
-Mỗi marker hiển thị:
-
-- Tên trạm.
-- PM2.5 hiện tại.
-- Mức chất lượng không khí.
-- Trạng thái cảm biến.
-- Thời gian cập nhật gần nhất.
-
-Các trạm dự kiến:
-
-| Mã trạm | Loại vị trí |
+| Mã trạm | Vị trí |
 |---|---|
 | S01 | Cổng chính |
 | S02 | Bãi đỗ xe |
@@ -229,457 +301,908 @@ Các trạm dự kiến:
 | S04 | Công viên |
 | S05 | Khu thể thao ngoài trời |
 
-Tọa độ chính xác phải được chốt trước khi hoàn thiện cấu hình production của bản đồ.
+### Mỗi marker hiển thị
+
+- Tên trạm.
+- PM2.5 hiện tại.
+- Trạng thái sensor.
+- Thời gian cập nhật.
+- Trạng thái dữ liệu.
 
 ### Tiêu chí chấp nhận
 
-- Bản đồ hiển thị đủ 5 marker.
-- Mỗi marker hiển thị measurement hợp lệ mới nhất.
-- Sensor offline được đánh dấu rõ.
-- Dữ liệu giả lập có nhãn.
-- Người dùng có thể chọn marker để xem chi tiết.
+- Hiển thị đủ 5/5 trạm.
+- Có timestamp.
+- Offline hoặc stale được đánh dấu.
+- Click marker mở được chi tiết.
 
 ---
 
-## 10. Xem chi tiết và lịch sử trạm
+## 6.2. Chi tiết và lịch sử trạm
 
-Khi chọn một trạm, hệ thống hiển thị:
+### Mục đích
+
+Cho phép xem dữ liệu của một trạm rõ hơn thay vì chỉ nhìn marker.
+
+### Nội dung hiển thị
 
 - PM2.5 hiện tại.
-- Trạng thái hiện tại.
-- Thời gian cập nhật.
-- Xu hướng gần đây.
 - Biểu đồ lịch sử.
-- Cảnh báo liên quan.
+- Trạng thái sensor.
+- Active alert.
+- Timestamp.
+- Source.
 
 ### Tiêu chí chấp nhận
 
-- Hiển thị measurement hợp lệ mới nhất.
 - Không dùng measurement invalid.
-- Dữ liệu lịch sử được sắp theo thời gian.
-- Có thể xem tối thiểu 24 giờ dữ liệu gần nhất nếu có.
-- Dữ liệu stale được đánh dấu rõ.
+- Lịch sử sắp theo thời gian.
+- Dữ liệu stale được cảnh báo.
+- Xem được tối thiểu 24 giờ nếu có dữ liệu.
 
 ---
 
-## 11. Sensor Simulator và MQTT
+## 6.3. Alert Engine
 
-Sensor Simulator sinh dữ liệu PM2.5 cho 5 trạm.
+### Mục đích
 
-PM2.5 được tạo dựa trên:
+Phát hiện sự kiện cần chú ý bằng rule cố định và có thể kiểm thử.
 
-- PM2.5 nền của từng vị trí.
-- Hệ số giao thông.
-- Giờ cao điểm.
-- Tốc độ gió.
-- Lượng mưa.
-- Độ ẩm.
-- Hiệu ứng của scenario.
-- Nhiễu nhỏ.
+### Các rule chính
 
-Các scenario:
+- PM2.5 vượt ngưỡng trong nhiều measurement liên tiếp.
+- Sensor ngừng gửi dữ liệu.
+- Không tạo alert trùng trong cooldown.
+- Resolve alert khi điều kiện trở lại bình thường.
 
-- `normal`
-- `rush_hour_pollution`
-- `rain_cleanup`
-- `sudden_spike`
-- `sensor_offline`
+### Tiêu chí chấp nhận
 
-MQTT topic:
+- `sudden_spike` tạo đúng alert.
+- `sensor_offline` tạo đúng alert.
+- Một measurement bất thường đơn lẻ không tạo cảnh báo diện rộng.
+- Không phụ thuộc LLM.
+
+---
+
+## 6.4. AI Agent Chat
+
+### Mục đích
+
+Giúp người dùng hỏi dữ liệu bằng ngôn ngữ tự nhiên thay vì tự đọc bảng và biểu đồ.
+
+### Các intent chính
+
+| Intent | Ví dụ |
+|---|---|
+| `current_pm25` | PM2.5 ở S03 là bao nhiêu? |
+| `station_history` | PM2.5 có đang tăng không? |
+| `compare_stations` | Khu nào ô nhiễm nhất? |
+| `outdoor_recommendation` | Tôi có nên chạy bộ không? |
+| `sensitive_user_advice` | Người nhạy cảm nên tránh đâu? |
+| `active_alerts` | Hiện có cảnh báo nào? |
+| `alert_explanation` | Vì sao S03 bị cảnh báo? |
+| `forecast_pm25` | 3 giờ tới PM2.5 thế nào? |
+| `proposal_creation` | Có cần tạo cảnh báo không? |
+| `out_of_scope` | Câu hỏi ngoài phạm vi |
+
+### Luồng Agent
 
 ```text
-airguard/stations/{station_id}/measurements
+classify_intent
+→ resolve_station
+→ select_tools
+→ execute_tools
+→ evaluate_risk
+→ create_proposal_if_needed
+→ generate_response
+→ save_trace
 ```
 
-Payload bắt buộc:
+### Tiêu chí chấp nhận
+
+- Đúng ít nhất 8/10 test case.
+- 100% số liệu đến từ tool.
+- Có timestamp và evidence.
+- Không bịa số.
+- Không chẩn đoán y tế.
+- Không nói “an toàn tuyệt đối”.
+
+---
+
+## 6.5. Warning Proposal và HITL
+
+### Mục đích
+
+Cho phép Agent đề xuất cảnh báo nhưng vẫn giữ quyền quyết định cho con người.
+
+### Điều kiện tạo proposal
+
+- Có active alert.
+- Sensor online.
+- Data valid.
+- Data chưa stale.
+- Evidence đầy đủ.
+- Không có proposal pending trùng.
+
+### Nội dung proposal
+
+- Station.
+- Alert.
+- PM2.5.
+- Severity.
+- Timestamp.
+- Reason.
+- Evidence.
+- Proposed message.
+- Status `pending`.
+
+### Manager có thể
+
+- Approve.
+- Reject.
+- Ghi review note.
+
+### Tiêu chí chấp nhận
+
+- Agent không tự approve/reject.
+- Chỉ proposal `pending` được review.
+- Mọi quyết định được lưu audit log.
+- Proposal rejected không được phát cảnh báo.
+
+---
+
+# 7. Định nghĩa Agent
+
+## Phần này gồm những gì?
+
+| Agent | Vai trò chính |
+|---|---|
+| Supervisor/Router | Phân loại intent và điều phối |
+| Sensor Data Agent | Lấy current, history và compare |
+| Weather Agent | Lấy thông tin thời tiết |
+| Forecast Agent | Dự báo PM2.5 |
+| Risk Assessment Agent | Đánh giá rủi ro |
+| Recommendation Agent | Tạo khuyến nghị |
+| Warning Proposal Agent | Tạo proposal |
+| Response Agent | Soạn câu trả lời |
+| Trace/Audit Agent | Lưu trace và audit |
+
+## Giải thích ngắn
+
+Trong MVP, các “Agent” có thể là các node hoặc service trong một workflow, không nhất thiết là các LLM độc lập. Cách này giúp hệ thống dễ kiểm soát và debug hơn.
+
+---
+
+## 7.1. Supervisor/Router Agent
+
+### Nhiệm vụ
+
+- Nhận câu hỏi.
+- Xác định intent.
+- Resolve station.
+- Chọn tool.
+- Điều phối workflow.
+
+### Không được làm
+
+- Tự tạo số liệu.
+- Bỏ qua tool khi câu hỏi cần dữ liệu.
+
+---
+
+## 7.2. Sensor Data Agent
+
+### Nhiệm vụ
+
+- Lấy PM2.5 hiện tại.
+- Lấy lịch sử.
+- So sánh station.
+
+### Tool
+
+- `get_current_pm25`
+- `get_station_history`
+- `compare_stations`
+
+---
+
+## 7.3. Weather Context Agent
+
+### Nhiệm vụ
+
+Lấy dữ liệu thời tiết để hỗ trợ phân tích.
+
+### Tool
+
+- `get_weather_context`
+
+### Lưu ý
+
+Weather chỉ là bối cảnh, không thay thế sensor.
+
+---
+
+## 7.4. Forecast Agent
+
+### Nhiệm vụ
+
+Dự báo PM2.5 trong 1–3 giờ.
+
+### Tool
+
+- `get_pm25_forecast`
+
+### Yêu cầu output
+
+- Forecast value.
+- Forecast time.
+- Model name.
+- Generated time.
+- Confidence.
+
+### Guardrail
+
+- Không khẳng định chắc chắn.
+- Thiếu dữ liệu phải trả lỗi.
+
+---
+
+## 7.5. Risk Assessment Agent
+
+### Input
+
+- Current PM2.5.
+- History.
+- Forecast.
+- Weather.
+- User profile.
+- Active alerts.
+
+### Output
 
 ```json
 {
-  "message_id": "MSG-S03-20260802T180000",
-  "station_id": "S03",
-  "pm25": 78.4,
-  "temperature": 33.0,
-  "humidity": 62,
-  "wind_speed": 1.2,
-  "wind_direction": 120,
-  "rainfall": 0,
-  "timestamp": "2026-08-02T18:00:00+07:00",
-  "source": "simulator",
-  "scenario": "sudden_spike",
-  "quality_flag": "valid"
+  "risk_level": "high",
+  "reasons": [
+    "PM2.5 hiện tại cao",
+    "Xu hướng tiếp tục tăng"
+  ],
+  "affected_groups": [
+    "sensitive",
+    "outdoor_sport"
+  ]
 }
 ```
 
-### Tiêu chí chấp nhận
+### Lưu ý
 
-- Cả 5 trạm đều publish được dữ liệu.
-- Chu kỳ publish cấu hình được từ 10–30 giây.
-- `message_id` là duy nhất.
-- PM2.5 không âm.
-- Timestamp có timezone.
-- Backend bỏ qua message trùng.
-- Trạm được đánh dấu offline sau timeout quy định.
+Threshold đến từ Rule Engine, không do Agent tự đặt.
 
 ---
 
-## 12. Phát hiện PM2.5 cao và lỗi cảm biến
+## 7.6. Recommendation Agent
 
-Alert Engine đánh giá dữ liệu bằng rule cố định.
+### Nhiệm vụ
 
-Các rule ban đầu:
-
-- Tạo cảnh báo khi PM2.5 vượt ngưỡng trong 3 measurement hợp lệ liên tiếp.
-- Không tạo cảnh báo trùng trong khoảng cooldown.
-- Tạo cảnh báo offline khi sensor ngừng gửi dữ liệu.
-- Resolve cảnh báo khi điều kiện trở lại bình thường.
-
-Mỗi cảnh báo gồm:
-
-- Trạm.
-- Loại cảnh báo.
-- Severity.
-- Giá trị quan sát.
-- Ngưỡng.
-- Timestamp.
-- Trạng thái.
-
-### Tiêu chí chấp nhận
-
-- Scenario `sudden_spike` tạo được cảnh báo.
-- Một measurement bất thường đơn lẻ không tự động tạo cảnh báo diện rộng.
-- Không tạo cảnh báo trùng trong cooldown.
-- Phát hiện được sensor offline.
-- Việc tạo alert không phụ thuộc vào LLM.
-
----
-
-## 13. Hỏi AI Agent về tình trạng hiện tại
-
-Người dùng có thể đặt câu hỏi bằng ngôn ngữ tự nhiên.
-
-Các dạng câu hỏi tối thiểu:
-
-- “PM2.5 ở cổng chính hiện tại là bao nhiêu?”
-- “Khu vực nào đang ô nhiễm nhất?”
-- “So sánh công viên và trục đường chính.”
-- “Tôi có nên chạy bộ tại khu thể thao không?”
-- “Người nhạy cảm nên tránh khu vực nào?”
-- “Vì sao S03 có cảnh báo?”
-- “Sensor nào đang offline?”
-- “Trong ba giờ tới PM2.5 có xu hướng thế nào?”
-
-Agent phải:
-
-1. Phân loại intent.
-2. Xác định vị trí/trạm.
-3. Chọn tool.
-4. Gọi tool.
-5. Đánh giá kết quả.
-6. Trả lời có evidence.
-
-### Tiêu chí chấp nhận
-
-- Agent xử lý đúng tối thiểu 8/10 câu hỏi kiểm thử.
-- Mọi số liệu môi trường đến từ tool.
-- Câu trả lời có vị trí và timestamp.
-- Agent nói rõ khi dữ liệu thiếu, stale hoặc invalid.
-- Agent không khẳng định một khu vực “an toàn tuyệt đối”.
-
----
-
-## 14. So sánh khu vực
-
-Agent có thể so sánh hai hoặc nhiều trạm dựa trên measurement hợp lệ mới nhất.
-
-Ví dụ:
-
-> S03 — Trục đường chính hiện có PM2.5 là 78,4 µg/m³, trong khi S04 — Công viên là 24,7 µg/m³. Dựa trên dữ liệu cập nhật lúc 18:00, công viên là lựa chọn phù hợp hơn.
-
-### Tiêu chí chấp nhận
-
-- Các measurement được so sánh trong cùng khoảng thời gian gần nhất.
-- Sensor offline hoặc dữ liệu stale được loại trừ hoặc ghi rõ.
-- Câu trả lời có số liệu và timestamp.
-- Agent không tự suy diễn nguyên nhân khi không có bằng chứng.
-
----
-
-## 15. Khuyến nghị hoạt động ngoài trời
-
-Agent đưa ra khuyến nghị dựa trên:
-
-- PM2.5 hiện tại.
-- Dự báo PM2.5.
-- Thời tiết.
-- Cảnh báo active.
-- Hồ sơ người dùng.
-- Trạng thái cảm biến.
-
-Các nhóm hồ sơ:
+Tạo khuyến nghị cho:
 
 - `normal`
 - `sensitive`
 - `outdoor_sport`
 
-### Tiêu chí chấp nhận
+### Output
 
-- Khuyến nghị khác nhau theo nhóm người dùng.
-- Người nhạy cảm nhận khuyến nghị thận trọng hơn.
-- Agent đề xuất khu vực khác nếu có lựa chọn tốt hơn.
-- Agent không chẩn đoán y tế.
-- Câu trả lời có evidence.
+```json
+{
+  "recommendation": "Nên hoãn chạy bộ tại S05 trong 1–2 giờ.",
+  "confidence": "medium",
+  "basis": [
+    "current_pm25",
+    "forecast",
+    "user_profile"
+  ]
+}
+```
 
 ---
 
-## 16. Dự báo PM2.5 trong 1–3 giờ
+## 7.7. Warning Proposal Agent
 
-Forecast Service dự báo PM2.5 cho từng trạm.
+### Nhiệm vụ
 
-Các mô hình có thể thử:
+Tạo proposal khi đủ điều kiện.
+
+### Tool
+
+- `create_warning_proposal`
+
+### Không được làm
+
+- Approve.
+- Reject.
+- Phát cảnh báo trực tiếp.
+
+---
+
+## 7.8. Response Agent
+
+### Nhiệm vụ
+
+Soạn câu trả lời cuối cùng bằng tiếng Việt.
+
+### Câu trả lời cần có
+
+- Số liệu.
+- Đơn vị.
+- Station.
+- Timestamp.
+- Source.
+- Evidence.
+- Recommendation.
+- Confidence nếu có forecast.
+
+---
+
+## 7.9. Trace/Audit Agent
+
+### Lưu
+
+- Message.
+- Intent.
+- Tool.
+- Tool input.
+- Tool output.
+- Error.
+- Latency.
+- Final answer.
+- Proposal ID.
+
+### Không lưu
+
+- Password.
+- API key.
+- JWT raw token.
+
+---
+
+# 8. Tool Contract
+
+## Phần này gồm những gì?
+
+| Tool | Mục đích |
+|---|---|
+| `get_current_pm25` | Lấy PM2.5 hiện tại |
+| `get_station_history` | Lấy lịch sử |
+| `compare_stations` | So sánh trạm |
+| `get_weather_context` | Lấy thời tiết |
+| `get_pm25_forecast` | Lấy forecast |
+| `get_active_alerts` | Lấy active alert |
+| `get_user_profile` | Lấy profile |
+| `create_warning_proposal` | Tạo proposal |
+| `save_agent_trace` | Lưu trace |
+
+## Giải thích ngắn
+
+Mỗi tool phải được định nghĩa trước khi Agent sử dụng. Tool cần có input, output, error schema, timeout, guardrail và test case.
+
+## Bảng contract
+
+| Tool | Input chính | Output bắt buộc |
+|---|---|---|
+| `get_current_pm25` | `station_id` | station, pm25, unit, status, quality_flag, measured_at |
+| `get_station_history` | `station_id`, `hours` | measurements, count, time range |
+| `compare_stations` | `station_ids` | ranking, best, worst, comparison_valid |
+| `get_weather_context` | `location` | temperature, humidity, wind, rain, observed_at |
+| `get_pm25_forecast` | `station_id`, `hours` | forecast, model_name, generated_at, confidence |
+| `get_active_alerts` | `station_id?` | alerts, severity, status |
+| `get_user_profile` | `user_id` | role, user_group |
+| `create_warning_proposal` | alert, station, evidence, message | proposal_id, status, created_at |
+| `save_agent_trace` | intent, tools, input/output, answer | trace_id, status |
+
+## Yêu cầu bắt buộc với mọi tool
+
+- Input schema.
+- Output schema.
+- Error schema.
+- Timeout.
+- Test case.
+- Trace.
+- Guardrail.
+
+---
+
+# 9. Data Definition
+
+## Phần này gồm những gì?
+
+| Data object | Dùng để làm gì |
+|---|---|
+| Station | Lưu thông tin trạm |
+| Measurement | Lưu dữ liệu PM2.5 |
+| Alert | Lưu cảnh báo |
+| Warning Proposal | Lưu đề xuất cảnh báo |
+| User | Lưu role và user group |
+| Agent Trace | Lưu quá trình Agent xử lý |
+
+## Giải thích ngắn
+
+Data contract giúp Backend, Frontend và Agent sử dụng cùng tên field và cùng ý nghĩa.
+
+---
+
+## 9.1. Station
+
+```json
+{
+  "station_id": "S03",
+  "station_name": "Trục đường chính",
+  "latitude": 21.0001,
+  "longitude": 105.9442,
+  "location_type": "road",
+  "status": "online"
+}
+```
+
+## 9.2. Measurement
+
+```json
+{
+  "message_id": "MSG-S03-20260806T190000",
+  "station_id": "S03",
+  "pm25": 78.4,
+  "unit": "ug/m3",
+  "quality_flag": "valid",
+  "source": "sensor_simulator",
+  "scenario": "sudden_spike",
+  "measured_at": "2026-08-06T19:00:00+07:00",
+  "received_at": "2026-08-06T19:00:01+07:00"
+}
+```
+
+## 9.3. Alert
+
+```json
+{
+  "alert_id": "A001",
+  "station_id": "S03",
+  "type": "pm25_high",
+  "severity": "high",
+  "observed_value": 78.4,
+  "threshold": 75.0,
+  "status": "active",
+  "created_at": "2026-08-06T19:00:00+07:00"
+}
+```
+
+## 9.4. Warning Proposal
+
+```json
+{
+  "proposal_id": "P001",
+  "alert_id": "A001",
+  "station_id": "S03",
+  "status": "pending",
+  "reason": "PM2.5 vượt ngưỡng",
+  "proposed_message": "Hạn chế hoạt động ngoài trời tại S03.",
+  "created_by": "agent",
+  "created_at": "2026-08-06T19:01:00+07:00"
+}
+```
+
+## 9.5. User
+
+```json
+{
+  "user_id": "U001",
+  "email": "user@airguard.local",
+  "role": "resident",
+  "user_group": "outdoor_sport"
+}
+```
+
+---
+
+# 10. Mô phỏng dữ liệu
+
+## Phần này gồm những gì?
+
+| Nội dung | Ý nghĩa |
+|---|---|
+| Base value | Mức PM2.5 nền của từng trạm |
+| Rush hour effect | Ảnh hưởng giờ cao điểm |
+| Weather effect | Ảnh hưởng gió, mưa, độ ẩm |
+| Scenario effect | Tình huống test |
+| Small noise | Tạo dao động tự nhiên |
+
+## Giải thích ngắn
+
+Dữ liệu không được random hoàn toàn. Nó phải phản ánh đặc điểm vị trí, thời gian và scenario để phục vụ test.
+
+## Công thức mô phỏng
+
+```text
+PM2.5 =
+base_value_by_station
++ rush_hour_effect
++ weather_effect
++ scenario_effect
++ small_noise
+```
+
+## Scenario tối thiểu
+
+| Scenario | Mục đích test |
+|---|---|
+| `normal` | Luồng bình thường |
+| `rush_hour_pollution` | PM2.5 tăng giờ cao điểm |
+| `rain_cleanup` | PM2.5 giảm sau mưa |
+| `sudden_spike` | Tăng đột ngột |
+| `sensor_offline` | Sensor ngừng gửi |
+| `stale_data` | Dữ liệu quá cũ |
+| `invalid_data` | Dữ liệu lỗi |
+
+## MQTT topic
+
+```text
+airguard/stations/{station_id}/measurements
+```
+
+## Data quality rules
+
+- `message_id` duy nhất.
+- `station_id` phải tồn tại.
+- `pm25 >= 0`.
+- Timestamp có timezone.
+- Duplicate message bị bỏ qua.
+- Stale data được đánh dấu.
+- Sensor offline sau timeout.
+
+---
+
+# 11. API FE–BE
+
+## Phần này gồm những gì?
+
+| Nhóm API | Mục đích |
+|---|---|
+| Auth | Login, current user, logout |
+| Stations | Danh sách, chi tiết, current, history |
+| Compare | So sánh nhiều trạm |
+| Alerts | Lấy cảnh báo |
+| Agent | Gửi câu hỏi |
+| Proposals | Tạo và duyệt proposal |
+
+## Giải thích ngắn
+
+API phải được define trước để FE và BE không tự đặt field khác nhau. Backend có thể trả mock response trước, nhưng schema phải ổn định.
+
+## Danh sách endpoint bắt buộc
+
+```text
+GET    /api/v1/health
+
+POST   /api/v1/auth/login
+GET    /api/v1/auth/me
+POST   /api/v1/auth/logout
+
+GET    /api/v1/stations
+GET    /api/v1/stations/{station_id}
+GET    /api/v1/stations/{station_id}/current
+GET    /api/v1/stations/{station_id}/history
+POST   /api/v1/stations/compare
+
+GET    /api/v1/alerts/active
+
+POST   /api/v1/agent/chat
+
+GET    /api/v1/proposals
+POST   /api/v1/proposals
+PATCH  /api/v1/proposals/{proposal_id}/approve
+PATCH  /api/v1/proposals/{proposal_id}/reject
+```
+
+## Response thành công
+
+```json
+{
+  "success": true,
+  "data": {},
+  "message": "OK",
+  "timestamp": "2026-08-06T19:00:00+07:00"
+}
+```
+
+## Response lỗi
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Mô tả lỗi",
+    "details": {}
+  },
+  "timestamp": "2026-08-06T19:00:00+07:00"
+}
+```
+
+## Nguyên tắc tích hợp
+
+- FE không tự đặt field khác BE.
+- BE không đổi schema tùy ý.
+- Breaking change phải cập nhật tài liệu trước khi merge.
+- API có thể mock trước.
+- Swagger phải phản ánh đúng contract.
+
+---
+
+# 12. Metrics
+
+## Phần này gồm những gì?
+
+| Nhóm metric | Đo điều gì |
+|---|---|
+| Agent | Hiểu đúng, chọn đúng tool, không bịa |
+| Backend | API ổn định và nhanh |
+| Frontend | Render đúng, không crash |
+| Data/MQTT | Dữ liệu đủ, đúng và không trùng |
+| Alert/HITL | Cảnh báo đúng và có kiểm soát |
+
+## Giải thích ngắn
+
+Metric giúp nhóm chứng minh hệ thống hoạt động tốt đến mức nào, thay vì chỉ nói “đã chạy được”.
+
+## 12.1. Agent Metrics
+
+| Metric | Mục tiêu |
+|---|---|
+| Intent Accuracy | ≥ 80% |
+| Tool Selection Accuracy | ≥ 80% |
+| Tool Call Success Rate | ≥ 90% |
+| Evidence Coverage | ≥ 90% |
+| Hallucination Rate | 0% |
+| Trace Logging Rate | 100% |
+| Response Latency local | < 5 giây |
+| Proposal từ stale/invalid/offline | 0 case |
+
+## 12.2. Backend Metrics
+
+| Metric | Mục tiêu |
+|---|---|
+| API success rate | ≥ 95% |
+| P95 response time local | < 1 giây |
+| Swagger coverage | 100% API chính |
+| Unauthorized request bị chặn | 100% |
+
+## 12.3. Frontend Metrics
+
+| Metric | Mục tiêu |
+|---|---|
+| Station hiển thị | 5/5 |
+| White screen/crash | 0 |
+| Loading/error/empty state | 100% màn gọi API |
+| API integration success | ≥ 90% |
+
+## 12.4. Data/MQTT Metrics
+
+| Metric | Mục tiêu |
+|---|---|
+| Sensor coverage | 5/5 |
+| MQTT delivery | ≥ 95% |
+| Invalid data rejection | 100% |
+| Timestamp completeness | 100% |
+| Scenario coverage | ≥ 6 |
+| Duplicate record | 0 |
+
+## 12.5. Alert/HITL Metrics
+
+| Metric | Mục tiêu |
+|---|---|
+| High PM2.5 detection | ≥ 90% scenario |
+| Duplicate alert | 0 trong demo |
+| Approve/reject completion | 100% |
+| Audit log coverage | 100% |
+| Agent tự approve/reject | 0% |
+
+---
+
+# 13. Cách đánh giá
+
+## Phần này gồm những gì?
+
+| Hình thức đánh giá | Mục đích |
+|---|---|
+| Agent test | Kiểm tra intent, tool và guardrail |
+| Forecast test | Đánh giá sai số dự báo |
+| Integration test | Kiểm tra các module kết nối |
+| E2E test | Kiểm tra toàn bộ luồng |
+
+## Giải thích ngắn
+
+Đánh giá phải dùng test case có expected result rõ ràng, không chỉ demo bằng cảm giác.
+
+## 13.1. Agent test
+
+| ID | Câu hỏi | Intent | Tool |
+|---|---|---|---|
+| AG-01 | PM2.5 ở S03 hiện tại là bao nhiêu? | current_pm25 | get_current_pm25 |
+| AG-02 | PM2.5 S03 có đang tăng không? | station_history | get_station_history |
+| AG-03 | Khu nào ô nhiễm nhất? | compare_stations | compare_stations |
+| AG-04 | So sánh S03 và S04 | compare_stations | compare_stations |
+| AG-05 | Tôi có nên chạy bộ ở S05 không? | outdoor_recommendation | current + weather + forecast + profile |
+| AG-06 | Hiện có cảnh báo nào? | active_alerts | get_active_alerts |
+| AG-07 | Vì sao S03 bị cảnh báo? | alert_explanation | alerts + history |
+| AG-08 | 3 giờ tới PM2.5 S05 thế nào? | forecast_pm25 | get_pm25_forecast |
+| AG-09 | Có cần tạo cảnh báo không? | proposal_creation | alerts + proposal |
+| AG-10 | Hôm nay chứng khoán thế nào? | out_of_scope | không gọi tool môi trường |
+
+Mỗi test chấm:
+
+- Intent đúng.
+- Tool đúng.
+- Input tool đúng.
+- Có evidence.
+- Có timestamp.
+- Không hallucination.
+- Guardrail hoạt động.
+- Trace được lưu.
+
+## 13.2. Forecast evaluation
 
 - Persistence baseline.
-- Moving Average.
-- Linear Regression.
-- Random Forest.
-- Prophet nếu còn thời gian.
-
-Các feature dự kiến:
-
-- PM2.5 lịch sử.
-- Giờ trong ngày.
-- Ngày trong tuần.
-- Nhiệt độ.
-- Độ ẩm.
-- Tốc độ gió.
-- Lượng mưa.
-- Loại vị trí.
-
-Đánh giá bằng:
-
 - MAE.
 - RMSE.
-- So sánh với persistence baseline.
-- Tách riêng horizon 1 giờ, 2 giờ và 3 giờ.
+- Tách horizon 1 giờ, 2 giờ, 3 giờ.
+- Ghi rõ dữ liệu dùng để đánh giá là giả lập.
 
-### Tiêu chí chấp nhận
+## 13.3. E2E evaluation
 
-- Forecast có thời gian tạo và thời gian dự báo.
-- Mô hình được so sánh với baseline.
-- Ghi rõ nếu kết quả được đánh giá trên dữ liệu giả lập.
-- Agent truy cập forecast qua tool.
-- Không tuyên bố độ chính xác production.
+### E2E-01 — PM2.5 cao
 
----
+```text
+S03 PM2.5 cao
+→ MQTT
+→ Backend
+→ Alert
+→ Dashboard
+→ Agent trả evidence
+```
 
-## 17. Tạo Warning Proposal
+### E2E-02 — Khuyến nghị chạy bộ
 
-Agent có thể tạo proposal khi:
+```text
+Outdoor user hỏi chạy bộ tại S05
+→ Profile
+→ Current PM2.5
+→ Weather
+→ Forecast
+→ Recommendation
+```
 
-- Có alert active.
-- Measurement mới nhất hợp lệ.
-- Sensor online.
-- Evidence còn mới.
-- Không có proposal pending trùng trong cooldown.
+### E2E-03 — Warning Proposal
 
-Proposal gồm:
-
-- Trạm liên quan.
-- PM2.5 quan sát được.
-- Timestamp.
-- Severity.
-- Lý do.
-- Evidence.
-- Nội dung cảnh báo đề xuất.
-- Trạng thái `pending`.
-
-### Tiêu chí chấp nhận
-
-- Proposal có đủ evidence để manager xem xét.
-- Không tạo proposal từ dữ liệu invalid.
-- Không tạo proposal trùng.
-- Hành động tạo proposal được lưu audit log.
-- Tạo proposal không đồng nghĩa tự động phát cảnh báo.
+```text
+S03 sudden spike
+→ Alert
+→ Proposal pending
+→ Manager approve/reject
+→ Audit log
+```
 
 ---
 
-## 18. Approve hoặc Reject Proposal
+# 14. Definition of Done
 
-Manager mở trang Approval và xem:
+## Phần này gồm những gì?
 
-- Trạm.
-- PM2.5.
-- Timestamp.
-- Severity.
-- Weather context.
-- Lý do của Agent.
-- Nội dung cảnh báo đề xuất.
+| Thành phần | Khi nào được coi là xong |
+|---|---|
+| API | Có schema, Swagger, test và FE gọi được |
+| Agent Tool | Có input/output/error, guardrail và trace |
+| Frontend | Render đúng, có loading/error/empty |
+| Data Pipeline | Publish, validate, lưu và phát hiện lỗi |
+| E2E | Chạy được luồng hoàn chỉnh |
 
-Manager có thể approve hoặc reject và nhập review note.
+## Giải thích ngắn
 
-### Tiêu chí chấp nhận
+Definition of Done giúp tránh tình trạng một thành viên nói “xong” nhưng module vẫn chưa thể tích hợp.
 
-- Chỉ manager hoặc admin được review.
-- Chỉ proposal `pending` được review.
-- Hệ thống lưu reviewer, timestamp, quyết định và ghi chú.
-- Quyết định được lưu audit log.
-- Proposal bị reject không được phát cảnh báo.
-- MVP có thể chỉ demo trạng thái duyệt, chưa cần tích hợp hệ thống gửi thông báo thương mại.
+## API Done
 
----
+- Có endpoint.
+- Có request schema.
+- Có response schema.
+- Có error schema.
+- Có Swagger.
+- Có test.
+- FE gọi được.
+- Không đổi contract ngoài tài liệu.
 
-## 19. Nghiên cứu người dùng
+## Agent Tool Done
 
-### 19.1 Người dùng có hiểu số PM2.5 thô không?
+- Có purpose.
+- Có input/output/error.
+- Có timeout.
+- Có guardrail.
+- Có trace.
+- Có test.
+- Không bịa dữ liệu.
 
-Giả định hiện tại: đa số người dùng cần mức phân loại và khuyến nghị, không chỉ một con số.
+## Frontend Done
 
-Kế hoạch xác thực:
+- Render đúng.
+- Gọi đúng API.
+- Có loading.
+- Có error.
+- Có empty state.
+- Không trắng màn hình.
+- Không hard-code production data.
 
-- Kiểm thử với ít nhất 5 người.
-- Yêu cầu người dùng giải thích một giá trị PM2.5 khi chưa có hướng dẫn.
-- So sánh mức hiểu trước và sau khi xem giải thích của Agent.
+## Data Pipeline Done
 
-**Trạng thái:** Chưa thực hiện.
-
-### 19.2 Người dùng thích bản đồ hay danh sách?
-
-Giả định hiện tại: bản đồ hữu ích hơn vì quyết định phụ thuộc vị trí.
-
-Kế hoạch xác thực:
-
-- Cho người dùng xem prototype bản đồ và danh sách.
-- Hỏi giao diện nào giúp chọn khu vực nhanh hơn.
-
-**Trạng thái:** Chưa thực hiện.
-
-### 19.3 Thông tin nào làm khuyến nghị AI đáng tin?
-
-Giả định hiện tại: người dùng cần số PM2.5, vị trí, timestamp, nguồn và evidence.
-
-Kế hoạch xác thực:
-
-- So sánh câu trả lời có và không có evidence card.
-- Hỏi người dùng tin câu trả lời nào hơn.
-
-**Trạng thái:** Chưa thực hiện.
-
-### 19.4 Manager cần gì trước khi duyệt cảnh báo?
-
-Giả định hiện tại: manager cần giá trị hiện tại, ngưỡng, xu hướng, timestamp, nhóm bị ảnh hưởng, thời tiết và lý do của Agent.
-
-Kế hoạch xác thực:
-
-- Review wireframe với Mentor hoặc người đại diện.
-- Ghi lại trường thông tin cần thêm hoặc bỏ.
-
-**Trạng thái:** Chờ xác nhận.
-
-### 19.5 Sensor giả lập có được chấp nhận không?
-
-Đề xuất hiện tại:
-
-- Dùng bản đồ thật.
-- Dùng Weather API thật khi có thể.
-- Dùng telemetry PM2.5 giả lập qua MQTT.
-- Gắn nhãn rõ mọi dữ liệu giả lập.
-
-**Trạng thái:** Cần Mentor xác nhận.
+- 5 sensor publish được.
+- Backend validate đúng.
+- Duplicate bị loại.
+- Offline/stale được phát hiện.
+- Scenario demo chạy được.
 
 ---
 
-## 20. Nghiên cứu kỹ thuật
+# 15. Rủi ro và quyết định cần chốt
 
-### 20.1 Vì sao dùng MQTT?
+## Phần này gồm những gì?
 
-MQTT phù hợp cho telemetry nhẹ từ nhiều sensor và giúp mô phỏng đúng mô hình IoT.
+| Vấn đề | Vì sao cần chốt |
+|---|---|
+| Admin có nằm trong MVP không | Ảnh hưởng UI và phân quyền |
+| Threshold PM2.5 | Ảnh hưởng Alert Engine |
+| Stale/offline timeout | Ảnh hưởng Data Quality |
+| Forecast baseline | Ảnh hưởng phạm vi Data/AI |
+| Evidence trên UI | Ảnh hưởng FE và Agent response |
+| Authentication | Ảnh hưởng FE–BE contract |
+| Tool failure policy | Ảnh hưởng Agent workflow |
+| Sensor Simulator | Cần Mentor xác nhận |
 
-Quyết định:
+## Câu hỏi cần chốt
 
-- Dùng Mosquitto làm broker.
-- Dùng Paho MQTT cho publisher và consumer.
-- Frontend lấy dữ liệu qua REST API, không truy cập MQTT trực tiếp.
-
-### 20.2 Vì sao dùng Rule Engine thay vì LLM cho cảnh báo?
-
-Ngưỡng và trạng thái sensor phải xác định, kiểm thử được và lặp lại được.
-
-Quyết định:
-
-- Rule Engine tạo alert.
-- Agent giải thích alert và tạo đề xuất.
-- LLM không quyết định ngưỡng số.
-
-### 20.3 Vì sao dùng LangGraph?
-
-Workflow Agent gồm nhiều bước có kiểm soát:
-
-- Phân loại intent.
-- Xác định vị trí.
-- Chọn tool.
-- Gọi tool.
-- Đánh giá rủi ro.
-- Tạo proposal.
-
-Quyết định:
-
-- Dùng LangGraph nhỏ cho Agent.
-- Không dùng LangGraph cho MQTT ingestion, CRUD hoặc train forecast.
-
-### 20.4 Vì sao dùng PostgreSQL?
-
-Hệ thống cần:
-
-- Quan hệ dữ liệu rõ ràng.
-- Truy vấn theo thời gian.
-- Unique constraint.
-- Audit log.
-- Proposal và role.
-
-Quyết định:
-
-- PostgreSQL là nguồn dữ liệu chính.
-- Redis, RabbitMQ và Celery chưa bắt buộc cho MVP ban đầu.
-
-### 20.5 Đánh giá forecast như thế nào?
-
-Mô hình phức tạp không đồng nghĩa tốt hơn.
-
-Quyết định:
-
-- Bắt đầu bằng persistence baseline.
-- Chia train/test theo thời gian.
-- Báo cáo MAE và RMSE.
-- Chỉ giữ mô hình phức tạp hơn khi cải thiện rõ ràng.
-
-### 20.6 Giảm hallucination như thế nào?
-
-Quyết định:
-
-- Mọi số liệu môi trường phải đến từ tool.
-- Tool trả output có cấu trúc.
-- Câu trả lời có evidence.
-- Có guardrail cho dữ liệu stale và invalid.
-- Dùng bộ kiểm thử ít nhất 10 câu hỏi.
-- LLM không truy cập database trực tiếp.
+- Admin có bắt buộc trong MVP không?
+- Ngưỡng PM2.5 dùng chuẩn nào?
+- Bao nhiêu phút thì stale?
+- Bao nhiêu phút thì offline?
+- Forecast baseline có đủ không?
+- Evidence có bắt buộc hiện trên UI không?
+- Dùng authentication thật hay demo account?
+- Tool lỗi thì Agent trả lời một phần hay dừng?
+- Sensor Simulator qua MQTT có được chấp nhận cho MVP không?
 
 ---
 
-## 21. Tiêu chí thành công
+# 16. Tiêu chí thành công cuối cùng
 
-- 5 sensor giả lập publish dữ liệu qua MQTT.
-- Backend lưu measurement hợp lệ và không trùng.
-- Dashboard hiển thị đúng dữ liệu mới nhất của 5 trạm.
-- Phát hiện được sensor offline.
-- Alert Engine xử lý đúng các scenario demo.
-- Forecast Service báo cáo MAE và RMSE so với baseline.
-- Agent trả lời đúng tối thiểu 8/10 câu hỏi kiểm thử.
-- 100% số liệu môi trường trong câu trả lời đến từ tool.
-- Agent hỗ trợ khuyến nghị cho 3 nhóm người dùng.
-- Agent không tạo proposal từ dữ liệu invalid, stale hoặc sensor offline.
-- Manager approve hoặc reject proposal thành công.
-- Ít nhất 3 kịch bản end-to-end chạy thành công.
-- Không có lỗi blocking trong buổi demo.
+## Phần này gồm những gì?
 
----
+| Nhóm | Kết quả cần đạt |
+|---|---|
+| Data | 5 sensor publish được |
+| Backend | Lưu dữ liệu đúng, không trùng |
+| Frontend | Hiển thị đúng 5 trạm |
+| Alert | Phát hiện đúng scenario |
+| Agent | Đúng ít nhất 8/10 test |
+| HITL | Approve/reject thành công |
+| E2E | Chạy ít nhất 3 scenario |
+| Demo | Không có lỗi blocking |
 
+## Checklist cuối
 
+- [ ] 5 sensor giả lập publish qua MQTT.
+- [ ] Backend lưu measurement hợp lệ và không trùng.
+- [ ] Dashboard hiển thị đúng 5 trạm.
+- [ ] Sensor offline được phát hiện.
+- [ ] Alert Engine xử lý đúng scenario.
+- [ ] Agent trả lời đúng tối thiểu 8/10 test.
+- [ ] 100% số liệu môi trường đến từ tool.
+- [ ] Agent không tạo proposal từ stale, invalid hoặc offline data.
+- [ ] Manager approve/reject thành công.
+- [ ] Audit log lưu đủ hành động quan trọng.
+- [ ] Ít nhất 3 kịch bản E2E chạy thành công.
+- [ ] Không có lỗi blocking trong buổi demo.
