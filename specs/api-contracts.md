@@ -47,8 +47,16 @@ Accepted measurement returns `accepted=true`, `duplicate=false`, `measurement`, 
 `X-User-Role: manager` is required for list/detail/approve/reject/audit. `X-User-ID` must be a UUID for review actions. Approve creates a `device_command_intents` row only when `device_id` is present. Reject never creates dispatch intent and requires a non-empty note.
 
 ## Agent response
+`POST /api/v1/agent/chat` accepts `{ "message": string }`. The legacy
+`POST /api/v1/chat` alias remains available during migration.
 
-`answer`, `used_tools`, `sources`, `request_id`, optional `proposal_id`. Facts must map to sources; tool failure returns a transparent insufficient-data answer.
+The response contains `answer`, `used_tools`, `sources`, `request_id`, `trace`, and optional
+`proposal_id`. `sources[]` contains `tool_name` plus optional `station_id`, `observed_at`, and
+`source`. `trace` contains the policy version, routed intent, per-tool status/latency and final
+outcome; it must not contain the raw prompt, user id, secret, token or backend credential.
+Facts must map to sources from the same request. Tool failure or absent/stale/invalid/offline data
+returns a transparent insufficient-data answer and no environmental source. The additive
+`response` field is a deprecated alias of `answer` for the original template client.
 
 ## Compatibility
 

@@ -18,6 +18,7 @@
       {
         "hooks": [
           {
+            "type": "command",
             "name": "log-stop",
             "type": "command",
             "command": "scripts\\_pyrun.cmd scripts\\log_codex_hook.py",
