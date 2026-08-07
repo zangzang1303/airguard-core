@@ -9,11 +9,11 @@ export interface Pm25SeverityInfo {
 }
 
 export function getPm25Severity(pm25: number | null | undefined): Pm25SeverityInfo {
-  if (pm25 === null || pm25 === undefined) return { label: "Không khả dụng", class: "status-null", color: "#9ca3af" };
-  if (pm25 <= 25) return { label: "Tốt (Good)", class: "level-good", color: "#10b981" };
-  if (pm25 <= 50) return { label: "Trung bình (Moderate)", class: "level-moderate", color: "#f59e0b" };
-  if (pm25 <= 100) return { label: "Kém (Unhealthy)", class: "level-unhealthy", color: "#ef4444" };
-  return { label: "Rất nguy hại (Hazardous)", class: "level-hazardous", color: "#8b5cf6" };
+  if (pm25 === null || pm25 === undefined) return { label: "Không khả dụng", class: "status-null", color: "var(--pm25-null)" };
+  if (pm25 <= 25) return { label: "Tốt (Good)", class: "level-good", color: "var(--pm25-good)" };
+  if (pm25 <= 50) return { label: "Trung bình (Moderate)", class: "level-moderate", color: "var(--pm25-moderate)" };
+  if (pm25 <= 100) return { label: "Kém (Unhealthy)", class: "level-unhealthy", color: "var(--pm25-unhealthy)" };
+  return { label: "Rất nguy hại (Hazardous)", class: "level-hazardous", color: "var(--pm25-hazardous)" };
 }
 
 interface DataQualityBadgeProps {
@@ -40,7 +40,7 @@ export const DataQualityBadge: React.FC<DataQualityBadgeProps> = ({
 
   const severity = getPm25Severity(pm25);
   return (
-    <span className={`badge ${severity.class}`} style={{ borderLeft: `4px solid ${severity.color}` }}>
+    <span className={`badge ${severity.class}`}>
       <CheckCircle2 size={14} aria-hidden="true" /> {severity.label}
     </span>
   );

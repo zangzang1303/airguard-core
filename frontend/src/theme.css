@@ -7,6 +7,7 @@
   --color-primary-50: #eef2ff;
   --color-primary-100: #e0e7ff;
   --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
   --color-primary-500: #6366f1;
   --color-primary-600: #4f46e5;
   --color-primary-700: #4338ca;
@@ -41,10 +42,18 @@
   --color-surface: #ffffff;
   --color-surface-subtle: var(--color-slate-100);
   --color-text: var(--color-slate-900);
-  --color-text-muted: var(--color-slate-500);
-  --color-text-subtle: var(--color-slate-400);
+  --color-text-muted: var(--color-slate-600);
+  --color-text-subtle: var(--color-slate-500);
+  --color-decorative: var(--color-slate-400);
+  --pm25-good: #059669;
+  --pm25-moderate: #d97706;
+  --pm25-unhealthy: #e11d48;
+  --pm25-hazardous: #7e22ce;
+  --pm25-offline: var(--color-slate-400);
+  --pm25-null: var(--color-slate-500);
   --color-border: var(--color-slate-200);
   --color-border-strong: var(--color-slate-300);
+  --font-size-2xs: 0.6875rem;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;

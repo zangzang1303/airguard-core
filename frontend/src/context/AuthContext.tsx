@@ -3,6 +3,10 @@ import { UserGroup, UserRole } from "../types";
 
 export type ScreenType =
   | "dashboard"
+  | "admin-users"
+  | "admin-regions"
+  | "admin-devices"
+  | "admin-settings"
   | "station-detail"
   | "compare"
   | "agent"

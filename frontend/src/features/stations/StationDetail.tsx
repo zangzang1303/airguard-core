@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Bot, ChartNoAxesCombined, Droplets, GitCompareArrows, Sparkles, Thermometer, Wind } from "lucide-react";
+import { ArrowLeft, Bot, ChartNoAxesCombined, Droplets, GitCompareArrows, Sparkles, Thermometer, TriangleAlert, Wind } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../../api/client";
 import { Button } from "../../components/common/Button";
@@ -7,6 +7,7 @@ import { DataQualityBadge, getPm25Severity } from "../../components/common/DataQ
 import { PageHeader } from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { ForecastData, HistoryPoint, StationDetailData } from "../../types";
+import { VN_TZ, formatVnDateTime } from "../../utils/datetime";
 
 export const StationDetail: React.FC = () => {
   const { selectedStationId, navigateTo, setCompareStationIds } = useAuth();
@@ -15,10 +16,13 @@ export const StationDetail: React.FC = () => {
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [rangeHours, setRangeHours] = useState<number>(24);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const fetchDetailData = async () => {
       setLoading(true);
+      setError(null);
       try {
         const [currentData, historyData, forecastData] = await Promise.all([
           api.getStationCurrent(selectedStationId),
@@ -30,13 +34,14 @@ export const StationDetail: React.FC = () => {
         setForecast(forecastData);
       } catch (err) {
         console.error("Error fetching station detail:", err);
+        setError("Không thể tải dữ liệu trạm. Vui lòng thử lại.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchDetailData();
-  }, [selectedStationId, rangeHours]);
+  }, [selectedStationId, rangeHours, reloadToken]);
 
   const handleAskAI = () => {
     navigateTo("agent", { stationId: selectedStationId });
@@ -48,12 +53,36 @@ export const StationDetail: React.FC = () => {
     navigateTo("compare");
   };
 
-  if (loading || !station) {
+  if (loading) {
     return (
       <div className="detail-container">
         <PageHeader title="Chi tiết trạm" description="Đang tải dữ liệu hiện tại, lịch sử và dự báo ngắn hạn." />
-        <div className="skeleton-card" style={{ height: 200 }}></div>
-        <div className="skeleton-card" style={{ height: 350 }}></div>
+        <div className="skeleton-card skeleton-card--sm" role="status" aria-label="Đang tải dữ liệu trạm" />
+        <div className="skeleton-card skeleton-card--lg" />
+      </div>
+    );
+  }
+
+  // Khi API lỗi hoặc không trả về trạm, phải báo lỗi kèm hành động thử lại thay vì skeleton quay mãi.
+  if (error || !station) {
+    return (
+      <div className="detail-container">
+        <PageHeader
+          title="Chi tiết trạm"
+          description="Không thể hiển thị dữ liệu trạm ở thời điểm này."
+          leading={(
+            <Button variant="ghost" size="sm" onClick={() => navigateTo("dashboard")}>
+              <ArrowLeft size={16} aria-hidden="true" /> Quay lại bản đồ
+            </Button>
+          )}
+        />
+        <div className="alert-box alert-error" role="alert">
+          <TriangleAlert size={17} aria-hidden="true" />
+          <span>{error ?? `Không tìm thấy dữ liệu cho trạm ${selectedStationId}.`}</span>
+          <Button variant="outline" size="sm" onClick={() => setReloadToken((token) => token + 1)}>
+            Thử lại
+          </Button>
+        </div>
       </div>
     );
   }
@@ -105,8 +134,8 @@ export const StationDetail: React.FC = () => {
           <div className="metric-label">Thông tin Nguồn & Độ mới</div>
           <div className="meta-info">
             <div>Nguồn: <span className="source-tag">{station.source}</span></div>
-            <div>Cập nhật: {new Date(station.updated_at).toLocaleString("vi-VN")}</div>
-            <div>Múi giờ: Asia/Ho_Chi_Minh</div>
+            <div>Cập nhật: {formatVnDateTime(station.updated_at)}</div>
+            <div>Múi giờ: {VN_TZ}</div>
           </div>
         </div>
       </div>
@@ -114,7 +143,7 @@ export const StationDetail: React.FC = () => {
       {/* Forecast 1-3h Panel */}
       {forecast && (
         <section className="forecast-section">
-          <h3><Sparkles size={18} aria-hidden="true" /> Dự báo PM2.5 ngắn hạn (1 - 3 giờ)</h3>
+          <h2><Sparkles size={18} aria-hidden="true" /> Dự báo PM2.5 ngắn hạn (1 - 3 giờ)</h2>
           <p className="forecast-meta">Mô hình: {forecast.source} | Độ tin cậy: {forecast.confidence}</p>
           <div className="forecast-grid">
             {forecast.forecasts.map((fc, idx) => (
@@ -131,12 +160,14 @@ export const StationDetail: React.FC = () => {
       {/* History Recharts Graph */}
       <section className="history-section">
         <div className="history-header">
-          <h3><ChartNoAxesCombined size={18} aria-hidden="true" /> Lịch sử PM2.5 theo thời gian</h3>
-          <div className="range-presets">
+          <h2><ChartNoAxesCombined size={18} aria-hidden="true" /> Lịch sử PM2.5 theo thời gian</h2>
+          <div className="range-presets" role="group" aria-label="Khoảng thời gian lịch sử">
             {[1, 6, 24, 72].map((h) => (
               <button
+                type="button"
                 key={h}
                 className={`preset-btn ${rangeHours === h ? "active" : ""}`}
+                aria-pressed={rangeHours === h}
                 onClick={() => setRangeHours(h)}
               >
                 {h}h

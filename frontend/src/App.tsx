@@ -1,6 +1,12 @@
 import React from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AppShell } from "./components/layout/AppShell";
+import { AdminShell } from "./components/layout/AdminShell";
+import { AdminDashboard } from "./features/admin/AdminDashboard";
+import { AdminModulePlaceholder } from "./features/admin/AdminModulePlaceholder";
+import { UserManagement } from "./features/admin/UserManagement";
+import { RegionStations } from "./features/admin/RegionStations";
+import { IotDevices } from "./features/admin/IotDevices";
 import { Dashboard } from "./features/stations/Dashboard";
 import { StationDetail } from "./features/stations/StationDetail";
 import { CompareStations } from "./features/stations/CompareStations";
@@ -15,16 +21,23 @@ import "./theme.css";
 import "./styles.css";
 
 const MainContent: React.FC = () => {
-  const { currentScreen, isAuthenticated } = useAuth();
+  const { currentScreen, isAuthenticated, role } = useAuth();
 
   if (!isAuthenticated) {
     if (currentScreen === "register") return <Register />;
     return <Login />;
   }
 
-  return (
-    <AppShell>
-      {currentScreen === "dashboard" && <Dashboard />}
+  const content = (
+    <>
+      {currentScreen === "dashboard" &&
+        (role === "admin" ? <AdminDashboard /> : <Dashboard />)}
+      {currentScreen === "admin-users" && <UserManagement />}
+      {currentScreen === "admin-regions" && <RegionStations />}
+      {currentScreen === "admin-devices" && <IotDevices />}
+      {currentScreen === "admin-settings" && (
+        <AdminModulePlaceholder module="settings" />
+      )}
       {currentScreen === "station-detail" && <StationDetail />}
       {currentScreen === "compare" && <CompareStations />}
       {currentScreen === "agent" && <AgentChat />}
@@ -32,7 +45,13 @@ const MainContent: React.FC = () => {
       {currentScreen === "approvals" && <ApprovalQueue />}
       {currentScreen === "audit" && <AuditLog />}
       {currentScreen === "profile" && <Profile />}
-    </AppShell>
+    </>
+  );
+
+  return role === "admin" ? (
+    <AdminShell>{content}</AdminShell>
+  ) : (
+    <AppShell>{content}</AppShell>
   );
 };
 
