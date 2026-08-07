@@ -1,0 +1,618 @@
+/* ==========================================================================
+   Tái Cấu Trúc CSS Giao Diện Auth - Đã Sửa Lỗi UI/UX & Responsive
+   ========================================================================== */
+
+.auth-layout {
+  display: grid;
+  min-height: 100dvh;
+  /* Đổi cột bên phải thành min-width 480px để khớp hoàn hảo với điểm gãy 800px-960px */
+  grid-template-columns: minmax(320px, 0.92fr) minmax(480px, 1.08fr);
+  background: var(--color-surface);
+}
+
+.auth-visual {
+  position: relative;
+  display: flex;
+  min-height: 100dvh;
+  overflow: hidden;
+  flex-direction: column;
+  padding: 42px clamp(32px, 5vw, 72px);
+  color: #ffffff;
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(49, 46, 129, 0.94)),
+    radial-gradient(circle at top right, #38bdf8, transparent 48%);
+}
+
+.auth-visual::after {
+  position: absolute;
+  inset: 0;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
+  content: "";
+  pointer-events: none;
+}
+
+.auth-visual__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.auth-visual__orb--one {
+  top: -110px;
+  right: -80px;
+  width: 330px;
+  height: 330px;
+  background: rgba(56, 189, 248, 0.22);
+}
+.auth-visual__orb--two {
+  bottom: 80px;
+  left: -130px;
+  width: 360px;
+  height: 360px;
+  background: rgba(129, 140, 248, 0.2);
+}
+
+.auth-brand,
+.auth-visual__content,
+.auth-visual__disclaimer {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.auth-brand__mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+.auth-brand strong,
+.auth-brand small {
+  display: block;
+}
+.auth-brand strong {
+  font-size: 1.08rem;
+  letter-spacing: -0.02em;
+}
+.auth-brand small {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.7rem;
+}
+
+.auth-visual__content {
+  max-width: 610px;
+  margin-block: auto;
+  padding-block: 70px;
+}
+.auth-visual__eyebrow {
+  display: block;
+  margin-bottom: 18px;
+  color: #a5f3fc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.auth-visual h1 {
+  max-width: 590px;
+  margin-bottom: 18px;
+  color: #ffffff;
+  font-size: clamp(2.1rem, 4vw, 3.75rem);
+  font-weight: 700;
+  line-height: 1.08;
+}
+.auth-visual__content > p {
+  max-width: 560px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.auth-feature-list {
+  display: grid;
+  gap: 13px;
+  margin-top: 34px;
+}
+.auth-feature-list > div {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(10px);
+}
+.auth-feature-list > div > svg {
+  flex: 0 0 auto;
+  color: #a5f3fc;
+}
+.auth-feature-list strong,
+.auth-feature-list small {
+  display: block;
+}
+.auth-feature-list strong {
+  font-size: 0.85rem;
+}
+.auth-feature-list small {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.7rem;
+}
+.auth-visual__disclaimer {
+  margin: auto 0 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.72rem;
+}
+
+.auth-panel {
+  display: grid;
+  min-width: 0;
+  padding: 38px clamp(24px, 4vw, 78px);
+  place-items: center;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+}
+.auth-card {
+  width: min(100%, 690px);
+}
+.auth-card--login {
+  max-width: 420px;
+  padding: 2rem;
+  margin-inline: auto;
+}
+.auth-back {
+  margin: 0 0 18px -10px;
+}
+.auth-card__heading {
+  margin-bottom: 24px;
+}
+.auth-card__kicker {
+  display: inline-flex;
+  margin-bottom: 10px;
+  padding: 5px 9px;
+  border-radius: var(--radius-full);
+  color: var(--color-primary-700);
+  background: var(--color-primary-50);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.auth-card__heading h2 {
+  margin-bottom: 8px;
+  font-size: clamp(1.4rem, 2.5vw, 1.8rem);
+  font-weight: 700;
+}
+.auth-card__heading p {
+  margin: 0;
+  color: var(--color-slate-600);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+}
+
+.auth-notice {
+  margin-bottom: 16px;
+  padding: 11px 13px;
+  border: 1px solid;
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.auth-notice--success {
+  border-color: var(--color-success-100);
+  color: var(--color-success-600);
+  background: var(--color-success-50);
+}
+.auth-notice--error {
+  border-color: var(--color-error-100);
+  color: var(--color-error-600);
+  background: var(--color-error-50);
+}
+.auth-form {
+  display: grid;
+  gap: 20px;
+}
+.auth-field {
+  display: grid;
+  gap: 7px;
+}
+.auth-field label,
+.auth-groups legend {
+  color: var(--color-slate-700);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.auth-field__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.auth-field__label-row span {
+  color: var(--color-slate-500);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+.auth-input-wrap {
+  position: relative;
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  color: var(--color-slate-500);
+  background: #ffffff;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+.auth-input-wrap:focus-within {
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+.auth-input-wrap > svg {
+  margin-left: 13px;
+  flex: 0 0 auto;
+  color: var(--color-slate-500);
+}
+.auth-input-wrap input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 0;
+  outline: 0;
+  color: var(--color-text);
+  background: transparent;
+  font-size: 0.84rem;
+}
+.auth-input-wrap input::placeholder {
+  color: var(--color-slate-500);
+}
+.auth-password-toggle {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-slate-500);
+  background: transparent;
+}
+.auth-submit {
+  width: 100%;
+  margin-top: 3px;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 18px;
+  color: var(--color-slate-500);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.auth-divider::before,
+.auth-divider::after {
+  height: 1px;
+  flex: 1;
+  background: var(--color-border);
+  content: "";
+}
+
+/* SỬA LỖI CO ÉP: Áp dụng CSS Grid Auto-fit thông minh thay vì 3 cột cứng */
+.demo-account-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.demo-account {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  color: var(--color-text);
+  background: #ffffff;
+  text-align: left;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+.demo-account:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.demo-account__icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+}
+.demo-account__copy {
+  min-width: 0;
+}
+.demo-account__copy strong {
+  display: block;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.demo-account__copy small {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-slate-500);
+  font-size: 0.7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.demo-account__copy em {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-slate-500);
+  font-size: 0.7rem;
+  font-style: normal;
+  line-height: 1.3;
+  white-space: normal;
+}
+.demo-account--resident:hover {
+  border-color: #5eead4;
+}
+.demo-account--resident .demo-account__icon {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+.demo-account--manager:hover {
+  border-color: var(--color-primary-300, #a5b4fc);
+}
+.demo-account--manager .demo-account__icon {
+  color: var(--color-primary-700);
+  background: var(--color-primary-100);
+}
+.demo-account--admin:hover {
+  border-color: #fbbf24;
+}
+.demo-account--admin .demo-account__icon {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+/* SỬA TƯƠNG PHẢN: Nâng màu chữ lên var(--color-slate-600) trên nền xám nhạt */
+.demo-credential-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  color: var(--color-slate-600);
+  background: var(--color-slate-100);
+  font-size: 0.72rem;
+}
+.demo-credential-note code {
+  color: var(--color-primary-700);
+  font-weight: 700;
+}
+.auth-switch {
+  margin: 24px 0 0;
+  color: var(--color-slate-600);
+  font-size: 0.78rem;
+  text-align: center;
+}
+.auth-switch button,
+.auth-terms button {
+  padding: 0;
+  color: var(--color-primary-600);
+  background: transparent;
+  font-weight: 700;
+}
+
+.resident-role-lock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-primary-100);
+  border-radius: 10px;
+  color: var(--color-primary-700);
+  background: var(--color-primary-50);
+}
+.resident-role-lock strong,
+.resident-role-lock small {
+  display: block;
+}
+.resident-role-lock strong {
+  font-size: 0.78rem;
+}
+.resident-role-lock small {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+}
+.auth-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.auth-groups {
+  min-width: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+}
+.auth-groups > p {
+  margin: 5px 0 10px;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+.auth-group-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+.auth-group-option {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: var(--color-text-muted);
+  background: #ffffff;
+  cursor: pointer;
+}
+.auth-group-option.is-selected {
+  border-color: var(--color-primary-500);
+  color: var(--color-primary-700);
+  background: var(--color-primary-50);
+  box-shadow: 0 0 0 1px var(--color-primary-100);
+}
+.auth-group-option input {
+  position: absolute;
+  opacity: 0;
+}
+.auth-group-option > svg {
+  flex: 0 0 auto;
+}
+.auth-group-option strong,
+.auth-group-option small {
+  display: block;
+}
+.auth-group-option strong {
+  color: inherit;
+  font-size: 0.72rem;
+}
+.auth-group-option small {
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+.auth-terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.auth-terms input {
+  margin-top: 3px;
+  accent-color: var(--color-primary-600);
+}
+.auth-contract-note {
+  margin: 14px 0 0;
+  color: var(--color-text-subtle);
+  font-size: 0.65rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* Support Mobile Logo in Form Header */
+.auth-card__mobile-logo {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.auth-card__mobile-logo strong {
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+  color: var(--color-slate-900);
+}
+
+/* ==========================================================================
+   Media Queries - Tối Ưu Lại Để Chống Tràn Viền & Tối Ưu Trải Nghiệm Mobile
+   ========================================================================== */
+
+@media (max-width: 1200px) {
+  .auth-layout {
+    grid-template-columns: minmax(300px, 0.72fr) minmax(480px, 1.28fr);
+  }
+  .auth-visual {
+    padding-inline: 32px;
+  }
+  .auth-feature-list {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .auth-layout {
+    display: block;
+    min-height: 100dvh;
+    background: var(--color-slate-50);
+  }
+
+  /* SỬA LỖI TRẢI NGHIỆM MOBILE: Thu nhỏ khu vực giới thiệu để đưa form lên trên cùng màn hình */
+  .auth-visual {
+    min-height: auto;
+    padding: 24px 20px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .auth-visual__content {
+    display: none;
+  }
+  .auth-visual__eyebrow,
+  .auth-visual__disclaimer {
+    display: none;
+  }
+
+  .auth-panel {
+    display: block;
+    padding: 32px 18px 48px;
+    overflow: visible;
+  }
+  .auth-card {
+    margin-inline: auto;
+  }
+  .auth-card__mobile-logo {
+    display: flex;
+  }
+}
+
+@media (max-width: 600px) {
+  .auth-form-grid,
+  .auth-group-grid {
+    grid-template-columns: 1fr;
+  }
+  .auth-card__heading h2 {
+    font-size: 1.55rem;
+  }
+  .auth-group-option {
+    align-items: center;
+  }
+  .demo-account-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-account {
+    transition: none;
+  }
+}
