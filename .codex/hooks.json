@@ -1,9 +1,11 @@
 {
+  "description": "AI20K AI usage logging",
   "hooks": {
     "UserPromptSubmit": [
       {
         "hooks": [
           {
+
             "name": "log-prompt",
             "type": "command",
             "command": "scripts\\_pyrun.cmd scripts\\log_codex_hook.py",

@@ -8,6 +8,7 @@ Xay dung dashboard React + TypeScript cho nguoi dung xem PM2.5 5 tram, alerts, T
 
 `FE-001 -> FE-002 -> FE-003 -> FE-004 -> FE-005 -> FE-006 -> FE-007`.
 
+
 ## Đặc tả màn hình
 
 Dung [specs/frontend-screen-spec.md](../specs/frontend-screen-spec.md) lam tai lieu handoff canonical cho danh sach man hinh, route, user flow, field/button/table, validation, loading/empty/error states, role visibility va Figma checklist. Neu tai lieu nay yeu cau API/schema chua co trong [specs/api-contracts.md](../specs/api-contracts.md), phai chot contract truoc khi implement production UI.
@@ -141,7 +142,10 @@ Dung [specs/frontend-screen-spec.md](../specs/frontend-screen-spec.md) lam tai l
 3. Them skeleton/no data/error cho moi screen; khong de blank screen khi API loi.
 4. Viet Playwright smoke: load dashboard, open station, see alert, send chat stub, approve/reject fixture.
 5. Chay screenshot review truoc rehearsal va chot known limitations.
+<<<<<<< HEAD
+=======
 6. Dung Page Header duy nhat cho moi route; chuan hoa Lucide icon va button hierarchy, khong dung emoji lam icon UI.
+>>>>>>> origin/Dungpt
 
 **Đầu ra:** test checklist, screenshots va demo-ready UI.
 
@@ -165,6 +169,15 @@ Dung [specs/frontend-screen-spec.md](../specs/frontend-screen-spec.md) lam tai l
 
 | Task | File hiện có cần sửa | File/directory cần tạo hoặc cập nhật | Tài liệu và test liên quan |
 |---|---|---|---|
+<<<<<<< HEAD
+| FE-001 | `frontend/src/App.jsx`, `frontend/src/main.jsx` | `frontend/src/api/client.js`, `frontend/src/features/stations/` | `frontend/src/**/*.test.*`, `specs/api-contracts.md` |
+| FE-002 | `frontend/src/App.jsx`, `frontend/src/styles.css` | `frontend/src/features/stations/StationDetail.jsx` | `tasks/frontend.md`, screenshot test |
+| FE-003 | `frontend/src/App.jsx` | `frontend/src/features/stations/statusDisplay.js` | `specs/acceptance-criteria.md` |
+| FE-004 | `frontend/src/App.jsx` | `frontend/src/features/alerts/` | `specs/api-contracts.md`, UI smoke test |
+| FE-005 | `frontend/src/App.jsx` | `frontend/src/features/agent/`, `frontend/src/api/agent.js` | `docs/agent-evaluation.md` |
+| FE-006 | `frontend/src/App.jsx` | `frontend/src/features/approvals/` | `specs/api-contracts.md`, approval UI test |
+| FE-007 | `frontend/src/styles.css` | `frontend/e2e/`, Playwright config nếu được chọn | `docs/test-plan.md`, `docs/demo-runbook.md` |
+=======
 | FE-001 | `frontend/src/App.jsx`, `frontend/src/main.jsx` | `frontend/src/api/client.js`, `frontend/src/features/stations/` | `frontend/src/**/*.test.*`, `specs/api-contracts.md`, `specs/frontend-screen-spec.md` |
 | FE-002 | `frontend/src/App.jsx`, `frontend/src/styles.css` | `frontend/src/features/stations/StationDetail.jsx` | `tasks/frontend.md`, `specs/frontend-screen-spec.md`, screenshot test |
 | FE-003 | `frontend/src/App.jsx` | `frontend/src/features/stations/statusDisplay.js` | `specs/acceptance-criteria.md`, `specs/frontend-screen-spec.md` |
@@ -172,3 +185,4 @@ Dung [specs/frontend-screen-spec.md](../specs/frontend-screen-spec.md) lam tai l
 | FE-005 | `frontend/src/App.jsx` | `frontend/src/features/agent/`, `frontend/src/api/agent.js` | `docs/agent-evaluation.md`, `specs/frontend-screen-spec.md` |
 | FE-006 | `frontend/src/App.jsx` | `frontend/src/features/approvals/` | `specs/api-contracts.md`, `specs/frontend-screen-spec.md`, approval UI test |
 | FE-007 | `frontend/src/styles.css` | `frontend/e2e/`, Playwright config nếu được chọn | `docs/test-plan.md`, `docs/demo-runbook.md`, `specs/frontend-screen-spec.md` |
+>>>>>>> origin/Dungpt
