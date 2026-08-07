@@ -89,6 +89,22 @@ def _sanitize_payload(value, limit: int = MAX_STRUCTURED_PAYLOAD):
     return {"_truncated": True, "preview": encoded[:limit]}
 
 
+def _sanitize_response_text(value, limit: int = 1000) -> str:
+    """Sanitize a tool response into a string.
+
+    The grading server's schema types `tool_response` as a string, so a
+    structured payload has to be encoded before submission or the whole
+    batch is rejected with HTTP 422.
+    """
+    cleaned = _sanitize_payload(value, limit)
+    text = (
+        cleaned
+        if isinstance(cleaned, str)
+        else json.dumps(cleaned, ensure_ascii=False, default=str)
+    )
+    return text[:limit]
+
+
 def detect_tool(data: dict) -> str:
     """Detect which AI tool sent this hook event.
 
@@ -172,7 +188,7 @@ def normalize(data: dict, tool: str) -> dict | None:
                 else None
             ),
             "tool_response": (
-                _sanitize_payload(data.get("tool_response"), 1000)
+                _sanitize_response_text(data.get("tool_response"), 1000)
                 if data.get("tool_response")
                 else None
             ),
@@ -228,15 +244,9 @@ def normalize(data: dict, tool: str) -> dict | None:
             ),
         })
 
-    # Skip only true noise: no prompt AND no tool-specific payload (tool_input,
-    # response_summary, tool_response, tool_args, files_context). Previously
-    # this only checked `prompt`, which dropped Claude Bash/Edit events (their
-    # tool_input has `command` / `file_path`, not `prompt` or `content`) and
-    # any Gemini/Cursor/Copilot turn that carried context but no plain prompt.
-    _PAYLOAD_KEYS = ("prompt", "tool_input", "response_summary",
-                     "tool_response", "tool_args", "files_context")
-    has_payload = any(base.get(k) for k in _PAYLOAD_KEYS)
-    if not has_payload:
+    # Only keep turns that carry an actual prompt. Tool-only events (Claude
+    # PostToolUse for Bash/Read/Edit, Stop) have no prompt and are dropped.
+    if not base.get("prompt"):
         return None
 
     return base
