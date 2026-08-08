@@ -7,10 +7,12 @@ from pathlib import Path
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
 
-from app.core import Settings
-from app.services.approval_service import ApprovalService
-from app.services.database import ServiceError
-from app.services.station_service import pm25_level
+from app.core import Settings  # noqa: E402
+from app.services.alert_engine import AlertEngine  # noqa: E402
+from app.services.approval_service import ApprovalService  # noqa: E402
+from app.services.database import ServiceError  # noqa: E402
+from app.services.station_service import pm25_level  # noqa: E402
+from app.services.weather_service import WeatherService  # noqa: E402
 
 
 def test_settings_load_thresholds_from_environment() -> None:
@@ -38,6 +40,19 @@ def test_manager_guard_rejects_non_manager() -> None:
         assert exc.code == "forbidden"
     else:
         raise AssertionError("viewer role should not pass manager guard")
+
+
+def test_weather_has_explicit_freshness() -> None:
+    weather = WeatherService().current_weather()
+
+    assert weather["is_stale"] is False
+    assert weather["source"] == "simulator_fallback_weather"
+
+
+def test_alert_source_is_derived_from_rule_version() -> None:
+    alert = AlertEngine._with_source({"rule_version": "pm25-threshold-v1"})
+
+    assert alert["source"] == "backend_alert_rule:pm25-threshold-v1"
 
 
 

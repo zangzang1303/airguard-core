@@ -1,26 +1,27 @@
-
+import re
 from datetime import datetime, timezone
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import Body, FastAPI, Header, Query, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from .core import Settings
 from .schemas.measurements import MeasurementIngestionRequest
-from .services.agent_service import build_placeholder_answer
+from .services.agent_service import AgentService, AgentServiceError
 from .services.alert_engine import AlertEngine
 from .services.approval_service import ApprovalService, configure_default_service
 from .services.audit_service import AuditService
 from .services.database import Database, ServiceError
 from .services.forecast_service import baseline_forecast
-from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.ingestion_service import MeasurementIngestionService
+from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.station_service import StationService
 from .services.weather_service import WeatherService
+
 try:
     from .tasks.agent_tasks import run_agent_job
     from .tasks.forecast_tasks import run_forecast_job
@@ -32,8 +33,20 @@ except ModuleNotFoundError:
 
 
 class AgentChatRequest(BaseModel):
-    user_id: str = Field(..., examples=["demo-user"])
-    message: str = Field(..., examples=["Hien tai co nen chay bo o cong vien khong?"])
+    user_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=120,
+        pattern=r"^[A-Za-z0-9_.:@-]+$",
+        examples=["demo-user"],
+    )
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=5000,
+        examples=["Hien tai co nen chay bo o cong vien khong?"],
+    )
+    station_id: str | None = Field(default=None, pattern=r"^S0[1-5]$", examples=["S05"])
 
 
 class AgentJobRequest(AgentChatRequest):
@@ -90,8 +103,13 @@ alert_engine = AlertEngine(
     rule_version=settings.alert_rule_version,
 )
 configure_default_service(approval_service)
+agent_service = AgentService(
+    settings.agent_service_url,
+    timeout_seconds=settings.agent_service_timeout_seconds,
+)
 
 app = FastAPI(title="AirGuard AI API", version="0.3.0")
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -102,7 +120,8 @@ app.add_middleware(
 
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid4())
+    candidate = request.headers.get("X-Request-ID")
+    request_id = candidate if candidate and REQUEST_ID_PATTERN.fullmatch(candidate) else str(uuid4())
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
@@ -284,8 +303,16 @@ def get_user_profile(user_id: str) -> UserProfileResponse:
 
 
 @app.post("/api/v1/agent/chat")
-def agent_chat(request: Request, body: AgentChatRequest) -> dict:
-    return {"user_id": body.user_id, "request_id": _request_id(request), **build_placeholder_answer(body.message)}
+async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
+    try:
+        return await agent_service.chat(
+            message=body.message,
+            user_id=body.user_id,
+            station_id=body.station_id,
+            request_id=_request_id(request),
+        )
+    except AgentServiceError as exc:
+        raise ServiceError(exc.code, exc.message, exc.status_code) from exc
 
 
 def dispatch_job(task, job_type: str, payload: dict, idempotency_key: str | None) -> dict:
@@ -311,7 +338,7 @@ def dispatch_job(task, job_type: str, payload: dict, idempotency_key: str | None
 
 @app.post("/api/v1/agent/jobs", status_code=202)
 def create_agent_job(request: AgentJobRequest) -> dict:
-    payload = {"user_id": request.user_id, "message": request.message}
+    payload = {"user_id": request.user_id, "message": request.message, "station_id": request.station_id}
     return dispatch_job(run_agent_job, "agent", payload, request.idempotency_key)
 
 

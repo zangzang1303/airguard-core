@@ -12,9 +12,11 @@ class Settings:
     alert_warning_threshold: float
     alert_critical_threshold: float
     alert_rule_version: str
+    agent_service_url: str
+    agent_service_timeout_seconds: float
 
     @classmethod
-    def load(cls) -> "Settings":
+    def load(cls) -> Settings:
         raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173")
         stale_after_seconds = int(os.getenv("STALE_AFTER_SECONDS", "300"))
         if stale_after_seconds <= 0:
@@ -24,6 +26,9 @@ class Settings:
         critical = float(os.getenv("PM25_CRITICAL_THRESHOLD", "100"))
         if warning <= 0 or critical <= warning:
             raise ValueError("PM25 thresholds must satisfy 0 < warning < critical")
+        agent_timeout = float(os.getenv("AGENT_SERVICE_TIMEOUT_SECONDS", "8"))
+        if agent_timeout <= 0:
+            raise ValueError("AGENT_SERVICE_TIMEOUT_SECONDS must be positive")
 
         return cls(
             database_url=os.getenv("DATABASE_URL"),
@@ -32,4 +37,6 @@ class Settings:
             alert_warning_threshold=warning,
             alert_critical_threshold=critical,
             alert_rule_version=os.getenv("PM25_ALERT_RULE_VERSION", "pm25-threshold-v1"),
+            agent_service_url=os.getenv("AGENT_SERVICE_URL", "http://localhost:8001").rstrip("/"),
+            agent_service_timeout_seconds=agent_timeout,
         )
