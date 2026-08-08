@@ -1,0 +1,448 @@
+/* ===== Khu vực & Trạm (P2 · demo client-side) ===== */
+.admin-regions-page {
+  min-height: calc(100dvh - 110px);
+}
+
+/* ===== Toolbar ===== */
+.admin-regions-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 13px;
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+  background: var(--admin-surface);
+}
+
+.admin-partial-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+  padding: 11px 13px;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  border-radius: 10px;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.07);
+  font-size: 0.66rem;
+  line-height: 1.5;
+}
+
+/* ===== Workspace: map 60% / list 40% ===== */
+.admin-regions-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(330px, 4fr);
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+
+.admin-region-map .admin-map-canvas {
+  min-height: 430px;
+}
+.admin-map-marker.is-active {
+  z-index: 6;
+  border-color: #fff;
+  transform: translate(-50%, -50%) scale(1.14);
+}
+.admin-map-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  padding: 20px;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+  text-align: center;
+}
+.admin-map-legend span {
+  gap: 5px;
+}
+.admin-map-legend svg {
+  opacity: 0.8;
+}
+
+/* ===== Station list ===== */
+.admin-region-list {
+  display: flex;
+  max-height: 620px;
+  flex-direction: column;
+}
+.admin-station-rows {
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 12px;
+  list-style: none;
+}
+.admin-station-row {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  background: var(--admin-surface-raised);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.admin-station-row:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.06);
+}
+.admin-station-row.is-active {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.1);
+}
+.admin-station-row__mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 2px solid var(--state-color);
+  border-radius: 10px;
+  color: var(--state-color);
+  background: color-mix(in srgb, var(--state-color) 12%, transparent);
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+.admin-station-row__body {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+.admin-station-row__body > strong {
+  color: var(--admin-text);
+  font-size: 0.7rem;
+}
+.admin-station-row__body > small {
+  color: var(--admin-muted);
+  font-size: 0.58rem;
+}
+.admin-station-row__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+.admin-station-row__meta b {
+  color: var(--admin-text);
+  font-size: 0.64rem;
+}
+.admin-station-row__time {
+  font-family: monospace;
+  font-size: 0.55rem !important;
+}
+.admin-station-row__reason {
+  color: #fbbf24 !important;
+  line-height: 1.45;
+}
+.admin-region-list__note {
+  margin: 0;
+  padding: 0 14px 14px;
+  color: var(--admin-muted);
+  font-size: 0.6rem;
+  line-height: 1.5;
+}
+
+/* ===== Status chip (dùng chung marker/list/drawer) ===== */
+.admin-station-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.56rem;
+  font-weight: 700;
+}
+.admin-station-status.is-online {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.13);
+}
+.admin-station-status.is-stale {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.13);
+}
+.admin-station-status.is-offline {
+  color: #cbd5e1;
+  background: rgba(100, 116, 139, 0.18);
+}
+.admin-station-status.is-invalid {
+  color: #fda4af;
+  background: rgba(244, 63, 94, 0.13);
+}
+
+/* ===== Skeleton ===== */
+.admin-skeleton {
+  border-radius: 12px;
+  background: linear-gradient(
+    100deg,
+    var(--admin-surface-raised) 30%,
+    rgba(148, 163, 184, 0.12) 50%,
+    var(--admin-surface-raised) 70%
+  );
+  background-size: 220% 100%;
+  animation: admin-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.admin-skeleton--map {
+  min-height: 430px;
+  border-radius: 0;
+}
+.admin-skeleton--row {
+  height: 86px;
+}
+.admin-station-skeletons {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+@keyframes admin-skeleton-shimmer {
+  0% {
+    background-position: 160% 0;
+  }
+  100% {
+    background-position: -60% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-skeleton {
+    animation: none;
+  }
+}
+
+/* ===== Station detail drawer ===== */
+.admin-station-drawer {
+  position: fixed;
+  z-index: 61;
+  top: 0;
+  right: 0;
+  display: flex;
+  width: min(460px, 100%);
+  height: 100dvh;
+  flex-direction: column;
+  border-left: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  box-shadow: -18px 0 50px rgba(2, 6, 23, 0.4);
+}
+.admin-station-drawer__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  border-bottom: 1px solid var(--admin-border);
+}
+.admin-station-drawer__header > div {
+  display: grid;
+  gap: 4px;
+}
+.admin-station-drawer__header code {
+  justify-self: start;
+  padding: 3px 7px;
+  border-radius: 6px;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.1);
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+.admin-station-drawer__header strong {
+  color: var(--admin-text);
+  font-size: 0.85rem;
+}
+.admin-station-drawer__header small {
+  color: var(--admin-muted);
+  font-size: 0.62rem;
+}
+.admin-station-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+}
+.admin-drawer-section + .admin-drawer-section {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--admin-border);
+}
+.admin-drawer-section h3 {
+  margin: 0 0 12px;
+  color: #60a5fa;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.admin-drawer-map {
+  position: relative;
+  margin-top: 12px;
+  height: 150px;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  background: #0a1626;
+}
+.admin-shell--light .admin-drawer-map {
+  background: #dce6f3;
+}
+.admin-drawer-map__pin {
+  position: absolute;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 3px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  color: #fff;
+  background: var(--marker-color);
+  font-size: 0.58rem;
+  font-weight: 800;
+  transform: translate(-50%, -50%);
+}
+.admin-drawer-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 11px;
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.07);
+  font-size: 0.63rem;
+  line-height: 1.55;
+}
+.admin-drawer-warning svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.admin-panel-state--compact {
+  min-height: 74px;
+  font-size: 0.63rem;
+}
+
+.admin-user-audit-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-user-audit-list li {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: 11px;
+  background: var(--admin-surface-raised);
+}
+.admin-user-audit-list time {
+  color: var(--admin-muted);
+  font-size: 0.56rem;
+}
+.admin-user-audit-list li > div {
+  display: grid;
+  gap: 4px;
+}
+.admin-user-audit-list strong {
+  color: #60a5fa;
+  font-size: 0.64rem;
+}
+.admin-user-audit-list span,
+.admin-user-audit-list p {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 0.61rem;
+}
+.admin-user-audit-list code {
+  color: var(--admin-muted);
+  font-size: 0.55rem;
+}
+
+.admin-station-drawer__footer {
+  display: grid;
+  gap: 10px;
+  padding: 15px 18px;
+  border-top: 1px solid var(--admin-border);
+}
+.admin-station-drawer__footer .admin-primary-button {
+  justify-content: center;
+}
+.admin-station-drawer__secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.admin-station-drawer__secondary button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: 9px;
+  color: var(--admin-muted);
+  background: transparent;
+  font-size: 0.63rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-station-drawer__secondary button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.admin-station-drawer__danger:not(:disabled) {
+  color: #fb7185;
+  border-color: rgba(244, 63, 94, 0.4);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 1180px) {
+  .admin-regions-workspace {
+    grid-template-columns: 1fr;
+  }
+  .admin-region-list {
+    max-height: none;
+  }
+  .admin-station-rows {
+    overflow-y: visible;
+  }
+}
+@media (max-width: 720px) {
+  .admin-regions-toolbar {
+    padding: 11px;
+  }
+  .admin-regions-toolbar .admin-users-search {
+    min-width: 100%;
+  }
+  .admin-region-map .admin-map-canvas,
+  .admin-skeleton--map {
+    min-height: 330px;
+  }
+  .admin-station-drawer {
+    width: 100%;
+    height: 100dvh;
+  }
+}
+@media (max-width: 480px) {
+  .admin-regions-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-regions-toolbar .admin-users-select select {
+    width: 100%;
+  }
+  .admin-station-drawer__secondary {
+    grid-template-columns: 1fr;
+  }
+}

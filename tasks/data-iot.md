@@ -1,4 +1,5 @@
-﻿# Công việc Dữ liệu và IoT
+
+# Công việc Dữ liệu và IoT
 
 ## Mục tiêu và phạm vi
 
@@ -162,3 +163,20 @@ Xay dung pipeline du lieu PM2.5 gia lap cho 5 tram S01-S05: simulator -> MQTT ->
 | DI-005 | `docker-compose.yml`, `backend/db/schema.sql` | `services/mqtt-consumer/main.py`, Dockerfile, requirements | pipeline integration test |
 | DI-006 | - | `services/device-simulator/` | command contract, HITL/audit test |
 | DI-007 | `backend/app/main.py` | `backend/app/services/weather_service.py` | weather contract and fallback test |
+## Trạng thái triển khai hiện tại
+
+Phần cần thiết để backend đọc dữ liệu thật đã được triển khai ở mức MVP:
+
+| Hạng mục | Trạng thái | File chính |
+|---|---|---|
+| DI-001 | Đã có station catalog dùng chung và seed idempotent | `data/stations.json`, `backend/db/schema.sql` |
+| DI-002 | Đã có simulator đọc catalog, publish measurement/status, hỗ trợ scenario demo | `services/sensor-simulator/sensor_simulator.py` |
+| DI-003 | Đã có status topic và persistence `station_status` | `services/mqtt-consumer/mqtt_consumer/main.py`, `backend/db/schema.sql` |
+| DI-004 | Đã có validator/reason taxonomy và test unit cho reason chính | `services/mqtt-consumer/mqtt_consumer/validator.py`, `tests/test_iot/test_validator.py` |
+| DI-005 | Đã có consumer container, retry reconnect, persist measurement/status/rejection | `services/mqtt-consumer/`, `docker-compose.yml` |
+| DI-006 | Chưa triển khai; phụ thuộc BE-005 approval/dispatcher | `services/device-simulator/` chưa tạo |
+| DI-007 | Chưa triển khai provider thật; backend vẫn cần weather service/fallback riêng | `backend/app/services/weather_service.py` chưa tạo |
+
+Ghi chú kiểm chứng: đã compile Python cho `services/mqtt-consumer`, `services/sensor-simulator`, `backend/app`; đã chạy smoke test thủ công cho validator vì máy hiện không có `pytest`; chưa chạy được `docker compose config` vì Docker CLI không có trên máy.
+
+
