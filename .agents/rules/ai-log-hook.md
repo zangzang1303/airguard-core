@@ -17,7 +17,7 @@ Toàn bộ prompt user đã gõ trong Antigravity IDE được capture **nguyên
 
 ## Không làm những việc sau
 
-- ❌ **KHÔNG** gọi `scripts/log_antigravity.py "<summary>" "<model>"` sau mỗi task. Lệnh này đã bị deprecate; nếu vô tình gọi sẽ tạo log entry giả mạo dạng "TaskComplete" không phải prompt thật của user.
+- ❌ **KHÔNG** gọi `scripts/log_antigravity.py "<summary>" "<model>"` sau mỗi task. Chế độ cũ tạo entry `TaskComplete` giả nên hiện đã bị vô hiệu hóa và sẽ báo lỗi hướng dẫn.
 - ❌ **KHÔNG** chạy `scripts/log_manual.py` cho Antigravity — chỉ dùng nó cho ChatGPT / web tool (xem `.agents/workflows/log.md`).
 - ❌ **KHÔNG** sửa hoặc xoá file trong `.ai-log/` — chúng được pre-push hook và submit script quản lý.
 

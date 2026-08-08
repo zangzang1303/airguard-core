@@ -8,10 +8,15 @@ if exist ".venv\Scripts\python.exe" (
   exit /b %ERRORLEVEL%
 )
 
-where python >nul 2>nul
-if %ERRORLEVEL%==0 (
-  python %*
-  exit /b %ERRORLEVEL%
+for %%P in (python python3) do (
+  where %%P >nul 2>nul
+  if not errorlevel 1 (
+    %%P -c "import sys" >nul 2>nul
+    if not errorlevel 1 (
+      %%P %*
+      exit /b !ERRORLEVEL!
+    )
+  )
 )
 
 where python3 >nul 2>nul

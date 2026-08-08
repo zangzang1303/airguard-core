@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Cross-platform Python launcher for AI log hooks.
-# Tries python3 → python → py -3 on PATH; on Windows, falls back to common
-# Python install locations because Git Bash launched by some hooks gets a
-# stripped PATH that omits the Windows Python directory.
+# Prefers the project's virtual environment, then tries system interpreters.
+# Git Bash launched by hooks can have a stripped PATH, so Windows install
+# locations remain a final fallback.
 # Designed to be sourced or called as: bash scripts/_pyrun.sh <script> [args...]
 #
-# Exits 0 silently if no Python is found — hooks must never block the AI tool.
+# Fails loudly if no working Python is found. Silent success would make the
+# project claim that logs were captured when no logger ever ran.
 set -u
 
 if [ -x ".venv/Scripts/python.exe" ]; then

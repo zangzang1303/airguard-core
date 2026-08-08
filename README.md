@@ -44,6 +44,10 @@ Lenh chinh xac phu thuoc vao compose/scripts hien co trong repo; khong tuyen bo 
 |---|---|
 | Handoff va quy tac agent | [AGENTS.md](AGENTS.md) |
 | Product, users, features | [specs/](specs) |
+<<<<<<< HEAD
+=======
+| Frontend screens, flows, validation, states va roles | [specs/frontend-screen-spec.md](specs/frontend-screen-spec.md) |
+>>>>>>> origin/Dungpt
 | API, MQTT, data contracts | [specs/api-contracts.md](specs/api-contracts.md), [specs/data-contracts.md](specs/data-contracts.md) |
 | Architecture decisions | [adrs/](adrs) |
 | Roadmap va backlog | [planning/](planning) |

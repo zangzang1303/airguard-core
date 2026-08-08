@@ -23,9 +23,8 @@ Why not other sources we considered?
 Conversation → repo mapping
 ---------------------------
 The brain folder has no .project_root file. We map a conv to the current repo
-by scanning its transcript for tool-call `Cwd` values. A conv counts as
-belonging to this repo when one of its Cwd values either equals, is an
-ancestor of, or is a descendant of the current repo root.
+by scanning its transcript for tool-call `Cwd` values. A conversation counts
+as belonging to this repo only when a tool ran at the repo root or inside it.
 
 Usage:
   python scripts/log_antigravity.py --auto            # default: last 24h
@@ -39,6 +38,7 @@ Env overrides:
   AI_LOG_DIR             where session.jsonl is written (default: .ai-log)
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -82,6 +82,12 @@ def git(cmd: str) -> str:
         return ""
 
 
+def repo_name(origin: str) -> str:
+    tail = origin.rstrip("/\\").replace("\\", "/").rsplit("/", 1)[-1]
+    tail = tail.rsplit(":", 1)[-1]
+    return tail[:-4] if tail.endswith(".git") else tail
+
+
 # ---------------------------------------------------------------------------
 # Locating brain/
 # ---------------------------------------------------------------------------
@@ -100,10 +106,11 @@ def get_brain_dirs() -> list[Path]:
 # ---------------------------------------------------------------------------
 
 def _normalize(p: str) -> str:
-    """Lower-case + backslash form, no trailing separator."""
+    """Normalize a local path without breaking case-sensitive platforms."""
     if not p:
         return ""
-    return p.strip().lower().replace("/", "\\").rstrip("\\")
+    normalized = os.path.normpath(p.strip()).replace("\\", "/").rstrip("/")
+    return normalized.lower() if os.name == "nt" else normalized
 
 
 def _unquote_arg(val):
@@ -146,15 +153,18 @@ def _conv_cwds(transcript: Path) -> set[str]:
 
 
 def _conv_matches_repo(cwds: set[str], repo_root_n: str) -> bool:
-    """True if any cwd is equal to, ancestor of, or descendant of the repo."""
+    """True when a tool call ran in the repo or one of its descendants.
+
+    Treating a parent directory as a match attributes the same conversation to
+    every sibling repository below that parent, which can leak prompts across
+    projects.
+    """
     if not repo_root_n or not cwds:
         return False
     for cwd in cwds:
         if cwd == repo_root_n:
             return True
-        if cwd.startswith(repo_root_n + "\\"):
-            return True
-        if repo_root_n.startswith(cwd + "\\"):
+        if cwd.startswith(repo_root_n + "/"):
             return True
     return False
 
@@ -179,22 +189,35 @@ def extract_user_prompt(content: str) -> str:
 # Reading existing log to avoid duplicates
 # ---------------------------------------------------------------------------
 
-def get_logged_entry_ids(log_file: Path) -> set[str]:
+def get_logged_entry_ids(log_dir: Path) -> set[str]:
+    """Read IDs from live, in-flight, and archived logs.
+
+    Reading only session.jsonl causes every recently-scanned Antigravity prompt
+    to be emitted again immediately after a successful rotation.
+    """
     logged: set[str] = set()
-    if not log_file.exists():
-        return logged
-    with open(log_file, encoding="utf-8-sig") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            eid = entry.get("entry_id", "")
-            if eid:
-                logged.add(eid)
+    candidates = [log_dir / "session.jsonl"]
+    candidates.extend(sorted(log_dir.glob("session.pending.*.jsonl")))
+    candidates.extend(sorted((log_dir / "archive").glob("*.jsonl")))
+
+    for log_file in candidates:
+        if not log_file.exists():
+            continue
+        try:
+            with open(log_file, encoding="utf-8-sig") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    eid = entry.get("entry_id", "")
+                    if eid:
+                        logged.add(eid)
+        except OSError:
+            continue
     return logged
 
 
@@ -241,18 +264,28 @@ def iter_user_inputs(brain_dirs: list[Path], cutoff: datetime | None,
                             ts_dt = datetime.fromisoformat(
                                 ts.replace("Z", "+00:00")
                             )
+                            if ts_dt.tzinfo is None:
+                                ts_dt = ts_dt.replace(tzinfo=timezone.utc)
                             if ts_dt < cutoff:
                                 continue
-                        except ValueError:
-                            pass
+                        except (TypeError, ValueError):
+                            continue
 
                     text = extract_user_prompt(entry.get("content", ""))
                     if len(text) < 2:
                         continue
 
+                    try:
+                        step_id = f"{int(entry.get('step_index', 0)):05d}"
+                    except (TypeError, ValueError):
+                        digest = hashlib.sha256(
+                            f"{conv_dir.name}\0{ts}\0{text}".encode("utf-8")
+                        ).hexdigest()[:16]
+                        step_id = f"hash-{digest}"
+
                     yield {
                         "conv_id": conv_dir.name,
-                        "step_index": int(entry.get("step_index", 0)),
+                        "step_id": step_id,
                         "timestamp": ts,
                         "text": text,
                     }
@@ -279,7 +312,7 @@ def build_entry(msg: dict, repo: str, branch: str, commit: str,
         "ts": ts or datetime.now(VN_TZ).isoformat(),
         "tool": "antigravity",
         "event": "UserPrompt",
-        "entry_id": f"antigravity-{msg['conv_id']}-{msg['step_index']:05d}",
+        "entry_id": f"antigravity-{msg['conv_id']}-{msg['step_id']}",
         "session_id": msg["conv_id"],
         "model": "gemini",
         "repo": repo,
@@ -308,15 +341,18 @@ def main() -> None:
                         help="Don't filter conversations by current repo.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be logged, don't write.")
-    # Legacy positional args from old log_manual.py callers.
+    # Parse legacy positional args only to provide a clear migration error.
     parser.add_argument("summary", nargs="?", help=argparse.SUPPRESS)
     parser.add_argument("model", nargs="?", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    # Legacy manual mode: `log_antigravity.py "my summary" gemini`
+    # Legacy mode created synthetic TaskComplete records rather than real user
+    # prompts. Refuse it instead of silently polluting the grading log.
     if args.summary and not (args.auto or args.conv_id or args.all):
-        _legacy_log(args.summary, args.model or "gemini")
-        return
+        parser.error(
+            "manual Antigravity logging is no longer supported; use --auto "
+            "or scripts/log_manual.py for web-only tools"
+        )
 
     brain_dirs = get_brain_dirs()
     if not brain_dirs:
@@ -326,17 +362,18 @@ def main() -> None:
         sys.exit(0)
 
     log_dir = Path(os.environ.get("AI_LOG_DIR", ".ai-log"))
-    log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "session.jsonl"
-    logged_ids = get_logged_entry_ids(log_file)
+    logged_ids = get_logged_entry_ids(log_dir)
 
     cutoff = None
-    if not args.all:
+    if not args.all and not args.conv_id:
         cutoff = datetime.now(tz=VN_TZ) - timedelta(hours=args.hours)
 
-    repo_root_n = "" if args.no_repo_filter else _normalize(str(Path.cwd()))
+    repo_root = git("git rev-parse --show-toplevel") or str(Path.cwd())
+    repo_root_n = "" if args.no_repo_filter else _normalize(repo_root)
 
-    repo = git("git remote get-url origin").split("/")[-1].replace(".git", "")
+    repo = repo_name(git("git remote get-url origin"))
     branch = git("git rev-parse --abbrev-ref HEAD")
     commit = git("git rev-parse --short HEAD")
     student = git("git config user.email") or os.environ.get(
@@ -372,34 +409,6 @@ def main() -> None:
 
     print(f"[antigravity-log] Logged {len(new_entries)} prompt(s) from "
           f"Antigravity IDE.", file=sys.stderr)
-
-
-# ---------------------------------------------------------------------------
-# Legacy manual mode (kept for back-compat with log_manual.py callers and the
-# old .agents/rules instructions). New rules tell the AI not to call this.
-# ---------------------------------------------------------------------------
-
-def _legacy_log(summary: str, model: str) -> None:
-    ts = datetime.now(VN_TZ).isoformat()
-    entry = {
-        "ts": ts,
-        "tool": "antigravity",
-        "event": "TaskComplete",
-        "entry_id": f"antigravity-{datetime.now(VN_TZ).strftime('%Y%m%d-%H%M%S')}",
-        "model": model,
-        "repo": git("git remote get-url origin").split("/")[-1].replace(".git", ""),
-        "branch": git("git rev-parse --abbrev-ref HEAD"),
-        "commit": git("git rev-parse --short HEAD"),
-        "student": git("git config user.email") or os.environ.get(
-            "USERNAME", os.environ.get("USER", "unknown")),
-        "prompt": summary[:1000],
-        "response_summary": f"[Antigravity] {summary[:500]}",
-    }
-    log_dir = Path(os.environ.get("AI_LOG_DIR", ".ai-log"))
-    log_dir.mkdir(exist_ok=True)
-    with open(log_dir / "session.jsonl", "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    print(f"[antigravity-log] Logged manual: {summary[:80]}...", file=sys.stderr)
 
 
 if __name__ == "__main__":
