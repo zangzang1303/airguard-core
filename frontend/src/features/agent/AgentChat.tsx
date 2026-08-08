@@ -17,7 +17,7 @@ interface ChatMessage {
 }
 
 export const AgentChat: React.FC = () => {
-  const { selectedStationId, userGroup, role, navigateTo, setPendingApprovalsCount } = useAuth();
+  const { selectedStationId, userGroup, userId, role, navigateTo, setPendingApprovalsCount } = useAuth();
   const initialMessage: ChatMessage = {
     id: "msg-1",
     sender: "agent",
@@ -44,7 +44,7 @@ export const AgentChat: React.FC = () => {
     setSending(true);
 
     try {
-      const response: AgentResponse = await api.sendAgentMessage(userText, selectedStationId, userGroup);
+      const response: AgentResponse = await api.sendAgentMessage(userText, selectedStationId, userId);
       setMessages((previous) => [...previous, {
         id: `agent-${Date.now()}`,
         sender: "agent",

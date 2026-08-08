@@ -7,6 +7,8 @@ class AgentState(TypedDict, total=False):
     """Serializable state passed through the grounded LangGraph workflow."""
 
     query: str
+    user_id: str
+    context_station_id: str
     request_id: str
     started_at: float
     route: dict[str, Any]
@@ -18,4 +20,5 @@ class AgentState(TypedDict, total=False):
     response: str
     analysis: str
     outcome: str
+    recommendation_policy_version: str
     trace: dict[str, Any]

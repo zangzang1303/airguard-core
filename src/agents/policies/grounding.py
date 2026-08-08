@@ -32,6 +32,7 @@ class Intent(StrEnum):
     FORECAST = "forecast"
     ALERT = "alert"
     USER_PROFILE = "user_profile"
+    RECOMMENDATION = "recommendation"
     PROPOSAL = "proposal"
     GREETING = "greeting"
     CLARIFICATION = "clarification"
@@ -156,7 +157,12 @@ def _safety_decision(query: str) -> RouteDecision | None:
     return None
 
 
-def route_query(query: str) -> RouteDecision:
+def route_query(
+    query: str,
+    *,
+    context_station_id: str | None = None,
+    user_id: str | None = None,
+) -> RouteDecision:
     """Route a user query and derive only allow-listed, validated tool arguments."""
     stripped = query.strip()
     plain = _plain(stripped)
@@ -165,6 +171,9 @@ def route_query(query: str) -> RouteDecision:
         return safety
 
     stations = _stations(stripped)
+    normalized_context = (context_station_id or "").upper()
+    if not stations and normalized_context in {"S01", "S02", "S03", "S04", "S05"}:
+        stations = [normalized_context]
     greeting_tokens = {"hi", "hello", "hey", "xin chao", "chao", "chao airguard"}
     if plain in greeting_tokens:
         return RouteDecision(
@@ -182,6 +191,44 @@ def route_query(query: str) -> RouteDecision:
             intent=Intent.PROPOSAL,
             tool_calls=[ToolName.GET_CURRENT_PM25, ToolName.GET_ACTIVE_ALERTS],
             tool_arguments=[{"station_id": stations[0]}, {"station_id": stations[0]}],
+        )
+
+    if _contains_any(
+        plain,
+        (
+            "co nen",
+            "khuyen",
+            "khuyen nghi",
+            "chay bo",
+            "tap the thao",
+            "hoat dong ngoai troi",
+            "outdoor",
+            "recommend",
+        ),
+    ):
+        if not stations:
+            return _clarify("Bạn muốn nhận khuyến nghị cho trạm nào (S01-S05)?")
+        if not user_id:
+            return _clarify(
+                "Không có user_id để lấy hồ sơ từ backend. Hãy đăng nhập hoặc xác nhận hồ sơ trước khi cá nhân hóa."
+            )
+        hours = _hours(plain, 3)
+        return RouteDecision(
+            intent=Intent.RECOMMENDATION,
+            tool_calls=[
+                ToolName.GET_CURRENT_PM25,
+                ToolName.GET_WEATHER_CONTEXT,
+                ToolName.GET_PM25_FORECAST,
+                ToolName.GET_ACTIVE_ALERTS,
+                ToolName.GET_USER_PROFILE,
+            ],
+            tool_arguments=[
+                {"station_id": stations[0]},
+                {},
+                {"station_id": stations[0], "hours": hours},
+                {"station_id": stations[0]},
+                {"user_id": user_id},
+            ],
         )
 
     if _contains_any(plain, ("so sanh", "compare", "khac nhau")):
