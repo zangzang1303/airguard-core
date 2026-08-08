@@ -101,6 +101,24 @@ DEFAULT_FIXTURES: dict[str, Any] = {
             "user_group": "normal",
             "display_name": "Demo User",
             "source": "fixture",
+        },
+        "normal-user": {
+            "user_id": "normal-user",
+            "user_group": "normal",
+            "display_name": "Normal User",
+            "source": "fixture",
+        },
+        "sensitive-user": {
+            "user_id": "sensitive-user",
+            "user_group": "sensitive",
+            "display_name": "Sensitive User",
+            "source": "fixture",
+        },
+        "outdoor-user": {
+            "user_id": "outdoor-user",
+            "user_group": "outdoor_sport",
+            "display_name": "Outdoor User",
+            "source": "fixture",
         }
     },
 }

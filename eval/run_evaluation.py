@@ -161,9 +161,12 @@ async def _run_case(case: dict[str, Any]) -> CaseResult:
     adapter = ScenarioAdapter(case["fixture"])
     started_at = perf_counter()
     if case["mode"] == "graph":
-        raw = await build_graph(adapter).ainvoke(
-            {"query": case["query"], "request_id": f"eval-{case['id']}"}
-        )
+        state: dict[str, Any] = {"query": case["query"], "request_id": f"eval-{case['id']}"}
+        if case.get("user_id"):
+            state["user_id"] = case["user_id"]
+        if case.get("station_id"):
+            state["context_station_id"] = case["station_id"]
+        raw = await build_graph(adapter).ainvoke(state)
         actual_intent = raw["route"]["intent"]
         actual_tools = raw.get("used_tools", [])
         actual_arguments = raw["route"].get("tool_arguments", [])

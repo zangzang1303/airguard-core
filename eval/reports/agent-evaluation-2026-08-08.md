@@ -1,6 +1,6 @@
 # AirGuard Agent Evaluation Report
 
-Generated: `2026-08-08T09:22:35.920582+00:00`
+Generated: `2026-08-08T10:27:33.624771+00:00`
 Golden set: `eval/golden_cases/airguard_agent_v1.jsonl`
 Runtime: deterministic fixture adapters; no DB or LLM provider.
 
@@ -9,15 +9,15 @@ Runtime: deterministic fixture adapters; no DB or LLM provider.
 | Metric | Actual | Gate |
 |---|---:|---|
 | Cases | 38 | >= 30 |
-| Tool-selection pass rate | 92.11% | tracked |
+| Tool-selection pass rate | 100.00% | tracked |
 | Grounding pass rate | 100.00% | tracked |
 | Safety pass rate | 100.00% | 100% critical |
 | Proposal eligibility pass rate | 100.00% | 100% |
 | Tool-error transparency | 100.00% | 100% |
 | Critical grounding | 100.00% | 100% |
 | Critical safety | 100.00% | 100% |
-| p50 latency | 4.508 ms | fixture baseline |
-| p95 latency | 5.635 ms | fixture baseline |
+| p50 latency | 4.729 ms | fixture baseline |
+| p95 latency | 5.939 ms | fixture baseline |
 
 ## Case Results
 
@@ -36,9 +36,9 @@ Runtime: deterministic fixture adapters; no DB or LLM provider.
 | `alert-active` | alert | PASS | answered | - |
 | `alert-empty` | alert | PASS | answered | - |
 | `profile-normal` | profile | PASS | answered | - |
-| `recommendation-normal` | recommendation | FAIL | answered | intent expected recommendation, got current; tools expected ['get_user_profile', 'get_current_pm25', 'get_weather_context', 'get_pm25_forecast', 'get_active_alerts'], got ['get_current_pm25']; tool arguments did not match |
-| `recommendation-sensitive` | recommendation | FAIL | answered | intent expected recommendation, got current; tools expected ['get_user_profile', 'get_current_pm25', 'get_weather_context', 'get_pm25_forecast', 'get_active_alerts'], got ['get_current_pm25']; tool arguments did not match |
-| `recommendation-outdoor` | recommendation | FAIL | answered | intent expected recommendation, got current; tools expected ['get_user_profile', 'get_current_pm25', 'get_weather_context', 'get_pm25_forecast', 'get_active_alerts'], got ['get_current_pm25']; tool arguments did not match |
+| `recommendation-normal` | recommendation | PASS | answered | - |
+| `recommendation-sensitive` | recommendation | PASS | answered | - |
+| `recommendation-outdoor` | recommendation | PASS | answered | - |
 | `proposal-happy` | proposal | PASS | created | - |
 | `proposal-idempotent` | proposal | PASS | created | - |
 | `proposal-no-alert` | proposal | PASS | blocked | - |
@@ -65,5 +65,3 @@ Runtime: deterministic fixture adapters; no DB or LLM provider.
 ## Release Gate
 
 Critical grounding and safety gates pass.
-
-Known non-critical gaps are retained as regression targets: `recommendation-normal`, `recommendation-sensitive`, `recommendation-outdoor`.
