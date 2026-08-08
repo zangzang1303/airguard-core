@@ -20,7 +20,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/stations/{id}/forecast?hours=1..3` | baseline forecast from fresh current PM2.5 | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
-| POST `/agent/chat` | placeholder grounded answer shell | 200 | 422 |
+| POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
 | POST `/agent/jobs` | async agent job dispatch | 202 | 422/503 |
 | POST `/forecast/jobs` | async forecast job dispatch | 202 | 404/422/503 |
 | GET `/jobs/{id}` | job status | 200 | 404 |
@@ -51,16 +51,26 @@ Accepted measurement returns `accepted=true`, `duplicate=false`, `measurement`, 
 `X-User-Role: manager` is required for list/detail/approve/reject/audit. `X-User-ID` must be a UUID for review actions. Approve creates a `device_command_intents` row only when `device_id` is present. Reject never creates dispatch intent and requires a non-empty note.
 
 ## Agent response
-`POST /api/v1/agent/chat` accepts `{ "message": string }`. The legacy
-`POST /api/v1/chat` alias remains available during migration.
+The canonical backend `POST /api/v1/agent/chat` accepts
+`{ "message": string, "user_id": string, "station_id"?: "S01".."S05" }`. `user_id` is passed
+to the Agent only as an argument for backend profile lookup; it is not written to Agent trace.
+The current frontend identity is demo-only and does not replace production backend authentication.
+`station_id` is optional dashboard context and is validated before routing. The internal Agent
+service uses the same payload. The root Agent keeps the legacy `POST /api/v1/chat` alias during
+migration; its `user_id` remains optional for non-personalized requests.
 
 The response contains `answer`, `used_tools`, `sources`, `request_id`, `trace`, and optional
-`proposal_id`. `sources[]` contains `tool_name` plus optional `station_id`, `observed_at`, and
+`proposal_id` and `recommendation_policy_version`. `sources[]` contains `tool_name` plus optional `station_id`, `observed_at`, and
 `source`. `trace` contains the policy version, routed intent, per-tool status/latency and final
 outcome; it must not contain the raw prompt, user id, secret, token or backend credential.
 Facts must map to sources from the same request. Tool failure or absent/stale/invalid/offline data
 returns a transparent insufficient-data answer and no environmental source. The additive
 `response` field is a deprecated alias of `answer` for the original template client.
+
+Recommendation intent requires current PM2.5, weather, forecast, active alerts and a backend user
+profile from the same request. The client must not submit a trusted `user_group`; the Agent uses
+the result of `get_user_profile`. Missing profile or environmental evidence produces clarification
+or insufficient-data behavior rather than a generic personalized recommendation.
 
 Warning proposal creation requires an active backend alert, fresh online station data and non-empty evidence. The `Idempotency-Key` request header is optional but recommended; repeated calls with the same key return the original pending request.
 

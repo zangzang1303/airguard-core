@@ -18,6 +18,7 @@ export type ScreenType =
   | "register";
 
 export interface DemoAccount {
+  userId: string;
   email: string;
   name: string;
   role: UserRole;
@@ -40,6 +41,7 @@ export const DEMO_PASSWORD = "AirGuard@2026";
 
 const DEMO_ACCOUNT_RECORDS: StoredAccount[] = [
   {
+    userId: "00000000-0000-0000-0000-000000000101",
     email: "resident@vinuni.edu.vn",
     password: DEMO_PASSWORD,
     name: "Trần Minh Anh",
@@ -48,6 +50,7 @@ const DEMO_ACCOUNT_RECORDS: StoredAccount[] = [
     organization: "Vinhomes Ocean Park",
   },
   {
+    userId: "00000000-0000-0000-0000-000000000102",
     email: "manager@vinuni.edu.vn",
     password: DEMO_PASSWORD,
     name: "Nguyễn Văn A",
@@ -56,6 +59,7 @@ const DEMO_ACCOUNT_RECORDS: StoredAccount[] = [
     organization: "VinUniversity",
   },
   {
+    userId: "00000000-0000-0000-0000-000000000103",
     email: "admin@vinuni.edu.vn",
     password: DEMO_PASSWORD,
     name: "Lê Thị D",
@@ -92,6 +96,7 @@ interface AuthContextType {
   userName: string;
   setUserName: (name: string) => void;
   userEmail: string;
+  userId: string;
   organization: string;
   pendingApprovalsCount: number;
   setPendingApprovalsCount: React.Dispatch<React.SetStateAction<number>>;
@@ -111,6 +116,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [userGroup, setUserGroup] = useState<UserGroup>("normal");
   const [userName, setUserName] = useState("Trần Minh Anh");
   const [userEmail, setUserEmail] = useState("resident@vinuni.edu.vn");
+  const [userId, setUserId] = useState("00000000-0000-0000-0000-000000000101");
   const [organization, setOrganization] = useState("Vinhomes Ocean Park");
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(1);
 
@@ -120,6 +126,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUserGroup(account.userGroup);
     setUserName(account.name);
     setUserEmail(account.email);
+    setUserId(account.userId);
     setOrganization(account.organization);
     setIsAuthenticated(true);
     setAuthMessage(null);
@@ -158,6 +165,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (emailExists) return { success: false, message: "Email này đã được sử dụng." };
 
     setRegisteredAccounts((accounts) => [...accounts, {
+      userId: crypto.randomUUID(),
       email: normalizedEmail,
       password: input.password,
       name: input.name.trim(),
@@ -203,6 +211,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       userName,
       setUserName,
       userEmail,
+      userId,
       organization,
       pendingApprovalsCount,
       setPendingApprovalsCount,

@@ -69,6 +69,8 @@
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-cache+memory://}
       CELERY_TASK_ALWAYS_EAGER: ${CELERY_TASK_ALWAYS_EAGER:-true}
       JOB_PERSISTENCE_ENABLED: "true"
+      AGENT_SERVICE_URL: http://agent:8001
+      AGENT_SERVICE_TIMEOUT_SECONDS: 8
     ports:
       - "8000:8000"
     volumes:
@@ -76,6 +78,24 @@
     depends_on:
       postgres:
         condition: service_healthy
+
+  agent:
+    build:
+      context: .
+    container_name: airguard-agent
+    environment:
+      APP_ENV: development
+      APP_PORT: 8001
+      AGENT_BACKEND_BASE_URL: http://backend:8000
+      AGENT_TOOL_TIMEOUT_SECONDS: 3
+      AGENT_TOOL_MAX_RETRIES: 1
+      CORS_ORIGINS: http://localhost:5173
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    depends_on:
+      backend:
+        condition: service_started
 
   frontend:
     build:
@@ -146,6 +166,8 @@
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       CELERY_TASK_ALWAYS_EAGER: "false"
       JOB_PERSISTENCE_ENABLED: "true"
+      AGENT_SERVICE_URL: http://agent:8001
+      AGENT_SERVICE_TIMEOUT_SECONDS: 8
     depends_on:
       postgres:
         condition: service_healthy
@@ -154,6 +176,8 @@
       redis:
         condition: service_healthy
       mqtt:
+        condition: service_started
+      agent:
         condition: service_started
 
 volumes:

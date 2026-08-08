@@ -7,7 +7,6 @@ import {
   Proposal,
   AuditLogEntry,
   AgentResponse,
-  UserGroup,
   AdminUser,
   AdminAuditEntry,
   UserMutationResult,
@@ -419,36 +418,33 @@ export const api = {
 
   sendAgentMessage: async (
     message: string,
-    contextStationId: string | null = null,
-    userGroup: UserGroup = "normal",
+    contextStationId: string | null,
+    userId: string,
   ): Promise<AgentResponse> => {
-    try {
-      return await apiFetch<AgentResponse>("/api/v1/agent/chat", {
-        method: "POST",
-        body: JSON.stringify({
-          message,
-          station_id: contextStationId,
-          user_group: userGroup,
-        }),
-      });
-    } catch {
-      return {
-        reply: `Dựa trên dữ liệu quan trắc giả lập từ trạm ${contextStationId || "S01-S05"}, nồng độ PM2.5 hiện tại ở mức trung bình. Khuyến nghị nhóm người dùng [${userGroup}] theo dõi chỉ số trước khi tập luyện ngoài trời.`,
-        used_tools: [
-          "get_current_pm25",
-          "get_weather_context",
-          "get_user_profile",
-        ],
-        evidence: {
-          station_id: contextStationId || "S01",
-          pm25: 42.5,
-          source: "simulator",
-        },
-        proposal_created: message.toLowerCase().includes("cảnh báo")
-          ? FALLBACK_PROPOSALS[0]
-          : null,
-      };
-    }
+    const response = await apiFetch<{
+      answer: string;
+      used_tools: string[];
+      sources: Array<Record<string, unknown>>;
+      request_id: string;
+      trace: Record<string, unknown>;
+    }>("/api/v1/agent/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        message,
+        station_id: contextStationId,
+        user_id: userId,
+      }),
+    });
+    return {
+      reply: response.answer,
+      used_tools: response.used_tools,
+      evidence: {
+        sources: response.sources,
+        request_id: response.request_id,
+        trace: response.trace,
+      },
+      proposal_created: null,
+    };
   },
 
   getProposals: async (): Promise<Proposal[]> => {
