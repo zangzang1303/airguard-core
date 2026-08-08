@@ -168,12 +168,27 @@ class BackendToolClient:
             args = WarningProposalInput.model_validate(payload)
         except ValidationError as exc:
             return self._validation_error(ToolName.CREATE_WARNING_PROPOSAL, request_id, exc)
+        backend_payload = {
+            "request_type": "warning_proposal",
+            "station_id": args.target.station_id,
+            "proposed_action": args.action,
+            "reason": args.rationale,
+            "evidence": {
+                "items": [item.model_dump(mode="json") for item in args.evidence],
+                "target": args.target.model_dump(mode="json"),
+                "policy_version": args.policy_version,
+                "requested_by": args.user_id,
+                "expires_at": args.expires_at.isoformat() if args.expires_at else None,
+            },
+            "created_by": "ai_agent",
+        }
         return await self._request_and_validate(
             ToolName.CREATE_WARNING_PROPOSAL,
             request_id,
             "POST",
-            "/api/v1/warning-proposals",
-            json=args.model_dump(mode="json"),
+            "/api/v1/proposals",
+            json=backend_payload,
+            headers={"Idempotency-Key": args.idempotency_key},
             max_retries=0,
         )
 
@@ -186,6 +201,7 @@ class BackendToolClient:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
         max_retries: int | None = None,
     ) -> ToolEnvelope | ToolError:
         client = self._client or httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout_seconds)
@@ -194,12 +210,13 @@ class BackendToolClient:
         try:
             for attempt in range(attempts):
                 try:
+                    request_headers = {"X-Request-ID": request_id, **(headers or {})}
                     response = await client.request(
                         method,
                         path,
                         params=params,
                         json=json,
-                        headers={"X-Request-ID": request_id},
+                        headers=request_headers,
                     )
                 except httpx.TimeoutException:
                     if attempt + 1 < attempts:

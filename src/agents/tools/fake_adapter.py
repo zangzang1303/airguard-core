@@ -98,7 +98,7 @@ DEFAULT_FIXTURES: dict[str, Any] = {
     "profiles": {
         "demo-user": {
             "user_id": "demo-user",
-            "group": "normal",
+            "user_group": "normal",
             "display_name": "Demo User",
             "source": "fixture",
         }
@@ -112,6 +112,7 @@ class FakeBackendToolClient:
         if fixtures:
             self.fixtures.update(deepcopy(fixtures))
         self.created_proposals: list[dict[str, Any]] = []
+        self._proposals_by_key: dict[str, dict[str, Any]] = {}
 
     async def get_current_pm25(self, payload: Mapping[str, Any], request_id: str = "fixture-request") -> ToolEnvelope | ToolError:
         try:
@@ -216,10 +217,15 @@ class FakeBackendToolClient:
     ) -> ToolEnvelope | ToolError:
         try:
             args = WarningProposalInput.model_validate(payload)
-            self.created_proposals.append(args.model_dump(mode="json"))
-            data = WarningProposal.model_validate(
-                {"proposal_id": f"proposal-{len(self.created_proposals):03d}", "status": "pending", "request_id": request_id}
-            ).model_dump(mode="json")
+            data = self._proposals_by_key.get(args.idempotency_key)
+            if data is None:
+                self.created_proposals.append(args.model_dump(mode="json"))
+                data = {
+                    "request_id": f"proposal-{len(self.created_proposals):03d}",
+                    "status": "pending",
+                }
+                self._proposals_by_key[args.idempotency_key] = data
+            data = WarningProposal.model_validate(data).model_dump(mode="json")
         except ValidationError as exc:
             return self._validation_error(ToolName.CREATE_WARNING_PROPOSAL, request_id, exc)
         return ToolEnvelope(tool_name=ToolName.CREATE_WARNING_PROPOSAL, request_id=request_id, data=data)

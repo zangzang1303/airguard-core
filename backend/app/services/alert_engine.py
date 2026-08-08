@@ -1,6 +1,5 @@
 ﻿from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -142,7 +141,7 @@ class AlertEngine:
                     """,
                     params,
                 )
-                return [dict(row) for row in cur.fetchall()]
+                return [self._with_source(dict(row)) for row in cur.fetchall()]
 
     def resolve_alert(self, alert_id: str, *, actor_id: str, actor_role: str, correlation_id: str | None) -> dict[str, Any]:
         if actor_role != "manager":
@@ -181,3 +180,7 @@ class AlertEngine:
         if pm25 > self.warning_threshold:
             return "warning"
         return None
+
+    @staticmethod
+    def _with_source(alert: dict[str, Any]) -> dict[str, Any]:
+        return {**alert, "source": f"backend_alert_rule:{alert['rule_version']}"}

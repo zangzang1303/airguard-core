@@ -3,9 +3,9 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-TOOL_REGISTRY_VERSION = "2026-08-04.ai-001"
+TOOL_REGISTRY_VERSION = "2026-08-08.ai-001"
 TOOL_REGISTRY_OWNER = "ai-agent"
 STATION_IDS = {"S01", "S02", "S03", "S04", "S05"}
 
@@ -121,11 +121,14 @@ class ProposalTarget(StrictModel):
 
 class ProposalEvidence(StrictModel):
     source_tool: ToolName
+    evidence_id: str | None = Field(default=None, min_length=1, max_length=120)
     station_id: str | None = None
     observed_value: float | None = Field(default=None, ge=0)
     threshold_value: float | None = Field(default=None, ge=0)
     measured_at: AwareDatetime | None = None
     source: str | None = None
+    rule_version: str | None = Field(default=None, min_length=1, max_length=100)
+    severity: str | None = Field(default=None, min_length=1, max_length=50)
 
     @field_validator("station_id")
     @classmethod
@@ -137,7 +140,7 @@ class WarningProposalInput(StrictModel):
     user_id: str = Field(..., min_length=1, max_length=120, pattern=r"^[A-Za-z0-9_.:@-]+$")
     idempotency_key: str = Field(..., min_length=8, max_length=200)
     target: ProposalTarget
-    action: str = Field(..., min_length=5, max_length=200)
+    action: str = Field(..., min_length=5, max_length=100)
     rationale: str = Field(..., min_length=10, max_length=1000)
     policy_version: str = Field(..., min_length=3, max_length=80)
     evidence: list[ProposalEvidence] = Field(..., min_length=1, max_length=10)
@@ -145,6 +148,8 @@ class WarningProposalInput(StrictModel):
 
     @model_validator(mode="after")
     def evidence_has_station_context(self) -> WarningProposalInput:
+        if self.target.station_id is None:
+            raise ValueError("warning proposal target requires station_id")
         if self.target.station_id and not any(item.station_id == self.target.station_id for item in self.evidence):
             raise ValueError("proposal evidence must include the target station_id")
         return self
@@ -271,7 +276,9 @@ class ActiveAlerts(BackendOutputModel):
 
 class UserProfile(BackendOutputModel):
     user_id: str
-    group: Literal["normal", "sensitive", "outdoor_sport"]
+    group: Literal["normal", "sensitive", "outdoor_sport"] = Field(
+        validation_alias=AliasChoices("group", "user_group")
+    )
     display_name: str | None = None
     source: str | None = None
 
@@ -358,7 +365,7 @@ TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
         input_schema=WarningProposalInput,
         output_schema=WarningProposal,
         method="POST",
-        endpoint="/api/v1/warning-proposals",
+        endpoint="/api/v1/proposals",
         mutating=True,
     ),
 }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 from pydantic import ValidationError
@@ -17,6 +19,7 @@ from src.agents.tools.contracts import (
     ToolError,
     ToolErrorCode,
     ToolName,
+    UserProfile,
     WeatherContext,
 )
 
@@ -226,6 +229,14 @@ def test_environmental_contracts_require_grounding_metadata():
             }
         )
 
+
+def test_user_profile_accepts_backend_user_group_field():
+    profile = UserProfile.model_validate(
+        {"user_id": "demo-user", "role": "viewer", "user_group": "sensitive"}
+    )
+
+    assert profile.group == "sensitive"
+
     with pytest.raises(ValidationError):
         WeatherContext.model_validate(
             {
@@ -315,5 +326,92 @@ async def test_backend_adapter_retries_get_but_not_create_proposal():
         )
 
     assert isinstance(result, ToolError)
-    assert create_calls == ["/api/v1/warning-proposals"]
+    assert create_calls == ["/api/v1/proposals"]
+
+
+@pytest.mark.asyncio
+async def test_create_proposal_maps_backend_payload_header_and_response_id():
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["request_id"] = request.headers["x-request-id"]
+        seen["idempotency_key"] = request.headers["idempotency-key"]
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(201, json={"request_id": "approval-123", "status": "pending"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://backend") as http_client:
+        adapter = BackendToolClient("http://backend", client=http_client, max_retries=3)
+        result = await adapter.create_warning_proposal(
+            {
+                "user_id": "demo-user",
+                "idempotency_key": "alert-S02:policy-v1",
+                "target": {"audience": "station_area", "station_id": "S02"},
+                "action": "notify_station_area_users",
+                "rationale": "Fresh PM2.5 and an active alert require manager review.",
+                "policy_version": "policy-v1",
+                "evidence": [
+                    {
+                        "source_tool": "get_current_pm25",
+                        "station_id": "S02",
+                        "observed_value": 58.2,
+                        "source": "simulator",
+                    },
+                    {
+                        "source_tool": "get_active_alerts",
+                        "evidence_id": "alert-S02-001",
+                        "station_id": "S02",
+                        "threshold_value": 50,
+                        "source": "backend_alert_rule:pm25-threshold-v1",
+                    },
+                ],
+            },
+            request_id="req-create-success",
+        )
+
+    assert result.ok is True
+    assert result.data["proposal_id"] == "approval-123"
+    assert result.data["status"] == "pending"
+    assert seen == {
+        "path": "/api/v1/proposals",
+        "request_id": "req-create-success",
+        "idempotency_key": "alert-S02:policy-v1",
+        "body": {
+            "request_type": "warning_proposal",
+            "station_id": "S02",
+            "proposed_action": "notify_station_area_users",
+            "reason": "Fresh PM2.5 and an active alert require manager review.",
+            "evidence": {
+                "items": [
+                    {
+                        "source_tool": "get_current_pm25",
+                        "evidence_id": None,
+                        "station_id": "S02",
+                        "observed_value": 58.2,
+                        "threshold_value": None,
+                        "measured_at": None,
+                        "source": "simulator",
+                        "rule_version": None,
+                        "severity": None,
+                    },
+                    {
+                        "source_tool": "get_active_alerts",
+                        "evidence_id": "alert-S02-001",
+                        "station_id": "S02",
+                        "observed_value": None,
+                        "threshold_value": 50.0,
+                        "measured_at": None,
+                        "source": "backend_alert_rule:pm25-threshold-v1",
+                        "rule_version": None,
+                        "severity": None,
+                    },
+                ],
+                "target": {"audience": "station_area", "station_id": "S02"},
+                "policy_version": "policy-v1",
+                "requested_by": "demo-user",
+                "expires_at": None,
+            },
+            "created_by": "ai_agent",
+        },
+    }
 
