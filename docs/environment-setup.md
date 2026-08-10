@@ -1,5 +1,8 @@
 # Environment Setup
 
+Quy trình kiểm chứng Backend/Data-IoT và release sign-off nằm tại
+[Backend + Data/IoT Demo Completion Guide](backend-data-iot-demo-completion.md).
+
 Install Docker Desktop/Compose, Python and Node versions required by project files. Copy
 `.env.example` to `.env`; supply only local secrets and never commit it.
 
@@ -34,8 +37,12 @@ $env:AGENT_BACKEND_BASE_URL="http://localhost:8000"
 ```
 
 Start dependencies first (PostgreSQL, Mosquitto), then migrations/seed, backend, Agent,
-consumer/worker, simulator and frontend. Verify `/health` for backend/Agent, backend readiness,
+consumer/worker, sensor simulator, device simulator and frontend. Verify `/health` for backend/Agent, backend readiness,
 `GET /api/v1/stations`, MQTT publish logs and dashboard.
+
+The default Compose profile uses `PM25_ALERT_CONSECUTIVE_MEASUREMENTS=2` and generates a unique
+simulator run prefix for `message_id`. Set `SENSOR_RUN_ID` only when a deterministic run identifier
+is required for evidence; do not reuse it against a persistent demo database.
 
 Troubleshoot:
 
@@ -44,3 +51,15 @@ Troubleshoot:
 - Empty map: verify seed/API/CORS.
 - No fresh data: inspect simulator topic, consumer log and `last_seen`.
 - Never bypass validation with DB edits; record local deviations in an AI log.
+## Initialize an existing local database
+
+PostgreSQL runs `schema.sql` and `seed.sql` automatically only when its named volume
+is first created. If an existing local volume predates the current schema, apply the
+idempotent demo bootstrap without deleting data:
+
+```powershell
+.\scripts\init-demo-db.ps1
+```
+
+This is for local demo environments only. Do not use it as a replacement for a
+versioned migration process in a shared or production database.

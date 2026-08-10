@@ -20,5 +20,7 @@ class AgentState(TypedDict, total=False):
     response: str
     analysis: str
     outcome: str
+    proposal_id: str | None
+    proposal_reason_code: str | None
     recommendation_policy_version: str
     trace: dict[str, Any]

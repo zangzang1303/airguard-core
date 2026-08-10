@@ -18,6 +18,8 @@ class AlertEngine:
         warning_threshold: float,
         critical_threshold: float,
         rule_version: str,
+        consecutive_measurements: int = 1,
+        stale_after_seconds: int = 300,
     ) -> None:
         self.db = db
         self.station_service = station_service
@@ -25,6 +27,8 @@ class AlertEngine:
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
         self.rule_version = rule_version
+        self.consecutive_measurements = max(1, consecutive_measurements)
+        self.stale_after_seconds = max(1, stale_after_seconds)
 
     def evaluate_all_current(self, correlation_id: str | None = None) -> None:
         for station in self.station_service.list_stations():
@@ -32,13 +36,29 @@ class AlertEngine:
 
     def evaluate_station(self, station_id: str, correlation_id: str | None = None) -> dict[str, Any] | None:
         station = self.station_service.get_station(station_id)
-        if station["is_stale"] or station["status"] in {"offline", "stale"} or station["pm25"] is None:
-            return None
+        unavailable = station["is_stale"] or station["status"] in {"offline", "stale"} or station["pm25"] is None
+        if unavailable:
+            return self._evaluate_sensor_offline(station, correlation_id=correlation_id)
+
+        self._resolve_sensor_offline(station_id, correlation_id=correlation_id)
 
         pm25 = float(station["pm25"])
         severity = self._severity(pm25)
         with self.db.connection() as conn:
             with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    SELECT pm25
+                    FROM measurements
+                    WHERE station_id = %s AND quality_flag = 'valid'
+                      AND measured_at >= NOW() - (%s * INTERVAL '1 second')
+                    ORDER BY measured_at DESC
+                    LIMIT %s
+                    """,
+                    (station_id, self.stale_after_seconds, self.consecutive_measurements),
+                )
+                recent_values = [float(row["pm25"]) for row in cur.fetchall()]
+                threshold_qualified = self._threshold_is_qualified(recent_values)
                 cur.execute(
                     """
                     SELECT * FROM alerts
@@ -76,6 +96,9 @@ class AlertEngine:
                         )
                         return resolved
                     return None
+
+                if not threshold_qualified:
+                    return dict(existing) if existing else None
 
                 title = f"PM2.5 elevated at {station['station_name']}"
                 description = "Valid fresh simulator data exceeded the configured PM2.5 threshold."
@@ -116,6 +139,82 @@ class AlertEngine:
                     conn=conn,
                 )
                 return created
+
+    def _evaluate_sensor_offline(self, station: dict[str, Any], *, correlation_id: str | None) -> dict[str, Any] | None:
+        # Seeded stations have no last_seen value and must not create noisy startup alerts.
+        has_seen = station.get("last_seen_at") is not None or station.get("updated_at") is not None
+        if not has_seen:
+            return None
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    SELECT * FROM alerts
+                    WHERE station_id = %s AND alert_type = 'sensor_offline'
+                      AND rule_version = %s AND status = 'active'
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (station["station_id"], self.rule_version),
+                )
+                existing = cur.fetchone()
+                if existing:
+                    return dict(existing)
+                alert_id = str(uuid4())
+                cur.execute(
+                    """
+                    INSERT INTO alerts (
+                        alert_id, station_id, alert_type, rule_version, severity,
+                        title, description, status
+                    )
+                    VALUES (%s, %s, 'sensor_offline', %s, 'warning', %s, %s, 'active')
+                    RETURNING *
+                    """,
+                    (
+                        alert_id,
+                        station["station_id"],
+                        self.rule_version,
+                        f"Sensor unavailable at {station['station_name']}",
+                        "No valid fresh measurement is available for this station.",
+                    ),
+                )
+                created = dict(cur.fetchone())
+                self.audit.record(
+                    actor_type="system",
+                    actor_role="backend",
+                    action="alert.sensor_offline",
+                    entity_type="alert",
+                    entity_id=str(created["alert_id"]),
+                    correlation_id=correlation_id,
+                    details={"station_id": station["station_id"], "status": station.get("status")},
+                    conn=conn,
+                )
+                return created
+
+    def _resolve_sensor_offline(self, station_id: str, *, correlation_id: str | None) -> None:
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    UPDATE alerts
+                    SET status = 'resolved', resolved_at = NOW(), updated_at = NOW()
+                    WHERE station_id = %s AND alert_type = 'sensor_offline'
+                      AND rule_version = %s AND status = 'active'
+                    RETURNING alert_id
+                    """,
+                    (station_id, self.rule_version),
+                )
+                row = cur.fetchone()
+                if row:
+                    self.audit.record(
+                        actor_type="system",
+                        actor_role="backend",
+                        action="alert.sensor_recovered",
+                        entity_type="alert",
+                        entity_id=str(row["alert_id"]),
+                        correlation_id=correlation_id,
+                        details={"station_id": station_id},
+                        conn=conn,
+                    )
 
     def list_alerts(self, *, status: str | None = None, station_id: str | None = None) -> list[dict[str, Any]]:
         self.evaluate_all_current()
@@ -180,6 +279,12 @@ class AlertEngine:
         if pm25 > self.warning_threshold:
             return "warning"
         return None
+
+    def _threshold_is_qualified(self, values: list[float]) -> bool:
+        return (
+            len(values) >= self.consecutive_measurements
+            and all(value > self.warning_threshold for value in values[: self.consecutive_measurements])
+        )
 
     @staticmethod
     def _with_source(alert: dict[str, Any]) -> dict[str, Any]:

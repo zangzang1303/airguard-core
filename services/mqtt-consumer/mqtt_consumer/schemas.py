@@ -45,3 +45,19 @@ class StationStatusPayload(BaseModel):
     @classmethod
     def timestamp_has_timezone(cls, value: datetime) -> datetime:
         return _require_timezone(value)
+
+
+class DeviceStatusPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str = Field(min_length=1, max_length=100)
+    device_id: str = Field(min_length=1, max_length=50)
+    status: Literal["succeeded", "rejected", "failed", "duplicate"]
+    timestamp: datetime
+    is_simulated: Literal[True]
+    reason: str | None = Field(default=None, max_length=200)
+
+    @field_validator("timestamp")
+    @classmethod
+    def timestamp_has_timezone(cls, value: datetime) -> datetime:
+        return _require_timezone(value)

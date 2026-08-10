@@ -1,19 +1,10 @@
-# ---- Stage 1: Build ----
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# ---- Stage 2: Production ----
-FROM python:3.11-slim
-
-WORKDIR /app
+RUN pip install --no-cache-dir -r requirements.txt
  
-# Copy installed packages from builder
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
 ENV APP_PORT=8000
 
 # Security: run as non-root user

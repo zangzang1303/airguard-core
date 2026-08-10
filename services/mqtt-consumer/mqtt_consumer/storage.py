@@ -8,7 +8,7 @@ from typing import Any
 import psycopg2
 import psycopg2.extras
 
-from .schemas import MeasurementPayload, StationStatusPayload
+from .schemas import DeviceStatusPayload, MeasurementPayload, StationStatusPayload
 from .validator import ValidationErrorCode
 
 logger = logging.getLogger(__name__)
@@ -88,6 +88,19 @@ class PostgresStore:
                     source=payload.source,
                     reason=payload.reason,
                 )
+
+    def persist_device_status(self, payload: DeviceStatusPayload) -> bool:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE devices
+                    SET status = %s, last_seen_at = %s, is_simulated = TRUE
+                    WHERE device_id = %s
+                    """,
+                    (payload.status, payload.timestamp, payload.device_id),
+                )
+                return cur.rowcount == 1
 
     def record_rejection(
         self,

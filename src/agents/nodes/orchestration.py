@@ -32,6 +32,8 @@ def route_node(state: AgentState) -> dict[str, Any]:
 
 def route_after_intent(state: AgentState) -> str:
     decision = RouteDecision.model_validate(state["route"])
+    if decision.intent == Intent.PROPOSAL:
+        return "create_proposal"
     return "execute_tools" if decision.requires_tools else "compose"
 
 
@@ -72,6 +74,27 @@ async def execute_tools_node(state: AgentState, *, tool_client: Any) -> dict[str
 
 def compose_node(state: AgentState) -> dict[str, Any]:
     decision = RouteDecision.model_validate(state["route"])
+    if decision.intent == Intent.PROPOSAL:
+        outcome = state.get("outcome")
+        reason = state.get("proposal_reason_code")
+        proposal_id = state.get("proposal_id")
+        if outcome == "created" and proposal_id:
+            return {
+                "answer": (
+                    f"Đã tạo warning proposal {proposal_id} ở trạng thái pending. "
+                    "Manager cần review trước khi có bất kỳ lệnh thiết bị nào được dispatch."
+                ),
+                "response": f"Proposal {proposal_id} is pending manager review.",
+                "sources": [],
+                "outcome": "proposal_pending",
+                "proposal_id": proposal_id,
+            }
+        return {
+            "answer": f"Không thể tạo warning proposal: {reason or 'insufficient_evidence'}.",
+            "response": f"Warning proposal blocked: {reason or 'insufficient_evidence'}.",
+            "sources": [],
+            "outcome": outcome or "blocked",
+        }
     composed = compose_response(decision, state.get("tool_results", []))
     result = {
         "answer": composed["answer"],

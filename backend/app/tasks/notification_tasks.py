@@ -5,7 +5,11 @@ import os
 
 import paho.mqtt.client as mqtt
 from ..celery_app import celery_app
-from ..services.approval_service import ApprovalStoreUnavailableError, require_approved_device_action
+from ..services.approval_service import (
+    ApprovalStoreUnavailableError,
+    record_device_dispatch,
+    require_approved_device_action,
+)
 from .task_support import RETRY_TASK_OPTIONS, TransientTaskError, run_idempotent
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -73,11 +77,23 @@ def publish_approved_device_command(
             info = client.publish(topic, json.dumps(payload), qos=1)
             info.wait_for_publish(timeout=5)
         except (OSError, RuntimeError, TimeoutError, mqtt.MQTTException) as exc:
+            try:
+                record_device_dispatch(
+                    approval_request_id,
+                    device_id,
+                    "failed",
+                    task_id,
+                    str(exc)[:500],
+                )
+            except ApprovalStoreUnavailableError:
+                pass
             raise TransientTaskError(f"MQTT publish failed: {exc}") from exc
         finally:
             if client is not None:
                 client.loop_stop()
                 client.disconnect()
+
+        record_device_dispatch(approval_request_id, device_id, "published", task_id)
 
         return {
             "task_id": task_id,

@@ -8,7 +8,12 @@ CONSUMER_PATH = Path(__file__).resolve().parents[2] / "services" / "mqtt-consume
 sys.path.insert(0, str(CONSUMER_PATH))
 
 from mqtt_consumer.station_catalog import StationCatalog
-from mqtt_consumer.validator import ValidationErrorCode, validate_measurement_message, validate_status_message
+from mqtt_consumer.validator import (
+    ValidationErrorCode,
+    validate_device_status_message,
+    validate_measurement_message,
+    validate_status_message,
+)
 
 
 def catalog() -> StationCatalog:
@@ -128,3 +133,15 @@ def test_valid_station_status_accepts_source_and_timezone() -> None:
     assert result.accepted is True
     assert result.payload is not None
     assert result.payload.status == "online"
+
+
+def test_valid_device_status_accepts_simulated_ack() -> None:
+    result = validate_device_status_message(
+        "airguard/devices/FILTER-01/status",
+        '{"command_id":"cmd-1","device_id":"FILTER-01","status":"succeeded",'
+        '"timestamp":"2026-08-03T08:00:00+00:00","is_simulated":true}',
+    )
+
+    assert result.accepted is True
+    assert result.payload is not None
+    assert result.payload.is_simulated is True

@@ -94,7 +94,7 @@ export const AdminDashboard: React.FC = () => {
       const [stationData, alertData, proposalData] = await Promise.all([
         api.getStations(),
         api.getAlerts(),
-        api.getProposals(),
+        Promise.resolve([] as Proposal[]),
       ]);
       const mainStations = stationData.slice(0, 3);
       const histories = await Promise.all(mainStations.map(async (station) => ({

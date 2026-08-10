@@ -29,6 +29,7 @@ async def _chat(request: ChatRequest, http_request: Request) -> ChatResponse:
             used_tools=result.get("used_tools", []),
             sources=result.get("sources", []),
             request_id=result["request_id"],
+            proposal_id=result.get("proposal_id"),
             recommendation_policy_version=result.get("recommendation_policy_version"),
             trace=result.get("trace", {}),
         )

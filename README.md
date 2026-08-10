@@ -1678,6 +1678,10 @@ Không để secret ở frontend.
 
 # 23. Cách chạy local
 
+Để hoàn thành và ký xác nhận toàn bộ Backend/Data-IoT trước demo, dùng
+[Backend + Data/IoT Demo Completion Guide](docs/backend-data-iot-demo-completion.md). Guide này có
+ma trận BE-001..BE-007/DI-001..DI-007, lệnh kiểm chứng, evidence pack và release blockers.
+
 ## Backend
 
 ```powershell

@@ -15,7 +15,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/stations/compare` | compare current fresh values for 1..5 stations | 200 | 404/422/503 |
 | POST `/internal/ingestion/measurements` | internal validated measurement ingestion | 202 | 404/422/503 |
 | POST `/internal/ingestion/evaluate-alerts` | internal alert catch-up for one/all stations | 200 | 404/503 |
-| GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up | 200 | 422/503 |
+| GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up, including sensor availability alerts | 200 | 422/503 |
 | POST `/alerts/{id}/resolve` | manager-only manual alert resolution | 200 | 403/404/503 |
 | GET `/stations/{id}/forecast?hours=1..3` | baseline forecast from fresh current PM2.5 | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
