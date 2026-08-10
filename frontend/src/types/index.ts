@@ -251,10 +251,11 @@ export interface Proposal {
   status: "pending" | "approved" | "rejected";
   created_at: string;
   evidence: Evidence;
+  version: number;
   reviewed_by?: string;
   reviewed_at?: string;
   review_note?: string;
-  dispatch_status?: "not_configured" | "pending" | "succeeded" | "failed";
+  dispatch_status?: "not_configured" | "queued" | "pending" | "succeeded" | "failed";
 }
 
 export interface AuditLogEntry {
@@ -272,4 +273,5 @@ export interface AgentResponse {
   used_tools: string[];
   evidence: Record<string, any>;
   proposal_created?: Proposal | null;
+  proposal_id?: string | null;
 }

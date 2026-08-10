@@ -233,6 +233,11 @@ This section is the single-file map of the repository. Read it before using broa
 |       |-- mqtt_consumer/
 |       |-- requirements.txt
 |       `-- Dockerfile
+|   `-- device-simulator/        # approved device-command simulator and simulated ack/status publisher
+|       |-- device_simulator.py
+|       |-- requirements.txt
+|       |-- __init__.py
+|       `-- Dockerfile
 |-- infra/
 |   `-- mqtt/mosquitto.conf       # broker configuration, moved from mqtt/
 |-- data/                         # non-secret station seed/fixtures mounted read-only where needed
@@ -263,7 +268,7 @@ This section is the single-file map of the repository. Read it before using broa
 
 ### Migration status
 
-The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`, plus shared `src/` until its own deliberate migration. At the time of this document update, `services/sensor-simulator`, `services/mqtt-consumer` and `infra/mqtt` are in the active Compose topology. `backend/` and `frontend/` remain at the repository root because Windows reported them locked by active processes. Do not update Compose paths to `apps/api` or `apps/web` until those moves complete in one change.
+The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`, plus shared `src/` until its own deliberate migration. At the time of this document update, `services/sensor-simulator`, `services/mqtt-consumer`, `services/device-simulator` and `infra/mqtt` are in the active Compose topology. `backend/` and `frontend/` remain at the repository root because Windows reported them locked by active processes. Do not update Compose paths to `apps/api` or `apps/web` until those moves complete in one change.
 
 
 ### Runtime entry points
@@ -276,6 +281,7 @@ The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`,
 | Agent package | `src/main.py`, `src/agents/graph.py` | legacy/Agent FastAPI and LangGraph flow | tests import `src.*` |
 | MQTT broker | `infra/mqtt/mosquitto.conf` | Mosquitto config | Compose uses the current `infra/mqtt` path |
 | MQTT consumer | `services/mqtt-consumer/mqtt_consumer/main.py` | validates measurements/status and writes Postgres | Compose builds `./services/mqtt-consumer` today |
+| Device simulator | `services/device-simulator/device_simulator.py` | receives approved command payloads and publishes simulated ack/status | Compose builds `./services/device-simulator` today |
 | DB schema | `backend/db/schema.sql` | Postgres initialization | includes stations, station_status, measurements and mqtt_rejections |
 
 ### Immediate post-move repair checklist

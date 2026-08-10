@@ -12,6 +12,11 @@ import {
   UserMutationResult,
 } from "../types";
 
+export interface DemoApiActor {
+  userId: string;
+  role: "manager";
+}
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -101,6 +106,7 @@ export const FALLBACK_PROPOSALS: Proposal[] = [
     action: "Khuyến nghị hạn chế hoạt động thể thao ngoài trời & phát cảnh báo",
     rationale: "PM2.5 đạt 66.1 µg/m³ duy trì trên 30 phút cùng độ ẩm cao.",
     status: "pending",
+    version: 1,
     created_at: new Date(Date.now() - 20 * 60000).toISOString(),
     evidence: { pm25: 66.1, humidity: 78, wind_speed: 1.2 },
   },
@@ -316,104 +322,83 @@ async function apiFetch<T>(
     }
     return await res.json();
   } catch (err: any) {
-    console.warn(`Fetch to ${endpoint} failed, fallback used:`, err?.message);
+    console.warn(`Fetch to ${endpoint} failed:`, err?.message);
     throw err;
   }
 }
 
+function mapProposal(request: Record<string, any>): Proposal {
+  return {
+    proposal_id: request.request_id,
+    station_id: request.station_id,
+    severity: request.evidence?.severity ?? "warning",
+    target: request.device_id ?? request.station_id,
+    action: request.proposed_action,
+    rationale: request.reason,
+    status: request.status,
+    created_at: request.created_at,
+    evidence: request.evidence ?? {},
+    version: request.version,
+    reviewed_by: request.reviewed_by,
+    reviewed_at: request.reviewed_at,
+    review_note: request.review_note,
+    dispatch_status: request.command_intent?.status ?? "not_configured",
+  };
+}
+
 export const api = {
   getStations: async (): Promise<Station[]> => {
-    try {
-      const data = await apiFetch<any>("/api/v1/stations");
-      return data.items || data;
-    } catch {
-      return FALLBACK_STATIONS;
-    }
+    const data = await apiFetch<{ items: Station[] }>("/api/v1/stations");
+    return data.items;
   },
 
   getStationCurrent: async (stationId: string): Promise<StationDetailData> => {
-    try {
-      return await apiFetch<StationDetailData>(
-        `/api/v1/stations/${stationId}/current`,
-      );
-    } catch {
-      const st =
-        FALLBACK_STATIONS.find((s) => s.station_id === stationId) ||
-        FALLBACK_STATIONS[0];
-      return {
-        ...st,
-        weather: {
-          temperature: 29.5,
-          humidity: 75,
-          wind_speed: 2.1,
-          source: "OpenWeatherMap/Simulator",
-        },
-        source: "simulator",
-      };
-    }
+    return apiFetch<StationDetailData>(`/api/v1/stations/${stationId}/current`);
   },
 
   getStationHistory: async (
     stationId: string,
     hours = 24,
   ): Promise<HistoryPoint[]> => {
-    try {
-      return await apiFetch<HistoryPoint[]>(
-        `/api/v1/stations/${stationId}/history?hours=${hours}`,
-      );
-    } catch {
-      const now = Date.now();
-      return Array.from({ length: 12 }, (_, i) => ({
-        timestamp: new Date(
-          now - (11 - i) * 2 * 3600 * 1000,
-        ).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-        pm25: Math.round(25 + Math.random() * 45),
-        temperature: 28 + Math.round(Math.random() * 4),
-        humidity: 70 + Math.round(Math.random() * 15),
-      }));
-    }
+    const data = await apiFetch<{ items: Array<HistoryPoint & { measured_at?: string }> }>(
+      `/api/v1/stations/${stationId}/history?hours=${hours}`,
+    );
+    return data.items.map((point) => ({ ...point, timestamp: point.measured_at ?? point.timestamp }));
   },
 
   getStationForecast: async (stationId: string): Promise<ForecastData> => {
     try {
-      return await apiFetch<ForecastData>(
+      const data = await apiFetch<any>(
         `/api/v1/stations/${stationId}/forecast`,
       );
-    } catch {
-      const base = 40;
       return {
-        station_id: stationId,
-        horizon_hours: 3,
-        source: "AirGuard AI Linear-Trend Model",
-        confidence: "Cao (0.88)",
-        forecasts: [
-          {
-            horizon: "1 giờ",
-            pm25_predicted: base + 4,
-            range: [base, base + 8],
-          },
-          {
-            horizon: "2 giờ",
-            pm25_predicted: base + 7,
-            range: [base + 2, base + 12],
-          },
-          {
-            horizon: "3 giờ",
-            pm25_predicted: base + 2,
-            range: [base - 5, base + 8],
-          },
-        ],
+        station_id: data.station_id,
+        horizon_hours: data.items.length,
+        source: data.source,
+        confidence: data.confidence,
+        forecasts: data.items.map((item: { hour_offset: number; pm25: number }) => ({
+          horizon: `${item.hour_offset} hour`,
+          pm25_predicted: item.pm25,
+          range: [item.pm25, item.pm25] as [number, number],
+        })),
       };
+    } catch {
+      throw new Error("Forecast API unavailable");
     }
   },
 
   getAlerts: async (): Promise<Alert[]> => {
-    try {
-      const data = await apiFetch<any>("/api/v1/alerts");
-      return data.items || data;
-    } catch {
-      return FALLBACK_ALERTS;
-    }
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/alerts");
+    return data.items.map((alert) => ({
+      alert_id: alert.alert_id,
+      station_id: alert.station_id,
+      severity: alert.severity,
+      message: alert.description ?? alert.title,
+      observed_value: alert.observed_value,
+      threshold: alert.threshold_value,
+      status: alert.status,
+      created_at: alert.created_at,
+    }));
   },
 
   sendAgentMessage: async (
@@ -427,6 +412,7 @@ export const api = {
       sources: Array<Record<string, unknown>>;
       request_id: string;
       trace: Record<string, unknown>;
+      proposal_id?: string | null;
     }>("/api/v1/agent/chat", {
       method: "POST",
       body: JSON.stringify({
@@ -444,57 +430,48 @@ export const api = {
         trace: response.trace,
       },
       proposal_created: null,
+      proposal_id: response.proposal_id ?? null,
     };
   },
 
-  getProposals: async (): Promise<Proposal[]> => {
-    try {
-      const data = await apiFetch<any>("/api/v1/approvals");
-      return data.items || data;
-    } catch {
-      return FALLBACK_PROPOSALS;
-    }
+  getProposals: async (actor: DemoApiActor): Promise<Proposal[]> => {
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/approvals", {
+      headers: { "X-User-ID": actor.userId, "X-User-Role": actor.role },
+    });
+    return data.items.map(mapProposal);
   },
 
-  approveProposal: async (proposalId: string, note = ""): Promise<any> => {
-    try {
-      return await apiFetch(`/api/v1/approvals/${proposalId}/approve`, {
-        method: "POST",
-        body: JSON.stringify({ note }),
-      });
-    } catch {
-      return {
-        status: "approved",
-        proposal_id: proposalId,
-        note,
-        approved_at: new Date().toISOString(),
-      };
-    }
+  approveProposal: async (proposalId: string, version: number, note: string, actor: DemoApiActor): Promise<Proposal> => {
+    const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/approve`, {
+      method: "POST",
+      headers: { "X-User-ID": actor.userId, "X-User-Role": actor.role },
+      body: JSON.stringify({ version, note }),
+    });
+    return mapProposal(data);
   },
 
-  rejectProposal: async (proposalId: string, note: string): Promise<any> => {
-    try {
-      return await apiFetch(`/api/v1/approvals/${proposalId}/reject`, {
-        method: "POST",
-        body: JSON.stringify({ note }),
-      });
-    } catch {
-      return {
-        status: "rejected",
-        proposal_id: proposalId,
-        note,
-        rejected_at: new Date().toISOString(),
-      };
-    }
+  rejectProposal: async (proposalId: string, version: number, note: string, actor: DemoApiActor): Promise<Proposal> => {
+    const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/reject`, {
+      method: "POST",
+      headers: { "X-User-ID": actor.userId, "X-User-Role": actor.role },
+      body: JSON.stringify({ version, note }),
+    });
+    return mapProposal(data);
   },
 
-  getAuditLogs: async (): Promise<AuditLogEntry[]> => {
-    try {
-      const data = await apiFetch<any>("/api/v1/audit");
-      return data.items || data;
-    } catch {
-      return FALLBACK_AUDIT_LOGS;
-    }
+  getAuditLogs: async (actor: DemoApiActor): Promise<AuditLogEntry[]> => {
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/audit-logs", {
+      headers: { "X-User-ID": actor.userId, "X-User-Role": actor.role },
+    });
+    return data.items.map((entry) => ({
+      id: String(entry.audit_id),
+      time: entry.created_at,
+      actor: entry.actor_id ?? entry.actor_type,
+      action: entry.action,
+      target: [entry.entity_type, entry.entity_id].filter(Boolean).join(":"),
+      outcome: entry.outcome,
+      correlation_id: entry.correlation_id ?? "—",
+    }));
   },
 
   // ---- P2 · Quản lý người dùng (demo client-side, contract pending) ----

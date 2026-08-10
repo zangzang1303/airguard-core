@@ -16,10 +16,12 @@ from .services.alert_engine import AlertEngine
 from .services.approval_service import ApprovalService, configure_default_service
 from .services.audit_service import AuditService
 from .services.database import Database, ServiceError
+from .services.device_service import DeviceService
 from .services.forecast_service import baseline_forecast
 from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.station_service import StationService
+from .services.user_service import UserService
 from .services.weather_service import WeatherService
 
 try:
@@ -88,6 +90,8 @@ settings = Settings.load()
 db = Database(settings.database_url)
 audit_service = AuditService(db)
 station_service = StationService(db, settings.stale_after_seconds)
+user_service = UserService(db)
+device_service = DeviceService(db)
 approval_service = ApprovalService(db, audit_service)
 ingestion_service = MeasurementIngestionService(
     db,
@@ -101,6 +105,8 @@ alert_engine = AlertEngine(
     warning_threshold=settings.alert_warning_threshold,
     critical_threshold=settings.alert_critical_threshold,
     rule_version=settings.alert_rule_version,
+    consecutive_measurements=settings.alert_consecutive_measurements,
+    stale_after_seconds=settings.stale_after_seconds,
 )
 configure_default_service(approval_service)
 agent_service = AgentService(
@@ -287,16 +293,7 @@ def get_station_forecast(station_id: str, hours: int = Query(default=3, ge=1, le
 
 @app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)
 def get_user_profile(user_id: str) -> UserProfileResponse:
-    with db.connection() as conn:
-        from .services.database import dict_cursor
-        with dict_cursor(conn) as cur:
-            cur.execute(
-                "SELECT user_id, role, sensitivity_group FROM users WHERE user_id = %s",
-                (user_id,),
-            )
-            row = cur.fetchone()
-    if not row:
-        raise ServiceError("user_not_found", "User profile was not found", 404, {"user_id": user_id})
+    row = user_service.get_profile(user_id)
     return UserProfileResponse(
         user_id=str(row["user_id"]), role=row["role"], user_group=row.get("sensitivity_group")
     )
@@ -480,39 +477,13 @@ def get_audit_logs(
 
 @app.get("/api/v1/devices")
 def get_devices() -> dict:
-    with db.connection() as conn:
-        from .services.database import dict_cursor
-
-        with dict_cursor(conn) as cur:
-            cur.execute(
-                """
-                SELECT device_id, device_name, device_type, station_id, status, is_simulated, last_seen_at
-                FROM devices
-                ORDER BY device_id
-                """
-            )
-            return {"items": [dict(row) for row in cur.fetchall()]}
+    return {"items": device_service.list_devices()}
 
 
 
 @app.get("/api/v1/devices/{device_id}/status")
 def get_device_status(device_id: str) -> dict:
-    with db.connection() as conn:
-        from .services.database import dict_cursor
-
-        with dict_cursor(conn) as cur:
-            cur.execute(
-                """
-                SELECT device_id, device_name, device_type, station_id, status, is_simulated, last_seen_at
-                FROM devices
-                WHERE device_id = %s
-                """,
-                (device_id,),
-            )
-            row = cur.fetchone()
-            if not row:
-                raise ServiceError("device_not_found", "Device was not found", 404, {"device_id": device_id})
-            return dict(row)
+    return device_service.get_status(device_id)
 
 
 

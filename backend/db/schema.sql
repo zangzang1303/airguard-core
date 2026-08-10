@@ -1,5 +1,4 @@
-
-﻿CREATE TABLE IF NOT EXISTS stations (
+CREATE TABLE IF NOT EXISTS stations (
     station_id VARCHAR(50) PRIMARY KEY,
     station_name VARCHAR(100) NOT NULL,
     location_type VARCHAR(50) NOT NULL,
@@ -45,6 +44,9 @@ CREATE TABLE IF NOT EXISTS measurements (
 
 CREATE INDEX IF NOT EXISTS idx_measurements_station_time
 ON measurements(station_id, measured_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_measurements_station_quality_time
+ON measurements(station_id, quality_flag, measured_at DESC);
 
 CREATE TABLE IF NOT EXISTS mqtt_rejections (
     rejection_id BIGSERIAL PRIMARY KEY,
@@ -203,28 +205,3 @@ CREATE TABLE IF NOT EXISTS job_runs (
 
 CREATE INDEX IF NOT EXISTS idx_job_runs_type_created
 ON job_runs(job_type, created_at DESC);
-
-INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description, active)
-VALUES
-    ('S01', 'Cong chinh', 'main_gate', 20.9441, 105.9439, 'Khu vuc cong chinh, PM2.5 tang vao gio cao diem', TRUE),
-    ('S02', 'Bai do xe', 'parking', 20.9450, 105.9435, 'Khu vuc bai do xe, anh huong boi xe ra vao', TRUE),
-    ('S03', 'Truc duong chinh', 'main_road', 20.9445, 105.9452, 'Tuyen duong chinh, co mat do giao thong cao', TRUE),
-    ('S04', 'Cong vien', 'park', 20.9455, 105.9458, 'Khu cong vien, PM2.5 thuong thap hon khu giao thong', TRUE),
-    ('S05', 'Khu the thao ngoai troi', 'sport_area', 20.9437, 105.9448, 'Khu the thao, dung cho khuyen nghi hoat dong ngoai troi', TRUE)
-ON CONFLICT (station_id) DO UPDATE SET
-    station_name = EXCLUDED.station_name,
-    location_type = EXCLUDED.location_type,
-    latitude = EXCLUDED.latitude,
-    longitude = EXCLUDED.longitude,
-    description = EXCLUDED.description,
-    active = EXCLUDED.active,
-    updated_at = NOW();
-
-INSERT INTO station_status (station_id, status, last_seen_at, source)
-SELECT station_id, 'offline', NULL, 'simulator'
-FROM stations
-ON CONFLICT (station_id) DO NOTHING;
-
-INSERT INTO devices (device_id, device_name, device_type, station_id, status, is_simulated)
-VALUES ('FILTER-01', 'Simulated outdoor filtration unit', 'air_filter', 'S03', 'offline', TRUE)
-ON CONFLICT (device_id) DO NOTHING;

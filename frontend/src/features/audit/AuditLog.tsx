@@ -9,7 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { AuditLogEntry } from "../../types";
 
 export const AuditLog: React.FC = () => {
-  const { role } = useAuth();
+  const { role, userId } = useAuth();
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<AuditLogEntry | null>(null);
@@ -18,9 +18,12 @@ export const AuditLog: React.FC = () => {
 
   const fetchLogs = async () => {
     setLoading(true);
-    try { setLogs(await api.getAuditLogs()); } finally { setLoading(false); }
+    try { setLogs(await api.getAuditLogs({ userId, role: "manager" })); } finally { setLoading(false); }
   };
-  useEffect(() => { fetchLogs(); }, []);
+  useEffect(() => {
+    if (role === "manager") fetchLogs();
+    else setLoading(false);
+  }, [role]);
 
   const actors = useMemo(() => Array.from(new Set(logs.map((log) => log.actor))), [logs]);
   const actions = useMemo(() => Array.from(new Set(logs.map((log) => log.action))), [logs]);
@@ -28,7 +31,7 @@ export const AuditLog: React.FC = () => {
     (actorFilter === "all" || log.actor === actorFilter)
     && (actionFilter === "all" || log.action === actionFilter)), [actionFilter, actorFilter, logs]);
 
-  if (role === "resident") {
+  if (role !== "manager") {
     return <div className="audit-container"><PageHeader title="Lịch sử hoạt động" description="Truy vết các hành động quan trọng trong hệ thống." /><div className="alert-box alert-warning"><LockKeyhole size={18} /> Audit Log chỉ dành cho Manager và Admin.</div></div>;
   }
 

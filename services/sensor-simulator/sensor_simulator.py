@@ -6,6 +6,7 @@ import os
 import random
 import signal
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Event
@@ -20,6 +21,7 @@ INTERVAL_SECONDS = int(os.getenv("SENSOR_INTERVAL_SECONDS", "10"))
 MQTT_QOS = int(os.getenv("MQTT_QOS", "1"))
 SCENARIO = os.getenv("SENSOR_SCENARIO", "normal")
 RANDOM_SEED = os.getenv("SENSOR_RANDOM_SEED")
+RUN_ID = os.getenv("SENSOR_RUN_ID") or uuid.uuid4().hex[:10]
 STATION_CATALOG_PATH = Path(os.getenv("STATION_CATALOG_PATH", "/app/data/stations.json"))
 VIETNAM_TZ = timezone(timedelta(hours=7))
 stop_event = Event()
@@ -99,7 +101,7 @@ def publish_measurement(client: mqtt.Client, station: dict[str, Any], counter: i
     message_counter = counter - 1 if duplicate and counter > 1 else counter
     topic = f"airguard/stations/{station_id}/measurements"
     payload = {
-        "message_id": f"MSG-{station_id}-{message_counter}",
+        "message_id": f"MSG-{RUN_ID}-{station_id}-{message_counter:06d}",
         "station_id": station_id,
         "pm25": pm25,
         "timestamp": timestamp,

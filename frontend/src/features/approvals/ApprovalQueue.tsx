@@ -11,7 +11,7 @@ import { Proposal } from "../../types";
 type ApprovalTab = "pending" | "approved" | "rejected";
 
 export const ApprovalQueue: React.FC = () => {
-  const { role, setPendingApprovalsCount } = useAuth();
+  const { role, userId, setPendingApprovalsCount } = useAuth();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ApprovalTab>("pending");
@@ -24,15 +24,23 @@ export const ApprovalQueue: React.FC = () => {
   const fetchProposals = async () => {
     setLoading(true);
     try {
-      const data = await api.getProposals();
+      const data = await api.getProposals({ userId, role: "manager" });
       setProposals(data);
       setPendingApprovalsCount(data.filter((proposal) => proposal.status === "pending").length);
+    } catch {
+      setActionError("Không thể tải đề xuất từ server.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchProposals(); }, []);
+  useEffect(() => {
+    if (role === "manager") {
+      fetchProposals();
+    } else {
+      setLoading(false);
+    }
+  }, [role]);
 
   const tabCounts = useMemo(() => ({
     pending: proposals.filter((proposal) => proposal.status === "pending").length,
@@ -48,15 +56,9 @@ export const ApprovalQueue: React.FC = () => {
     setActionSuccess(null);
   };
 
-  const updateProposal = (status: "approved" | "rejected") => {
-    if (!selectedProposal) return;
-    setProposals((current) => current.map((proposal) => proposal.proposal_id === selectedProposal.proposal_id ? {
-      ...proposal,
-      status,
-      review_note: reviewNote,
-      reviewed_by: "Manager (Demo)",
-      dispatch_status: status === "approved" ? "succeeded" : "not_configured",
-    } : proposal));
+  const updateProposal = (updatedProposal: Proposal) => {
+    setProposals((current) => current.map((proposal) => proposal.proposal_id === updatedProposal.proposal_id ? updatedProposal : proposal));
+    setSelectedProposal(updatedProposal);
     setPendingApprovalsCount((count) => Math.max(0, count - 1));
   };
 
@@ -65,8 +67,8 @@ export const ApprovalQueue: React.FC = () => {
     setSubmitting(true);
     setActionError(null);
     try {
-      await api.approveProposal(selectedProposal.proposal_id, reviewNote);
-      updateProposal("approved");
+      const result = await api.approveProposal(selectedProposal.proposal_id, selectedProposal.version, reviewNote, { userId, role: "manager" });
+      updateProposal(result);
       setActionSuccess(`Đã phê duyệt ${selectedProposal.proposal_id}. Quyết định đã được ghi nhận.`);
     } catch {
       setActionError("Không thể phê duyệt đề xuất. Vui lòng tải lại trạng thái server và thử lại.");
@@ -82,15 +84,15 @@ export const ApprovalQueue: React.FC = () => {
     setSubmitting(true);
     setActionError(null);
     try {
-      await api.rejectProposal(selectedProposal.proposal_id, reviewNote);
-      updateProposal("rejected");
+      const result = await api.rejectProposal(selectedProposal.proposal_id, selectedProposal.version, reviewNote, { userId, role: "manager" });
+      updateProposal(result);
       setActionSuccess(`Đã từ chối ${selectedProposal.proposal_id}. Không có hành động nào được dispatch.`);
     } catch {
       setActionError("Không thể từ chối đề xuất. Vui lòng thử lại.");
     } finally { setSubmitting(false); }
   };
 
-  if (role === "resident") {
+  if (role !== "manager") {
     return <div className="approvals-container"><PageHeader title="Phê duyệt đề xuất" description="Xem xét bằng chứng trước khi đưa ra quyết định." /><div className="alert-box alert-warning"><ShieldX size={18} /> Màn hình chỉ dành cho Manager hoặc Admin.</div></div>;
   }
 

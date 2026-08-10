@@ -5,6 +5,7 @@ from copy import deepcopy
 import pytest
 
 from src.agents.nodes.proposal_workflow import run_proposal_workflow
+from src.agents.graph import build_graph
 from src.agents.policies.proposal_eligibility import (
     PROPOSAL_POLICY_VERSION,
     proposal_idempotency_key,
@@ -60,6 +61,27 @@ async def test_happy_path_creates_one_pending_proposal_with_complete_evidence():
         "get_active_alerts",
     ]
     assert [trace["tool_name"] for trace in result.tool_traces] == [
+        "get_current_pm25",
+        "get_active_alerts",
+        "create_warning_proposal",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_graph_routes_proposal_intent_to_pending_hitl_request():
+    adapter = FakeBackendToolClient()
+
+    result = await build_graph(adapter).ainvoke(
+        {
+            "query": "tao canh bao cho S02",
+            "user_id": "demo-user",
+            "context_station_id": "S02",
+        }
+    )
+
+    assert result["proposal_id"] == "proposal-001"
+    assert result["outcome"] == "proposal_pending"
+    assert result["used_tools"] == [
         "get_current_pm25",
         "get_active_alerts",
         "create_warning_proposal",
