@@ -111,7 +111,20 @@ def _safety_decision(query: str) -> RouteDecision | None:
         )
     if _contains_any(
         query,
-        ("approve proposal", "reject proposal", "bypass approval", "bo qua phe duyet", "tu dong phe duyet"),
+        (
+            "approve proposal",
+            "reject proposal",
+            "bypass approval",
+            "bo qua phe duyet",
+            "bo qua manager",
+            "khong can phe duyet",
+            "khong can manager",
+            "tu dong phe duyet",
+            "tu phe duyet",
+            "tu approve",
+            "tu reject",
+            "tu choi proposal",
+        ),
     ):
         return RouteDecision(
             intent=Intent.PROPOSAL,
@@ -187,6 +200,10 @@ def route_query(
     if _contains_any(plain, ("proposal", "de xuat canh bao", "tao canh bao", "warning proposal")):
         if not stations:
             return _clarify("Bạn muốn kiểm tra đề xuất cho trạm nào (S01-S05)?")
+        if not user_id:
+            return _clarify(
+                "Không có user_id để tạo warning proposal. Hãy đăng nhập trước khi yêu cầu tạo đề xuất."
+            )
         return RouteDecision(
             intent=Intent.PROPOSAL,
             tool_calls=[ToolName.GET_CURRENT_PM25, ToolName.GET_ACTIVE_ALERTS],

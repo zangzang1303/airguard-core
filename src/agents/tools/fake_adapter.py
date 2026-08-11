@@ -187,6 +187,7 @@ class FakeBackendToolClient:
                     "rainfall": 0,
                     "observed_at": FIXED_NOW.isoformat(),
                     "source": "fixture_weather",
+                    "is_fallback": False,
                     "is_stale": False,
                 }
             ).model_dump(mode="json")
