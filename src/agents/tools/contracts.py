@@ -23,6 +23,7 @@ class ToolName(StrEnum):
 
 class ToolErrorCode(StrEnum):
     VALIDATION_ERROR = "validation_error"
+    PERMISSION_DENIED = "permission_denied"
     NOT_FOUND = "not_found"
     UNAVAILABLE = "backend_unavailable"
     TIMEOUT = "backend_timeout"
@@ -214,6 +215,7 @@ class WeatherContext(BackendOutputModel):
     rainfall: float | None = None
     observed_at: AwareDatetime
     source: str = Field(..., min_length=1, max_length=100)
+    is_fallback: bool
     is_stale: bool
 
 

@@ -163,9 +163,14 @@ def _compose_weather(data_items: list[Mapping[str, Any]]) -> str:
         "rainfall": "lượng mưa",
     }
     values = ", ".join(f"{labels[field]} {data[field]:g}" for field in labels if data.get(field) is not None)
+    fallback_notice = (
+        " Đây là weather fallback được gắn nhãn, không phải dữ liệu weather live/official."
+        if data["is_fallback"]
+        else ""
+    )
     return (
         f"Bối cảnh thời tiết tại {data['area_id']} lúc {data['observed_at']}: {values}. "
-        f"Nguồn: {data['source']}."
+        f"Nguồn: {data['source']}.{fallback_notice}"
     )
 
 

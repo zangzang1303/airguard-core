@@ -5,6 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from src.agents.policies.grounding import GROUNDING_POLICY_VERSION, Intent, RouteDecision, route_query
+from src.agents.policies.proposal_eligibility import PROPOSAL_POLICY_VERSION
 from src.agents.policies.recommendations import RECOMMENDATION_POLICY_VERSION
 from src.agents.response_composer import compose_response
 from src.agents.state import AgentState
@@ -32,6 +33,8 @@ def route_node(state: AgentState) -> dict[str, Any]:
 
 def route_after_intent(state: AgentState) -> str:
     decision = RouteDecision.model_validate(state["route"])
+    if decision.direct_response is not None:
+        return "compose"
     if decision.intent == Intent.PROPOSAL:
         return "create_proposal"
     return "execute_tools" if decision.requires_tools else "compose"
@@ -74,7 +77,7 @@ async def execute_tools_node(state: AgentState, *, tool_client: Any) -> dict[str
 
 def compose_node(state: AgentState) -> dict[str, Any]:
     decision = RouteDecision.model_validate(state["route"])
-    if decision.intent == Intent.PROPOSAL:
+    if decision.intent == Intent.PROPOSAL and decision.direct_response is None:
         outcome = state.get("outcome")
         reason = state.get("proposal_reason_code")
         proposal_id = state.get("proposal_id")
@@ -120,5 +123,7 @@ def trace_node(state: AgentState) -> dict[str, Any]:
     }
     if decision.intent == Intent.RECOMMENDATION:
         trace["recommendation_policy_version"] = RECOMMENDATION_POLICY_VERSION
+    if decision.intent == Intent.PROPOSAL and decision.safety_category is None:
+        trace["proposal_policy_version"] = PROPOSAL_POLICY_VERSION
     emit_trace(trace)
     return {"trace": trace}
