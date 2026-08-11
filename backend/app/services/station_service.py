@@ -79,7 +79,7 @@ class StationService:
             with dict_cursor(conn) as cur:
                 cur.execute(
                     """
-                    SELECT station_id, message_id, measured_at, pm25, temperature, humidity,
+                    SELECT station_id, message_id, measured_at, received_at, pm25, temperature, humidity,
                            wind_speed, wind_direction, rainfall, source, quality_flag
                     FROM measurements
                     WHERE station_id = %s

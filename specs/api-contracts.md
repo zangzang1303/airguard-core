@@ -42,6 +42,8 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 
 Accepted measurement returns `accepted=true`, `duplicate=false`, `measurement`, and optional `alert`. Duplicate message id returns `accepted=false`, `duplicate=true`, `reason=duplicate` and must not update current/alert state.
 
+History items include `message_id`, `station_id`, `measured_at`, `received_at`, PM2.5/weather fields, `source` and `quality_flag`. `measured_at` is the simulator observation time; `received_at` is the backend/consumer ingestion time.
+
 ## Approval review request
 
 ```json

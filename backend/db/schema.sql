@@ -39,8 +39,12 @@ CREATE TABLE IF NOT EXISTS measurements (
     source VARCHAR(30) NOT NULL DEFAULT 'simulator',
     quality_flag VARCHAR(20) NOT NULL DEFAULT 'valid',
     quality_reason TEXT,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE IF EXISTS measurements
+    ADD COLUMN IF NOT EXISTS received_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 CREATE INDEX IF NOT EXISTS idx_measurements_station_time
 ON measurements(station_id, measured_at DESC);

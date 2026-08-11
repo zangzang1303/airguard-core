@@ -2,15 +2,18 @@
 
 import os
 import sys
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
 
 from app.core import Settings  # noqa: E402
+from app.schemas.measurements import MeasurementIngestionRequest  # noqa: E402
 from app.services.alert_engine import AlertEngine  # noqa: E402
 from app.services.approval_service import ApprovalService  # noqa: E402
 from app.services.database import ServiceError  # noqa: E402
+from app.services.ingestion_service import MeasurementIngestionService  # noqa: E402
 from app.services.station_service import pm25_level  # noqa: E402
 from app.services.weather_service import WeatherService  # noqa: E402
 
@@ -77,6 +80,8 @@ def test_weather_has_explicit_freshness() -> None:
 
     assert weather["is_stale"] is False
     assert weather["source"] == "simulator_fallback_weather"
+    assert weather["is_fallback"] is True
+    assert weather["observed_at"]
 
 
 def test_alert_source_is_derived_from_rule_version() -> None:
@@ -99,6 +104,29 @@ def test_alert_threshold_requires_consecutive_fresh_values() -> None:
     assert engine._threshold_is_qualified([60]) is False
     assert engine._threshold_is_qualified([60, 65]) is True
     assert engine._threshold_is_qualified([60, 45]) is False
+
+
+def test_stale_ingestion_is_rejected_before_database_write() -> None:
+    class NoWriteDatabase:
+        def connection(self):
+            raise AssertionError("stale measurements must not reach persistence")
+
+    service = MeasurementIngestionService(NoWriteDatabase(), stale_after_seconds=120)
+    request = MeasurementIngestionRequest(
+        message_id="MSG-stale",
+        station_id="S01",
+        pm25=90,
+        timestamp=datetime.now(UTC) - timedelta(minutes=10),
+        source="simulator",
+    )
+
+    try:
+        service.ingest(request)
+    except ServiceError as exc:
+        assert exc.code == "stale"
+        assert exc.status_code == 422
+    else:
+        raise AssertionError("stale measurement should be rejected")
 
 
 
