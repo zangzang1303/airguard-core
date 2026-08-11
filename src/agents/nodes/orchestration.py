@@ -32,6 +32,8 @@ def route_node(state: AgentState) -> dict[str, Any]:
 
 def route_after_intent(state: AgentState) -> str:
     decision = RouteDecision.model_validate(state["route"])
+    if decision.direct_response is not None:
+        return "compose"
     if decision.intent == Intent.PROPOSAL:
         return "create_proposal"
     return "execute_tools" if decision.requires_tools else "compose"
@@ -74,6 +76,14 @@ async def execute_tools_node(state: AgentState, *, tool_client: Any) -> dict[str
 
 def compose_node(state: AgentState) -> dict[str, Any]:
     decision = RouteDecision.model_validate(state["route"])
+    if decision.direct_response is not None:
+        composed = compose_response(decision, [])
+        return {
+            "answer": composed["answer"],
+            "response": composed["answer"],
+            "sources": composed["sources"],
+            "outcome": composed["outcome"],
+        }
     if decision.intent == Intent.PROPOSAL:
         outcome = state.get("outcome")
         reason = state.get("proposal_reason_code")

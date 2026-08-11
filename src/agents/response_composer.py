@@ -83,6 +83,8 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
         )
     if intent == Intent.FORECAST:
         forecast = data_items[0]
+        if forecast.get("is_stale") is not False:
+            return False
         if forecast.get("freshness") not in (None, "fresh", "valid"):
             return False
         items = data_items[0].get("items", [])
@@ -105,6 +107,7 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
             and bool(weather.get("source"))
             and bool(forecast.get("items"))
             and forecast.get("station_id") == current.get("station_id")
+            and forecast.get("is_stale") is False
             and forecast.get("freshness") in (None, "fresh", "valid")
             and isinstance(alerts.get("items"), list)
             and profile.get("group") in {"normal", "sensitive", "outdoor_sport"}
@@ -191,7 +194,8 @@ def _compose_forecast(data_items: list[Mapping[str, Any]]) -> str:
     limitation = f" Giới hạn: {'; '.join(assessment.limitations)}." if assessment.limitations else ""
     return (
         f"Dự báo PM2.5 cho {data['station_id']} (không phải quan sát hiện tại): {'; '.join(points)}. "
-        f"Metadata: {', '.join(metadata)}. Xu hướng: {assessment.trend}.{limitation}"
+        f"Metadata: {', '.join(metadata)}. Xu hướng: {assessment.trend}. "
+        f"{SIMULATOR_NOTICE}{limitation}"
     )
 
 

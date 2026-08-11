@@ -143,15 +143,15 @@ async def test_user_instruction_cannot_disable_required_tool_call():
 
 
 @pytest.mark.asyncio
-async def test_proposal_intent_is_read_only_until_ai_005():
+async def test_proposal_intent_without_user_context_fails_closed():
     adapter = FakeBackendToolClient()
     graph = build_graph(adapter)
     result = await graph.ainvoke({"query": "Tạo warning proposal cho S02"})
 
-    assert result["used_tools"] == ["get_current_pm25", "get_active_alerts"]
+    assert result["used_tools"] == []
     assert adapter.created_proposals == []
-    assert "chưa tạo warning proposal" in result["answer"]
-    assert "manager review" in result["answer"]
+    assert result["outcome"] == "blocked"
+    assert "invalid_input" in result["answer"]
 
 
 @pytest.mark.asyncio
