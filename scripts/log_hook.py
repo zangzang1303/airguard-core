@@ -14,20 +14,23 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 VN_TZ = timezone(timedelta(hours=7))
-_SHELL_TRANSCRIPT_RE = re.compile(
-    r"^(?:PS\s+[^>]+>\s+\S|\$\s+\S|[^@\n]+@[^:\n]+:.*[#$>]\s+\S|[A-Za-z]:\\[^\n>]*>\s+\S)",
+MAX_STRUCTURED_PAYLOAD = 4000
+_SENSITIVE_KEY_RE = re.compile(
+    r"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|"
+    r"password|authorization|cookie)",
+    re.IGNORECASE,
 )
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|"
+    r"password|authorization)\b(\s*[:=]\s*)([^\s,;]+)"
+)
+_BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
 
 
 def git(cmd):
     try:
-        safe_dir = str(Path.cwd()).replace("\\", "/")
-        safe_cmd = cmd.replace("git ", f'git -c safe.directory="{safe_dir}" ', 1)
         return subprocess.check_output(
-            safe_cmd,
-            shell=True,
-            text=True,
-            stderr=subprocess.DEVNULL,
+            cmd.split(), shell=False, text=True, stderr=subprocess.DEVNULL
         ).strip()
     except Exception:
         return ""
@@ -191,7 +194,7 @@ def _looks_like_terminal_transcript(prompt: str) -> bool:
     first_line = lines[0]
     if _SHELL_TRANSCRIPT_RE.match(first_line):
         return True
-
+ 
     return first_line.startswith(("PS ", "C:\\", "D:\\", "$ ")) and len(lines) > 1
 
 
@@ -286,7 +289,7 @@ def normalize(data: dict, tool: str) -> dict | None:
         if not prompt:
             prompt = _read_transcript_prompt(transcript_path)
         base.update({
-            "prompt": prompt,
+            "prompt": _safe_text(data.get("prompt", ""), 1000),
             "turn_id": data.get("turn_id", ""),
             "transcript_path": transcript_path,
         })
@@ -308,20 +311,9 @@ def normalize(data: dict, tool: str) -> dict | None:
             ),
         })
 
-    if _looks_like_terminal_transcript(base.get("prompt", "")):
-        return None
-
-    # Skip only true noise: no prompt AND no tool-specific payload (tool_input,
-    # response_summary, tool_response, tool_args, files_context). Previously
-    # this only checked `prompt`, which dropped Claude Bash/Edit events (their
-    # tool_input has `command` / `file_path`, not `prompt` or `content`) and
-    # any Gemini/Cursor/Copilot turn that carried context but no plain prompt.
-    _PAYLOAD_KEYS = ("prompt", "tool_input", "response_summary",
-                     "tool_response", "tool_args", "files_context",
-                     "transcript_path")
-    _LIFECYCLE_EVENTS = ("Stop", "stop", "SessionEnd", "sessionEnd", "AfterModel")
-    has_payload = any(base.get(k) for k in _PAYLOAD_KEYS)
-    if not has_payload:
+    # Only keep turns that carry an actual prompt. Tool-only events (Claude
+    # PostToolUse for Bash/Read/Edit, Stop) have no prompt and are dropped.
+    if not base.get("prompt"):
         return None
 
     return base
