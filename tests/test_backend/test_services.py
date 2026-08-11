@@ -7,10 +7,12 @@ from pathlib import Path
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
 
-from app.core import Settings
-from app.services.approval_service import ApprovalService
-from app.services.database import ServiceError
-from app.services.station_service import pm25_level
+from app.core import Settings  # noqa: E402
+from app.services.alert_engine import AlertEngine  # noqa: E402
+from app.services.approval_service import ApprovalService  # noqa: E402
+from app.services.database import ServiceError  # noqa: E402
+from app.services.station_service import pm25_level  # noqa: E402
+from app.services.weather_service import WeatherService  # noqa: E402
 
 
 def test_settings_load_thresholds_from_environment() -> None:
@@ -20,6 +22,36 @@ def test_settings_load_thresholds_from_environment() -> None:
 
     assert settings.alert_warning_threshold == 55
     assert settings.alert_critical_threshold == 120
+
+
+def test_settings_load_alert_consecutive_measurements() -> None:
+    previous = os.environ.get("PM25_ALERT_CONSECUTIVE_MEASUREMENTS")
+    try:
+        os.environ["PM25_ALERT_CONSECUTIVE_MEASUREMENTS"] = "3"
+        settings = Settings.load()
+        assert settings.alert_consecutive_measurements == 3
+    finally:
+        if previous is None:
+            os.environ.pop("PM25_ALERT_CONSECUTIVE_MEASUREMENTS", None)
+        else:
+            os.environ["PM25_ALERT_CONSECUTIVE_MEASUREMENTS"] = previous
+
+
+def test_settings_reject_invalid_alert_consecutive_measurements() -> None:
+    previous = os.environ.get("PM25_ALERT_CONSECUTIVE_MEASUREMENTS")
+    try:
+        os.environ["PM25_ALERT_CONSECUTIVE_MEASUREMENTS"] = "0"
+        try:
+            Settings.load()
+        except ValueError as exc:
+            assert "CONSECUTIVE" in str(exc)
+        else:
+            raise AssertionError("zero consecutive measurements should be rejected")
+    finally:
+        if previous is None:
+            os.environ.pop("PM25_ALERT_CONSECUTIVE_MEASUREMENTS", None)
+        else:
+            os.environ["PM25_ALERT_CONSECUTIVE_MEASUREMENTS"] = previous
 
 
 def test_pm25_level_boundaries() -> None:
@@ -38,6 +70,35 @@ def test_manager_guard_rejects_non_manager() -> None:
         assert exc.code == "forbidden"
     else:
         raise AssertionError("viewer role should not pass manager guard")
+
+
+def test_weather_has_explicit_freshness() -> None:
+    weather = WeatherService().current_weather()
+
+    assert weather["is_stale"] is False
+    assert weather["source"] == "simulator_fallback_weather"
+
+
+def test_alert_source_is_derived_from_rule_version() -> None:
+    alert = AlertEngine._with_source({"rule_version": "pm25-threshold-v1"})
+
+    assert alert["source"] == "backend_alert_rule:pm25-threshold-v1"
+
+
+def test_alert_threshold_requires_consecutive_fresh_values() -> None:
+    engine = AlertEngine(
+        db=object(),
+        station_service=object(),
+        audit=object(),
+        warning_threshold=50,
+        critical_threshold=100,
+        rule_version="test-rule",
+        consecutive_measurements=2,
+    )
+
+    assert engine._threshold_is_qualified([60]) is False
+    assert engine._threshold_is_qualified([60, 65]) is True
+    assert engine._threshold_is_qualified([60, 45]) is False
 
 
 

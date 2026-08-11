@@ -24,19 +24,7 @@ import { PageHeader } from "../../components/common/PageHeader";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { Alert, Station } from "../../types";
-
-const formatUpdatedAt = (value?: string) => {
-  if (!value) return "Chưa có dữ liệu";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Không xác định";
-  return new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "Asia/Ho_Chi_Minh",
-  }).format(date);
-};
+import { formatVnDateTime } from "../../utils/datetime";
 
 const severityLabel: Record<Alert["severity"], string> = {
   good: "Thấp",
@@ -195,7 +183,12 @@ export const Dashboard: React.FC = () => {
                 Đang tải dữ liệu bản đồ…
               </div>
             ) : (
-              <MapContainer center={[20.9446, 105.9447]} zoom={16} scrollWheelZoom className="dashboard-map">
+              <MapContainer
+                center={[20.9446, 105.9447]}
+                zoom={16}
+                scrollWheelZoom={false}
+                className="dashboard-map"
+              >
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -203,7 +196,9 @@ export const Dashboard: React.FC = () => {
                 {stations.map((station) => {
                   const severity = getPm25Severity(station.pm25);
                   const isSelected = selectedStation?.station_id === station.station_id;
-                  const fillColor = station.status === "offline" ? "#94a3b8" : station.is_stale ? "#f59e0b" : severity.color;
+                  const fillColor = station.status === "offline"
+                    ? "var(--pm25-offline)"
+                    : station.is_stale ? "var(--color-warning-500)" : severity.color;
                   return (
                     <CircleMarker
                       key={station.station_id}
@@ -243,7 +238,7 @@ export const Dashboard: React.FC = () => {
                 <div>
                   <span className="dashboard-eyebrow">Trạm đang chọn</span>
                   <h3>{selectedStation.station_name}</h3>
-                  <p><Clock3 size={14} aria-hidden="true" /> Cập nhật {formatUpdatedAt(selectedStation.updated_at)}</p>
+                  <p><Clock3 size={14} aria-hidden="true" /> Cập nhật {formatVnDateTime(selectedStation.updated_at)}</p>
                 </div>
               </div>
               <div className="dashboard-selected-station__reading">
@@ -284,7 +279,12 @@ export const Dashboard: React.FC = () => {
               <Button variant="ghost" size="sm" onClick={() => navigateTo("alerts")}>Xem tất cả</Button>
             </header>
             <div className="dashboard-alert-list">
-              {activeAlerts.length === 0 ? (
+              {loading && alerts.length === 0 ? (
+                <div className="dashboard-empty-state" role="status">
+                  <RefreshCw className="is-spinning" size={20} aria-hidden="true" />
+                  <span>Đang tải cảnh báo…</span>
+                </div>
+              ) : activeAlerts.length === 0 ? (
                 <div className="dashboard-empty-state"><Bell size={20} /><span>Không có cảnh báo đang kích hoạt.</span></div>
               ) : activeAlerts.slice(0, 3).map((alert) => {
                 const station = stations.find((item) => item.station_id === alert.station_id);
@@ -299,7 +299,7 @@ export const Dashboard: React.FC = () => {
                     <span className="dashboard-alert-item__copy">
                       <strong>{station?.station_name ?? alert.station_id}</strong>
                       <small>{alert.message}</small>
-                      <time>{formatUpdatedAt(alert.created_at)}</time>
+                      <time>{formatVnDateTime(alert.created_at)}</time>
                     </span>
                     <span className="dashboard-alert-item__meta">
                       <b>{severityLabel[alert.severity]}</b>
@@ -337,7 +337,7 @@ export const Dashboard: React.FC = () => {
                     aria-pressed={isSelected}
                     onClick={() => selectStation(station.station_id)}
                   >
-                    <span className="dashboard-station-row__status" style={{ background: station.status === "offline" ? "#94a3b8" : severity.color }} />
+                    <span className="dashboard-station-row__status" style={{ background: station.status === "offline" ? "var(--pm25-offline)" : severity.color }} />
                     <span className="dashboard-station-row__identity"><b>{station.station_id}</b><span>{station.station_name}</span></span>
                     <span className="dashboard-station-row__value" style={{ color: severity.color }}>
                       <strong>{station.pm25 ?? "—"}</strong><small>{station.pm25 !== null ? "µg/m³" : "Offline"}</small>

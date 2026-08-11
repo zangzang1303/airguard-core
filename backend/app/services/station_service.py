@@ -91,6 +91,59 @@ class StationService:
                 )
                 return {"station_id": station_id, "hours": hours, "items": [dict(row) for row in cur.fetchall()]}
 
+    def compare_stations(self, station_ids: list[str]) -> dict[str, Any]:
+        """Return only current, valid and fresh measurements for requested stations."""
+        ids = list(dict.fromkeys(station_ids))
+        if not ids or len(ids) > 5:
+            raise ServiceError("invalid_station_ids", "Provide between 1 and 5 station ids", 422)
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    SELECT s.station_id, s.station_name, m.pm25, m.measured_at, m.source,
+                           ss.status AS explicit_status, ss.last_seen_at
+                    FROM stations s
+                    LEFT JOIN LATERAL (
+                        SELECT pm25, measured_at, source
+                        FROM measurements
+                        WHERE station_id = s.station_id AND quality_flag = 'valid'
+                        ORDER BY measured_at DESC LIMIT 1
+                    ) m ON TRUE
+                    LEFT JOIN station_status ss ON ss.station_id = s.station_id
+                    WHERE s.station_id = ANY(%s)
+                    """,
+                    (ids,),
+                )
+                rows = cur.fetchall()
+        found = {row["station_id"] for row in rows}
+        missing = [station_id for station_id in ids if station_id not in found]
+        if missing:
+            raise ServiceError("station_not_found", "One or more stations were not found", 404, {"station_ids": missing})
+        ranking = []
+        for row in rows:
+            last_seen = row.get("last_seen_at") or row.get("measured_at")
+            status = row.get("explicit_status") or ("online" if last_seen else "offline")
+            fresh = status == "online" and not self._is_stale(last_seen) and row.get("pm25") is not None
+            if fresh:
+                ranking.append({
+                    "station_id": row["station_id"],
+                    "station_name": row["station_name"],
+                    "pm25": row["pm25"],
+                    "measured_at": row["measured_at"],
+                    "source": row["source"],
+                    "status": "online",
+                })
+        ranking.sort(key=lambda item: item["pm25"], reverse=True)
+        for index, item in enumerate(ranking, start=1):
+            item["rank"] = index
+        return {
+            "ranking": ranking,
+            "best_station_id": ranking[-1]["station_id"] if ranking else None,
+            "worst_station_id": ranking[0]["station_id"] if ranking else None,
+            "comparison_valid": bool(ranking),
+            "requested_station_ids": ids,
+        }
+
     def ensure_station(self, station_id: str) -> None:
         with self.db.connection() as conn:
             with conn.cursor() as cur:
@@ -104,6 +157,9 @@ class StationService:
         is_stale = self._is_stale(last_seen) if status == "online" else True
         effective_status = "stale" if is_stale and status == "online" else status
         pm25 = None if is_stale else row.get("pm25")
+        freshness = "fresh" if pm25 is not None and not is_stale and effective_status == "online" else (
+            "stale" if is_stale else "unavailable"
+        )
         return {
             "station_id": row["station_id"],
             "station_name": row["station_name"],
@@ -116,6 +172,7 @@ class StationService:
             "level": pm25_level(pm25),
             "status": effective_status,
             "is_stale": is_stale,
+            "freshness": freshness,
             "updated_at": row.get("updated_at") or last_seen,
             "last_seen_at": last_seen,
             "source": row.get("source") if pm25 is not None else None,

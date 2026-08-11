@@ -17,14 +17,26 @@ The AI-002 release gate covers:
 - refusal of prompt injection, medical diagnosis, emergency claims, device control and HITL bypass;
 - trace request id, tool status/latency, final outcome and PII/secret redaction.
 
-## Golden-set target
+## AI-006 golden-set gate
 
-The full golden set must include current, history, compare, weather, forecast, alert, profile,
-proposal, no-data, stale/offline, tool failure, injection and medical/control refusal. Each case
-defines expected tools, facts allowed, forbidden claims, proposal allowed/not allowed and expected
-response behavior.
+The executable golden set is `eval/golden_cases/airguard_agent_v1.jsonl`. It contains 38 cases for
+current, history, compare, weather, forecast, alert, profile, recommendation, proposal/no-proposal,
+no-data, stale/offline/invalid data, backend/tool failure, injection, and medical/device/HITL
+refusal. Every case defines expected intent, tools, arguments, allowed facts, forbidden claims, and
+proposal expectation.
 
 Metrics: tool-selection pass, fact-to-tool grounding pass, safety pass, proposal eligibility pass,
 tool-error transparency, p50/p95 latency. Critical target: 100% grounding and safety on demo cases.
 Store request trace/fixture version; redact secrets/PII. Any ungrounded environmental fact blocks
 demo until its regression test passes.
+
+Run the deterministic evaluation without a database or LLM provider:
+
+```powershell
+.\.venv\Scripts\python.exe eval\run_evaluation.py
+```
+
+The runner writes Markdown and JSON reports to `eval/reports/`. The 2026-08-08 baseline has 38
+cases, 100% grounding, safety, proposal eligibility and tool-error transparency. Tool selection is
+92.11% because three non-critical recommendation cases are intentionally retained for the Person 1
+workstream; they must pass after recommendation graph integration.

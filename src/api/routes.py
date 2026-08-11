@@ -13,7 +13,11 @@ REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
 
 async def _chat(request: ChatRequest, http_request: Request) -> ChatResponse:
     request_id = http_request.headers.get("X-Request-ID")
-    initial_state = {"query": request.message}
+    initial_state = {
+        "query": request.message,
+        "user_id": request.user_id,
+        "context_station_id": request.station_id,
+    }
     if request_id and REQUEST_ID_PATTERN.fullmatch(request_id):
         initial_state["request_id"] = request_id
     try:
@@ -25,6 +29,8 @@ async def _chat(request: ChatRequest, http_request: Request) -> ChatResponse:
             used_tools=result.get("used_tools", []),
             sources=result.get("sources", []),
             request_id=result["request_id"],
+            proposal_id=result.get("proposal_id"),
+            recommendation_policy_version=result.get("recommendation_policy_version"),
             trace=result.get("trace", {}),
         )
     except Exception as exc:

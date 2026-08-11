@@ -9,11 +9,12 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import ValidationError
 
-from .schemas import MeasurementPayload, StationStatusPayload
+from .schemas import DeviceStatusPayload, MeasurementPayload, StationStatusPayload
 from .station_catalog import StationCatalog
 
 MEASUREMENT_TOPIC_RE = re.compile(r"^airguard/stations/(?P<station_id>S[0-9]{2})/measurements$")
 STATUS_TOPIC_RE = re.compile(r"^airguard/stations/(?P<station_id>S[0-9]{2})/status$")
+DEVICE_STATUS_TOPIC_RE = re.compile(r"^airguard/devices/(?P<device_id>[A-Za-z0-9_.-]+)/status$")
 PayloadT = TypeVar("PayloadT")
 
 
@@ -22,6 +23,7 @@ class ValidationErrorCode(StrEnum):
     UNKNOWN_TOPIC = "unknown_topic"
     TOPIC_STATION_MISMATCH = "topic_station_mismatch"
     UNKNOWN_STATION = "unknown_station"
+    UNKNOWN_DEVICE = "unknown_device"
     RANGE_ERROR = "range_error"
     FUTURE_TIME = "future_time"
     STALE = "stale"
@@ -141,6 +143,25 @@ def validate_status_message(
     if time_error:
         return ValidationResult(False, reason=time_error.reason, detail=time_error.detail)
 
+    return ValidationResult(True, payload=payload)
+
+
+def validate_device_status_message(
+    topic: str,
+    raw_payload: bytes | str,
+) -> ValidationResult[DeviceStatusPayload]:
+    match = DEVICE_STATUS_TOPIC_RE.match(topic)
+    if not match:
+        return ValidationResult(False, reason=ValidationErrorCode.UNKNOWN_TOPIC, detail="unexpected device status topic")
+    decoded, decode_error = _decode_json(raw_payload)
+    if decoded is None:
+        return ValidationResult(False, reason=ValidationErrorCode.MALFORMED, detail=decode_error)
+    try:
+        payload = DeviceStatusPayload.model_validate(decoded)
+    except Exception as exc:
+        return ValidationResult(False, reason=ValidationErrorCode.RANGE_ERROR, detail=str(exc))
+    if payload.device_id != match.group("device_id"):
+        return ValidationResult(False, reason=ValidationErrorCode.TOPIC_STATION_MISMATCH, detail="device_id differs from topic")
     return ValidationResult(True, payload=payload)
 
 

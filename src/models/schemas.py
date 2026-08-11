@@ -9,6 +9,18 @@ class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     message: str = Field(..., min_length=1, max_length=5000, description="User message")
+    user_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        pattern=r"^[A-Za-z0-9_.:@-]+$",
+        description="Backend user identifier used only for profile tool lookup",
+    )
+    station_id: str | None = Field(
+        default=None,
+        pattern=r"^S0[1-5]$",
+        description="Optional station context selected in the dashboard",
+    )
 
 
 class AgentSource(BaseModel):
@@ -24,6 +36,7 @@ class ChatResponse(BaseModel):
     sources: list[AgentSource] = Field(default_factory=list)
     request_id: str
     proposal_id: str | None = None
+    recommendation_policy_version: str | None = None
     trace: dict[str, Any] = Field(default_factory=dict)
     # Compatibility fields for the original template client.
     response: str = Field(default="", description="Deprecated alias of answer")

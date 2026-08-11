@@ -12,16 +12,20 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/stations/{id}` | station latest state | 200 | 404/503 |
 | GET `/stations/{id}/current` | latest valid fresh measurement | 200 | 404/503 |
 | GET `/stations/{id}/history?hours=1..72` | ordered valid history | 200 | 404/422/503 |
+| POST `/stations/compare` | compare current fresh values for 1..5 stations | 200 | 404/422/503 |
 | POST `/internal/ingestion/measurements` | internal validated measurement ingestion | 202 | 404/422/503 |
 | POST `/internal/ingestion/evaluate-alerts` | internal alert catch-up for one/all stations | 200 | 404/503 |
-| GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up | 200 | 422/503 |
+| GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up, including sensor availability alerts | 200 | 422/503 |
 | POST `/alerts/{id}/resolve` | manager-only manual alert resolution | 200 | 403/404/503 |
 | GET `/stations/{id}/forecast?hours=1..3` | baseline forecast from fresh current PM2.5 | 200 | 404/422/503 |
-| POST `/agent/chat` | placeholder grounded answer shell | 200 | 422 |
+| GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
+| GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
+| POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
 | POST `/agent/jobs` | async agent job dispatch | 202 | 422/503 |
 | POST `/forecast/jobs` | async forecast job dispatch | 202 | 404/422/503 |
 | GET `/jobs/{id}` | job status | 200 | 404 |
-| POST `/approvals` | create pending warning proposal | 201 | 422/503 |
+| POST `/proposals` | canonical Agent endpoint for pending warning proposal | 201 | 409/422/503 |
+| POST `/approvals` | compatibility alias for pending warning proposal | 201 | 409/422/503 |
 | GET `/approvals?status=` | manager queue | 200 | 403/503 |
 | GET `/approvals/{id}` | manager detail | 200 | 403/404/503 |
 | POST `/approvals/{id}/approve` | manager approve with version | 200 | 403/409/422/503 |
@@ -32,7 +36,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 
 ## Station response
 
-`station_id`, `station_name`, `location_type`, `latitude`, `longitude`, `description`, `active`, `pm25`, `level`, `status`, `is_stale`, `updated_at`, `last_seen_at`, `source`. PM2.5 may be null when unavailable/stale/offline; client must render state, not invent value.
+`station_id`, `station_name`, `location_type`, `latitude`, `longitude`, `description`, `active`, `pm25`, `level`, `status`, `freshness`, `is_stale`, `updated_at`, `last_seen_at`, `source`, `timestamp`. PM2.5 may be null when unavailable/stale/offline; client must render state, not invent value.
 
 ## Ingestion response
 
@@ -46,17 +50,52 @@ Accepted measurement returns `accepted=true`, `duplicate=false`, `measurement`, 
 
 `X-User-Role: manager` is required for list/detail/approve/reject/audit. `X-User-ID` must be a UUID for review actions. Approve creates a `device_command_intents` row only when `device_id` is present. Reject never creates dispatch intent and requires a non-empty note.
 
-## Agent tool-facing environmental responses
-
-All environmental timestamps are ISO-8601 and timezone-aware. Current measurements and weather
-context carry explicit `is_stale`; missing freshness is schema drift, not an implicit fresh value.
-History items are ordered by `measured_at`. Forecast responses carry explicit `is_stale`, and each
-point contains a source plus either `forecast_at` or a 1-3 hour offset. Active-alert source metadata
-comes from the backend response. Stale/offline/invalid results cannot be presented as current facts.
-
 ## Agent response
+The canonical backend `POST /api/v1/agent/chat` accepts
+`{ "message": string, "user_id": string, "station_id"?: "S01".."S05" }`. `user_id` is passed
+to the Agent only as an argument for backend profile lookup; it is not written to Agent trace.
+The current frontend identity is demo-only and does not replace production backend authentication.
+`station_id` is optional dashboard context and is validated before routing. The internal Agent
+service uses the same payload. The root Agent keeps the legacy `POST /api/v1/chat` alias during
+migration; its `user_id` remains optional for non-personalized requests.
 
-`answer`, `used_tools`, `sources`, `request_id`, optional `proposal_id`. Facts must map to sources; tool failure returns a transparent insufficient-data answer.
+The response contains `answer`, `used_tools`, `sources`, `request_id`, `trace`, and optional
+`proposal_id` and `recommendation_policy_version`. `sources[]` contains `tool_name` plus optional `station_id`, `observed_at`, and
+`source`. `trace` contains the policy version, routed intent, per-tool status/latency and final
+outcome; it must not contain the raw prompt, user id, secret, token or backend credential.
+Facts must map to sources from the same request. Tool failure or absent/stale/invalid/offline data
+returns a transparent insufficient-data answer and no environmental source. The additive
+`response` field is a deprecated alias of `answer` for the original template client.
+
+Recommendation intent requires current PM2.5, weather, forecast, active alerts and a backend user
+profile from the same request. The client must not submit a trusted `user_group`; the Agent uses
+the result of `get_user_profile`. Missing profile or environmental evidence produces clarification
+or insufficient-data behavior rather than a generic personalized recommendation.
+
+Warning proposal creation requires an active backend alert, fresh online station data and non-empty
+evidence. The canonical Agent request maps to `ApprovalCreateRequest`:
+
+```json
+{
+  "request_type": "warning_proposal",
+  "station_id": "S02",
+  "proposed_action": "notify_station_area_users",
+  "reason": "Fresh simulator PM2.5 data and an active backend alert require manager review.",
+  "evidence": {
+    "items": [],
+    "target": {"audience": "station_area", "station_id": "S02"},
+    "policy_version": "2026-08-08.ai-005",
+    "requested_by": "demo-user",
+    "expires_at": null
+  },
+  "created_by": "ai_agent"
+}
+```
+
+The Agent sends its deterministic idempotency key in the `Idempotency-Key` header. Repeated calls
+with the same key return the original pending request. Backend `request_id` is exposed to the Agent
+as `proposal_id`; only status `pending` is a successful Agent create result. Mutating create calls
+must not be retried automatically.
 
 ## Compatibility
 

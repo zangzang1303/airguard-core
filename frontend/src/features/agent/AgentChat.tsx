@@ -17,13 +17,12 @@ interface ChatMessage {
 }
 
 export const AgentChat: React.FC = () => {
-  const { selectedStationId, userGroup, role, navigateTo, setPendingApprovalsCount } = useAuth();
+  const { selectedStationId, userGroup, userId, role, navigateTo, setPendingApprovalsCount } = useAuth();
   const initialMessage: ChatMessage = {
     id: "msg-1",
     sender: "agent",
     text: `Xin chào! Tôi là Trợ lý AI AirGuard. Bạn đang quan tâm đến trạm [${selectedStationId}] hoặc nhóm người dùng [${userGroup}]. Bạn cần thông tin gì về PM2.5, thời tiết hoặc cảnh báo?`,
     timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-    used_tools: ["get_user_profile", "get_current_pm25"],
   };
   const [messages, setMessages] = useState<ChatMessage[]>([initialMessage]);
   const [input, setInput] = useState("");
@@ -44,7 +43,7 @@ export const AgentChat: React.FC = () => {
     setSending(true);
 
     try {
-      const response: AgentResponse = await api.sendAgentMessage(userText, selectedStationId, userGroup);
+      const response: AgentResponse = await api.sendAgentMessage(userText, selectedStationId, userId);
       setMessages((previous) => [...previous, {
         id: `agent-${Date.now()}`,
         sender: "agent",
@@ -54,7 +53,7 @@ export const AgentChat: React.FC = () => {
         proposal_created: response.proposal_created,
       }]);
 
-      if (response.proposal_created) setPendingApprovalsCount((count) => count + 1);
+      if (response.proposal_id) setPendingApprovalsCount((count) => count + 1);
     } catch {
       setMessages((previous) => [...previous, {
         id: `error-${Date.now()}`,

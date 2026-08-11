@@ -28,17 +28,27 @@ class ApprovalService:
         evidence: dict[str, Any],
         created_by: str,
         correlation_id: str | None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        request_id = str(uuid4())
         with self.db.connection() as conn:
             with dict_cursor(conn) as cur:
+                if idempotency_key:
+                    cur.execute(
+                        "SELECT * FROM approval_requests WHERE idempotency_key = %s",
+                        (idempotency_key,),
+                    )
+                    existing = cur.fetchone()
+                    if existing:
+                        return {**dict(existing), "reused": True}
+                request_id = str(uuid4())
                 cur.execute(
                     """
                     INSERT INTO approval_requests (
                         request_id, request_type, station_id, device_id, proposed_action,
-                        reason, evidence, status, version, created_by
+                        reason, evidence, status, version, created_by, idempotency_key
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, 'pending', 1, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, 'pending', 1, %s, %s)
+                    ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
                     RETURNING *
                     """,
                     (
@@ -50,9 +60,17 @@ class ApprovalService:
                         reason,
                         __import__("json").dumps(evidence, ensure_ascii=True, default=str),
                         created_by,
+                        idempotency_key,
                     ),
                 )
-                request = dict(cur.fetchone())
+                inserted = cur.fetchone()
+                if not inserted and idempotency_key:
+                    cur.execute("SELECT * FROM approval_requests WHERE idempotency_key = %s", (idempotency_key,))
+                    existing = cur.fetchone()
+                    if existing:
+                        return {**dict(existing), "reused": True}
+                    raise ServiceError("proposal_conflict", "Proposal idempotency conflict", 409)
+                request = dict(inserted)
                 self.audit.record(
                     actor_type="agent" if created_by == "ai_agent" else "user",
                     actor_id=created_by,
@@ -203,6 +221,38 @@ class ApprovalService:
         except psycopg2.Error as exc:
             raise ApprovalStoreUnavailableError(str(exc)) from exc
 
+    def record_device_dispatch(
+        self,
+        *,
+        request_id: str,
+        device_id: str,
+        status: str,
+        correlation_id: str | None,
+        error: str | None = None,
+    ) -> None:
+        """Persist a dispatch outcome; device acknowledgement remains a separate MQTT event."""
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    UPDATE device_command_intents
+                    SET status = %s, dispatched_at = NOW(), dispatch_error = %s
+                    WHERE approval_request_id = %s AND device_id = %s
+                    """,
+                    (status, error, request_id, device_id),
+                )
+                self.audit.record(
+                    actor_type="system",
+                    actor_role="backend",
+                    action="device_command.dispatch" if status == "published" else "device_command.dispatch.failure",
+                    entity_type="approval_request",
+                    entity_id=request_id,
+                    correlation_id=correlation_id,
+                    outcome="success" if status == "published" else "failure",
+                    details={"device_id": device_id, "status": status, "error": error},
+                    conn=conn,
+                )
+
     def _create_dispatch_intent(self, cur, request: dict[str, Any]) -> dict[str, Any] | None:
         if not request.get("device_id"):
             return None
@@ -276,6 +326,24 @@ def require_approved_device_action(request_id: str, device_id: str, command: str
     if _default_service is None:
         return False
     return _default_service.require_approved_device_action(request_id, device_id, command)
+
+
+def record_device_dispatch(
+    request_id: str,
+    device_id: str,
+    status: str,
+    correlation_id: str | None,
+    error: str | None = None,
+) -> None:
+    if _default_service is None:
+        raise ApprovalStoreUnavailableError("approval service is not configured")
+    _default_service.record_device_dispatch(
+        request_id=request_id,
+        device_id=device_id,
+        status=status,
+        correlation_id=correlation_id,
+        error=error,
+    )
 
 
 

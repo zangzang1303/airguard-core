@@ -87,6 +87,22 @@ def _sanitize_payload(value, limit: int = MAX_STRUCTURED_PAYLOAD):
     return {"_truncated": True, "preview": encoded[:limit]}
 
 
+def _sanitize_response_text(value, limit: int = 1000) -> str:
+    """Sanitize a tool response into a string.
+
+    The grading server's schema types `tool_response` as a string, so a
+    structured payload has to be encoded before submission or the whole
+    batch is rejected with HTTP 422.
+    """
+    cleaned = _sanitize_payload(value, limit)
+    text = (
+        cleaned
+        if isinstance(cleaned, str)
+        else json.dumps(cleaned, ensure_ascii=False, default=str)
+    )
+    return text[:limit]
+
+
 def detect_tool(data: dict) -> str:
     """Detect which AI tool sent this hook event.
 
@@ -232,7 +248,7 @@ def normalize(data: dict, tool: str) -> dict | None:
                 else None
             ),
             "tool_response": (
-                _sanitize_payload(data.get("tool_response"), 1000)
+                _sanitize_response_text(data.get("tool_response"), 1000)
                 if data.get("tool_response")
                 else None
             ),

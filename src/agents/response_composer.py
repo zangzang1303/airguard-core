@@ -4,7 +4,9 @@ from collections.abc import Mapping
 from statistics import fmean
 from typing import Any
 
+from src.agents.policies.forecast_response import assess_forecast
 from src.agents.policies.grounding import Intent, RouteDecision
+from src.agents.policies.recommendations import RECOMMENDATION_POLICY_VERSION, build_recommendation
 
 INSUFFICIENT_DATA_MESSAGE = (
     "Không đủ dữ liệu đáng tin cậy để trả lời yêu cầu này. "
@@ -37,6 +39,17 @@ def compose_response(
         Intent.USER_PROFILE: _compose_profile,
         Intent.PROPOSAL: _compose_proposal_gate,
     }
+    if decision.intent == Intent.RECOMMENDATION:
+        try:
+            answer = _compose_recommendation(data_items)
+        except ValueError:
+            return {"answer": INSUFFICIENT_DATA_MESSAGE, "sources": [], "outcome": "insufficient_data"}
+        return {
+            "answer": answer,
+            "sources": _sources(decision.intent, tool_results),
+            "outcome": "answered",
+            "recommendation_policy_version": RECOMMENDATION_POLICY_VERSION,
+        }
     composer = composers.get(decision.intent)
     if composer is None:
         return {"answer": INSUFFICIENT_DATA_MESSAGE, "sources": [], "outcome": "insufficient_data"}
@@ -70,8 +83,10 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
         )
     if intent == Intent.FORECAST:
         forecast = data_items[0]
-        items = forecast.get("items", [])
-        return forecast.get("is_stale") is False and bool(items) and all(
+        if forecast.get("freshness") not in (None, "fresh", "valid"):
+            return False
+        items = data_items[0].get("items", [])
+        return bool(items) and all(
             bool(item.get("source"))
             and (item.get("forecast_at") is not None or item.get("hour") is not None)
             and (
@@ -79,6 +94,20 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
                 or (item.get("pm25_min") is not None and item.get("pm25_max") is not None)
             )
             for item in items
+        )
+    if intent == Intent.RECOMMENDATION:
+        if len(data_items) != 5:
+            return False
+        current, weather, forecast, alerts, profile = data_items
+        return (
+            _measurement_is_usable(current)
+            and weather.get("is_stale") is False
+            and bool(weather.get("source"))
+            and bool(forecast.get("items"))
+            and forecast.get("station_id") == current.get("station_id")
+            and forecast.get("freshness") in (None, "fresh", "valid")
+            and isinstance(alerts.get("items"), list)
+            and profile.get("group") in {"normal", "sensitive", "outdoor_sport"}
         )
     if intent == Intent.PROPOSAL:
         return _measurement_is_usable(data_items[0])
@@ -142,6 +171,7 @@ def _compose_weather(data_items: list[Mapping[str, Any]]) -> str:
 
 def _compose_forecast(data_items: list[Mapping[str, Any]]) -> str:
     data = data_items[0]
+    assessment = assess_forecast(dict(data))
     points = []
     for item in data["items"]:
         horizon = item.get("forecast_at") or f"+{item.get('hour')} giờ"
@@ -152,9 +182,16 @@ def _compose_forecast(data_items: list[Mapping[str, Any]]) -> str:
         confidence = f", confidence {item['confidence']:.0%}" if item.get("confidence") is not None else ""
         source = f", nguồn {item['source']}" if item.get("source") else ""
         points.append(f"{horizon}: {value}{confidence}{source}")
+    metadata = []
+    if assessment.generated_at:
+        metadata.append(f"tạo lúc {assessment.generated_at}")
+    if assessment.model_name:
+        metadata.append(f"mô hình {assessment.model_name}")
+    metadata.append(f"confidence {assessment.confidence_label}")
+    limitation = f" Giới hạn: {'; '.join(assessment.limitations)}." if assessment.limitations else ""
     return (
         f"Dự báo PM2.5 cho {data['station_id']} (không phải quan sát hiện tại): {'; '.join(points)}. "
-        f"{SIMULATOR_NOTICE}"
+        f"Metadata: {', '.join(metadata)}. Xu hướng: {assessment.trend}.{limitation}"
     )
 
 
@@ -183,12 +220,54 @@ def _compose_proposal_gate(data_items: list[Mapping[str, Any]]) -> str:
     )
 
 
+def _compose_recommendation(data_items: list[Mapping[str, Any]]) -> str:
+    current, weather, forecast, alerts, profile = (dict(item) for item in data_items)
+    decision, assessment = build_recommendation(
+        current=current,
+        alerts=alerts,
+        forecast=forecast,
+        profile=profile,
+    )
+    forecast_points = []
+    for item in forecast["items"]:
+        horizon = item.get("forecast_at") or f"+{item.get('hour')} giờ"
+        value = (
+            f"{item['pm25']:g} µg/m³"
+            if item.get("pm25") is not None
+            else f"{item['pm25_min']:g}-{item['pm25_max']:g} µg/m³"
+        )
+        forecast_points.append(f"{horizon}: {value} (nguồn {item['source']})")
+
+    weather_values = []
+    for field, label in (
+        ("temperature", "nhiệt độ"),
+        ("humidity", "độ ẩm"),
+        ("wind_speed", "tốc độ gió"),
+        ("rainfall", "lượng mưa"),
+    ):
+        if weather.get(field) is not None:
+            weather_values.append(f"{label} {weather[field]:g}")
+
+    alert_note = "có cảnh báo active cùng trạm" if decision.has_active_alert else "không có cảnh báo active cùng trạm"
+    limitation = f" Giới hạn dự báo: {'; '.join(assessment.limitations)}." if assessment.limitations else ""
+    return (
+        f"Quan sát tại {current['station_id']}: PM2.5 {current['pm25']:g} µg/m³ lúc {current['updated_at']}, "
+        f"mức backend {decision.pm25_band}, nguồn {current['source']}; {alert_note}. "
+        f"Bối cảnh thời tiết lúc {weather['observed_at']}: {', '.join(weather_values)}, nguồn {weather['source']}. "
+        f"Dự báo (không phải quan sát hiện tại): {'; '.join(forecast_points)}; confidence "
+        f"{assessment.confidence_label}, xu hướng {assessment.trend}. "
+        f"Khuyến nghị cho nhóm {decision.user_group}: {decision.action} "
+        f"Cơ sở: {'; '.join(decision.rationale)}. Policy: {decision.policy_version}. "
+        f"{SIMULATOR_NOTICE}{limitation}"
+    )
+
+
 def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
     sources: list[dict[str, Any]] = []
     for result in tool_results:
         data = result["data"]
         tool_name = result["tool_name"]
-        if intent == Intent.HISTORY:
+        if tool_name == "get_station_history":
             for item in data.get("items", []):
                 sources.append(
                     {
@@ -198,10 +277,10 @@ def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict
                         "source": item.get("source"),
                     }
                 )
-        elif intent == Intent.COMPARE:
+        elif tool_name == "compare_stations":
             for item in data.get("items", []):
                 sources.append(_measurement_source(tool_name, item))
-        elif intent == Intent.ALERT:
+        elif tool_name == "get_active_alerts":
             for item in data.get("items", []):
                 sources.append(
                     {
@@ -211,7 +290,7 @@ def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict
                         "source": item.get("source"),
                     }
                 )
-        elif intent == Intent.FORECAST:
+        elif tool_name == "get_pm25_forecast":
             for item in data.get("items", []):
                 sources.append(
                     {
@@ -221,7 +300,7 @@ def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict
                         "source": item.get("source"),
                     }
                 )
-        elif intent == Intent.WEATHER:
+        elif tool_name == "get_weather_context":
             sources.append(
                 {
                     "tool_name": tool_name,
@@ -229,7 +308,7 @@ def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict
                     "source": data.get("source"),
                 }
             )
-        elif intent in {Intent.CURRENT, Intent.PROPOSAL} and data.get("station_id"):
+        elif tool_name == "get_current_pm25" and data.get("station_id"):
             sources.append(_measurement_source(tool_name, data))
     return sources
 

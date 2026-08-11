@@ -7,6 +7,7 @@ import { PageHeader } from "../../components/common/PageHeader";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { Alert, Station } from "../../types";
+import { SEVERITY_LABEL, formatVnDateTime } from "../../utils/datetime";
 
 export const AlertList: React.FC = () => {
   const { navigateTo } = useAuth();
@@ -93,12 +94,17 @@ export const AlertList: React.FC = () => {
       )}
 
       {loading && alerts.length === 0 ? (
-        <div className="skeleton-card" style={{ height: 250 }} />
+        <div className="skeleton-card skeleton-card--md" role="status" aria-label="Đang tải danh sách cảnh báo" />
       ) : filteredAlerts.length === 0 ? (
         <div className="empty-state">Không có cảnh báo phù hợp với bộ lọc.</div>
       ) : (
-        <div className="table-wrapper">
-          <table className="data-table">
+        <div
+          className="table-wrapper"
+          tabIndex={0}
+          role="region"
+          aria-label="Bảng danh sách cảnh báo, có thể cuộn ngang"
+        >
+          <table className="data-table data-table--cards">
             <thead>
               <tr>
                 <th>Mã cảnh báo</th>
@@ -108,29 +114,31 @@ export const AlertList: React.FC = () => {
                 <th>Thực đo / Ngưỡng</th>
                 <th>Thời gian</th>
                 <th>Trạng thái</th>
-                <th>Hành động</th>
               </tr>
             </thead>
             <tbody>
               {filteredAlerts.map((alert) => (
                 <tr key={alert.alert_id}>
-                  <td><strong>{alert.alert_id}</strong></td>
-                  <td>
-                    <button className="btn-link table-station-link" onClick={() => handleFocusStation(alert.station_id)}>
+                  <td data-label="Mã cảnh báo"><strong>{alert.alert_id}</strong></td>
+                  <td data-label="Trạm">
+                    <button
+                      type="button"
+                      className="btn-link table-station-link"
+                      onClick={() => handleFocusStation(alert.station_id)}
+                    >
                       <MapPin size={15} aria-hidden="true" />
                       <span>{stationNames.get(alert.station_id) ?? alert.station_id}</span>
                     </button>
                   </td>
-                  <td><span className={`badge level-${alert.severity}`}>{alert.severity.toUpperCase()}</span></td>
-                  <td>{alert.message}</td>
-                  <td><strong>{alert.observed_value}</strong> / {alert.threshold} µg/m³</td>
-                  <td>{new Date(alert.created_at).toLocaleString("vi-VN")}</td>
-                  <td><StatusBadge status={alert.status} /></td>
-                  <td>
-                    <Button variant="outline" size="sm" onClick={() => handleFocusStation(alert.station_id)}>
-                      Xem trạm
-                    </Button>
+                  <td data-label="Mức độ">
+                    <span className={`badge level-${alert.severity}`}>
+                      {SEVERITY_LABEL[alert.severity] ?? alert.severity}
+                    </span>
                   </td>
+                  <td data-label="Nội dung">{alert.message}</td>
+                  <td data-label="Thực đo / Ngưỡng"><strong>{alert.observed_value}</strong> / {alert.threshold} µg/m³</td>
+                  <td data-label="Thời gian">{formatVnDateTime(alert.created_at)}</td>
+                  <td data-label="Trạng thái"><StatusBadge status={alert.status} /></td>
                 </tr>
               ))}
             </tbody>

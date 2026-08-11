@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Search,
   ShieldCheck,
   Siren,
   UserRound,
@@ -33,10 +32,16 @@ interface NavigationItem {
   badge?: number;
 }
 
+const DRAWER_QUERY = "(max-width: 900px)";
+
 const screenMetadata: Record<ScreenType, { label: string }> = {
   dashboard: {
     label: "Dashboard",
   },
+  "admin-users": { label: "Quản lý người dùng" },
+  "admin-regions": { label: "Khu vực & Trạm" },
+  "admin-devices": { label: "Thiết bị IoT" },
+  "admin-settings": { label: "Cài đặt" },
   "station-detail": {
     label: "Chi tiết trạm",
   },
@@ -69,9 +74,23 @@ const screenMetadata: Record<ScreenType, { label: string }> = {
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const { currentScreen, navigateTo, role, userName, pendingApprovalsCount, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isDrawerMode, setIsDrawerMode] = useState(() => window.matchMedia(DRAWER_QUERY).matches);
   const contentRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const meta = screenMetadata[currentScreen];
   const isManagerOrAdmin = role === "manager" || role === "admin";
+
+  // Drawer chỉ tồn tại dưới 900px; trên desktop sidebar luôn hiển thị và luôn phải thao tác được.
+  const drawerHidden = isDrawerMode && !sidebarOpen;
+  const drawerTrapping = isDrawerMode && sidebarOpen;
+
+  useEffect(() => {
+    const query = window.matchMedia(DRAWER_QUERY);
+    const syncDrawerMode = (event: MediaQueryListEvent) => setIsDrawerMode(event.matches);
+    query.addEventListener("change", syncDrawerMode);
+    return () => query.removeEventListener("change", syncDrawerMode);
+  }, []);
 
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -110,6 +129,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     return () => window.removeEventListener("keydown", handleEscape);
   }, []);
 
+  // Đưa focus vào drawer khi mở và trả về nút hamburger khi đóng (chỉ ở chế độ drawer).
+  useEffect(() => {
+    if (!isDrawerMode) return;
+    if (sidebarOpen) closeButtonRef.current?.focus();
+    else if (document.activeElement === document.body) menuButtonRef.current?.focus();
+  }, [isDrawerMode, sidebarOpen]);
+
   const handleNavigate = (screen: ScreenType) => {
     navigateTo(screen);
     setSidebarOpen(false);
@@ -127,7 +153,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         onClick={() => setSidebarOpen(false)}
       />
 
-      <aside className={`app-sidebar ${sidebarOpen ? "is-open" : ""}`} aria-label="Điều hướng chính">
+      <aside
+        className={`app-sidebar ${sidebarOpen ? "is-open" : ""}`}
+        aria-label="Điều hướng chính"
+        aria-hidden={drawerHidden || undefined}
+        inert={drawerHidden ? "" : undefined}
+      >
         <div className="app-sidebar__brand">
           <button type="button" className="brand-lockup" onClick={() => handleNavigate("dashboard")}>
             <span className="brand-lockup__mark" aria-hidden="true">
@@ -140,6 +171,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </button>
           <button
             type="button"
+            ref={closeButtonRef}
             className="app-sidebar__close"
             aria-label="Đóng menu"
             onClick={() => setSidebarOpen(false)}
@@ -189,11 +221,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </div>
       </aside>
 
-      <section className="app-shell__workspace">
+      <section className="app-shell__workspace" inert={drawerTrapping ? "" : undefined}>
         <header className="app-topbar">
           <div className="app-topbar__left">
             <button
               type="button"
+              ref={menuButtonRef}
               className="topbar-icon-button app-topbar__menu"
               aria-label="Mở menu điều hướng"
               aria-expanded={sidebarOpen}
@@ -209,12 +242,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </div>
 
           <div className="app-topbar__actions">
-            <label className="topbar-search">
-              <Search size={18} aria-hidden="true" />
-              <span className="sr-only">Tìm kiếm</span>
-              <input type="search" placeholder="Tìm trạm, cảnh báo..." />
-              <kbd>⌘ K</kbd>
-            </label>
             <button
               type="button"
               className="topbar-icon-button topbar-notification"

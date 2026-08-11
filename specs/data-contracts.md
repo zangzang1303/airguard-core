@@ -10,8 +10,9 @@ Topic: `airguard/stations/{station_id}/measurements`.
 {"message_id":"MSG-S01-0001","station_id":"S01","pm25":42.5,"temperature":30.1,"humidity":72,"wind_speed":2.4,"rainfall":0,"timestamp":"2026-08-05T09:00:00+07:00","source":"simulator"}
 ```
 
-<<<<<<< HEAD
 Required fields: `message_id`, `station_id`, `pm25`, `timestamp`, `source`.
+`message_id` must remain unique across simulator restarts; the simulator therefore prefixes it
+with a per-run identifier (or an explicitly supplied `SENSOR_RUN_ID`).
 
 Optional weather fields: `temperature`, `humidity`, `wind_speed`, `wind_direction`, `rainfall`.
 
@@ -31,7 +32,7 @@ Validation rules for MVP:
 | Rainfall | optional numeric, `0..500` |
 | Duplicate | `message_id` is unique; duplicate delivery is rejected/idempotently ignored |
 
-Reject reason taxonomy: `malformed`, `unknown_topic`, `topic_station_mismatch`, `unknown_station`, `range_error`, `future_time`, `stale`, `duplicate`.
+Reject reason taxonomy: `malformed`, `unknown_topic`, `topic_station_mismatch`, `unknown_station`, `unknown_device`, `range_error`, `future_time`, `stale`, `duplicate`.
 
 Only `valid` fresh messages enter downstream current value, alert, forecast and Agent context. Rejected MQTT messages are recorded in `mqtt_rejections` with a small payload excerpt, not raw secrets.
 
@@ -51,7 +52,7 @@ Required fields: `station_id`, `status`, `timestamp`, `source`. Status is `onlin
 
 ## Device command
 
-Topic `airguard/devices/{device_id}/command`: command_id, device_id, action, approval_id, idempotency_key, timestamp. Dispatcher only publishes approved commands; simulator rejects all other states. Status topic returns command_id, device_id, status, timestamp, `is_simulated`.
+Topic `airguard/devices/{device_id}/command`: command_id, device_id, action, approval_id, idempotency_key, timestamp. Dispatcher only publishes approved commands; simulator rejects malformed/unknown/duplicate commands. Status topic returns command_id, device_id, status, timestamp, `is_simulated=true`; the consumer persists the latest device status in `devices`.
 
 ## Tool contracts
 Tools map only to backend services: current, history, compare, weather, forecast, alerts, profile, create proposal. Mutating proposal tool needs idempotency key and evidence; never retry blindly.

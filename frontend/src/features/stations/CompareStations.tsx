@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Bot, Droplets, GitCompareArrows, Thermometer, Wind } from "lucide-react";
+import { Bot, Droplets, GitCompareArrows, Thermometer, TriangleAlert, Wind } from "lucide-react";
 import { api } from "../../api/client";
 import { Button } from "../../components/common/Button";
 import { DataQualityBadge, getPm25Severity } from "../../components/common/DataQualityBadge";
 import { PageHeader } from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { Station, StationDetailData } from "../../types";
+import { formatVnTime } from "../../utils/datetime";
 
 export const CompareStations: React.FC = () => {
   const { compareStationIds, setCompareStationIds, navigateTo } = useAuth();
@@ -14,6 +15,7 @@ export const CompareStations: React.FC = () => {
   const [stationB, setStationB] = useState<StationDetailData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const loadCompare = async () => {
@@ -36,21 +38,39 @@ export const CompareStations: React.FC = () => {
       }
     };
     loadCompare();
-  }, [compareStationIds]);
+  }, [compareStationIds, reloadToken]);
 
   const handleAskAICompare = () => {
     navigateTo("agent", { stationId: `${compareStationIds[0]}, ${compareStationIds[1]}` });
   };
 
-  if (loading || !stationA || !stationB) {
+  if (loading) {
     return (
       <div className="compare-container">
         <PageHeader
           title="So sánh khu vực"
           description="Đối chiếu PM2.5 và độ mới dữ liệu giữa hai trạm."
         />
-        {error && <div className="alert-box alert-error">{error}</div>}
-        <div className="skeleton-card" style={{ height: 400 }}></div>
+        <div className="skeleton-card skeleton-card--lg" role="status" aria-label="Đang tải dữ liệu so sánh" />
+      </div>
+    );
+  }
+
+  // Lỗi tải phải hiện thông báo kèm nút thử lại, không rơi vào skeleton vĩnh viễn.
+  if (error || !stationA || !stationB) {
+    return (
+      <div className="compare-container">
+        <PageHeader
+          title="So sánh khu vực"
+          description="Không thể hiển thị dữ liệu so sánh ở thời điểm này."
+        />
+        <div className="alert-box alert-error" role="alert">
+          <TriangleAlert size={17} aria-hidden="true" />
+          <span>{error ?? "Không tìm thấy dữ liệu cho một trong hai trạm được chọn."}</span>
+          <Button variant="outline" size="sm" onClick={() => setReloadToken((token) => token + 1)}>
+            Thử lại
+          </Button>
+        </div>
       </div>
     );
   }
@@ -80,8 +100,9 @@ export const CompareStations: React.FC = () => {
       {/* Selectors */}
       <div className="compare-selectors">
         <div className="select-box">
-          <label>Trạm A:</label>
+          <label htmlFor="compare-station-a">Trạm A:</label>
           <select
+            id="compare-station-a"
             value={compareStationIds[0]}
             onChange={(e) => setCompareStationIds([e.target.value, compareStationIds[1]])}
             className="role-select"
@@ -94,11 +115,12 @@ export const CompareStations: React.FC = () => {
           </select>
         </div>
 
-        <span className="vs-badge">VS</span>
+        <span className="vs-badge" aria-hidden="true">VS</span>
 
         <div className="select-box">
-          <label>Trạm B:</label>
+          <label htmlFor="compare-station-b">Trạm B:</label>
           <select
+            id="compare-station-b"
             value={compareStationIds[1]}
             onChange={(e) => setCompareStationIds([compareStationIds[0], e.target.value])}
             className="role-select"
@@ -117,7 +139,7 @@ export const CompareStations: React.FC = () => {
         {/* Card A */}
         <div className="compare-card">
           <div className="card-badge">Trạm A</div>
-          <h3>{stationA.station_name} ({stationA.station_id})</h3>
+          <h2>{stationA.station_name} ({stationA.station_id})</h2>
           <div className="metric-value" style={{ color: sevA.color }}>
             {stationA.pm25 ?? "N/A"} <small>µg/m³</small>
           </div>
@@ -127,14 +149,14 @@ export const CompareStations: React.FC = () => {
             <div><Thermometer size={16} aria-hidden="true" /> Nhiệt độ: <strong>{stationA.weather?.temperature ?? "Không khả dụng"}{stationA.weather ? " °C" : ""}</strong></div>
             <div><Droplets size={16} aria-hidden="true" /> Độ ẩm: <strong>{stationA.weather?.humidity ?? "Không khả dụng"}{stationA.weather ? " %" : ""}</strong></div>
             <div><Wind size={16} aria-hidden="true" /> Tốc độ gió: <strong>{stationA.weather?.wind_speed ?? "Không khả dụng"}{stationA.weather ? " m/s" : ""}</strong></div>
-            <div>Cập nhật: {new Date(stationA.updated_at).toLocaleTimeString("vi-VN")}</div>
+            <div>Cập nhật: {formatVnTime(stationA.updated_at)}</div>
           </div>
         </div>
 
         {/* Card B */}
         <div className="compare-card">
           <div className="card-badge">Trạm B</div>
-          <h3>{stationB.station_name} ({stationB.station_id})</h3>
+          <h2>{stationB.station_name} ({stationB.station_id})</h2>
           <div className="metric-value" style={{ color: sevB.color }}>
             {stationB.pm25 ?? "N/A"} <small>µg/m³</small>
           </div>
@@ -144,14 +166,14 @@ export const CompareStations: React.FC = () => {
             <div><Thermometer size={16} aria-hidden="true" /> Nhiệt độ: <strong>{stationB.weather?.temperature ?? "Không khả dụng"}{stationB.weather ? " °C" : ""}</strong></div>
             <div><Droplets size={16} aria-hidden="true" /> Độ ẩm: <strong>{stationB.weather?.humidity ?? "Không khả dụng"}{stationB.weather ? " %" : ""}</strong></div>
             <div><Wind size={16} aria-hidden="true" /> Tốc độ gió: <strong>{stationB.weather?.wind_speed ?? "Không khả dụng"}{stationB.weather ? " m/s" : ""}</strong></div>
-            <div>Cập nhật: {new Date(stationB.updated_at).toLocaleTimeString("vi-VN")}</div>
+            <div>Cập nhật: {formatVnTime(stationB.updated_at)}</div>
           </div>
         </div>
       </div>
 
       {/* Difference Analysis Box */}
       <div className="difference-box">
-        <h4><GitCompareArrows size={18} aria-hidden="true" /> Kết quả so sánh</h4>
+        <h2><GitCompareArrows size={18} aria-hidden="true" /> Kết quả so sánh</h2>
         {difference ? (
           <p>Chênh lệch PM2.5 giữa hai trạm là <strong>{difference} µg/m³</strong>. Hãy dùng AI Agent nếu cần phân tích nguyên nhân dựa trên dữ liệu backend.</p>
         ) : (

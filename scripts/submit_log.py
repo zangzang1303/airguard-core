@@ -16,24 +16,6 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-<<<<<<< HEAD
-# test
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    env_file = Path(".env")
-    if env_file.exists():
-        with open(env_file, encoding="utf-8-sig") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                os.environ.setdefault(key, value)
-=======
 
 
 def _load_local_env() -> None:
@@ -66,7 +48,6 @@ def _load_local_env() -> None:
 
 
 _load_local_env()
->>>>>>> 56319bf357b88155f831ce2c008dba10fdc1e2d7
 
 SERVER_URL = os.environ.get("AI_LOG_SERVER", "")
 API_KEY = os.environ.get("AI_LOG_API_KEY", "")
@@ -163,23 +144,10 @@ def _post_entries(entries: list[dict]) -> int:
         data=payload,
         headers=headers,
         method="POST",
-<<<<<<< HEAD
-    )  
-
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            print(f"[ai-log] Submitted {len(entries)} entries → {resp.status}", file=sys.stderr)
-    except (urllib.error.URLError, TimeoutError) as e:
-        # Failure: restore the whole pending (including leftover) for next push.
-        _restore_pending(pending)
-        print(f"[ai-log] Submit failed: {e} — logs kept locally.", file=sys.stderr)
-        sys.exit(0)  # Don't block push on server error
-=======
     )
     with urllib.request.urlopen(req, timeout=10) as resp:
         return resp.status
 
->>>>>>> 56319bf357b88155f831ce2c008dba10fdc1e2d7
 
 def _process_pending(pending: Path) -> bool:
     """Drain one durable pending file, returning False on any retryable error."""

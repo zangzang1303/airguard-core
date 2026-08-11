@@ -1,25 +1,29 @@
-
+import re
+from datetime import datetime, timezone
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import Body, FastAPI, Header, Query, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from .core import Settings
 from .schemas.measurements import MeasurementIngestionRequest
-from .services.agent_service import build_placeholder_answer
+from .services.agent_service import AgentService, AgentServiceError
 from .services.alert_engine import AlertEngine
 from .services.approval_service import ApprovalService, configure_default_service
 from .services.audit_service import AuditService
 from .services.database import Database, ServiceError
+from .services.device_service import DeviceService
 from .services.forecast_service import baseline_forecast
-from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.ingestion_service import MeasurementIngestionService
+from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.station_service import StationService
+from .services.user_service import UserService
 from .services.weather_service import WeatherService
+
 try:
     from .tasks.agent_tasks import run_agent_job
     from .tasks.forecast_tasks import run_forecast_job
@@ -31,8 +35,20 @@ except ModuleNotFoundError:
 
 
 class AgentChatRequest(BaseModel):
-    user_id: str = Field(..., examples=["demo-user"])
-    message: str = Field(..., examples=["Hien tai co nen chay bo o cong vien khong?"])
+    user_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=120,
+        pattern=r"^[A-Za-z0-9_.:@-]+$",
+        examples=["demo-user"],
+    )
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=5000,
+        examples=["Hien tai co nen chay bo o cong vien khong?"],
+    )
+    station_id: str | None = Field(default=None, pattern=r"^S0[1-5]$", examples=["S05"])
 
 
 class AgentJobRequest(AgentChatRequest):
@@ -43,6 +59,16 @@ class ForecastJobRequest(BaseModel):
     station_id: str = Field(..., examples=["S03"])
     hours: int = Field(default=3, ge=1, le=3)
     idempotency_key: str | None = Field(default=None, min_length=8, max_length=200)
+
+
+class CompareStationsRequest(BaseModel):
+    station_ids: list[str] = Field(min_length=1, max_length=5)
+
+
+class UserProfileResponse(BaseModel):
+    user_id: str
+    role: str
+    user_group: str | None = None
 
 
 class ApprovalCreateRequest(BaseModel):
@@ -64,6 +90,8 @@ settings = Settings.load()
 db = Database(settings.database_url)
 audit_service = AuditService(db)
 station_service = StationService(db, settings.stale_after_seconds)
+user_service = UserService(db)
+device_service = DeviceService(db)
 approval_service = ApprovalService(db, audit_service)
 ingestion_service = MeasurementIngestionService(
     db,
@@ -77,10 +105,17 @@ alert_engine = AlertEngine(
     warning_threshold=settings.alert_warning_threshold,
     critical_threshold=settings.alert_critical_threshold,
     rule_version=settings.alert_rule_version,
+    consecutive_measurements=settings.alert_consecutive_measurements,
+    stale_after_seconds=settings.stale_after_seconds,
 )
 configure_default_service(approval_service)
+agent_service = AgentService(
+    settings.agent_service_url,
+    timeout_seconds=settings.agent_service_timeout_seconds,
+)
 
 app = FastAPI(title="AirGuard AI API", version="0.3.0")
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -91,7 +126,8 @@ app.add_middleware(
 
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid4())
+    candidate = request.headers.get("X-Request-ID")
+    request_id = candidate if candidate and REQUEST_ID_PATTERN.fullmatch(candidate) else str(uuid4())
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
@@ -177,13 +213,18 @@ def get_station(station_id: str) -> dict:
 
 @app.get("/api/v1/stations/{station_id}/current")
 def get_station_current(station_id: str) -> dict:
-    return station_service.get_station(station_id)
+    return {**station_service.get_station(station_id), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 
 @app.get("/api/v1/stations/{station_id}/history")
 def get_station_history(station_id: str, hours: int = Query(default=24, ge=1, le=72)) -> dict:
-    return station_service.get_history(station_id, hours)
+    return {**station_service.get_history(station_id, hours), "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+@app.post("/api/v1/stations/compare")
+def compare_stations(body: CompareStationsRequest) -> dict:
+    return {**station_service.compare_stations(body.station_ids), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @app.post("/api/v1/internal/ingestion/measurements", status_code=202)
@@ -208,7 +249,7 @@ def evaluate_ingested_measurement(
 
 @app.get("/api/v1/alerts")
 def get_alerts(status: str | None = Query(default=None), station_id: str | None = Query(default=None)) -> dict:
-    return {"items": alert_engine.list_alerts(status=status, station_id=station_id)}
+    return {"items": alert_engine.list_alerts(status=status, station_id=station_id), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @app.post("/api/v1/alerts/{alert_id}/resolve")
@@ -230,7 +271,7 @@ weather_service = WeatherService()
 
 @app.get("/api/v1/weather/current")
 def get_current_weather() -> dict:
-    return weather_service.current_weather()
+    return {**weather_service.current_weather(), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 
@@ -243,12 +284,32 @@ def get_station_forecast(station_id: str, hours: int = Query(default=3, ge=1, le
         "station_id": station_id,
         "items": baseline_forecast(float(station["pm25"]), hours),
         "source": "baseline_current_pm25",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "freshness": "fresh",
+        "confidence": "low",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
+@app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)
+def get_user_profile(user_id: str) -> UserProfileResponse:
+    row = user_service.get_profile(user_id)
+    return UserProfileResponse(
+        user_id=str(row["user_id"]), role=row["role"], user_group=row.get("sensitivity_group")
+    )
+
+
 @app.post("/api/v1/agent/chat")
-def agent_chat(request: Request, body: AgentChatRequest) -> dict:
-    return {"user_id": body.user_id, "request_id": _request_id(request), **build_placeholder_answer(body.message)}
+async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
+    try:
+        return await agent_service.chat(
+            message=body.message,
+            user_id=body.user_id,
+            station_id=body.station_id,
+            request_id=_request_id(request),
+        )
+    except AgentServiceError as exc:
+        raise ServiceError(exc.code, exc.message, exc.status_code) from exc
 
 
 def dispatch_job(task, job_type: str, payload: dict, idempotency_key: str | None) -> dict:
@@ -274,7 +335,7 @@ def dispatch_job(task, job_type: str, payload: dict, idempotency_key: str | None
 
 @app.post("/api/v1/agent/jobs", status_code=202)
 def create_agent_job(request: AgentJobRequest) -> dict:
-    payload = {"user_id": request.user_id, "message": request.message}
+    payload = {"user_id": request.user_id, "message": request.message, "station_id": request.station_id}
     return dispatch_job(run_agent_job, "agent", payload, request.idempotency_key)
 
 
@@ -297,7 +358,23 @@ def get_background_job(task_id: str) -> dict:
 
 
 @app.post("/api/v1/approvals", status_code=201)
-def create_approval(request: Request, body: ApprovalCreateRequest) -> dict:
+@app.post("/api/v1/proposals", status_code=201)
+def create_approval(
+    request: Request,
+    body: ApprovalCreateRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> dict:
+    if idempotency_key is not None and len(idempotency_key) < 8:
+        raise ServiceError("invalid_idempotency_key", "Idempotency-Key must be at least 8 characters", 422)
+    if body.request_type == "warning_proposal":
+        if not body.station_id or not body.evidence:
+            raise ServiceError("proposal_evidence_required", "Warning proposals require station_id and evidence", 422)
+        station = station_service.get_station(body.station_id)
+        if station["status"] in {"offline", "stale"} or station["pm25"] is None:
+            raise ServiceError("proposal_data_not_eligible", "Fresh online station data is required", 409)
+        active_alerts = alert_engine.list_alerts(status="active", station_id=body.station_id)
+        if not active_alerts:
+            raise ServiceError("proposal_alert_required", "An active alert is required for a warning proposal", 409)
     return approval_service.create_request(
         request_type=body.request_type,
         station_id=body.station_id,
@@ -307,22 +384,26 @@ def create_approval(request: Request, body: ApprovalCreateRequest) -> dict:
         evidence=body.evidence,
         created_by=body.created_by,
         correlation_id=_request_id(request),
+        idempotency_key=idempotency_key,
     )
 
 
 @app.get("/api/v1/approvals")
+@app.get("/api/v1/proposals")
 def get_approvals(status: str | None = Query(default=None), x_user_role: str = Header(default="viewer")) -> dict:
     _require_manager_role(x_user_role)
     return {"items": approval_service.list_requests(status=status)}
 
 
 @app.get("/api/v1/approvals/{request_id}")
+@app.get("/api/v1/proposals/{request_id}")
 def get_approval(request_id: str, x_user_role: str = Header(default="viewer")) -> dict:
     _require_manager_role(x_user_role)
     return approval_service.get_request(request_id)
 
 
 @app.post("/api/v1/approvals/{request_id}/approve")
+@app.post("/api/v1/proposals/{request_id}/approve")
 def approve_request(
     request: Request,
     request_id: str,
@@ -348,12 +429,22 @@ def approve_request(
                     "idempotency_key": result["command_intent"]["idempotency_key"],
                 }
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            audit_service.record(
+                actor_type="system",
+                actor_role="backend",
+                action="approval.dispatch.failure",
+                entity_type="approval_request",
+                entity_id=request_id,
+                correlation_id=_request_id(request),
+                outcome="failure",
+                details={"error": str(exc)[:200]},
+            )
     return result
 
 
 @app.post("/api/v1/approvals/{request_id}/reject")
+@app.post("/api/v1/proposals/{request_id}/reject")
 def reject_request(
     request: Request,
     request_id: str,
@@ -386,39 +477,13 @@ def get_audit_logs(
 
 @app.get("/api/v1/devices")
 def get_devices() -> dict:
-    with db.connection() as conn:
-        from .services.database import dict_cursor
-
-        with dict_cursor(conn) as cur:
-            cur.execute(
-                """
-                SELECT device_id, device_name, device_type, station_id, status, is_simulated, last_seen_at
-                FROM devices
-                ORDER BY device_id
-                """
-            )
-            return {"items": [dict(row) for row in cur.fetchall()]}
+    return {"items": device_service.list_devices()}
 
 
 
 @app.get("/api/v1/devices/{device_id}/status")
 def get_device_status(device_id: str) -> dict:
-    with db.connection() as conn:
-        from .services.database import dict_cursor
-
-        with dict_cursor(conn) as cur:
-            cur.execute(
-                """
-                SELECT device_id, device_name, device_type, station_id, status, is_simulated, last_seen_at
-                FROM devices
-                WHERE device_id = %s
-                """,
-                (device_id,),
-            )
-            row = cur.fetchone()
-            if not row:
-                raise ServiceError("device_not_found", "Device was not found", 404, {"device_id": device_id})
-            return dict(row)
+    return device_service.get_status(device_id)
 
 
 
