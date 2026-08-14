@@ -147,3 +147,15 @@ ok     airguard-api 0.3.0
 
 
 ]633;D;0]633;A]633;P;Cwd=G:\x5cSTUDYING TIME\x5cAI ACTION\x5cproject\x5cP-074PS G:\STUDYING TIME\AI ACTION\project\P-074> ]633;B
+(.venv) git branch
+
+]633;D;0]633;A]633;P;Cwd=G:\x5cSTUDYING TIME\x5cAI ACTION\x5cproject\x5cP-074PS G:\STUDYING TIME\AI ACTION\project\P-074> ]633;B
+(.venv) git add .
+
+]633;D;0]633;A]633;P;Cwd=G:\x5cSTUDYING TIME\x5cAI ACTION\x5cproject\x5cP-074PS G:\STUDYING TIME\AI ACTION\project\P-074> ]633;B
+(.venv) git commit -m "update backlog2/qa-intergration-evidence.md but not have evidence by image"
+
+]633;D;0]633;A]633;P;Cwd=G:\x5cSTUDYING TIME\x5cAI ACTION\x5cproject\x5cP-074PS G:\STUDYING TIME\AI ACTION\project\P-074> ]633;B
+(.venv) git push origin hvlong
+
+]633;D;0]633;A]633;P;Cwd=G:\x5cSTUDYING TIME\x5cAI ACTION\x5cproject\x5cP-074PS G:\STUDYING TIME\AI ACTION\project\P-074> ]633;B
