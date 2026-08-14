@@ -429,6 +429,17 @@
   font-weight: 800;
 }
 
+.metric-selector,
+.chart-type-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.metric-selector .preset-btn {
+  white-space: nowrap;
+}
+
 .metric-value--with-icon {
   display: flex;
   align-items: center;

@@ -210,7 +210,10 @@ export interface StationDetailData extends Station {
 export interface HistoryPoint {
   timestamp: string;
   pm25: number;
-  temperature?: number;
+  aqi?: number | null;
+  co2?: number | null;
+  noise_db?: number | null;
+  temperature?: number | null;
   humidity?: number;
 }
 
@@ -218,12 +221,16 @@ export interface ForecastHorizon {
   horizon: string;
   pm25_predicted: number;
   range: [number, number];
+  value?: number;
+  value_min?: number;
+  value_max?: number;
   confidence?: number;
 }
 
 export interface ForecastData {
   station_id: string;
   horizon_hours: number;
+  metric: "pm25" | "aqi" | "co2" | "noise_db" | "temperature";
   source: string;
   confidence: string;
   model_name?: string;

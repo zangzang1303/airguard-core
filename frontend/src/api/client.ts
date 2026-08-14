@@ -379,22 +379,26 @@ export const api = {
     return data.items.map((point) => ({ ...point, timestamp: point.measured_at ?? point.timestamp }));
   },
 
-  getStationForecast: async (stationId: string): Promise<ForecastData> => {
+  getStationForecast: async (stationId: string, metric: ForecastData["metric"] = "pm25"): Promise<ForecastData> => {
     try {
       const data = await apiFetch<any>(
-        `/api/v1/stations/${stationId}/forecast`,
+        `/api/v1/stations/${stationId}/forecast?metric=${metric}`,
       );
       return {
         station_id: data.station_id,
         horizon_hours: data.items.length,
+        metric: data.metric ?? metric,
         source: data.source,
         confidence: typeof data.confidence === "number" ? `${Math.round(data.confidence * 100)}%` : data.confidence,
         model_name: data.model_name,
         limitations: data.limitations,
-        forecasts: data.items.map((item: { hour_offset: number; pm25: number; pm25_min?: number; pm25_max?: number; confidence?: number }) => ({
+        forecasts: data.items.map((item: { hour_offset: number; pm25?: number; pm25_min?: number; pm25_max?: number; value?: number; value_min?: number; value_max?: number; confidence?: number }) => ({
           horizon: `${item.hour_offset} hour`,
-          pm25_predicted: item.pm25,
-          range: [item.pm25_min ?? item.pm25, item.pm25_max ?? item.pm25] as [number, number],
+          pm25_predicted: item.pm25 ?? item.value ?? 0,
+          range: [item.pm25_min ?? item.value_min ?? item.pm25 ?? item.value ?? 0, item.pm25_max ?? item.value_max ?? item.pm25 ?? item.value ?? 0] as [number, number],
+          value: item.value ?? item.pm25,
+          value_min: item.value_min ?? item.pm25_min,
+          value_max: item.value_max ?? item.pm25_max,
           confidence: item.confidence,
         })),
       };

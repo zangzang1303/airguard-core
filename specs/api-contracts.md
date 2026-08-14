@@ -17,7 +17,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/internal/ingestion/evaluate-alerts` | internal alert catch-up for one/all stations | 200 | 404/503 |
 | GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up for AQI, PM2.5, CO₂, noise, temperature and sensor availability | 200 | 422/503 |
 | POST `/alerts/{id}/resolve` | manager-only manual alert resolution | 200 | 403/404/503 |
-| GET `/stations/{id}/forecast?hours=1..3` | damped linear-trend forecast from at least 3 fresh valid PM2.5 measurements | 200 | 404/422/503 |
+| GET `/stations/{id}/forecast?hours=1..3&metric=pm25|aqi|co2|noise_db|temperature` | damped linear-trend forecast from at least 3 fresh valid measurements of the selected metric; defaults to PM2.5 | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
 | POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
