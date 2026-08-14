@@ -49,5 +49,5 @@ QA-01 setup runtime
 ## Bàn giao sang Backlog 3
 
 Sau khi toàn bộ Definition of Done ở trên được ký xác nhận, chuyển ngay sang
-[Backlog 3 — Release MVP với LLM thật](../backlog3/README.md). Không chuyển task Backlog 2 còn lỗi
+[Backlog 3 — Gate 2: MVP sơ bộ và Agent demo](../backlog3/README.md). Không chuyển task Backlog 2 còn lỗi
 critical sang Backlog 3; mọi deferred item phải được ghi rõ và nằm ngoài main flow phát hành.

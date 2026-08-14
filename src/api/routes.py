@@ -31,6 +31,7 @@ async def _chat(request: ChatRequest, http_request: Request) -> ChatResponse:
             request_id=result["request_id"],
             proposal_id=result.get("proposal_id"),
             recommendation_policy_version=result.get("recommendation_policy_version"),
+            impact_policy_version=result.get("impact_policy_version"),
             trace=result.get("trace", {}),
         )
     except Exception as exc:

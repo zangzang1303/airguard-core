@@ -1,4 +1,4 @@
-# Backlog 3E — README, Architecture Diagram và Video
+# Backlog 3 — README, Architecture Diagram và Video
 
 **Owner:** PM/Docs owner và presenter
 **Mục tiêu:** đóng gói release thành bộ deliverables có thể setup, hiểu và chấm độc lập.
@@ -39,6 +39,9 @@
 - [ ] Upload, kiểm tra âm thanh/độ phân giải/permission và mở lại link từ phiên khác.
 
 **Acceptance:** video chứng minh input -> processing -> meaningful output; không cắt ghép fixture thành live flow.
+
+Video bắt buộc có ít nhất một request mà trace/evidence xác nhận `generation_mode=live_llm`, đúng
+provider/model đã ghi trong release manifest. Deterministic fallback không đạt deliverable video.
 
 ## B3-DOC-04 — Submission pack
 

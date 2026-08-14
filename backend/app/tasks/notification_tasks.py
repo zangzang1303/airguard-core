@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import smtplib
+from email.message import EmailMessage
 
 import paho.mqtt.client as mqtt
 from ..celery_app import celery_app
@@ -21,13 +23,49 @@ def send_notification_job(self, recipient: str, message: str, idempotency_key: s
     task_id = self.request.id
 
     def operation() -> dict:
+        provider = os.getenv("NOTIFICATION_PROVIDER", "disabled").lower()
+        if provider != "smtp":
+            return {
+                "task_id": task_id,
+                "job_type": "notification",
+                "recipient": recipient,
+                "delivery_status": "not_configured",
+                "provider": provider,
+                "reason": "Set NOTIFICATION_PROVIDER=smtp and SMTP settings to dispatch a real notification.",
+            }
+        host = os.getenv("SMTP_HOST")
+        sender = os.getenv("SMTP_FROM")
+        if not host or not sender or "@" not in recipient:
+            return {
+                "task_id": task_id,
+                "job_type": "notification",
+                "recipient": recipient,
+                "delivery_status": "failed_validation",
+                "provider": "smtp",
+                "reason": "SMTP_HOST, SMTP_FROM, and a valid recipient are required.",
+            }
+        email = EmailMessage()
+        email["Subject"] = os.getenv("NOTIFICATION_SUBJECT", "AirGuard AI notification")
+        email["From"] = sender
+        email["To"] = recipient
+        email.set_content(message)
+        try:
+            with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587")), timeout=10) as client:
+                if os.getenv("SMTP_STARTTLS", "true").lower() in {"1", "true", "yes"}:
+                    client.starttls()
+                username = os.getenv("SMTP_USERNAME")
+                password = os.getenv("SMTP_PASSWORD")
+                if username and password:
+                    client.login(username, password)
+                client.send_message(email)
+        except (OSError, smtplib.SMTPException) as exc:
+            raise TransientTaskError(f"SMTP delivery failed: {exc.__class__.__name__}") from exc
         return {
             "task_id": task_id,
             "job_type": "notification",
             "recipient": recipient,
-            "message": message,
-            "delivery_status": "mock_delivered",
-            "todo": "Integrate an email, SMS, or push notification provider.",
+            "delivery_status": "delivered",
+            "provider": "smtp",
         }
 
     return run_idempotent(task_id=task_id, idempotency_key=idempotency_key, operation=operation)

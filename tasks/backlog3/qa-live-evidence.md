@@ -1,4 +1,4 @@
-# Backlog 3D — QA, Live Eval và E2E Evidence
+# Backlog 3 — QA, Live Eval và E2E Evidence
 
 **Owner:** QA/Integration lead
 **Mục tiêu:** tạo bằng chứng có thể replay rằng release dùng LLM thật và hoàn thành main flow.
@@ -17,6 +17,7 @@
 
 Mỗi case phải ghi: case ID, timestamp/timezone, release SHA, input, expected tools, actual tools,
 sanitized tool evidence, provider/model, actual output, latency, request ID, expected/actual và PASS/FAIL.
+Mỗi case phải có `generation_mode=live_llm`; deterministic fallback không được tính.
 
 - [ ] LIVE-01 current PM2.5 tại một station fresh/online.
 - [ ] LIVE-02 compare ít nhất hai station và nêu station tốt/xấu hơn từ tool result.
@@ -52,6 +53,7 @@ sanitized tool evidence, provider/model, actual output, latency, request ID, exp
 - [ ] Rehearsal 1 ngày 15/08 trên RC1; ghi thời lượng và blocker.
 - [ ] Rehearsal cuối ngày 16/08 trên final SHA; chạy đúng script video.
 - [ ] QA kiểm tra README quick start bằng clean/existing-volume path phù hợp.
+- [ ] Đối chiếu đủ 5 Gate 2 deliverables: video, diagram, >=10 PR, README và >=5 live eval.
 - [ ] Ký report `PASS`, `PASS WITH LIMITATIONS` hoặc `BLOCKED`.
 
 **Evidence path đề xuất:** `docs/evidence/release/<release-id>/`.
@@ -62,3 +64,4 @@ sanitized tool evidence, provider/model, actual output, latency, request ID, exp
 - Một environmental fact không có tool evidence cùng request.
 - Critical test fail, HITL bypass, secret leak hoặc stale data được dùng như current.
 - Video/eval không cùng release SHA hoặc artifact link không mở được.
+- Thiếu một trong năm deliverables rubric hoặc manual eval dùng mock/deterministic fallback thay LLM thật.

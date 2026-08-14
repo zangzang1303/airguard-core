@@ -1,4 +1,4 @@
-# Backlog 3C — Frontend Demo Flow
+# Backlog 3 — Frontend Demo Flow
 
 **Owner:** Frontend lead
 **Mục tiêu:** khóa một browser flow ổn định để người dùng nhập câu hỏi và thấy output LLM grounded từ
@@ -10,6 +10,8 @@ backend thật.
 - [ ] Agent Chat gọi backend canonical `POST /api/v1/agent/chat`, không gọi Agent service trực tiếp.
 - [ ] Gửi user/station context theo contract và giữ request/correlation ID trong technical details.
 - [ ] Hiển thị answer, used tools, source, observed time, freshness và simulator disclaimer.
+- [ ] Technical details hoặc evidence pack hiển thị `generation_mode`, provider/model và request ID
+      đủ để chứng minh request quay dùng LLM thật; không hiển thị token/key.
 - [ ] Không ghép thêm PM2.5/forecast/recommendation ở client.
 
 **Acceptance:** prompt demo từ browser hiển thị đúng output của request hiện tại và evidence có thể mở
@@ -27,13 +29,14 @@ kiểm tra.
 
 ## B3-FE-03 — Demo route lock
 
-- [ ] Chọn tối đa ba prompt hiển thị sẵn hoặc ghi trong demo script.
+- [ ] Chọn một prompt chính để quay và tối đa hai prompt dự phòng; manual eval có file riêng.
 - [ ] Dashboard -> Agent Chat hoàn thành trong không quá ba thao tác.
 - [ ] Nếu quay HITL: pending proposal -> manager queue -> approve/reject -> audit dùng server state thật.
 - [ ] Ẩn/defer screen ngoài scope nếu placeholder có thể làm hỏng câu chuyện demo.
 - [ ] Chụp screenshot 1280px của dashboard, Agent answer và HITL/audit nếu có.
 
-**Acceptance:** presenter chạy main flow hai lần liên tiếp không refresh dữ liệu bằng tay hoặc sửa request.
+**Acceptance:** presenter chạy main flow hai lần liên tiếp; cả hai request có
+`generation_mode=live_llm` và không cần sửa request/data bằng tay.
 
 ## B3-FE-04 — Build và browser smoke
 

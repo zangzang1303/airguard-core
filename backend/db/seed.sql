@@ -1,11 +1,11 @@
 -- Demo-only reference data. This script is idempotent and must run after schema.sql.
 INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description, active)
 VALUES
-    ('S01', 'Cong chinh', 'main_gate', 20.9441, 105.9439, 'Khu vuc cong chinh, PM2.5 tang vao gio cao diem', TRUE),
-    ('S02', 'Bai do xe', 'parking', 20.9450, 105.9435, 'Khu vuc bai do xe, anh huong boi xe ra vao', TRUE),
-    ('S03', 'Truc duong chinh', 'main_road', 20.9445, 105.9452, 'Tuyen duong chinh, co mat do giao thong cao', TRUE),
-    ('S04', 'Cong vien', 'park', 20.9455, 105.9458, 'Khu cong vien, PM2.5 thuong thap hon khu giao thong', TRUE),
-    ('S05', 'Khu the thao ngoai troi', 'sport_area', 20.9437, 105.9448, 'Khu the thao, dung cho khuyen nghi hoat dong ngoai troi', TRUE)
+    ('S01', 'Cong vao Ocean Park', 'main_gate', 20.9975, 105.9430, 'Vi tri simulator tai cong vao khu do thi', TRUE),
+    ('S02', 'Bai do xe trung tam', 'parking', 20.9953, 105.9500, 'Vi tri simulator tai bai do xe trung tam', TRUE),
+    ('S03', 'Truc duong chinh Ocean Park', 'main_road', 20.9910, 105.9560, 'Vi tri simulator tren truc duong chinh', TRUE),
+    ('S04', 'Cong vien trung tam', 'park', 20.9898, 105.9467, 'Vi tri simulator tai khu cong vien', TRUE),
+    ('S05', 'Khu the thao ngoai troi', 'sport_area', 21.0008, 105.9428, 'Vi tri simulator tai khu the thao', TRUE)
 ON CONFLICT (station_id) DO UPDATE SET
     station_name = EXCLUDED.station_name,
     location_type = EXCLUDED.location_type,

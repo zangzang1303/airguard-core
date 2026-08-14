@@ -6,6 +6,7 @@ from typing import Any
 
 from src.agents.policies.forecast_response import assess_forecast
 from src.agents.policies.grounding import Intent, RouteDecision
+from src.agents.policies.impact_assessment import IMPACT_POLICY_VERSION, assess_environmental_impact
 from src.agents.policies.recommendations import RECOMMENDATION_POLICY_VERSION, build_recommendation
 
 INSUFFICIENT_DATA_MESSAGE = (
@@ -38,6 +39,7 @@ def compose_response(
         Intent.ALERT: _compose_alerts,
         Intent.USER_PROFILE: _compose_profile,
         Intent.PROPOSAL: _compose_proposal_gate,
+        Intent.IMPACT: _compose_impact,
     }
     if decision.intent == Intent.RECOMMENDATION:
         try:
@@ -68,6 +70,8 @@ def _direct_outcome(decision: RouteDecision) -> str:
 def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) -> bool:
     if intent == Intent.CURRENT:
         return _measurement_is_usable(data_items[0])
+    if intent == Intent.IMPACT:
+        return _measurement_is_usable(data_items[0]) and data_items[0].get("aqi") is not None
     if intent == Intent.HISTORY:
         items = data_items[0].get("items", [])
         return bool(items) and all(
@@ -124,10 +128,36 @@ def _measurement_is_usable(data: Mapping[str, Any]) -> bool:
 
 def _compose_current(data_items: list[Mapping[str, Any]]) -> str:
     data = data_items[0]
+    if data.get("aqi") is not None:
+        category = f" ({data['aqi_category']})" if data.get("aqi_category") else ""
+        return (
+            f"Quan sát tổng quan tại {data['station_id']}: AQI {data['aqi']:g}{category}. "
+            f"Các chỉ số cùng thời điểm: PM2.5 {_format_measurement(data.get('pm25'), 'µg/m³')}; "
+            f"CO₂ {_format_measurement(data.get('co2'), 'ppm')}; "
+            f"tiếng ồn {_format_measurement(data.get('noise_db'), 'dB')}; "
+            f"nhiệt độ {_format_measurement(data.get('temperature'), '°C')}. "
+            f"Cập nhật {data['updated_at']}; trạng thái {data['status']}; nguồn {data['source']}. {SIMULATOR_NOTICE}"
+        )
     level = f", mức backend: {data['level']}" if data.get("level") else ""
     return (
         f"Quan sát tại {data['station_id']}: PM2.5 {data['pm25']:g} µg/m³ lúc {data['updated_at']}"
         f"; trạng thái {data['status']}{level}. Nguồn: {data['source']}. {SIMULATOR_NOTICE}"
+    )
+
+
+def _format_measurement(value: Any, unit: str) -> str:
+    return f"{float(value):g} {unit}" if value is not None else "không khả dụng"
+
+
+def _compose_impact(data_items: list[Mapping[str, Any]]) -> str:
+    data = data_items[0]
+    assessment = assess_environmental_impact(data)
+    contributors = "; ".join(assessment.contributors)
+    return (
+        f"Đánh giá mức độ ảnh hưởng tại {data['station_id']}: {assessment.label}. "
+        f"{assessment.summary} Căn cứ cùng request: {contributors}. "
+        f"Thời điểm {data['updated_at']}; nguồn {data['source']}; policy {assessment.policy_version}. "
+        f"Đây là đánh giá vận hành từ dữ liệu simulator, không phải chẩn đoán sức khỏe hay cảnh báo khẩn cấp."
     )
 
 
@@ -205,11 +235,19 @@ def _compose_alerts(data_items: list[Mapping[str, Any]]) -> str:
     if not items:
         return "Backend không trả về cảnh báo active nào cho bộ lọc trong request này."
     alerts = "; ".join(
-        f"{item['alert_id']} tại {item['station_id']}: severity {item['severity']}, observed "
-        f"{item['observed_value']:g}, threshold {item['threshold_value']:g}, tạo lúc {item['created_at']}"
+        f"{item['alert_id']} tại {item['station_id']} ({item['alert_type']}): severity {item['severity']}, "
+        f"observed {_format_alert_value(item.get('observed_value'), item.get('unit'))}, "
+        f"threshold {_format_alert_value(item.get('threshold_value'), item.get('unit'))}, "
+        f"khuyến nghị {item.get('recommendation') or 'theo dõi theo quy trình vận hành'}, tạo lúc {item['created_at']}"
         for item in items
     )
     return f"Cảnh báo active từ backend: {alerts}."
+
+
+def _format_alert_value(value: Any, unit: Any) -> str:
+    if value is None:
+        return "không có số đo"
+    return f"{float(value):g}{(' ' + str(unit)) if unit else ''}"
 
 
 def _compose_profile(data_items: list[Mapping[str, Any]]) -> str:

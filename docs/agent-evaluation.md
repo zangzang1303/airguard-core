@@ -7,9 +7,10 @@ Focused tests live in `tests/test_agents/test_grounding.py` and use
 
 The AI-002 release gate covers:
 
-- intent and expected tool arguments for current, history, compare, weather, forecast, alert and profile;
+- intent and expected tool arguments for current, impact assessment, history, compare, weather, forecast, alert and profile;
 - mandatory tool use even when a user says not to call tools;
 - source mapping for environmental facts from the same request;
+- AQI-first current-station responses that enumerate PM2.5, CO₂, noise and temperature from the same fresh snapshot;
 - transparent handling of backend outage, empty history, stale, offline, invalid and invalid arguments;
 - clarification for missing station context;
 - refusal of prompt injection, medical diagnosis, emergency claims, device control and HITL bypass;

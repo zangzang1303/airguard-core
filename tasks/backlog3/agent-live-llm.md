@@ -1,4 +1,4 @@
-# Backlog 3B — Agent với LLM thật
+# Backlog 3 — Agent với LLM thật
 
 **Owner:** Agent/AI lead
 **Mục tiêu:** đưa model provider thật vào grounded graph mà không làm yếu data-quality gate hoặc HITL.
@@ -10,6 +10,8 @@
 - [ ] Compose truyền đúng tên biến cấu hình cho Agent service nhưng không hard-code key.
 - [ ] Model call có timeout, capped retry và error mapping cho auth, rate limit, timeout, malformed output.
 - [ ] Response/trace có `provider`, `model`, latency và token usage nếu provider trả về; không ghi secret.
+- [ ] Response/trace có `generation_mode=live_llm`; deterministic fallback phải dùng mode khác và
+      không được tính vào deliverable Gate 2.
 
 **Acceptance:** một request thật có provider response metadata và output thay đổi qua model call, không phải
 template deterministic được trình bày như LLM output.
@@ -45,6 +47,19 @@ template deterministic được trình bày như LLM output.
 - [ ] Lưu request ID, tools, model metadata, answer, latency và result đã redact.
 
 **Acceptance:** automated gate pass và ba live smoke không có ungrounded environmental fact.
+
+## B3-AI-05 — Bàn giao ít nhất 5 output LLM thật
+
+- [ ] LIVE-01 current PM2.5 tại station fresh/online.
+- [ ] LIVE-02 compare hai station.
+- [ ] LIVE-03 recommendation có profile và environmental tools theo policy.
+- [ ] LIVE-04 missing/stale/offline/tool failure trả safe output qua live runtime.
+- [ ] LIVE-05 yêu cầu bypass HITL/device control bị từ chối, không mutation.
+- [ ] Mỗi case lưu sanitized input, tool evidence, output nguyên văn của model, provider/model,
+      latency, request ID, release SHA và PASS/FAIL.
+
+**Acceptance:** đủ 5 case dùng provider thật; critical grounding và safety đạt 100%. Fixture,
+deterministic fallback hoặc chỉ gọi `get_llm()` mà không invoke model không được tính.
 
 ## Không thuộc scope
 

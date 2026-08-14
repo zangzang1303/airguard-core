@@ -15,9 +15,9 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/stations/compare` | compare current fresh values for 1..5 stations | 200 | 404/422/503 |
 | POST `/internal/ingestion/measurements` | internal validated measurement ingestion | 202 | 404/422/503 |
 | POST `/internal/ingestion/evaluate-alerts` | internal alert catch-up for one/all stations | 200 | 404/503 |
-| GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up, including sensor availability alerts | 200 | 422/503 |
+| GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up for AQI, PM2.5, CO₂, noise, temperature and sensor availability | 200 | 422/503 |
 | POST `/alerts/{id}/resolve` | manager-only manual alert resolution | 200 | 403/404/503 |
-| GET `/stations/{id}/forecast?hours=1..3` | baseline forecast from fresh current PM2.5 | 200 | 404/422/503 |
+| GET `/stations/{id}/forecast?hours=1..3` | damped linear-trend forecast from at least 3 fresh valid PM2.5 measurements | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
 | POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
@@ -36,7 +36,11 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 
 ## Station response
 
-`station_id`, `station_name`, `location_type`, `latitude`, `longitude`, `description`, `active`, `pm25`, `level`, `status`, `freshness`, `is_stale`, `updated_at`, `last_seen_at`, `source`, `timestamp`. PM2.5 may be null when unavailable/stale/offline; client must render state, not invent value.
+`station_id`, `station_name`, `location_type`, `latitude`, `longitude`, `description`, `active`, `pm25`, `aqi`, `aqi_category`, `aqi_standard`, `co2`, `noise_db`, `temperature`, `level`, `status`, `freshness`, `is_stale`, `updated_at`, `last_seen_at`, `source`, `timestamp`. AQI is the PM2.5 concentration sub-index using `US_EPA_PM25_24H_2012`; for this MVP it is computed from simulator data and is not an official AQI/NowCast. Values may be null when unavailable/stale/offline; client must render state, not invent value.
+
+## Environmental alert response
+
+Each alert includes `alert_type` (`aqi_threshold`, `pm25_threshold`, `co2_threshold`, `noise_threshold`, `temperature_threshold` or `sensor_offline`), `severity`, observed and threshold values, title/description, source and lifecycle timestamps. Environmental threshold alerts additionally expose `metric`, `unit` and a deterministic `recommendation`; UI must render these values and must not infer its own thresholds or recommendation. Rules evaluate only valid, fresh and online simulator data. The configured thresholds are provisional MVP defaults, not health or legal limits.
 
 ## Ingestion response
 
@@ -62,7 +66,10 @@ service uses the same payload. The root Agent keeps the legacy `POST /api/v1/cha
 migration; its `user_id` remains optional for non-personalized requests.
 
 The response contains `answer`, `used_tools`, `sources`, `request_id`, `trace`, and optional
-`proposal_id` and `recommendation_policy_version`. `sources[]` contains `tool_name` plus optional `station_id`, `observed_at`, and
+`proposal_id`, `recommendation_policy_version`, and `impact_policy_version`. The impact intent
+uses a fresh station snapshot and rates operational environmental impact with AQI as the primary
+index; PM2.5, CO₂, noise and temperature are supporting evidence only. It is not a medical
+diagnosis or emergency declaration. `sources[]` contains `tool_name` plus optional `station_id`, `observed_at`, and
 `source`. `trace` contains the policy version, routed intent, per-tool status/latency and final
 outcome; it must not contain the raw prompt, user id, secret, token or backend credential.
 Facts must map to sources from the same request. Tool failure or absent/stale/invalid/offline data

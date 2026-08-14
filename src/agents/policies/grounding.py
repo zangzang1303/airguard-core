@@ -11,9 +11,9 @@ from src.agents.tools.contracts import ToolName
 
 GROUNDING_POLICY_VERSION = "2026-08-04.ai-002"
 
-SYSTEM_PROMPT = """You are the AirGuard AI assistant for a simulator-based PM2.5 MVP.
+SYSTEM_PROMPT = """You are the AirGuard AI assistant for a simulator-based AQI and environmental-monitoring MVP.
 Separate observations, inferences, and recommendations. Every environmental observation
-(including PM2.5, timestamp, station status, weather, alert, and forecast) must come from
+(including AQI, PM2.5, CO2, noise, temperature, timestamp, station status, weather, alert, and forecast) must come from
 a validated backend tool result produced in this request. Never fill missing fields or
 reuse facts from memory. State station, observation/forecast time, and source. Simulator
 data is not official monitoring data. If a tool fails or data is absent, stale, invalid,
@@ -33,6 +33,7 @@ class Intent(StrEnum):
     ALERT = "alert"
     USER_PROFILE = "user_profile"
     RECOMMENDATION = "recommendation"
+    IMPACT = "impact"
     PROPOSAL = "proposal"
     GREETING = "greeting"
     CLARIFICATION = "clarification"
@@ -197,6 +198,25 @@ def route_query(
             ),
         )
 
+    if _contains_any(
+        plain,
+        (
+            "muc do anh huong",
+            "danh gia anh huong",
+            "anh huong moi truong",
+            "impact assessment",
+            "environmental impact",
+            "muc do tac dong",
+        ),
+    ):
+        if not stations:
+            return _clarify("Bạn muốn đánh giá mức độ ảnh hưởng tại trạm nào (S01-S05)?")
+        return RouteDecision(
+            intent=Intent.IMPACT,
+            tool_calls=[ToolName.GET_CURRENT_PM25],
+            tool_arguments=[{"station_id": stations[0]}],
+        )
+
     if _contains_any(plain, ("proposal", "de xuat canh bao", "tao canh bao", "warning proposal")):
         if not stations:
             return _clarify("Bạn muốn kiểm tra đề xuất cho trạm nào (S01-S05)?")
@@ -309,7 +329,7 @@ def route_query(
 
     if stations or _contains_any(plain, ("pm2.5", "pm25", "chat luong khong khi", "hien tai", "bay gio")):
         if not stations:
-            return _clarify("Bạn muốn kiểm tra PM2.5 tại trạm nào (S01-S05)?")
+            return _clarify("Bạn muốn kiểm tra AQI và các chỉ số môi trường tại trạm nào (S01-S05)?")
         return RouteDecision(
             intent=Intent.CURRENT,
             tool_calls=[ToolName.GET_CURRENT_PM25],
@@ -319,7 +339,7 @@ def route_query(
     return RouteDecision(
         intent=Intent.OUT_OF_SCOPE,
         direct_response=(
-            "Mình chỉ hỗ trợ phạm vi AirGuard: PM2.5, lịch sử/so sánh trạm, thời tiết, dự báo, "
+            "Mình chỉ hỗ trợ phạm vi AirGuard: AQI/mức độ ảnh hưởng, PM2.5, lịch sử/so sánh trạm, thời tiết, dự báo, "
             "cảnh báo và proposal có manager review."
         ),
     )

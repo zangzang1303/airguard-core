@@ -81,6 +81,9 @@ def simulate_pm25(station: dict[str, Any], counter: int, now: datetime) -> tuple
         "humidity": float(random.randint(55, 85)),
         "wind_speed": round(wind_speed, 1),
         "rainfall": float(rainfall),
+        # Separate environmental metrics; this is not the PM2.5 random noise above.
+        "co2": round(max(420, 560 + loc * 13 + scenario_adjustment(station, counter, now) * 6 + random.gauss(0, 25)), 1),
+        "noise_db": round(max(35, min(105, 50 + loc * 1.6 + (10 if SCENARIO == "rush-hour" else 0) + random.gauss(0, 4))), 1),
     }
     return round(max(1, value), 2), weather
 

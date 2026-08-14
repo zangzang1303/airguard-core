@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .database import Database, ServiceError, dict_cursor
+from .air_quality import aqi_category, pm25_aqi
 
 
 def pm25_level(pm25: float | None) -> str | None:
@@ -30,11 +31,11 @@ class StationService:
                     """
                     SELECT s.station_id, s.station_name, s.location_type, s.latitude, s.longitude,
                            s.description, s.active,
-                           m.pm25, m.measured_at AS updated_at, m.source,
+                           m.pm25, m.co2, m.noise_db, m.temperature, m.measured_at AS updated_at, m.source,
                            ss.status AS explicit_status, ss.last_seen_at
                     FROM stations s
                     LEFT JOIN LATERAL (
-                        SELECT station_id, pm25, measured_at, source
+                        SELECT station_id, pm25, co2, noise_db, temperature, measured_at, source
                         FROM measurements
                         WHERE station_id = s.station_id AND quality_flag = 'valid'
                         ORDER BY measured_at DESC
@@ -53,11 +54,11 @@ class StationService:
                     """
                     SELECT s.station_id, s.station_name, s.location_type, s.latitude, s.longitude,
                            s.description, s.active,
-                           m.pm25, m.measured_at AS updated_at, m.source,
+                           m.pm25, m.co2, m.noise_db, m.temperature, m.measured_at AS updated_at, m.source,
                            ss.status AS explicit_status, ss.last_seen_at
                     FROM stations s
                     LEFT JOIN LATERAL (
-                        SELECT station_id, pm25, measured_at, source
+                        SELECT station_id, pm25, co2, noise_db, temperature, measured_at, source
                         FROM measurements
                         WHERE station_id = s.station_id AND quality_flag = 'valid'
                         ORDER BY measured_at DESC
@@ -79,7 +80,7 @@ class StationService:
             with dict_cursor(conn) as cur:
                 cur.execute(
                     """
-                    SELECT station_id, message_id, measured_at, received_at, pm25, temperature, humidity,
+                    SELECT station_id, message_id, measured_at, received_at, pm25, co2, noise_db, temperature, humidity,
                            wind_speed, wind_direction, rainfall, source, quality_flag
                     FROM measurements
                     WHERE station_id = %s
@@ -90,6 +91,25 @@ class StationService:
                     (station_id, hours),
                 )
                 return {"station_id": station_id, "hours": hours, "items": [dict(row) for row in cur.fetchall()]}
+
+    def get_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
+        """Return the recent valid series used by the short-term forecast model."""
+        self.ensure_station(station_id)
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    SELECT measured_at, pm25, source
+                    FROM measurements
+                    WHERE station_id = %s
+                      AND quality_flag = 'valid'
+                      AND measured_at >= NOW() - INTERVAL '90 minutes'
+                    ORDER BY measured_at DESC
+                    LIMIT 24
+                    """,
+                    (station_id,),
+                )
+                return list(reversed([dict(row) for row in cur.fetchall()]))
 
     def compare_stations(self, station_ids: list[str]) -> dict[str, Any]:
         """Return only current, valid and fresh measurements for requested stations."""
@@ -157,6 +177,7 @@ class StationService:
         is_stale = self._is_stale(last_seen) if status == "online" else True
         effective_status = "stale" if is_stale and status == "online" else status
         pm25 = None if is_stale else row.get("pm25")
+        aqi = pm25_aqi(pm25)
         freshness = "fresh" if pm25 is not None and not is_stale and effective_status == "online" else (
             "stale" if is_stale else "unavailable"
         )
@@ -169,6 +190,12 @@ class StationService:
             "description": row.get("description"),
             "active": row.get("active", True),
             "pm25": pm25,
+            "aqi": aqi,
+            "aqi_category": aqi_category(aqi),
+            "aqi_standard": "US_EPA_PM25_24H_2012",
+            "co2": None if is_stale else row.get("co2"),
+            "noise_db": None if is_stale else row.get("noise_db"),
+            "temperature": None if is_stale else row.get("temperature"),
             "level": pm25_level(pm25),
             "status": effective_status,
             "is_stale": is_stale,

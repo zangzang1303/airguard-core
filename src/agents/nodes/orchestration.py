@@ -6,11 +6,14 @@ from uuid import uuid4
 
 from src.agents.policies.grounding import GROUNDING_POLICY_VERSION, Intent, RouteDecision, route_query
 from src.agents.policies.proposal_eligibility import PROPOSAL_POLICY_VERSION
+from src.agents.policies.impact_assessment import IMPACT_POLICY_VERSION
 from src.agents.policies.recommendations import RECOMMENDATION_POLICY_VERSION
 from src.agents.response_composer import compose_response
 from src.agents.state import AgentState
 from src.agents.tools.contracts import ToolError, ToolErrorCode
 from src.agents.trace import emit_trace
+from src.config import get_settings
+from src.services.llm import get_llm
 
 
 def route_node(state: AgentState) -> dict[str, Any]:
@@ -107,7 +110,54 @@ def compose_node(state: AgentState) -> dict[str, Any]:
     }
     if composed.get("recommendation_policy_version"):
         result["recommendation_policy_version"] = composed["recommendation_policy_version"]
+    if decision.intent == Intent.IMPACT:
+        result["impact_policy_version"] = IMPACT_POLICY_VERSION
     return result
+
+
+async def generate_explanation_node(state: AgentState) -> dict[str, Any]:
+    """Use a live model only after deterministic grounding has accepted the evidence.
+
+    The model is allowed to add a plain-language explanation but cannot replace the
+    fact-bearing deterministic answer. Provider outages retain that answer and are
+    explicitly traced as a fallback, never as a successful live generation.
+    """
+    settings = get_settings()
+    base_answer = state.get("answer", "")
+    fallback = {"generation_mode": "deterministic_grounded", "provider": None, "model": None}
+    if not settings.openai_api_key or state.get("outcome") != "answered":
+        return {"generation": fallback}
+    evidence = state.get("sources", [])
+    started = perf_counter()
+    try:
+        llm = get_llm()
+        prompt = (
+            "You explain an already-grounded environmental answer. Do not add, change, infer, "
+            "or repeat any measurements, timestamps, station names, forecast values, thresholds, "
+            "medical advice, or claims of certainty. Write one short Vietnamese sentence that only "
+            "explains how to interpret the evidence limitation.\n"
+            f"Grounded answer (immutable): {base_answer}\n"
+            f"Evidence references: {evidence}\n"
+            "Return only the one explanatory sentence."
+        )
+        reply = await llm.ainvoke(prompt)
+        explanation = str(reply.content).strip()
+        # No numeric facts or station identifiers may come from the model-generated suffix.
+        if not explanation or any(character.isdigit() for character in explanation) or "S0" in explanation.upper():
+            raise ValueError("model output failed explanation safety validation")
+        usage = getattr(reply, "usage_metadata", None) or {}
+        return {
+            "answer": f"{base_answer}\n\nGiải thích: {explanation}",
+            "generation": {
+                "generation_mode": "live_llm",
+                "provider": "openai",
+                "model": settings.model_name,
+                "latency_ms": round((perf_counter() - started) * 1000, 3),
+                "token_usage": dict(usage),
+            },
+        }
+    except Exception as exc:
+        return {"generation": {**fallback, "failure_code": exc.__class__.__name__, "latency_ms": round((perf_counter() - started) * 1000, 3)}}
 
 
 def trace_node(state: AgentState) -> dict[str, Any]:
@@ -120,9 +170,12 @@ def trace_node(state: AgentState) -> dict[str, Any]:
         "safety_category": decision.safety_category.value if decision.safety_category else None,
         "final_outcome": state.get("outcome", "unknown"),
         "latency_ms": round((perf_counter() - state["started_at"]) * 1000, 3),
+        **state.get("generation", {"generation_mode": "deterministic_grounded"}),
     }
     if decision.intent == Intent.RECOMMENDATION:
         trace["recommendation_policy_version"] = RECOMMENDATION_POLICY_VERSION
+    if decision.intent == Intent.IMPACT:
+        trace["impact_policy_version"] = IMPACT_POLICY_VERSION
     if decision.intent == Intent.PROPOSAL and decision.safety_category is None:
         trace["proposal_policy_version"] = PROPOSAL_POLICY_VERSION
     emit_trace(trace)

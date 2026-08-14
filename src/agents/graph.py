@@ -5,7 +5,7 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph
 
-from src.agents.nodes.orchestration import compose_node, execute_tools_node, route_after_intent, route_node, trace_node
+from src.agents.nodes.orchestration import compose_node, execute_tools_node, generate_explanation_node, route_after_intent, route_node, trace_node
 from src.agents.nodes.proposal_workflow import run_proposal_workflow
 from src.agents.state import AgentState
 from src.agents.tools.backend_client import BackendToolClient
@@ -27,12 +27,14 @@ def build_graph(tool_client: Any | None = None):
     graph.add_node("execute_tools", partial(execute_tools_node, tool_client=tool_client))
     graph.add_node("create_proposal", partial(create_proposal_node, tool_client=tool_client))
     graph.add_node("compose", compose_node)
+    graph.add_node("generate_explanation", generate_explanation_node)
     graph.add_node("trace", trace_node)
     graph.set_entry_point("route")
     graph.add_conditional_edges("route", route_after_intent)
     graph.add_edge("execute_tools", "compose")
     graph.add_edge("create_proposal", "compose")
-    graph.add_edge("compose", "trace")
+    graph.add_edge("compose", "generate_explanation")
+    graph.add_edge("generate_explanation", "trace")
     graph.add_edge("trace", END)
     return graph.compile()
 

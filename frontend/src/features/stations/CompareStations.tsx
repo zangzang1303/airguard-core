@@ -143,7 +143,7 @@ export const CompareStations: React.FC = () => {
           <div className="metric-value" style={{ color: sevA.color }}>
             {stationA.pm25 ?? "N/A"} <small>µg/m³</small>
           </div>
-          <DataQualityBadge status={stationA.status} isStale={stationA.is_stale} pm25={stationA.pm25} />
+          <DataQualityBadge status={stationA.status} isStale={stationA.is_stale} pm25={stationA.pm25} aqi={stationA.aqi} />
           
           <div className="compare-details">
             <div><Thermometer size={16} aria-hidden="true" /> Nhiệt độ: <strong>{stationA.weather?.temperature ?? "Không khả dụng"}{stationA.weather ? " °C" : ""}</strong></div>
@@ -160,7 +160,7 @@ export const CompareStations: React.FC = () => {
           <div className="metric-value" style={{ color: sevB.color }}>
             {stationB.pm25 ?? "N/A"} <small>µg/m³</small>
           </div>
-          <DataQualityBadge status={stationB.status} isStale={stationB.is_stale} pm25={stationB.pm25} />
+          <DataQualityBadge status={stationB.status} isStale={stationB.is_stale} pm25={stationB.pm25} aqi={stationB.aqi} />
 
           <div className="compare-details">
             <div><Thermometer size={16} aria-hidden="true" /> Nhiệt độ: <strong>{stationB.weather?.temperature ?? "Không khả dụng"}{stationB.weather ? " °C" : ""}</strong></div>

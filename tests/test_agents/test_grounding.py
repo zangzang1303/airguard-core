@@ -6,7 +6,7 @@ import pytest
 
 from src.agents.graph import build_graph
 from src.agents.policies.grounding import Intent, SafetyCategory, route_query
-from src.agents.response_composer import INSUFFICIENT_DATA_MESSAGE
+from src.agents.response_composer import INSUFFICIENT_DATA_MESSAGE, compose_response
 from src.agents.tools.contracts import ToolEnvelope, ToolError, ToolErrorCode, ToolName
 from src.agents.tools.fake_adapter import DEFAULT_FIXTURES, FakeBackendToolClient
 from src.agents.trace import emit_trace
@@ -130,6 +130,43 @@ async def test_user_instruction_cannot_disable_required_tool_call():
 
     assert result["used_tools"] == ["get_current_pm25"]
     assert "22.4" in result["answer"]
+
+
+def test_current_station_response_is_aqi_first_and_includes_all_environmental_readings() -> None:
+    decision = route_query("Chất lượng không khí tại S01 hiện tại thế nào?")
+    current = dict(DEFAULT_FIXTURES["current"]["S01"])
+    answer = compose_response(
+        decision,
+        [ToolEnvelope(tool_name=ToolName.GET_CURRENT_PM25, request_id="current-test", data=current).model_dump(mode="json")],
+    )["answer"]
+
+    assert "AQI 72" in answer
+    assert "PM2.5 22.4 µg/m³" in answer
+    assert "CO₂ 640 ppm" in answer
+    assert "tiếng ồn 54 dB" in answer
+    assert "nhiệt độ 30 °C" in answer
+
+
+def test_impact_intent_uses_current_environmental_snapshot() -> None:
+    decision = route_query("Đánh giá mức độ ảnh hưởng môi trường tại S02")
+
+    assert decision.intent == Intent.IMPACT
+    assert decision.tool_calls == [ToolName.GET_CURRENT_PM25]
+    assert decision.tool_arguments == [{"station_id": "S02"}]
+
+
+def test_impact_response_is_aqi_first_and_non_medical() -> None:
+    decision = route_query("Đánh giá mức độ ảnh hưởng môi trường tại S02")
+    current = dict(DEFAULT_FIXTURES["current"]["S02"])
+    answer = compose_response(
+        decision,
+        [ToolEnvelope(tool_name=ToolName.GET_CURRENT_PM25, request_id="impact-test", data=current).model_dump(mode="json")],
+    )["answer"]
+
+    assert "Đánh giá mức độ ảnh hưởng tại S02: Rất cao" in answer
+    assert "AQI 151" in answer
+    assert "CO₂ 1080 ppm" in answer
+    assert "không phải chẩn đoán sức khỏe" in answer
 
 
 @pytest.mark.asyncio

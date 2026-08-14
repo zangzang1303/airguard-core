@@ -7,7 +7,7 @@
 Topic: `airguard/stations/{station_id}/measurements`.
 
 ```json
-{"message_id":"MSG-S01-0001","station_id":"S01","pm25":42.5,"temperature":30.1,"humidity":72,"wind_speed":2.4,"rainfall":0,"timestamp":"2026-08-05T09:00:00+07:00","source":"simulator"}
+{"message_id":"MSG-S01-0001","station_id":"S01","pm25":42.5,"co2":610,"noise_db":58,"temperature":30.1,"humidity":72,"wind_speed":2.4,"rainfall":0,"timestamp":"2026-08-05T09:00:00+07:00","source":"simulator"}
 ```
 
 Required fields: `message_id`, `station_id`, `pm25`, `timestamp`, `source`.
@@ -25,6 +25,8 @@ Validation rules for MVP:
 | Timestamp | RFC3339 with timezone; future skew and stale threshold are config-driven |
 | Source | must be `simulator` |
 | PM2.5 | numeric, `0..500` |
+| CO₂ | optional numeric ppm, `250..10000` |
+| Noise | optional numeric dB, `20..140`; a separate sound-pressure metric, not PM2.5 noise |
 | Temperature | optional numeric, `-20..60` |
 | Humidity | optional numeric, `0..100` |
 | Wind speed | optional numeric, `0..60` |
