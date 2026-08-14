@@ -121,6 +121,46 @@ def test_stale_timestamp_is_rejected() -> None:
     assert result.reason == ValidationErrorCode.STALE
 
 
+def test_duplicate_message_is_a_persistence_rejection_reason() -> None:
+    """The validator accepts delivery retries; storage owns message_id uniqueness."""
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    first = validate_measurement_message(
+        "airguard/stations/S01/measurements", payload(), catalog(), now=now
+    )
+    retry = validate_measurement_message(
+        "airguard/stations/S01/measurements", payload(), catalog(), now=now
+    )
+
+    assert first.accepted is True
+    assert retry.accepted is True
+    assert first.payload is not None and retry.payload is not None
+    assert first.payload.message_id == retry.payload.message_id
+
+
+def test_offline_and_recovery_statuses_are_valid_ordered_events() -> None:
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    offline = validate_status_message(
+        "airguard/stations/S01/status",
+        '{"station_id":"S01","status":"offline","timestamp":"2026-08-03T08:00:00+00:00",'
+        '"source":"simulator","reason":"station_silence_scenario"}',
+        catalog(),
+        now=now,
+    )
+    recovery = validate_status_message(
+        "airguard/stations/S01/status",
+        '{"station_id":"S01","status":"online","timestamp":"2026-08-03T08:00:01+00:00",'
+        '"source":"simulator","reason":"heartbeat"}',
+        catalog(),
+        now=now,
+    )
+
+    assert offline.accepted is True and recovery.accepted is True
+    assert offline.payload is not None and recovery.payload is not None
+    assert offline.payload.status == "offline"
+    assert recovery.payload.status == "online"
+    assert recovery.payload.timestamp > offline.payload.timestamp
+
+
 def test_valid_station_status_accepts_source_and_timezone() -> None:
     now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
     result = validate_status_message(

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ArrowRight,
@@ -12,14 +12,16 @@ import {
   Search,
   Sparkles,
   TriangleAlert,
+  Thermometer,
+  Volume2,
   Wifi,
   WifiOff,
   Wind,
 } from "lucide-react";
-import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-leaflet";
-import { api } from "../../api/client";
+import { Circle, CircleMarker, MapContainer, Polygon, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
+import { api, FALLBACK_ALERTS, FALLBACK_STATIONS } from "../../api/client";
 import { Button } from "../../components/common/Button";
-import { DataQualityBadge, getPm25Severity } from "../../components/common/DataQualityBadge";
+import { DataQualityBadge } from "../../components/common/DataQualityBadge";
 import { PageHeader } from "../../components/common/PageHeader";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
@@ -33,6 +35,50 @@ const severityLabel: Record<Alert["severity"], string> = {
   critical: "Nghiêm trọng",
 };
 
+const getAqiColor = (aqi: number | null | undefined) => {
+  if (aqi == null) return "var(--pm25-offline)";
+  if (aqi <= 50) return "#22a06b";
+  if (aqi <= 100) return "#e6a700";
+  if (aqi <= 150) return "#f97316";
+  if (aqi <= 200) return "#e5484d";
+  return "#7c3aed";
+};
+
+// Simplified from OpenStreetMap way 761986888 (Vinhomes Ocean Park residential area),
+// retrieved 2026-08-13. Dashboard scope only; it is not an administrative/legal boundary.
+const OCEAN_PARK_1_BOUNDARY: [number, number][] = [
+  [21.0047847, 105.9477604],
+  [20.9933962, 105.9628773],
+  [20.9890436, 105.9600712],
+  [20.9852230, 105.9518985],
+  [20.9840728, 105.9509930],
+  [20.9851752, 105.9432602],
+  [20.9921545, 105.9371584],
+  [20.9968500, 105.9334673],
+  [20.9980664, 105.9352872],
+  [21.0017814, 105.9420739],
+];
+
+const MAP_OUTER_MASK: [number, number][] = [
+  [85, -180],
+  [85, 180],
+  [-85, 180],
+  [-85, -180],
+];
+
+const MAP_MAX_BOUNDS: [[number, number], [number, number]] = [
+  [20.978, 105.925],
+  [21.012, 105.971],
+];
+
+const MapFocus: React.FC = () => {
+  const map = useMap();
+  useEffect(() => {
+    map.fitBounds(OCEAN_PARK_1_BOUNDARY, { padding: [34, 34], maxZoom: 15 });
+  }, [map]);
+  return null;
+};
+
 export const Dashboard: React.FC = () => {
   const { navigateTo, setSelectedStationId } = useAuth();
   const [stations, setStations] = useState<Station[]>([]);
@@ -41,28 +87,46 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showHeatmap, setShowHeatmap] = useState(true);
+  const [usingFixture, setUsingFixture] = useState(false);
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [stationData, alertData] = await Promise.all([api.getStations(), api.getAlerts()]);
       setStations(stationData);
       setAlerts(alertData);
+      setUsingFixture(false);
       setActiveStationId((current) => {
         if (current && stationData.some((station) => station.station_id === current)) return current;
-        return stationData[0]?.station_id ?? null;
+        return null;
       });
     } catch {
+      setStations(FALLBACK_STATIONS);
+      setAlerts(FALLBACK_ALERTS);
+      setUsingFixture(true);
+      setActiveStationId((current) => current ?? null);
       setError("Không thể tải đầy đủ dữ liệu Dashboard. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDashboard();
-  }, []);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") fetchDashboard();
+    }, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchDashboard();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [fetchDashboard]);
 
   const filteredStations = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase("vi");
@@ -73,7 +137,7 @@ export const Dashboard: React.FC = () => {
   }, [stations, searchQuery]);
 
   const selectedStation = useMemo(
-    () => stations.find((station) => station.station_id === activeStationId) ?? stations[0] ?? null,
+    () => stations.find((station) => station.station_id === activeStationId) ?? null,
     [activeStationId, stations],
   );
 
@@ -81,14 +145,15 @@ export const Dashboard: React.FC = () => {
     () => stations.filter((station) => station.pm25 !== null && station.status === "online" && !station.is_stale),
     [stations],
   );
-  const averagePm25 = validStations.length
-    ? Math.round((validStations.reduce((sum, station) => sum + Number(station.pm25), 0) / validStations.length) * 10) / 10
+  const averageAqi = validStations.length
+    ? Math.round(validStations.reduce((sum, station) => sum + Number(station.aqi ?? 0), 0) / validStations.length)
     : null;
   const onlineCount = stations.filter((station) => station.status === "online").length;
   const freshOnlineCount = stations.filter((station) => station.status === "online" && !station.is_stale).length;
   const offlineCount = stations.filter((station) => station.status === "offline").length;
   const staleCount = stations.filter((station) => station.is_stale).length;
   const activeAlerts = alerts.filter((alert) => alert.status === "active");
+  const heatColor = (station: Station) => getAqiColor(station.aqi);
 
   const selectStation = (stationId: string) => setActiveStationId(stationId);
 
@@ -106,7 +171,7 @@ export const Dashboard: React.FC = () => {
     <div className="dashboard-container dashboard-modern">
       <PageHeader
         title="Tổng quan chất lượng không khí"
-        description="Theo dõi PM2.5, độ mới dữ liệu và cảnh báo tại các trạm quanh VinUni và Vinhomes Ocean Park."
+        description="AQI là chỉ số tổng quan; mở một trạm để xem các thành phần PM2.5, CO₂, tiếng ồn và nhiệt độ."
         actions={(
           <Button variant="outline" size="sm" onClick={fetchDashboard} disabled={loading}>
             <RefreshCw className={loading ? "is-spinning" : ""} size={16} aria-hidden="true" />
@@ -116,23 +181,23 @@ export const Dashboard: React.FC = () => {
       />
 
       <section className="dashboard-kpis" aria-label="Tổng quan hệ thống">
-        <article className="dashboard-kpi dashboard-kpi--primary">
-          <span className="dashboard-kpi__icon"><MapPin size={20} aria-hidden="true" /></span>
+        <article className="dashboard-kpi dashboard-kpi--primary dashboard-kpi--aqi-primary">
+          <span className="dashboard-kpi__icon"><Activity size={20} aria-hidden="true" /></span>
           <div className="dashboard-kpi__copy">
-            <span>Trạm quan trắc</span>
-            <strong>{loading ? "—" : stations.length}</strong>
-            <small>Danh mục S01–S05</small>
+            <span>AQI trung bình</span>
+            <strong>{averageAqi ?? "—"}</strong>
+            <small>Chỉ số chất lượng không khí tổng quan</small>
           </div>
           <Activity size={46} className="dashboard-kpi__watermark" aria-hidden="true" />
         </article>
         <article className="dashboard-kpi dashboard-kpi--info">
-          <span className="dashboard-kpi__icon"><Wind size={20} aria-hidden="true" /></span>
+          <span className="dashboard-kpi__icon"><MapPin size={20} aria-hidden="true" /></span>
           <div className="dashboard-kpi__copy">
-            <span>PM2.5 trung bình</span>
-            <strong>{averagePm25 ?? "—"}<em>{averagePm25 !== null ? " µg/m³" : ""}</em></strong>
+            <span>Trạm quan trắc</span>
+            <strong>{loading ? "—" : stations.length}</strong>
             <small>{validStations.length} trạm có dữ liệu hợp lệ</small>
           </div>
-          <Wind size={46} className="dashboard-kpi__watermark" aria-hidden="true" />
+          <MapPin size={46} className="dashboard-kpi__watermark" aria-hidden="true" />
         </article>
         <article className="dashboard-kpi dashboard-kpi--success">
           <span className="dashboard-kpi__icon"><Radio size={20} aria-hidden="true" /></span>
@@ -154,6 +219,17 @@ export const Dashboard: React.FC = () => {
         </article>
       </section>
 
+      {selectedStation && (
+        <section className="dashboard-environment-metrics" aria-label="Chỉ số môi trường của trạm đang chọn">
+          <div className="dashboard-environment-heading"><span>Chỉ số tại trạm</span><strong>{selectedStation.station_id} · {selectedStation.station_name}</strong><small>Cập nhật {formatVnDateTime(selectedStation.updated_at)}</small></div>
+          <article className="environment-metric environment-metric--aqi"><Activity size={19} /><div><span>AQI</span><strong>{selectedStation.aqi ?? "—"}</strong><small>{selectedStation.aqi_category ?? "PM2.5 sub-index"}</small></div></article>
+          <article className="environment-metric environment-metric--pm25"><Wind size={19} /><div><span>PM2.5</span><strong>{selectedStation.pm25 ?? "—"}<em>{selectedStation.pm25 != null ? " µg/m³" : ""}</em></strong><small>Thành phần tạo AQI</small></div></article>
+          <article className="environment-metric environment-metric--co2"><Database size={19} /><div><span>CO₂</span><strong>{selectedStation.co2 ?? "—"}<em>{selectedStation.co2 != null ? " ppm" : ""}</em></strong><small>Carbon dioxide</small></div></article>
+          <article className="environment-metric environment-metric--noise"><Volume2 size={19} /><div><span>Tiếng ồn</span><strong>{selectedStation.noise_db ?? "—"}<em>{selectedStation.noise_db != null ? " dB" : ""}</em></strong><small>Sound pressure</small></div></article>
+          <article className="environment-metric environment-metric--temp"><Thermometer size={19} /><div><span>Nhiệt độ</span><strong>{selectedStation.temperature ?? "—"}<em>{selectedStation.temperature != null ? " °C" : ""}</em></strong><small>Không khí xung quanh</small></div></article>
+        </section>
+      )}
+
       {error && (
         <div className="alert-box alert-warning" role="alert">
           <TriangleAlert size={17} aria-hidden="true" />
@@ -167,12 +243,14 @@ export const Dashboard: React.FC = () => {
           <header className="dashboard-panel-header">
             <div>
               <span className="dashboard-eyebrow"><LocateFixed size={14} aria-hidden="true" /> Bản đồ khu vực</span>
-              <h2 id="dashboard-map-title">VinUni · Vinhomes Ocean Park</h2>
+              <h2 id="dashboard-map-title">Vinhomes Ocean Park 1</h2>
             </div>
             <div className="dashboard-map-legend" aria-label="Chú thích trạng thái">
               <span><i className="legend-dot legend-dot--online" />Online</span>
               <span><i className="legend-dot legend-dot--stale" />Dữ liệu cũ</span>
               <span><i className="legend-dot legend-dot--offline" />Offline</span>
+              <span><i className="legend-boundary" />Khu kiểm soát</span>
+              <button type="button" className={`dashboard-heat-toggle${showHeatmap ? " is-active" : ""}`} onClick={() => setShowHeatmap((value) => !value)}>{showHeatmap ? "Ẩn vùng nhiệt" : "Hiện vùng nhiệt"}</button>
             </div>
           </header>
 
@@ -184,21 +262,52 @@ export const Dashboard: React.FC = () => {
               </div>
             ) : (
               <MapContainer
-                center={[20.9446, 105.9447]}
-                zoom={16}
+                center={[20.9945, 105.9482]}
+                zoom={15}
+                minZoom={13}
                 scrollWheelZoom={false}
+                maxBounds={MAP_MAX_BOUNDS}
+                maxBoundsViscosity={1}
                 className="dashboard-map"
               >
+                <MapFocus />
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
+                {showHeatmap && stations.filter((station) => station.status === "online" && !station.is_stale && station.pm25 !== null).map((station) => (
+                  <Circle
+                    key={`heat-${station.station_id}`}
+                    center={[station.latitude, station.longitude]}
+                    radius={105 + Math.min(Number(station.aqi ?? station.pm25) || 0, 250) * 1.1}
+                    pathOptions={{ color: heatColor(station), fillColor: heatColor(station), fillOpacity: 0.18, weight: 0 }}
+                  />
+                ))}
+                <Polygon
+                  positions={[MAP_OUTER_MASK, [...OCEAN_PARK_1_BOUNDARY].reverse()]}
+                  pathOptions={{
+                    color: "transparent",
+                    fillColor: "#334155",
+                    fillOpacity: 0.78,
+                    fillRule: "evenodd",
+                    interactive: false,
+                  }}
+                />
+                <Polygon
+                  positions={OCEAN_PARK_1_BOUNDARY}
+                  pathOptions={{
+                    color: "#6366f1",
+                    weight: 5,
+                    dashArray: "12 7",
+                    fill: false,
+                    interactive: false,
+                  }}
+                />
                 {stations.map((station) => {
-                  const severity = getPm25Severity(station.pm25);
                   const isSelected = selectedStation?.station_id === station.station_id;
                   const fillColor = station.status === "offline"
                     ? "var(--pm25-offline)"
-                    : station.is_stale ? "var(--color-warning-500)" : severity.color;
+                    : station.is_stale ? "var(--color-warning-500)" : getAqiColor(station.aqi);
                   return (
                     <CircleMarker
                       key={station.station_id}
@@ -214,13 +323,14 @@ export const Dashboard: React.FC = () => {
                     >
                       <Tooltip direction="top" offset={[0, -12]} opacity={1}>
                         <strong>{station.station_id} · {station.station_name}</strong><br />
-                        PM2.5: {station.pm25 ?? "Không khả dụng"}{station.pm25 !== null ? " µg/m³" : ""}
+                        AQI: {station.aqi ?? "Không khả dụng"}
                       </Tooltip>
                       <Popup>
                         <div className="popup-content">
                           <h3>{station.station_name} ({station.station_id})</h3>
-                          <div className="popup-pm25">PM2.5: <strong>{station.pm25 ?? "N/A"} µg/m³</strong></div>
-                          <DataQualityBadge status={station.status} isStale={station.is_stale} pm25={station.pm25} />
+                          <div className="popup-pm25">AQI: <strong>{station.aqi ?? "—"}</strong></div>
+                          <p className="popup-environment">PM2.5: <strong>{station.pm25 ?? "—"} µg/m³</strong><br />CO₂: <strong>{station.co2 ?? "—"} ppm</strong><br />Tiếng ồn: <strong>{station.noise_db ?? "—"} dB</strong><br />Nhiệt độ: <strong>{station.temperature ?? "—"} °C</strong></p>
+                          <DataQualityBadge status={station.status} isStale={station.is_stale} pm25={station.pm25} aqi={station.aqi} />
                           <Button variant="primary" size="sm" onClick={() => openStationDetail(station.station_id)}>Xem chi tiết</Button>
                         </div>
                       </Popup>
@@ -229,6 +339,10 @@ export const Dashboard: React.FC = () => {
                 })}
               </MapContainer>
             )}
+          </div>
+          <div className="dashboard-map-footnote">
+            <span className="dashboard-map-footnote__scope"><i /> Phạm vi giám sát Ocean Park 1</span>
+            <span>{usingFixture ? "Fixture simulator · " : ""}Vùng màu là cường độ AQI, không phải mô hình lan truyền.</span>
           </div>
 
           {selectedStation && (
@@ -242,11 +356,11 @@ export const Dashboard: React.FC = () => {
                 </div>
               </div>
               <div className="dashboard-selected-station__reading">
-                <span>PM2.5 hiện tại</span>
-                <strong style={{ color: getPm25Severity(selectedStation.pm25).color }}>
-                  {selectedStation.pm25 ?? "—"}<em>{selectedStation.pm25 !== null ? " µg/m³" : ""}</em>
+                <span>AQI hiện tại</span>
+                <strong style={{ color: getAqiColor(selectedStation.aqi) }}>
+                  {selectedStation.aqi ?? "—"}
                 </strong>
-                <DataQualityBadge status={selectedStation.status} isStale={selectedStation.is_stale} pm25={selectedStation.pm25} />
+                <DataQualityBadge status={selectedStation.status} isStale={selectedStation.is_stale} pm25={selectedStation.pm25} aqi={selectedStation.aqi} />
               </div>
               <div className="dashboard-selected-station__actions">
                 <Button variant="outline" size="sm" onClick={() => askAiAboutStation(selectedStation.station_id)}>
@@ -327,7 +441,6 @@ export const Dashboard: React.FC = () => {
             </label>
             <div className="dashboard-station-list">
               {filteredStations.map((station) => {
-                const severity = getPm25Severity(station.pm25);
                 const isSelected = selectedStation?.station_id === station.station_id;
                 return (
                   <button
@@ -337,10 +450,10 @@ export const Dashboard: React.FC = () => {
                     aria-pressed={isSelected}
                     onClick={() => selectStation(station.station_id)}
                   >
-                    <span className="dashboard-station-row__status" style={{ background: station.status === "offline" ? "var(--pm25-offline)" : severity.color }} />
+                    <span className="dashboard-station-row__status" style={{ background: station.status === "offline" ? "var(--pm25-offline)" : getAqiColor(station.aqi) }} />
                     <span className="dashboard-station-row__identity"><b>{station.station_id}</b><span>{station.station_name}</span></span>
-                    <span className="dashboard-station-row__value" style={{ color: severity.color }}>
-                      <strong>{station.pm25 ?? "—"}</strong><small>{station.pm25 !== null ? "µg/m³" : "Offline"}</small>
+                    <span className="dashboard-station-row__value" style={{ color: getAqiColor(station.aqi) }}>
+                      <strong>{station.aqi ?? "—"}</strong><small>{station.aqi != null ? "AQI" : "Offline"}</small>
                     </span>
                   </button>
                 );

@@ -184,6 +184,11 @@ export interface Station {
   latitude: number;
   longitude: number;
   pm25: number | null;
+  aqi?: number | null;
+  aqi_category?: string | null;
+  co2?: number | null;
+  noise_db?: number | null;
+  temperature?: number | null;
   status: StationStatus;
   is_stale: boolean;
   updated_at: string;
@@ -213,6 +218,7 @@ export interface ForecastHorizon {
   horizon: string;
   pm25_predicted: number;
   range: [number, number];
+  confidence?: number;
 }
 
 export interface ForecastData {
@@ -220,16 +226,22 @@ export interface ForecastData {
   horizon_hours: number;
   source: string;
   confidence: string;
+  model_name?: string;
+  limitations?: string[];
   forecasts: ForecastHorizon[];
 }
 
 export interface Alert {
   alert_id: string;
   station_id: string;
+  alert_type: string;
   severity: "warning" | "moderate" | "critical" | "good";
+  title: string;
   message: string;
   observed_value: number;
   threshold: number;
+  unit?: string;
+  recommendation?: string;
   status: "active" | "resolved";
   created_at: string;
 }

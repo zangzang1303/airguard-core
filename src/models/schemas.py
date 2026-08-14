@@ -37,6 +37,7 @@ class ChatResponse(BaseModel):
     request_id: str
     proposal_id: str | None = None
     recommendation_policy_version: str | None = None
+    impact_policy_version: str | None = None
     trace: dict[str, Any] = Field(default_factory=dict)
     # Compatibility fields for the original template client.
     response: str = Field(default="", description="Deprecated alias of answer")

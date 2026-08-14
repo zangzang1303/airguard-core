@@ -17,7 +17,7 @@ from .services.approval_service import ApprovalService, configure_default_servic
 from .services.audit_service import AuditService
 from .services.database import Database, ServiceError
 from .services.device_service import DeviceService
-from .services.forecast_service import baseline_forecast
+from .services.forecast_service import InsufficientForecastHistory, trend_forecast
 from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.station_service import StationService
@@ -107,6 +107,15 @@ alert_engine = AlertEngine(
     rule_version=settings.alert_rule_version,
     consecutive_measurements=settings.alert_consecutive_measurements,
     stale_after_seconds=settings.stale_after_seconds,
+    environmental_rule_version=settings.environmental_alert_rule_version,
+    aqi_warning_threshold=settings.aqi_warning_threshold,
+    aqi_critical_threshold=settings.aqi_critical_threshold,
+    co2_warning_threshold=settings.co2_warning_threshold,
+    co2_critical_threshold=settings.co2_critical_threshold,
+    noise_warning_threshold=settings.noise_warning_threshold,
+    noise_critical_threshold=settings.noise_critical_threshold,
+    temperature_warning_threshold=settings.temperature_warning_threshold,
+    temperature_critical_threshold=settings.temperature_critical_threshold,
 )
 configure_default_service(approval_service)
 agent_service = AgentService(
@@ -280,15 +289,15 @@ def get_station_forecast(station_id: str, hours: int = Query(default=3, ge=1, le
     station = station_service.get_station(station_id)
     if station["pm25"] is None or station["is_stale"]:
         raise ServiceError("insufficient_fresh_data", "Fresh PM2.5 data is required for forecast", 503)
-    return {
-        "station_id": station_id,
-        "items": baseline_forecast(float(station["pm25"]), hours),
-        "source": "baseline_current_pm25",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "freshness": "fresh",
-        "confidence": "low",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    try:
+        forecast = trend_forecast(station_service.get_forecast_history(station_id), hours)
+    except InsufficientForecastHistory as exc:
+        raise ServiceError(
+            "insufficient_forecast_history",
+            "At least three recent valid measurements are required for forecast",
+            503,
+        ) from exc
+    return {"station_id": station_id, **forecast, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)
@@ -344,7 +353,16 @@ def create_forecast_job(request: ForecastJobRequest) -> dict:
     station = station_service.get_station(request.station_id)
     if station["pm25"] is None or station["is_stale"]:
         raise ServiceError("insufficient_fresh_data", "Fresh PM2.5 data is required for forecast", 503)
-    payload = {"station_id": request.station_id, "current_pm25": station["pm25"], "hours": request.hours}
+    history = station_service.get_forecast_history(request.station_id)
+    try:
+        trend_forecast(history, request.hours)
+    except InsufficientForecastHistory as exc:
+        raise ServiceError(
+            "insufficient_forecast_history",
+            "At least three recent valid measurements are required for forecast",
+            503,
+        ) from exc
+    payload = {"station_id": request.station_id, "history": history, "hours": request.hours}
 
     return dispatch_job(run_forecast_job, "forecast", payload, request.idempotency_key)
 

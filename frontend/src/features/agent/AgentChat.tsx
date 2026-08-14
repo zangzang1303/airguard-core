@@ -21,7 +21,7 @@ export const AgentChat: React.FC = () => {
   const initialMessage: ChatMessage = {
     id: "msg-1",
     sender: "agent",
-    text: `Xin chào! Tôi là Trợ lý AI AirGuard. Bạn đang quan tâm đến trạm [${selectedStationId}] hoặc nhóm người dùng [${userGroup}]. Bạn cần thông tin gì về PM2.5, thời tiết hoặc cảnh báo?`,
+    text: `Xin chào! Tôi là Trợ lý AI AirGuard. AQI là chỉ số tổng quan cho trạm [${selectedStationId}]. Bạn cần xem AQI, các thành phần môi trường hay cảnh báo?`,
     timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
   };
   const [messages, setMessages] = useState<ChatMessage[]>([initialMessage]);
@@ -68,7 +68,8 @@ export const AgentChat: React.FC = () => {
 
   const presetPrompts = [
     `Chất lượng không khí trạm ${selectedStationId} hiện tại thế nào?`,
-    "Dự báo nồng độ PM2.5 3 giờ tới tại Ocean Park?",
+    `Đánh giá mức độ ảnh hưởng môi trường tại trạm ${selectedStationId}.`,
+    "AQI tại Ocean Park trong 3 giờ tới có xu hướng thế nào?",
     "Khuyên người tập thể thao ngoài trời hôm nay?",
     "Tạo đề xuất cảnh báo cho Manager nếu PM2.5 vượt 50 ug/m3!",
   ];

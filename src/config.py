@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     model_name: str = "gpt-4o-mini"
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    llm_timeout_seconds: float = Field(default=12.0, gt=0, le=60)
+    llm_max_tokens: int = Field(default=280, ge=64, le=1000)
 
     # Backend tools (the Agent has no DB or MQTT credentials)
     agent_backend_base_url: str = "http://localhost:8000"

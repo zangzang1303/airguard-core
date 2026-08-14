@@ -2,15 +2,14 @@
 """
 Shared AI hook logger — works with Claude Code, Gemini CLI, Codex, Cursor, Copilot.
 Reads JSON from stdin, normalizes to common format, appends to .ai-log/session.jsonl
-fix
 """
 import json
 import os
 import re
-import sys
 import subprocess
+import sys
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 VN_TZ = timezone(timedelta(hours=7))
@@ -25,6 +24,9 @@ _SECRET_ASSIGNMENT_RE = re.compile(
     r"password|authorization)\b(\s*[:=]\s*)([^\s,;]+)"
 )
 _BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
+_SHELL_TRANSCRIPT_RE = re.compile(
+    r"^(?:PS\s+[A-Za-z]:\\[^>]*>|[A-Za-z]:\\[^>]*>|\$\s+)"
+)
 
 
 def git(cmd):
@@ -289,7 +291,7 @@ def normalize(data: dict, tool: str) -> dict | None:
         if not prompt:
             prompt = _read_transcript_prompt(transcript_path)
         base.update({
-            "prompt": _safe_text(data.get("prompt", ""), 1000),
+            "prompt": _safe_text(prompt, 1000),
             "turn_id": data.get("turn_id", ""),
             "transcript_path": transcript_path,
         })
@@ -311,9 +313,10 @@ def normalize(data: dict, tool: str) -> dict | None:
             ),
         })
 
-    # Only keep turns that carry an actual prompt. Tool-only events (Claude
-    # PostToolUse for Bash/Read/Edit, Stop) have no prompt and are dropped.
-    if not base.get("prompt"):
+    # Only keep turns that carry an actual AI prompt. Tool-only events and
+    # captured shell transcripts are operational noise rather than user turns.
+    prompt = base.get("prompt", "")
+    if not prompt or _looks_like_terminal_transcript(prompt):
         return None
 
     return base

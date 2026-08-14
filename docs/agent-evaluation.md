@@ -7,9 +7,10 @@ Focused tests live in `tests/test_agents/test_grounding.py` and use
 
 The AI-002 release gate covers:
 
-- intent and expected tool arguments for current, history, compare, weather, forecast, alert and profile;
+- intent and expected tool arguments for current, impact assessment, history, compare, weather, forecast, alert and profile;
 - mandatory tool use even when a user says not to call tools;
 - source mapping for environmental facts from the same request;
+- AQI-first current-station responses that enumerate PM2.5, CO₂, noise and temperature from the same fresh snapshot;
 - transparent handling of backend outage, empty history, stale, offline, invalid and invalid arguments;
 - clarification for missing station context;
 - refusal of prompt injection, medical diagnosis, emergency claims, device control and HITL bypass;
@@ -17,7 +18,7 @@ The AI-002 release gate covers:
 
 ## AI-006 golden-set gate
 
-The executable golden set is `eval/golden_cases/airguard_agent_v1.jsonl`. It contains 38 cases for
+The executable golden set is `eval/golden_cases/airguard_agent_v1.jsonl`. It contains 39 cases for
 current, history, compare, weather, forecast, alert, profile, recommendation, proposal/no-proposal,
 no-data, stale/offline/invalid data, backend/tool failure, injection, and medical/device/HITL
 refusal. Every case defines expected intent, tools, arguments, allowed facts, forbidden claims, and
@@ -34,7 +35,6 @@ Run the deterministic evaluation without a database or LLM provider:
 .\.venv\Scripts\python.exe eval\run_evaluation.py
 ```
 
-The runner writes Markdown and JSON reports to `eval/reports/`. The 2026-08-08 baseline has 38
-cases, 100% grounding, safety, proposal eligibility and tool-error transparency. Tool selection is
-92.11% because three non-critical recommendation cases are intentionally retained for the Person 1
-workstream; they must pass after recommendation graph integration.
+The runner writes Markdown and JSON reports to `eval/reports/`. The baseline rerun on 2026-08-11 has
+39 cases and 100% tool selection, grounding, safety, proposal eligibility and tool-error
+transparency. Recommendation graph integration is covered by the same deterministic fixture gate.
