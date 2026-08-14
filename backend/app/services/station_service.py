@@ -90,7 +90,12 @@ class StationService:
                     """,
                     (station_id, hours),
                 )
-                return {"station_id": station_id, "hours": hours, "items": [dict(row) for row in cur.fetchall()]}
+                items = []
+                for row in cur.fetchall():
+                    item = dict(row)
+                    item["aqi"] = pm25_aqi(item.get("pm25"))
+                    items.append(item)
+                return {"station_id": station_id, "hours": hours, "items": items}
 
     def get_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
         """Return the recent valid series used by the short-term forecast model."""
@@ -99,7 +104,7 @@ class StationService:
             with dict_cursor(conn) as cur:
                 cur.execute(
                     """
-                    SELECT measured_at, pm25, source
+                    SELECT measured_at, pm25, co2, noise_db, temperature, source
                     FROM measurements
                     WHERE station_id = %s
                       AND quality_flag = 'valid'
@@ -109,7 +114,10 @@ class StationService:
                     """,
                     (station_id,),
                 )
-                return list(reversed([dict(row) for row in cur.fetchall()]))
+                history = list(reversed([dict(row) for row in cur.fetchall()]))
+                for item in history:
+                    item["aqi"] = pm25_aqi(item.get("pm25"))
+                return history
 
     def compare_stations(self, station_ids: list[str]) -> dict[str, Any]:
         """Return only current, valid and fresh measurements for requested stations."""

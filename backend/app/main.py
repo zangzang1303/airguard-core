@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timezone
+from typing import Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import Body, FastAPI, Header, Query, Request
@@ -285,12 +286,16 @@ def get_current_weather() -> dict:
 
 
 @app.get("/api/v1/stations/{station_id}/forecast")
-def get_station_forecast(station_id: str, hours: int = Query(default=3, ge=1, le=3)) -> dict:
+def get_station_forecast(
+    station_id: str,
+    hours: int = Query(default=3, ge=1, le=3),
+    metric: Literal["pm25", "aqi", "co2", "noise_db", "temperature"] = Query(default="pm25"),
+) -> dict:
     station = station_service.get_station(station_id)
-    if station["pm25"] is None or station["is_stale"]:
-        raise ServiceError("insufficient_fresh_data", "Fresh PM2.5 data is required for forecast", 503)
+    if station.get(metric) is None or station["is_stale"]:
+        raise ServiceError("insufficient_fresh_data", f"Fresh {metric} data is required for forecast", 503)
     try:
-        forecast = trend_forecast(station_service.get_forecast_history(station_id), hours)
+        forecast = trend_forecast(station_service.get_forecast_history(station_id), hours, metric=metric)
     except InsufficientForecastHistory as exc:
         raise ServiceError(
             "insufficient_forecast_history",
