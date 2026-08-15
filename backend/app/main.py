@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from fastapi import Body, FastAPI, Header, Query, Request
+from fastapi import BackgroundTasks, Body, FastAPI, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +14,7 @@ from .core import Settings
 from .schemas.measurements import MeasurementIngestionRequest
 from .services.agent_service import AgentService, AgentServiceError
 from .services.alert_engine import AlertEngine
+from .services.automatic_proposal_service import AutomaticProposalService
 from .services.approval_service import ApprovalService, configure_default_service
 from .services.audit_service import AuditService
 from .services.database import Database, ServiceError
@@ -93,7 +94,11 @@ audit_service = AuditService(db)
 station_service = StationService(db, settings.stale_after_seconds)
 user_service = UserService(db)
 device_service = DeviceService(db)
-approval_service = ApprovalService(db, audit_service)
+approval_service = ApprovalService(
+    db,
+    audit_service,
+    pending_ttl_seconds=settings.proposal_pending_ttl_seconds,
+)
 ingestion_service = MeasurementIngestionService(
     db,
     stale_after_seconds=settings.stale_after_seconds,
@@ -122,6 +127,13 @@ configure_default_service(approval_service)
 agent_service = AgentService(
     settings.agent_service_url,
     timeout_seconds=settings.agent_service_timeout_seconds,
+)
+automatic_proposal_service = AutomaticProposalService(
+    agent_service=agent_service,
+    approval_service=approval_service,
+    audit_service=audit_service,
+    enabled=settings.auto_proposal_enabled,
+    allowed_stations=settings.auto_proposal_stations,
 )
 
 app = FastAPI(title="AirGuard AI API", version="0.3.0")
@@ -245,13 +257,24 @@ def ingest_measurement(request: Request, body: MeasurementIngestionRequest) -> d
     return result
 
 
+def _schedule_automatic_proposal(background_tasks: BackgroundTasks, alert: dict | None, correlation_id: str) -> None:
+    if automatic_proposal_service.should_analyze(alert):
+        background_tasks.add_task(
+            automatic_proposal_service.analyze_and_propose,
+            alert=alert,
+            correlation_id=correlation_id,
+        )
+
+
 @app.post("/api/v1/internal/ingestion/evaluate-alerts")
 def evaluate_ingested_measurement(
     request: Request,
+    background_tasks: BackgroundTasks,
     station_id: str | None = Body(default=None, embed=True),
 ) -> dict:
     if station_id:
         alert = alert_engine.evaluate_station(station_id, correlation_id=_request_id(request))
+        _schedule_automatic_proposal(background_tasks, alert, _request_id(request))
         return {"station_id": station_id, "alert": alert}
     alert_engine.evaluate_all_current(correlation_id=_request_id(request))
     return {"status": "evaluated"}
@@ -273,7 +296,7 @@ def resolve_alert(
         alert_id,
         actor_id=x_user_id,
         actor_role=x_user_role,
-        correlation_id=_request_id(request),
+    correlation_id=_request_id(request),
     )
 
 
@@ -413,8 +436,13 @@ def create_approval(
 
 @app.get("/api/v1/approvals")
 @app.get("/api/v1/proposals")
-def get_approvals(status: str | None = Query(default=None), x_user_role: str = Header(default="viewer")) -> dict:
+def get_approvals(
+    request: Request,
+    status: str | None = Query(default=None),
+    x_user_role: str = Header(default="viewer"),
+) -> dict:
     _require_manager_role(x_user_role)
+    approval_service.expire_pending_requests(correlation_id=_request_id(request))
     return {"items": approval_service.list_requests(status=status)}
 
 

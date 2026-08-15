@@ -124,6 +124,12 @@ class ProposalEvidence(StrictModel):
     source_tool: ToolName
     evidence_id: str | None = Field(default=None, min_length=1, max_length=120)
     station_id: str | None = None
+    aqi: int | None = Field(default=None, ge=0, le=500)
+    aqi_category: str | None = Field(default=None, min_length=1, max_length=80)
+    pm25: float | None = Field(default=None, ge=0)
+    co2: float | None = Field(default=None, ge=0)
+    noise_db: float | None = Field(default=None, ge=0)
+    temperature: float | None = None
     observed_value: float | None = Field(default=None, ge=0)
     threshold_value: float | None = Field(default=None, ge=0)
     measured_at: AwareDatetime | None = None

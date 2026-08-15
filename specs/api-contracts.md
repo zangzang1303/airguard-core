@@ -42,6 +42,20 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 
 Each alert includes `alert_type` (`aqi_threshold`, `pm25_threshold`, `co2_threshold`, `noise_threshold`, `temperature_threshold` or `sensor_offline`), `severity`, observed and threshold values, title/description, source and lifecycle timestamps. Environmental threshold alerts additionally expose `metric`, `unit` and a deterministic `recommendation`; UI must render these values and must not infer its own thresholds or recommendation. Rules evaluate only valid, fresh and online simulator data. The configured thresholds are provisional MVP defaults, not health or legal limits.
 
+## Automatic Agent proposal
+
+When `AUTO_PROPOSAL_ENABLED=true`, a newly eligible environmental alert schedules an internal
+Agent analysis. The Agent must report `generation_mode=live_llm` and revalidate fresh station data
+plus the active alert through backend tools before it creates a `pending` proposal. Only one pending
+automatic warning proposal is permitted per station; later automatic triggers are skipped until the
+Manager reviews it. Pending proposals automatically expire after `PROPOSAL_PENDING_TTL_SECONDS`
+(default: 3600 seconds); expiry preserves the proposal and writes an audit event, but it can no
+longer be approved or dispatched. No Manager decision or device command is automated. A failed/missing LLM is
+audited and leaves the alert active without a proposal.
+
+For a focused demo, `AUTO_PROPOSAL_STATIONS=S05` restricts automatic proposal creation to S05.
+Other stations may still produce backend alerts, but their alerts do not schedule Agent proposals.
+
 ## Ingestion response
 
 Accepted measurement returns `accepted=true`, `duplicate=false`, `measurement`, and optional `alert`. Duplicate message id returns `accepted=false`, `duplicate=true`, `reason=duplicate` and must not update current/alert state.

@@ -254,9 +254,12 @@ export interface Alert {
 }
 
 export interface Evidence {
-  pm25: number;
-  humidity?: number;
-  wind_speed?: number;
+  aqi?: number;
+  aqi_category?: string;
+  pm25?: number;
+  co2?: number;
+  noise_db?: number;
+  temperature?: number;
   observed_at?: string;
 }
 
@@ -267,7 +270,7 @@ export interface Proposal {
   target: string;
   action: string;
   rationale: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "expired";
   created_at: string;
   evidence: Evidence;
   version: number;

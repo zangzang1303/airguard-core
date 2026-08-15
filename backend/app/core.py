@@ -24,6 +24,9 @@ class Settings:
     temperature_critical_threshold: float
     agent_service_url: str
     agent_service_timeout_seconds: float
+    auto_proposal_enabled: bool
+    proposal_pending_ttl_seconds: int
+    auto_proposal_stations: tuple[str, ...]
 
     @classmethod
     def load(cls) -> Settings:
@@ -56,6 +59,20 @@ class Settings:
         agent_timeout = float(os.getenv("AGENT_SERVICE_TIMEOUT_SECONDS", "8"))
         if agent_timeout <= 0:
             raise ValueError("AGENT_SERVICE_TIMEOUT_SECONDS must be positive")
+        auto_proposal_raw = os.getenv("AUTO_PROPOSAL_ENABLED", "true").strip().lower()
+        if auto_proposal_raw not in {"true", "false"}:
+            raise ValueError("AUTO_PROPOSAL_ENABLED must be true or false")
+        proposal_pending_ttl_seconds = int(os.getenv("PROPOSAL_PENDING_TTL_SECONDS", "3600"))
+        if proposal_pending_ttl_seconds <= 0:
+            raise ValueError("PROPOSAL_PENDING_TTL_SECONDS must be positive")
+        auto_proposal_stations = tuple(
+            station.strip().upper()
+            for station in os.getenv("AUTO_PROPOSAL_STATIONS", "").split(",")
+            if station.strip()
+        )
+        invalid_stations = [station for station in auto_proposal_stations if station not in {"S01", "S02", "S03", "S04", "S05"}]
+        if invalid_stations:
+            raise ValueError(f"AUTO_PROPOSAL_STATIONS contains invalid station(s): {','.join(invalid_stations)}")
 
         return cls(
             database_url=os.getenv("DATABASE_URL"),
@@ -76,4 +93,7 @@ class Settings:
             temperature_critical_threshold=temperature_critical,
             agent_service_url=os.getenv("AGENT_SERVICE_URL", "http://localhost:8001").rstrip("/"),
             agent_service_timeout_seconds=agent_timeout,
+            auto_proposal_enabled=auto_proposal_raw == "true",
+            proposal_pending_ttl_seconds=proposal_pending_ttl_seconds,
+            auto_proposal_stations=auto_proposal_stations,
         )

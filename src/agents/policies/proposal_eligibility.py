@@ -48,6 +48,12 @@ def evaluate_proposal_eligibility(
         ProposalEvidence(
             source_tool=ToolName.GET_CURRENT_PM25,
             station_id=station_id,
+            aqi=current.get("aqi"),
+            aqi_category=current.get("aqi_category"),
+            pm25=current.get("pm25"),
+            co2=current.get("co2"),
+            noise_db=current.get("noise_db"),
+            temperature=current.get("temperature"),
             observed_value=current["pm25"],
             measured_at=current["updated_at"],
             source=current["source"],

@@ -29,6 +29,53 @@ def test_settings_load_thresholds_from_environment() -> None:
     assert settings.alert_critical_threshold == 120
 
 
+def test_settings_enable_automatic_agent_proposals_by_default() -> None:
+    previous = os.environ.pop("AUTO_PROPOSAL_ENABLED", None)
+    try:
+        assert Settings.load().auto_proposal_enabled is True
+    finally:
+        if previous is not None:
+            os.environ["AUTO_PROPOSAL_ENABLED"] = previous
+
+
+def test_settings_loads_one_hour_pending_proposal_ttl_by_default() -> None:
+    previous = os.environ.pop("PROPOSAL_PENDING_TTL_SECONDS", None)
+    try:
+        assert Settings.load().proposal_pending_ttl_seconds == 3600
+    finally:
+        if previous is not None:
+            os.environ["PROPOSAL_PENDING_TTL_SECONDS"] = previous
+
+
+def test_settings_rejects_non_positive_pending_proposal_ttl() -> None:
+    previous = os.environ.get("PROPOSAL_PENDING_TTL_SECONDS")
+    try:
+        os.environ["PROPOSAL_PENDING_TTL_SECONDS"] = "0"
+        try:
+            Settings.load()
+        except ValueError as exc:
+            assert "PROPOSAL_PENDING_TTL_SECONDS" in str(exc)
+        else:
+            raise AssertionError("non-positive proposal TTL should be rejected")
+    finally:
+        if previous is None:
+            os.environ.pop("PROPOSAL_PENDING_TTL_SECONDS", None)
+        else:
+            os.environ["PROPOSAL_PENDING_TTL_SECONDS"] = previous
+
+
+def test_settings_parses_auto_proposal_station_allowlist() -> None:
+    previous = os.environ.get("AUTO_PROPOSAL_STATIONS")
+    try:
+        os.environ["AUTO_PROPOSAL_STATIONS"] = "s05, S05"
+        assert Settings.load().auto_proposal_stations == ("S05", "S05")
+    finally:
+        if previous is None:
+            os.environ.pop("AUTO_PROPOSAL_STATIONS", None)
+        else:
+            os.environ["AUTO_PROPOSAL_STATIONS"] = previous
+
+
 def test_settings_load_alert_consecutive_measurements() -> None:
     previous = os.environ.get("PM25_ALERT_CONSECUTIVE_MEASUREMENTS")
     try:
