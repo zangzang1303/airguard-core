@@ -55,7 +55,7 @@ Ranh giới trách nhiệm:
 - Data/IoT: Mosquitto, Paho MQTT, simulator và consumer độc lập.
 - Local: Docker Compose; RabbitMQ/Redis/Celery thuộc profile `async-jobs`.
 
-## Chạy nhanh bằng Docker
+## Setup instructions — Chạy nhanh bằng Docker
 
 ### Yêu cầu
 
@@ -85,6 +85,8 @@ MODEL_NAME=gpt-4o-mini
 ```
 
 Không commit `.env` hoặc đưa key vào log/screenshot.
+
+> Không có `OPENAI_API_KEY`, dashboard, pipeline MQTT và API vẫn chạy; Agent trả lời bằng deterministic composer. Để demo automatic proposal do Agent tạo, cần cấu hình key hợp lệ.
 
 ### 2. Khởi động stack
 
@@ -135,6 +137,25 @@ docker compose down
 ```
 
 Không dùng `docker compose down -v` nếu muốn giữ database local.
+
+### 6. Kiểm tra sau khi khởi động
+
+Chạy các lệnh sau sau khi simulator đã có ít nhất hai chu kỳ dữ liệu:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+Invoke-RestMethod http://localhost:8001/health
+Invoke-RestMethod http://localhost:8000/api/v1/stations
+Invoke-RestMethod "http://localhost:8000/api/v1/alerts?status=active"
+```
+
+Nếu một service không lên, xem log service đó trước:
+
+```powershell
+docker compose logs --tail=100 backend
+docker compose logs --tail=100 agent
+docker compose logs --tail=100 mqtt-consumer
+```
 
 ## Xử lý lỗi Docker build
 
@@ -248,7 +269,9 @@ Luồng trả lời:
 5. Nếu có `OPENAI_API_KEY`, LLM chỉ thêm một câu giải thích giới hạn, không thay số liệu.
 6. Trace ghi `generation_mode=live_llm` hoặc `deterministic_grounded`.
 
-Prompt mẫu:
+## Sample queries
+
+Các prompt sau dùng trong giao diện **AI Agent**. Thay `S03` bằng bất kỳ trạm từ `S01` đến `S05`.
 
 ```text
 Chất lượng môi trường tại S03 hiện tại thế nào?
@@ -257,8 +280,27 @@ So sánh S01 và S03.
 Dự báo S03 trong 3 giờ tới.
 Có cảnh báo nào tại S03?
 Tôi có nên chạy bộ ngoài trời tại S03 không?
-Tạo warning proposal cho S03.
 ```
+
+Để thử API trực tiếp bằng PowerShell:
+
+```powershell
+# Snapshot hiện tại của S05
+Invoke-RestMethod http://localhost:8000/api/v1/stations/S05/current
+
+# Lịch sử 24 giờ và forecast AQI ba giờ
+Invoke-RestMethod "http://localhost:8000/api/v1/stations/S05/history?hours=24"
+Invoke-RestMethod "http://localhost:8000/api/v1/stations/S05/forecast?hours=3&metric=aqi"
+
+# Danh sách cảnh báo active
+Invoke-RestMethod "http://localhost:8000/api/v1/alerts?status=active"
+
+# Hỏi Agent qua API
+$body = @{ message = "Chất lượng môi trường tại S05 hiện tại thế nào?"; user_id = "demo-user"; station_id = "S05" } | ConvertTo-Json
+Invoke-RestMethod http://localhost:8000/api/v1/agent/chat -Method Post -ContentType "application/json" -Body $body
+```
+
+Không cần nhập prompt tạo proposal để demo luồng tự động. Khi có alert active, dữ liệu fresh và `AUTO_PROPOSAL_ENABLED=true`, backend có thể kích hoạt Agent tạo proposal `pending` theo policy cấu hình.
 
 ## HITL, audit và notification
 
@@ -294,19 +336,27 @@ Base URL: `/api/v1`.
 
 Chi tiết: [specs/api-contracts.md](specs/api-contracts.md).
 
-## Biến môi trường quan trọng
+## Env vars — Biến môi trường quan trọng
 
-| Biến | Ý nghĩa |
-|---|---|
-| `OPENAI_API_KEY` | Để trống: deterministic grounded response |
-| `MODEL_NAME` | Mặc định `gpt-4o-mini` |
-| `SENSOR_SCENARIO` | Mặc định `normal` |
-| `STALE_AFTER_SECONDS` | Mặc định `300` |
-| `PM25_ALERT_CONSECUTIVE_MEASUREMENTS` | Mặc định `2` |
-| `*_WARNING_THRESHOLD`, `*_CRITICAL_THRESHOLD` | Threshold versioned/provisional |
-| `NOTIFICATION_PROVIDER` | `disabled`; đặt `smtp` để gửi email |
-| `SMTP_*` | Cấu hình SMTP secret/local |
-| `CELERY_TASK_ALWAYS_EAGER` | `true` trong demo |
+Sao chép `.env.example` thành `.env`; không commit file `.env`. Stack demo có giá trị mặc định cho các biến không phải secret.
+
+| Biến | Bắt buộc | Mục đích / giá trị demo |
+|---|---|---|
+| `OPENAI_API_KEY` | Không | Bật giải thích LLM và auto-proposal theo Agent; để trống thì Agent chỉ dùng deterministic grounded response. |
+| `MODEL_NAME` | Không | Mặc định `gpt-4o-mini`. |
+| `DATABASE_URL` | Có khi chạy service ngoài Compose | URL PostgreSQL; Compose tự cấp URL nội bộ cho backend. |
+| `MQTT_HOST`, `MQTT_PORT`, `MQTT_QOS` | Có khi chạy service ngoài Compose | Kết nối Mosquitto; Compose tự đặt host `mqtt`. |
+| `SENSOR_SCENARIO` | Không | `normal`, `rush-hour`, `spike`, `recovery`, `duplicate`, hoặc `station-silence`; mặc định `normal`. |
+| `SENSOR_INTERVAL_SECONDS` | Không | Chu kỳ simulator, mặc định 10 giây. |
+| `STALE_AFTER_SECONDS` | Không | Đánh dấu dữ liệu cũ; mặc định 300 giây. |
+| `PM25_ALERT_CONSECUTIVE_MEASUREMENTS` | Không | Số phép đo PM2.5 liên tiếp vượt ngưỡng; mặc định 2. |
+| `*_WARNING_THRESHOLD`, `*_CRITICAL_THRESHOLD` | Không | Ngưỡng MVP cho PM2.5, AQI, CO₂, tiếng ồn và nhiệt độ. |
+| `AUTO_PROPOSAL_ENABLED` | Không | Bật/tắt automatic warning proposal; mặc định `true`. |
+| `AUTO_PROPOSAL_STATIONS` | Không | Để trống là mọi trạm; đặt `S05` để demo chỉ tạo proposal tự động cho S05. |
+| `PROPOSAL_PENDING_TTL_SECONDS` | Không | Thời gian proposal chờ xử lý trước khi chuyển `expired`; mặc định 3600 giây. |
+| `NOTIFICATION_PROVIDER` | Không | Mặc định `disabled`; đặt `smtp` chỉ khi đã cấu hình SMTP. |
+| `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD` | Chỉ khi dùng SMTP | Secret local; không in ra log, screenshot hoặc commit. |
+| `CELERY_TASK_ALWAYS_EAGER` | Không | `true` trong demo; async worker thật dùng profile `async-jobs`. |
 
 Xem đầy đủ tại [.env.example](.env.example).
 

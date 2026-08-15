@@ -37,6 +37,13 @@ For Scenario D, the backend user profile must exist and the profile/alert/weathe
 must match the Agent tool contracts. Do not replace a missing profile or tool error with a
 client-supplied user group.
 
+## Automatic proposal demo
+
+Set `AUTO_PROPOSAL_ENABLED=true` and configure a real `OPENAI_API_KEY`. A new eligible
+environmental alert invokes the Agent without any resident chat request. After a successful
+live-LLM analysis, the Agent creates one `pending` proposal for Manager review. If the provider
+fails, the alert stays active and the audited result is a skip, not a deterministic proposal.
+
 ## Roles
 
 Presenter; operator; log observer; fallback owner. Capture message/request/proposal ids.

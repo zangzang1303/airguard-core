@@ -1,11 +1,11 @@
 -- Demo-only reference data. This script is idempotent and must run after schema.sql.
 INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description, active)
 VALUES
-    ('S01', 'Cong vao Ocean Park', 'main_gate', 20.9975, 105.9430, 'Vi tri simulator tai cong vao khu do thi', TRUE),
-    ('S02', 'Bai do xe trung tam', 'parking', 20.9953, 105.9500, 'Vi tri simulator tai bai do xe trung tam', TRUE),
-    ('S03', 'Truc duong chinh Ocean Park', 'main_road', 20.9910, 105.9560, 'Vi tri simulator tren truc duong chinh', TRUE),
-    ('S04', 'Cong vien trung tam', 'park', 20.9898, 105.9467, 'Vi tri simulator tai khu cong vien', TRUE),
-    ('S05', 'Khu the thao ngoai troi', 'sport_area', 21.0008, 105.9428, 'Vi tri simulator tai khu the thao', TRUE)
+    ('S01', 'Truc Da Ton phia Tay Bac', 'northwest_road', 21.0008, 105.9428, 'Diem mo phong tren truc Da Ton, phu khu vuc cua ngo Tay Bac Ocean Park 1', TRUE),
+    ('S02', 'Khu can ho Sapphire', 'high_rise_residential', 20.9975, 105.9430, 'Diem mo phong trong cum can ho phia Tay Bac, dai dien khu dan cu mat do cao', TRUE),
+    ('S03', 'Ven Ho Ngoc Trai', 'lakeside_residential', 20.9953, 105.9500, 'Diem mo phong ven Ho Ngoc Trai va khu Ngoc Trai, dai dien khong gian ven ho trung tam', TRUE),
+    ('S04', 'Khuon vien VinUni', 'university_campus', 20.9898, 105.9467, 'Diem mo phong trong khuon vien VinUni o phia Tay Nam pham vi quan sat', TRUE),
+    ('S05', 'Khu Hai Au phia Dong Nam', 'southeast_residential', 20.9910, 105.9560, 'Diem mo phong tai khu Hai Au, phu vung dan cu phia Dong Nam Ocean Park 1', TRUE)
 ON CONFLICT (station_id) DO UPDATE SET
     station_name = EXCLUDED.station_name,
     location_type = EXCLUDED.location_type,

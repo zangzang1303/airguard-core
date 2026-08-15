@@ -58,6 +58,13 @@ Mỗi case phải có `generation_mode=live_llm`; deterministic fallback không 
 
 **Evidence path đề xuất:** `docs/evidence/release/<release-id>/`.
 
+## Live-eval runner
+
+`eval/run_live_evaluation.py` runs LIVE-01 through LIVE-05 against the canonical backend endpoint
+and writes the required sanitized JSON/Markdown pack. It exits non-zero unless all five cases prove
+`generation_mode=live_llm`; run it only with a local provider key and a healthy stack, never with a
+fixture adapter.
+
 ## Release blockers
 
 - Không có provider/model metadata chứng minh LLM thật.
