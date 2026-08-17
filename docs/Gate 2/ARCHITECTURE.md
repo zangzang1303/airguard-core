@@ -12,13 +12,13 @@ AI Agent chỉ diễn giải dữ liệu đã được backend cung cấp qua to
 
 Các ảnh xuất bản dùng trong tài liệu nằm trong thư mục [`image/`](image/):
 
-- [Kiến trúc tổng thể](<image/Kiến trúc tổng thể.png>)
-- [Luồng AI Agent](<image/Luồng AI Agent.png>)
-- [Luồng cảnh báo và phê duyệt](<image/Luồng cảnh báo và phê duyệt.png>)
+- [Kiến trúc tổng thể](<../../image/Kiến trúc tổng thể.png>)
+- [Luồng AI Agent](<../../image/Luồng AI Agent.png>)
+- [Luồng cảnh báo và phê duyệt](<../../image/Luồng cảnh báo và phê duyệt.png>)
 
 ## Sơ đồ kiến trúc
 
-![Sơ đồ kiến trúc tổng thể](<image/Kiến trúc tổng thể.png>)
+![Sơ đồ kiến trúc tổng thể](<../../image/Kiến trúc tổng thể.png>)
 
 ## Luồng dữ liệu chính
 
@@ -32,7 +32,7 @@ Các ảnh xuất bản dùng trong tài liệu nằm trong thư mục [`image/`
 ### 2. Luồng hội thoại của AI Agent
 
 
-![Sơ đồ luồng AI Agent](<image/Luồng AI Agent.png>)
+![Sơ đồ luồng AI Agent](<../../image/Luồng AI Agent.png>)
 
 Agent dùng các tool backend như `get_current_pm25`, `get_station_history`, `get_pm25_forecast`, `get_active_alerts`, `get_weather_context`, `get_user_profile` và `create_warning_proposal`. Nếu tool lỗi, dữ liệu stale/invalid hoặc không có đủ evidence, Agent phải nêu rõ không đủ dữ liệu thay vì suy đoán.
 
@@ -46,7 +46,7 @@ Agent dùng các tool backend như `get_current_pm25`, `get_station_history`, `g
 
 
 
-![Sơ đồ luồng cảnh báo và phê duyệt](<image/Luồng cảnh báo và phê duyệt.png>)
+![Sơ đồ luồng cảnh báo và phê duyệt](<../../image/Luồng cảnh báo và phê duyệt.png>)
 
 ## Thành phần và trách nhiệm
 
