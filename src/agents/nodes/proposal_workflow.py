@@ -98,7 +98,8 @@ async def run_proposal_workflow(
         "target": {"audience": "station_area", "station_id": station_id},
         "action": proposal_action(),
         "rationale": (
-            "Fresh simulator PM2.5 data and an active backend alert require manager review."
+            "Dữ liệu simulator còn mới và đang có cảnh báo active từ backend; "
+            "đề xuất cần Manager xem xét."
         ),
         "policy_version": PROPOSAL_POLICY_VERSION,
         "evidence": evidence,

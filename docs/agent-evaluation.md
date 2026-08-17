@@ -40,3 +40,20 @@ Run the deterministic evaluation without a database or LLM provider:
 The runner writes Markdown and JSON reports to `eval/reports/`. The baseline rerun on 2026-08-11 has
 39 cases and 100% tool selection, grounding, safety, proposal eligibility and tool-error
 transparency. Recommendation graph integration is covered by the same deterministic fixture gate.
+
+## Live LLM evidence (Gate 2)
+
+The deterministic report above is a regression gate; it does not count as live-provider evidence.
+With the Docker stack healthy, fresh simulator data available, and `OPENAI_API_KEY` configured only
+in the local environment, run:
+
+```powershell
+.\.venv\Scripts\python.exe eval\run_live_evaluation.py
+```
+
+The runner calls the canonical backend endpoint (`POST /api/v1/agent/chat`) for LIVE-01 through
+LIVE-05 and writes a sanitized JSON and Markdown pack under
+`docs/evidence/release/<date>-<git-sha>/`. It records input, expected and actual tools, source/tool
+references, provider/model, LLM and request latency, output, request ID and PASS/FAIL. A case only
+passes with `generation_mode=live_llm`; missing keys, an unavailable stack, deterministic fallback,
+or any contract mismatch produces `BLOCKED` and a non-zero exit code rather than fabricated evidence.

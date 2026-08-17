@@ -10,6 +10,10 @@ import { Proposal } from "../../types";
 
 type ApprovalTab = "pending" | "approved" | "rejected";
 
+const uniquePendingStationCount = (items: Proposal[]) => new Set(
+  items.filter((proposal) => proposal.status === "pending").map((proposal) => proposal.station_id),
+).size;
+
 export const ApprovalQueue: React.FC = () => {
   const { role, userId, setPendingApprovalsCount } = useAuth();
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -26,7 +30,7 @@ export const ApprovalQueue: React.FC = () => {
     try {
       const data = await api.getProposals({ userId, role: "manager" });
       setProposals(data);
-      setPendingApprovalsCount(data.filter((proposal) => proposal.status === "pending").length);
+      setPendingApprovalsCount(uniquePendingStationCount(data));
     } catch {
       setActionError("Không thể tải đề xuất từ server.");
     } finally {
@@ -42,12 +46,21 @@ export const ApprovalQueue: React.FC = () => {
     }
   }, [role]);
 
+  const displayProposals = useMemo(() => {
+    const pendingStations = new Set<string>();
+    return proposals.filter((proposal) => {
+      if (proposal.status !== "pending") return true;
+      if (pendingStations.has(proposal.station_id)) return false;
+      pendingStations.add(proposal.station_id);
+      return true;
+    });
+  }, [proposals]);
   const tabCounts = useMemo(() => ({
-    pending: proposals.filter((proposal) => proposal.status === "pending").length,
+    pending: displayProposals.filter((proposal) => proposal.status === "pending").length,
     approved: proposals.filter((proposal) => proposal.status === "approved").length,
     rejected: proposals.filter((proposal) => proposal.status === "rejected").length,
-  }), [proposals]);
-  const visibleProposals = proposals.filter((proposal) => proposal.status === activeTab);
+  }), [displayProposals, proposals]);
+  const visibleProposals = displayProposals.filter((proposal) => proposal.status === activeTab);
 
   const openReview = (proposal: Proposal) => {
     setSelectedProposal(proposal);
@@ -71,6 +84,18 @@ export const ApprovalQueue: React.FC = () => {
       updateProposal(result);
       setActionSuccess(`Đã phê duyệt ${selectedProposal.proposal_id}. Quyết định đã được ghi nhận.`);
     } catch {
+      // Reconcile once in case the server committed but the browser lost the response.
+      try {
+        const latest = await api.getProposals({ userId, role: "manager" });
+        const serverProposal = latest.find((proposal) => proposal.proposal_id === selectedProposal.proposal_id);
+        if (serverProposal?.status === "approved") {
+          updateProposal(serverProposal);
+          setActionSuccess(`Đã phê duyệt ${selectedProposal.proposal_id}. Quyết định đã được ghi nhận.`);
+          return;
+        }
+      } catch {
+        // Keep the original error when reconciliation is unavailable.
+      }
       setActionError("Không thể phê duyệt đề xuất. Vui lòng tải lại trạng thái server và thử lại.");
     } finally { setSubmitting(false); }
   };
@@ -105,6 +130,7 @@ export const ApprovalQueue: React.FC = () => {
       />
 
       <section className="approval-workspace">
+        {proposals.length > displayProposals.length && <div className="alert-box alert-warning">Chỉ hiển thị đề xuất đang chờ mới nhất cho mỗi trạm. Các đề xuất cũ vẫn được lưu trong audit.</div>}
         <div className="approval-tabs" role="tablist" aria-label="Trạng thái đề xuất">
           {(["pending", "approved", "rejected"] as ApprovalTab[]).map((tab) => (
             <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} className={activeTab === tab ? "is-active" : ""} onClick={() => setActiveTab(tab)}>
@@ -144,9 +170,11 @@ export const ApprovalQueue: React.FC = () => {
               {actionSuccess && <div className="alert-box alert-success">{actionSuccess}</div>}
               <div className="approval-evidence-grid">
                 <div><span>Trạm</span><strong>{selectedProposal.station_id}</strong></div>
+                <div><span>AQI</span><strong>{selectedProposal.evidence?.aqi ?? "—"}</strong></div>
                 <div><span>PM2.5</span><strong>{selectedProposal.evidence?.pm25 ?? "—"} µg/m³</strong></div>
-                <div><span>Độ ẩm</span><strong>{selectedProposal.evidence?.humidity ?? "—"}%</strong></div>
-                <div><span>Gió</span><strong>{selectedProposal.evidence?.wind_speed ?? "—"} m/s</strong></div>
+                <div><span>CO₂</span><strong>{selectedProposal.evidence?.co2 ?? "—"} ppm</strong></div>
+                <div><span>Tiếng ồn</span><strong>{selectedProposal.evidence?.noise_db ?? "—"} dB</strong></div>
+                <div><span>Nhiệt độ</span><strong>{selectedProposal.evidence?.temperature ?? "—"} °C</strong></div>
               </div>
               <dl className="approval-detail-list"><div><dt>Mục tiêu</dt><dd>{selectedProposal.target}</dd></div><div><dt>Hành động đề xuất</dt><dd>{selectedProposal.action}</dd></div><div><dt>Cơ sở đề xuất</dt><dd>{selectedProposal.rationale}</dd></div></dl>
               {selectedProposal.status === "pending" && <label className="form-group"><span>Ghi chú của Manager</span><textarea rows={3} value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="Nhập ghi chú; bắt buộc khi từ chối" disabled={submitting} /></label>}

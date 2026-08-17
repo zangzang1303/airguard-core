@@ -13,9 +13,10 @@ class ApprovalStoreUnavailableError(Exception):
 
 
 class ApprovalService:
-    def __init__(self, db: Database, audit: AuditService) -> None:
+    def __init__(self, db: Database, audit: AuditService, *, pending_ttl_seconds: int = 3600) -> None:
         self.db = db
         self.audit = audit
+        self.pending_ttl_seconds = pending_ttl_seconds
 
     def create_request(
         self,
@@ -114,6 +115,73 @@ class ApprovalService:
                 if not row:
                     raise ServiceError("approval_not_found", "Approval request was not found", 404)
                 return dict(row)
+
+    def has_request_for_alert(self, *, station_id: str, alert_created_at: Any) -> bool:
+        """Avoid repeated LLM runs for the same active-alert lifecycle."""
+        with self.db.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT 1 FROM approval_requests
+                    WHERE request_type = 'warning_proposal'
+                      AND station_id = %s
+                      AND created_at >= %s
+                    LIMIT 1
+                    """,
+                    (station_id, alert_created_at),
+                )
+                return cur.fetchone() is not None
+
+    def has_pending_warning_proposal(self, *, station_id: str) -> bool:
+        """Keep the manager queue to one unresolved automatic proposal per station."""
+        with self.db.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT 1 FROM approval_requests
+                    WHERE request_type = 'warning_proposal'
+                      AND station_id = %s
+                      AND status = 'pending'
+                    LIMIT 1
+                    """,
+                    (station_id,),
+                )
+                return cur.fetchone() is not None
+
+    def expire_pending_requests(self, *, correlation_id: str | None = None) -> int:
+        """Expire unreviewed proposals while preserving them and their audit trail."""
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    UPDATE approval_requests
+                    SET status = 'expired', reviewed_at = NOW(),
+                        review_note = 'Expired automatically after the manager review window elapsed.',
+                        version = version + 1
+                    WHERE status = 'pending'
+                      AND created_at < NOW() - (%s * INTERVAL '1 second')
+                    RETURNING request_id, station_id
+                    """,
+                    (self.pending_ttl_seconds,),
+                )
+                expired = [dict(row) for row in cur.fetchall()]
+                for expired_request in expired:
+                    self.audit.record(
+                        actor_type="system",
+                        actor_role="backend",
+                        action="approval.expire",
+                        entity_type="approval_request",
+                        entity_id=str(expired_request["request_id"]),
+                        correlation_id=correlation_id,
+                        outcome="expired",
+                        details={
+                            "station_id": expired_request["station_id"],
+                            "ttl_seconds": self.pending_ttl_seconds,
+                            "reason": "manager_review_window_elapsed",
+                        },
+                        conn=conn,
+                    )
+                return len(expired)
 
     def approve(
         self,

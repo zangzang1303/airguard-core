@@ -24,9 +24,9 @@ const API_BASE_URL =
 export const FALLBACK_STATIONS: Station[] = [
   {
     station_id: "S01",
-    station_name: "Cổng vào Ocean Park",
-    latitude: 20.9975,
-    longitude: 105.9430,
+    station_name: "Trục Đa Tốn phía Tây Bắc",
+    latitude: 21.0008,
+    longitude: 105.9428,
     pm25: 42.5,
     aqi: 118, co2: 650, noise_db: 57, temperature: 31.1,
     status: "online",
@@ -35,9 +35,9 @@ export const FALLBACK_STATIONS: Station[] = [
   },
   {
     station_id: "S02",
-    station_name: "Bãi đỗ xe trung tâm",
-    latitude: 20.9953,
-    longitude: 105.95,
+    station_name: "Khu căn hộ Sapphire",
+    latitude: 20.9975,
+    longitude: 105.943,
     pm25: 55.2,
     aqi: 149, co2: 720, noise_db: 65, temperature: 31.8,
     status: "online",
@@ -46,9 +46,9 @@ export const FALLBACK_STATIONS: Station[] = [
   },
   {
     station_id: "S03",
-    station_name: "Trục đường chính Ocean Park",
-    latitude: 20.991,
-    longitude: 105.956,
+    station_name: "Ven Hồ Ngọc Trai",
+    latitude: 20.9953,
+    longitude: 105.95,
     pm25: 66.1,
     aqi: 158, co2: 780, noise_db: 71, temperature: 32.4,
     status: "online",
@@ -57,7 +57,7 @@ export const FALLBACK_STATIONS: Station[] = [
   },
   {
     station_id: "S04",
-    station_name: "Công viên trung tâm",
+    station_name: "Khuôn viên VinUni",
     latitude: 20.9898,
     longitude: 105.9467,
     pm25: 28.4,
@@ -68,9 +68,9 @@ export const FALLBACK_STATIONS: Station[] = [
   },
   {
     station_id: "S05",
-    station_name: "Khu thể thao ngoài trời",
-    latitude: 21.0008,
-    longitude: 105.9428,
+    station_name: "Khu Hải Âu phía Đông Nam",
+    latitude: 20.991,
+    longitude: 105.956,
     pm25: 35.9,
     aqi: 99, co2: 590, noise_db: 54, temperature: 30.8,
     status: "online",
@@ -121,7 +121,7 @@ export const FALLBACK_PROPOSALS: Proposal[] = [
     status: "pending",
     version: 1,
     created_at: new Date(Date.now() - 20 * 60000).toISOString(),
-    evidence: { pm25: 66.1, humidity: 78, wind_speed: 1.2 },
+    evidence: { aqi: 158, pm25: 66.1, co2: 780, noise_db: 71, temperature: 32.4 },
   },
 ];
 
@@ -324,11 +324,11 @@ async function apiFetch<T>(
 ): Promise<T> {
   try {
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
       headers: {
         "Content-Type": "application/json",
         ...options.headers,
       },
-      ...options,
     });
     if (!res.ok) {
       throw new Error(`API Error ${res.status}: ${res.statusText}`);
@@ -341,16 +341,38 @@ async function apiFetch<T>(
 }
 
 function mapProposal(request: Record<string, any>): Proposal {
+  const rawEvidence = request.evidence ?? {};
+  const evidenceItems = Array.isArray(rawEvidence.items) ? rawEvidence.items : [];
+  const currentEvidence = evidenceItems.find((item: Record<string, any>) => item.source_tool === "get_current_pm25") ?? {};
+  const alertEvidence = evidenceItems.find((item: Record<string, any>) => item.source_tool === "get_active_alerts") ?? {};
+  const evidence = {
+    ...rawEvidence,
+    aqi: rawEvidence.aqi ?? currentEvidence.aqi,
+    aqi_category: rawEvidence.aqi_category ?? currentEvidence.aqi_category,
+    pm25: rawEvidence.pm25 ?? currentEvidence.observed_value,
+    co2: rawEvidence.co2 ?? currentEvidence.co2,
+    noise_db: rawEvidence.noise_db ?? currentEvidence.noise_db,
+    temperature: rawEvidence.temperature ?? currentEvidence.temperature,
+    observed_at: rawEvidence.observed_at ?? currentEvidence.measured_at,
+    severity: rawEvidence.severity ?? alertEvidence.severity,
+    threshold: rawEvidence.threshold ?? alertEvidence.threshold_value,
+  };
+  const legacyReason = "Fresh simulator PM2.5 data and an active backend alert require manager review.";
+  const actionLabels: Record<string, string> = {
+    notify_station_area_users: "Gửi cảnh báo đến người dân trong khu vực",
+  };
   return {
     proposal_id: request.request_id,
     station_id: request.station_id,
-    severity: request.evidence?.severity ?? "warning",
+    severity: evidence.severity ?? "warning",
     target: request.device_id ?? request.station_id,
-    action: request.proposed_action,
-    rationale: request.reason,
+    action: actionLabels[request.proposed_action] ?? request.proposed_action,
+    rationale: request.reason === legacyReason
+      ? "Dữ liệu simulator còn mới và đang có cảnh báo active từ backend; đề xuất cần Manager xem xét."
+      : request.reason,
     status: request.status,
     created_at: request.created_at,
-    evidence: request.evidence ?? {},
+    evidence,
     version: request.version,
     reviewed_by: request.reviewed_by,
     reviewed_at: request.reviewed_at,
@@ -379,22 +401,26 @@ export const api = {
     return data.items.map((point) => ({ ...point, timestamp: point.measured_at ?? point.timestamp }));
   },
 
-  getStationForecast: async (stationId: string): Promise<ForecastData> => {
+  getStationForecast: async (stationId: string, metric: ForecastData["metric"] = "pm25"): Promise<ForecastData> => {
     try {
       const data = await apiFetch<any>(
-        `/api/v1/stations/${stationId}/forecast`,
+        `/api/v1/stations/${stationId}/forecast?metric=${metric}`,
       );
       return {
         station_id: data.station_id,
         horizon_hours: data.items.length,
+        metric: data.metric ?? metric,
         source: data.source,
         confidence: typeof data.confidence === "number" ? `${Math.round(data.confidence * 100)}%` : data.confidence,
         model_name: data.model_name,
         limitations: data.limitations,
-        forecasts: data.items.map((item: { hour_offset: number; pm25: number; pm25_min?: number; pm25_max?: number; confidence?: number }) => ({
+        forecasts: data.items.map((item: { hour_offset: number; pm25?: number; pm25_min?: number; pm25_max?: number; value?: number; value_min?: number; value_max?: number; confidence?: number }) => ({
           horizon: `${item.hour_offset} hour`,
-          pm25_predicted: item.pm25,
-          range: [item.pm25_min ?? item.pm25, item.pm25_max ?? item.pm25] as [number, number],
+          pm25_predicted: item.pm25 ?? item.value ?? 0,
+          range: [item.pm25_min ?? item.value_min ?? item.pm25 ?? item.value ?? 0, item.pm25_max ?? item.value_max ?? item.pm25 ?? item.value ?? 0] as [number, number],
+          value: item.value ?? item.pm25,
+          value_min: item.value_min ?? item.pm25_min,
+          value_max: item.value_max ?? item.pm25_max,
           confidence: item.confidence,
         })),
       };

@@ -1,0 +1,13 @@
+{$DEMO_DOMAIN:localhost} {
+    encode zstd gzip
+
+    # Keep FastAPI on the private Docker network.  Browser requests use the
+    # same public origin, so the demo does not depend on permissive CORS.
+    handle_path /backend/* {
+        reverse_proxy backend:8000
+    }
+
+    handle {
+        reverse_proxy frontend:80
+    }
+}

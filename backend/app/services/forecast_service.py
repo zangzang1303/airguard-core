@@ -19,64 +19,61 @@ def trend_forecast(
     history: Sequence[Mapping[str, Any]],
     hours: int,
     *,
+    metric: str = "pm25",
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
-    """Forecast PM2.5 from recent valid measurements without persistence fallback.
-
-    The least-squares slope is damped and capped per hour. This makes the deliberately
-    simple MVP model responsive to a sustained trend while preventing one noisy simulator
-    point from producing an implausible 1–3 hour extrapolation.
-    """
+    """Forecast a selected metric from recent valid simulator history."""
     if not 1 <= hours <= 3:
         raise ValueError("hours must be between 1 and 3")
 
-    points = _normalise_history(history)
+    points = _normalise_history(history, metric)
     if len(points) < MIN_HISTORY_POINTS:
         raise InsufficientForecastHistory(
             f"at least {MIN_HISTORY_POINTS} valid recent measurements are required"
         )
 
-    # Use a bounded, recent window even if a caller supplies a longer history.
     points = points[-24:]
     origin = points[0][0]
     x_values = [(measured_at - origin).total_seconds() / 60 for measured_at, _ in points]
-    y_values = [pm25 for _, pm25 in points]
+    y_values = [value for _, value in points]
     slope_per_minute, intercept = _least_squares(x_values, y_values)
-    current_pm25 = y_values[-1]
-
-    # Damp trend and cap change to 25% of current value (at least 5 µg/m³) per hour.
+    current_value = y_values[-1]
     raw_hourly_change = slope_per_minute * 60
-    capped_hourly_change = max(-max(5.0, current_pm25 * 0.25), min(raw_hourly_change, max(5.0, current_pm25 * 0.25)))
+    max_hourly_change = max(1.0, current_value * 0.25)
+    capped_hourly_change = max(-max_hourly_change, min(raw_hourly_change, max_hourly_change))
     damped_hourly_change = capped_hourly_change * 0.65
     residual_spread = _residual_spread(x_values, y_values, slope_per_minute, intercept)
-    confidence = _confidence(len(points), residual_spread, current_pm25)
+    confidence = _confidence(len(points), residual_spread, current_value)
     generated_at = generated_at or datetime.now(timezone.utc)
 
     items = []
     for hour in range(1, hours + 1):
-        prediction = max(0.0, current_pm25 + damped_hourly_change * hour)
-        # The uncertainty interval grows with horizon and observed residual variation.
-        half_range = max(3.0, residual_spread * (1 + 0.35 * hour), prediction * 0.08)
-        items.append(
-            {
-                "hour_offset": hour,
-                "forecast_at": (generated_at + timedelta(hours=hour)).isoformat(),
-                "pm25": round(prediction, 2),
-                "pm25_min": round(max(0.0, prediction - half_range), 2),
-                "pm25_max": round(prediction + half_range, 2),
-                "confidence": confidence,
-                "source": FORECAST_SOURCE,
-                "method": MODEL_NAME,
-            }
-        )
+        prediction = max(0.0, current_value + damped_hourly_change * hour)
+        half_range = max(1.0, residual_spread * (1 + 0.35 * hour), prediction * 0.08)
+        item = {
+            "hour_offset": hour,
+            "forecast_at": (generated_at + timedelta(hours=hour)).isoformat(),
+            "value": round(prediction, 2),
+            "value_min": round(max(0.0, prediction - half_range), 2),
+            "value_max": round(prediction + half_range, 2),
+            "confidence": confidence,
+            "source": FORECAST_SOURCE,
+            "method": MODEL_NAME,
+        }
+        # Existing PM2.5 clients retain their original response fields.
+        if metric == "pm25":
+            item.update({"pm25": item["value"], "pm25_min": item["value_min"], "pm25_max": item["value_max"]})
+        items.append(item)
 
     return {
         "items": items,
+        "metric": metric,
         "model_name": MODEL_NAME,
         "source": FORECAST_SOURCE,
         "confidence": confidence,
         "history_points": len(points),
-        "trend_pm25_per_hour": round(damped_hourly_change, 2),
+        "trend_per_hour": round(damped_hourly_change, 2),
+        "trend_pm25_per_hour": round(damped_hourly_change, 2) if metric == "pm25" else None,
         "generated_at": generated_at.isoformat(),
         "freshness": "fresh",
         "limitations": [
@@ -86,18 +83,18 @@ def trend_forecast(
     }
 
 
-def _normalise_history(history: Sequence[Mapping[str, Any]]) -> list[tuple[datetime, float]]:
+def _normalise_history(history: Sequence[Mapping[str, Any]], metric: str) -> list[tuple[datetime, float]]:
     points: list[tuple[datetime, float]] = []
     for item in history:
         measured_at = item.get("measured_at")
-        pm25 = item.get("pm25")
-        if measured_at is None or pm25 is None:
+        value = item.get(metric)
+        if measured_at is None or value is None:
             continue
         if isinstance(measured_at, str):
             measured_at = datetime.fromisoformat(measured_at.replace("Z", "+00:00"))
         if measured_at.tzinfo is None:
             continue
-        points.append((measured_at.astimezone(timezone.utc), float(pm25)))
+        points.append((measured_at.astimezone(timezone.utc), float(value)))
     return sorted(points, key=lambda point: point[0])
 
 
@@ -116,7 +113,7 @@ def _residual_spread(x_values: list[float], y_values: list[float], slope: float,
     return sqrt(sum(value * value for value in residuals) / len(residuals))
 
 
-def _confidence(point_count: int, residual_spread: float, current_pm25: float) -> float:
+def _confidence(point_count: int, residual_spread: float, current_value: float) -> float:
     sample_score = min(0.82, 0.42 + point_count * 0.025)
-    variability_penalty = min(0.25, residual_spread / max(current_pm25, 10.0) * 0.35)
+    variability_penalty = min(0.25, residual_spread / max(current_value, 10.0) * 0.35)
     return round(max(0.35, sample_score - variability_penalty), 2)

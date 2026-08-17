@@ -1,7 +1,7 @@
 [
-  {"station_id":"S01","station_name":"Cong vao Ocean Park","location_type":"main_gate","latitude":20.9975,"longitude":105.9430,"base_pm25":38,"description":"Vi tri simulator tai cong vao khu do thi; PM2.5 tang vao gio cao diem"},
-  {"station_id":"S02","station_name":"Bai do xe trung tam","location_type":"parking","latitude":20.9953,"longitude":105.9500,"base_pm25":42,"description":"Vi tri simulator tai bai do xe trung tam"},
-  {"station_id":"S03","station_name":"Truc duong chinh Ocean Park","location_type":"main_road","latitude":20.9910,"longitude":105.9560,"base_pm25":45,"description":"Vi tri simulator tren truc duong chinh"},
-  {"station_id":"S04","station_name":"Cong vien trung tam","location_type":"park","latitude":20.9898,"longitude":105.9467,"base_pm25":28,"description":"Vi tri simulator tai khu cong vien"},
-  {"station_id":"S05","station_name":"Khu the thao ngoai troi","location_type":"sport_area","latitude":21.0008,"longitude":105.9428,"base_pm25":34,"description":"Vi tri simulator tai khu the thao"}
+  {"station_id":"S01","station_name":"Truc Da Ton phia Tay Bac","location_type":"northwest_road","latitude":21.0008,"longitude":105.9428,"base_pm25":42,"description":"Diem mo phong tren truc Da Ton, phu khu vuc cua ngo Tay Bac Ocean Park 1"},
+  {"station_id":"S02","station_name":"Khu can ho Sapphire","location_type":"high_rise_residential","latitude":20.9975,"longitude":105.9430,"base_pm25":38,"description":"Diem mo phong trong cum can ho phia Tay Bac, dai dien khu dan cu mat do cao"},
+  {"station_id":"S03","station_name":"Ven Ho Ngoc Trai","location_type":"lakeside_residential","latitude":20.9953,"longitude":105.9500,"base_pm25":32,"description":"Diem mo phong ven Ho Ngoc Trai va khu Ngoc Trai, dai dien khong gian ven ho trung tam"},
+  {"station_id":"S04","station_name":"Khuon vien VinUni","location_type":"university_campus","latitude":20.9898,"longitude":105.9467,"base_pm25":28,"description":"Diem mo phong trong khuon vien VinUni o phia Tay Nam pham vi quan sat"},
+  {"station_id":"S05","station_name":"Khu Hai Au phia Dong Nam","location_type":"southeast_residential","latitude":20.9910,"longitude":105.9560,"base_pm25":45,"description":"Diem mo phong tai khu Hai Au, phu vung dan cu phia Dong Nam Ocean Park 1"}
 ]

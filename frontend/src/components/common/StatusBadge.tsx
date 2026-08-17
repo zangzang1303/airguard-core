@@ -16,7 +16,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, label }) => {
       ? CheckCircle2
       : normalized === "pending"
         ? Clock3
-        : normalized === "rejected" || normalized === "failed" || normalized === "error"
+        : normalized === "rejected" || normalized === "expired" || normalized === "failed" || normalized === "error"
           ? CircleX
           : CircleDashed;
 
@@ -26,6 +26,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, label }) => {
     pending: "Đang chờ",
     approved: "Đã phê duyệt",
     rejected: "Đã từ chối",
+    expired: "Đã quá hạn",
     success: "Thành công",
     succeeded: "Thành công",
     failed: "Thất bại",

@@ -17,7 +17,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/internal/ingestion/evaluate-alerts` | internal alert catch-up for one/all stations | 200 | 404/503 |
 | GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up for AQI, PM2.5, CO₂, noise, temperature and sensor availability | 200 | 422/503 |
 | POST `/alerts/{id}/resolve` | manager-only manual alert resolution | 200 | 403/404/503 |
-| GET `/stations/{id}/forecast?hours=1..3` | damped linear-trend forecast from at least 3 fresh valid PM2.5 measurements | 200 | 404/422/503 |
+| GET `/stations/{id}/forecast?hours=1..3&metric=pm25|aqi|co2|noise_db|temperature` | damped linear-trend forecast from at least 3 fresh valid measurements of the selected metric; defaults to PM2.5 | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
 | POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
@@ -41,6 +41,20 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 ## Environmental alert response
 
 Each alert includes `alert_type` (`aqi_threshold`, `pm25_threshold`, `co2_threshold`, `noise_threshold`, `temperature_threshold` or `sensor_offline`), `severity`, observed and threshold values, title/description, source and lifecycle timestamps. Environmental threshold alerts additionally expose `metric`, `unit` and a deterministic `recommendation`; UI must render these values and must not infer its own thresholds or recommendation. Rules evaluate only valid, fresh and online simulator data. The configured thresholds are provisional MVP defaults, not health or legal limits.
+
+## Automatic Agent proposal
+
+When `AUTO_PROPOSAL_ENABLED=true`, a newly eligible environmental alert schedules an internal
+Agent analysis. The Agent must report `generation_mode=live_llm` and revalidate fresh station data
+plus the active alert through backend tools before it creates a `pending` proposal. Only one pending
+automatic warning proposal is permitted per station; later automatic triggers are skipped until the
+Manager reviews it. Pending proposals automatically expire after `PROPOSAL_PENDING_TTL_SECONDS`
+(default: 3600 seconds); expiry preserves the proposal and writes an audit event, but it can no
+longer be approved or dispatched. No Manager decision or device command is automated. A failed/missing LLM is
+audited and leaves the alert active without a proposal.
+
+For a focused demo, `AUTO_PROPOSAL_STATIONS=S05` restricts automatic proposal creation to S05.
+Other stations may still produce backend alerts, but their alerts do not schedule Agent proposals.
 
 ## Ingestion response
 

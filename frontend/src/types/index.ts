@@ -210,7 +210,10 @@ export interface StationDetailData extends Station {
 export interface HistoryPoint {
   timestamp: string;
   pm25: number;
-  temperature?: number;
+  aqi?: number | null;
+  co2?: number | null;
+  noise_db?: number | null;
+  temperature?: number | null;
   humidity?: number;
 }
 
@@ -218,12 +221,16 @@ export interface ForecastHorizon {
   horizon: string;
   pm25_predicted: number;
   range: [number, number];
+  value?: number;
+  value_min?: number;
+  value_max?: number;
   confidence?: number;
 }
 
 export interface ForecastData {
   station_id: string;
   horizon_hours: number;
+  metric: "pm25" | "aqi" | "co2" | "noise_db" | "temperature";
   source: string;
   confidence: string;
   model_name?: string;
@@ -247,9 +254,12 @@ export interface Alert {
 }
 
 export interface Evidence {
-  pm25: number;
-  humidity?: number;
-  wind_speed?: number;
+  aqi?: number;
+  aqi_category?: string;
+  pm25?: number;
+  co2?: number;
+  noise_db?: number;
+  temperature?: number;
   observed_at?: string;
 }
 
@@ -260,7 +270,7 @@ export interface Proposal {
   target: string;
   action: string;
   rationale: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "expired";
   created_at: string;
   evidence: Evidence;
   version: number;

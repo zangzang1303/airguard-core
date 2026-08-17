@@ -11,10 +11,59 @@ interface ChatMessage {
   id: string;
   sender: "user" | "agent";
   text: string;
+  explanation?: string;
   timestamp: string;
   used_tools?: string[];
   proposal_created?: Proposal | null;
 }
+
+/** Keep the first paragraph focused; backend explanations remain available on demand. */
+const splitAgentReply = (reply: string): { answer: string; explanation: string | null } => {
+  const match = reply.match(/(?:^|\n)\s*Giải thích\s*:\s*([\s\S]*)$/i);
+  if (!match || match.index === undefined) return { answer: reply.trim(), explanation: null };
+  return {
+    answer: reply.slice(0, match.index).trim(),
+    explanation: match[1].trim() || null,
+  };
+};
+
+type ReplySection =
+  | { type: "paragraph"; lines: string[] }
+  | { type: "list"; ordered: boolean; items: string[] };
+
+/** Render plain backend text safely while giving lists and paragraphs a readable visual hierarchy. */
+const toReplySections = (text: string): ReplySection[] => text
+  .trim()
+  .split(/\n\s*\n/)
+  .filter(Boolean)
+  .map((block) => {
+    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+    const numbered = lines.every((line) => /^\d+[.)]\s+/.test(line));
+    const bulleted = lines.every((line) => /^[-*•]\s+/.test(line));
+
+    if (numbered || bulleted) {
+      return {
+        type: "list" as const,
+        ordered: numbered,
+        items: lines.map((line) => line.replace(numbered ? /^\d+[.)]\s+/ : /^[-*•]\s+/, "")),
+      };
+    }
+
+    return { type: "paragraph" as const, lines };
+  });
+
+const AgentReply: React.FC<{ text: string }> = ({ text }) => (
+  <div className="message-text message-text--structured">
+    {toReplySections(text).map((section, index) => {
+      if (section.type === "list") {
+        const List = section.ordered ? "ol" : "ul";
+        return <List key={`list-${index}`}>{section.items.map((item) => <li key={item}>{item}</li>)}</List>;
+      }
+
+      return <p key={`paragraph-${index}`}>{section.lines.join(" ")}</p>;
+    })}
+  </div>
+);
 
 export const AgentChat: React.FC = () => {
   const { selectedStationId, userGroup, userId, role, navigateTo, setPendingApprovalsCount } = useAuth();
@@ -44,10 +93,12 @@ export const AgentChat: React.FC = () => {
 
     try {
       const response: AgentResponse = await api.sendAgentMessage(userText, selectedStationId, userId);
+      const conciseReply = splitAgentReply(response.reply);
       setMessages((previous) => [...previous, {
         id: `agent-${Date.now()}`,
         sender: "agent",
-        text: response.reply,
+        text: conciseReply.answer,
+        explanation: conciseReply.explanation ?? undefined,
         timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
         used_tools: response.used_tools,
         proposal_created: response.proposal_created,
@@ -118,7 +169,14 @@ export const AgentChat: React.FC = () => {
                 </span>
                 <span className="message-time">{message.timestamp}</span>
               </div>
-              <div className="message-text">{message.text}</div>
+              {message.sender === "agent" ? <AgentReply text={message.text} /> : <div className="message-text">{message.text}</div>}
+
+              {message.explanation && (
+                <details className="agent-explanation">
+                  <summary>Giải thích và số liệu</summary>
+                  <div className="agent-explanation__content">{message.explanation}</div>
+                </details>
+              )}
 
               {message.used_tools && <TechnicalDetails tools={message.used_tools} />}
 

@@ -5,8 +5,8 @@ from typing import Any
 from uuid import uuid4
 
 from src.agents.policies.grounding import GROUNDING_POLICY_VERSION, Intent, RouteDecision, route_query
-from src.agents.policies.proposal_eligibility import PROPOSAL_POLICY_VERSION
 from src.agents.policies.impact_assessment import IMPACT_POLICY_VERSION
+from src.agents.policies.proposal_eligibility import PROPOSAL_POLICY_VERSION
 from src.agents.policies.recommendations import RECOMMENDATION_POLICY_VERSION
 from src.agents.response_composer import compose_response
 from src.agents.state import AgentState
@@ -137,17 +137,22 @@ async def generate_explanation_node(state: AgentState) -> dict[str, Any]:
     settings = get_settings()
     base_answer = state.get("answer", "")
     fallback = {"generation_mode": "deterministic_grounded", "provider": None, "model": None}
-    if not settings.openai_api_key or state.get("outcome") != "answered":
+    # The policy/composer owns every decision and fact in ``base_answer``. A
+    # configured provider may only append a non-factual explanation, including
+    # for transparent insufficient-data and safety-refusal outcomes. This lets
+    # live eval cover those cases without delegating a quality gate or HITL
+    # decision to the model.
+    if not settings.openai_api_key:
         return {"generation": fallback}
     evidence = state.get("sources", [])
     started = perf_counter()
     try:
         llm = get_llm()
         prompt = (
-            "You explain an already-grounded environmental answer. Do not add, change, infer, "
+            "You explain an already-grounded AirGuard answer. Do not add, change, infer, "
             "or repeat any measurements, timestamps, station names, forecast values, thresholds, "
-            "medical advice, or claims of certainty. Write one short Vietnamese sentence that only "
-            "explains how to interpret the evidence limitation.\n"
+            "medical advice, operational instruction, approval decision, device action, or claims of certainty. "
+            "Write one short Vietnamese sentence that only explains the evidence limitation or safety boundary.\n"
             f"Grounded answer (immutable): {base_answer}\n"
             f"Evidence references: {evidence}\n"
             "Return only the one explanatory sentence."

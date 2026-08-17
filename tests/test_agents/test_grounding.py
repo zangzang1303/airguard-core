@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 
 import pytest
 
 from src.agents.graph import build_graph
+from src.agents.nodes.orchestration import generate_explanation_node
 from src.agents.policies.grounding import Intent, SafetyCategory, route_query
 from src.agents.response_composer import INSUFFICIENT_DATA_MESSAGE, compose_response
 from src.agents.tools.contracts import ToolEnvelope, ToolError, ToolErrorCode, ToolName
@@ -360,6 +362,35 @@ async def test_safety_requests_are_refused_without_tools(query, category):
     assert result["trace"]["safety_category"] == category.value
     assert result["trace"]["final_outcome"] == "refused"
     assert result["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_live_llm_can_explain_a_safety_refusal_without_changing_the_policy(monkeypatch):
+    class FakeReply:
+        content = "Quyết định này cần được giữ trong quy trình có kiểm soát."
+        usage_metadata = {"input_tokens": 3, "output_tokens": 4}
+
+    class FakeLlm:
+        async def ainvoke(self, _prompt):
+            return FakeReply()
+
+    monkeypatch.setattr(
+        "src.agents.nodes.orchestration.get_settings",
+        lambda: SimpleNamespace(openai_api_key="local-test-key", model_name="test-model"),
+    )
+    monkeypatch.setattr("src.agents.nodes.orchestration.get_llm", lambda: FakeLlm())
+
+    result = await generate_explanation_node(
+        {
+            "answer": "Mình không thể tự phê duyệt hoặc điều khiển thiết bị.",
+            "outcome": "refused",
+            "sources": [],
+        }
+    )
+
+    assert result["generation"]["generation_mode"] == "live_llm"
+    assert result["generation"]["model"] == "test-model"
+    assert result["answer"].startswith("Mình không thể tự phê duyệt")
 
 
 @pytest.mark.asyncio
