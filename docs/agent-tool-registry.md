@@ -13,7 +13,7 @@ AI Agent tools must call backend HTTP APIs only. They must not read PostgreSQL, 
 | `compare_stations` | `GET /api/v1/stations/{station_id}/current` per station | no | Adapter validates 2..5 unique station IDs and composes comparable current records. |
 | `get_weather_context` | `GET /api/v1/weather/current` | no | VinUni/Ocean Park weather context. |
 | `get_pm25_forecast` | `GET /api/v1/stations/{station_id}/forecast?hours=1..3` | no | Short-horizon forecast, distinct from observation. |
-| `get_active_alerts` | `GET /api/v1/alerts` | no | Adapter may filter by station ID after backend response. |
+| `get_active_alerts` | `GET /api/v1/alerts?status=active&station_id={station_id}` | no | The backend performs the active-status gate; station filtering is optional. |
 | `get_user_profile` | `GET /api/v1/users/{user_id}/profile` | no | Accepts backend field `user_group` and exposes Agent field `group`. |
 | `create_warning_proposal` | `POST /api/v1/proposals` | yes | Maps to `ApprovalCreateRequest`, sends `Idempotency-Key`, validates `request_id` as `proposal_id`, and never retries. |
 
@@ -28,7 +28,7 @@ AI Agent tools must call backend HTTP APIs only. They must not read PostgreSQL, 
   policy version, and at least one evidence item for the same station. The AI-005 workflow requires
   both a fresh current measurement and an active alert evidence item.
 - Environmental timestamps must include a timezone. Current measurements require an explicit
-  `is_stale` value; weather context also carries explicit freshness. History points must be ordered
+  `is_stale` value; weather context carries explicit `is_stale` and `is_fallback` flags. History points must be ordered
   by `measured_at`. Forecast points require a backend-provided source and either an absolute
   `forecast_at` or an hour offset, and the forecast envelope requires explicit `is_stale` freshness.
   Active-alert source metadata must come from the backend payload.
@@ -59,6 +59,7 @@ Tool errors use `{ ok=false, tool_name, code, message, request_id, status_code, 
 | Condition | Code |
 |---|---|
 | Invalid tool input or backend `422` | `validation_error` |
+| Backend `401` or `403` | `permission_denied` |
 | Backend `404` | `not_found` |
 | Backend `5xx` or transport failure | `backend_unavailable` |
 | Timeout | `backend_timeout` |

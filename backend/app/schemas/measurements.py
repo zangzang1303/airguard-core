@@ -12,6 +12,8 @@ class MeasurementIngestionRequest(BaseModel):
     message_id: str = Field(min_length=1, max_length=100)
     station_id: str = Field(pattern=r"^S[0-9]{2}$")
     pm25: float = Field(ge=0, le=500)
+    co2: float | None = Field(default=None, ge=250, le=10000)
+    noise_db: float | None = Field(default=None, ge=20, le=140)
     temperature: float | None = Field(default=None, ge=-20, le=60)
     humidity: float | None = Field(default=None, ge=0, le=100)
     wind_speed: float | None = Field(default=None, ge=0, le=60)

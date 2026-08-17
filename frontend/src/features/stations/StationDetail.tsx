@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Bot, ChartNoAxesCombined, Droplets, GitCompareArrows, Sparkles, Thermometer, TriangleAlert, Wind } from "lucide-react";
+import { Activity, ArrowLeft, Bot, ChartNoAxesCombined, Database, GitCompareArrows, Sparkles, Thermometer, TriangleAlert, Volume2, Wind } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../../api/client";
 import { Button } from "../../components/common/Button";
-import { DataQualityBadge, getPm25Severity } from "../../components/common/DataQualityBadge";
+import { DataQualityBadge, getAqiSeverity, getPm25Severity } from "../../components/common/DataQualityBadge";
 import { PageHeader } from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { ForecastData, HistoryPoint, StationDetailData } from "../../types";
@@ -87,7 +87,8 @@ export const StationDetail: React.FC = () => {
     );
   }
 
-  const severity = getPm25Severity(station.pm25);
+  const aqiSeverity = getAqiSeverity(station.aqi);
+  const pm25Severity = getPm25Severity(station.pm25);
 
   return (
     <div className="detail-container">
@@ -111,29 +112,47 @@ export const StationDetail: React.FC = () => {
         )}
       />
 
-      {/* Current Real-time Metrics Card */}
+      {/* AQI is the primary station summary; the four underlying environmental readings follow. */}
       <div className="metrics-grid">
         <div className="metric-card metric-primary">
-          <div className="metric-label">PM2.5 Hiện tại</div>
-          <div className="metric-value" style={{ color: severity.color }}>
-            {station.pm25 ?? "N/A"} <small>µg/m³</small>
+          <div className="metric-label">AQI hiện tại</div>
+          <div className="metric-value metric-value--with-icon" style={{ color: aqiSeverity.color }}>
+            <Activity size={25} aria-hidden="true" /> {station.aqi ?? "—"}
           </div>
-          <DataQualityBadge status={station.status} isStale={station.is_stale} pm25={station.pm25} />
+          <DataQualityBadge status={station.status} isStale={station.is_stale} pm25={station.pm25} aqi={station.aqi} />
+          <p className="metric-support-text">Chỉ số tổng quan, tính từ PM2.5 trong dữ liệu mô phỏng.</p>
         </div>
 
         <div className="metric-card">
-          <div className="metric-label">Thời tiết Ngữ cảnh</div>
-          <div className="weather-info">
-            <div><Thermometer size={16} aria-hidden="true" /> Nhiệt độ: <strong>{station.weather?.temperature ?? "Không khả dụng"}{station.weather ? " °C" : ""}</strong></div>
-            <div><Droplets size={16} aria-hidden="true" /> Độ ẩm: <strong>{station.weather?.humidity ?? "Không khả dụng"}{station.weather ? " %" : ""}</strong></div>
-            <div><Wind size={16} aria-hidden="true" /> Tốc độ gió: <strong>{station.weather?.wind_speed ?? "Không khả dụng"}{station.weather ? " m/s" : ""}</strong></div>
+          <div className="metric-label">PM2.5</div>
+          <div className="metric-value metric-value--with-icon" style={{ color: pm25Severity.color }}>
+            <Wind size={24} aria-hidden="true" /> {station.pm25 ?? "—"} <small>{station.pm25 != null ? "µg/m³" : ""}</small>
           </div>
+          <p className="metric-support-text">Thành phần dùng để tính AQI.</p>
         </div>
 
         <div className="metric-card">
-          <div className="metric-label">Thông tin Nguồn & Độ mới</div>
+          <div className="metric-label">CO₂</div>
+          <div className="metric-value metric-value--with-icon"><Database size={24} aria-hidden="true" /> {station.co2 ?? "—"} <small>{station.co2 != null ? "ppm" : ""}</small></div>
+          <p className="metric-support-text">Nồng độ carbon dioxide tại điểm trạm.</p>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-label">Tiếng ồn</div>
+          <div className="metric-value metric-value--with-icon"><Volume2 size={24} aria-hidden="true" /> {station.noise_db ?? "—"} <small>{station.noise_db != null ? "dB" : ""}</small></div>
+          <p className="metric-support-text">Mức âm thanh môi trường ghi nhận tại trạm.</p>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-label">Nhiệt độ</div>
+          <div className="metric-value metric-value--with-icon"><Thermometer size={24} aria-hidden="true" /> {station.temperature ?? "—"} <small>{station.temperature != null ? "°C" : ""}</small></div>
+          <p className="metric-support-text">Nhiệt độ không khí tại vị trí trạm.</p>
+        </div>
+
+        <div className="metric-card metric-card--meta">
+          <div className="metric-label">Độ mới dữ liệu</div>
           <div className="meta-info">
-            <div>Nguồn: <span className="source-tag">{station.source}</span></div>
+            <div>Nguồn: <span className="source-tag">{station.source ?? "Không khả dụng"}</span></div>
             <div>Cập nhật: {formatVnDateTime(station.updated_at)}</div>
             <div>Múi giờ: {VN_TZ}</div>
           </div>
@@ -144,16 +163,18 @@ export const StationDetail: React.FC = () => {
       {forecast && (
         <section className="forecast-section">
           <h2><Sparkles size={18} aria-hidden="true" /> Dự báo PM2.5 ngắn hạn (1 - 3 giờ)</h2>
-          <p className="forecast-meta">Mô hình: {forecast.source} | Độ tin cậy: {forecast.confidence}</p>
+          <p className="forecast-meta">Mô hình: {forecast.model_name ?? forecast.source} | Độ tin cậy: {forecast.confidence}</p>
           <div className="forecast-grid">
             {forecast.forecasts.map((fc, idx) => (
               <div key={idx} className="forecast-card">
                 <div className="forecast-time">Dự báo sau {fc.horizon}</div>
                 <div className="forecast-pm25">{fc.pm25_predicted} µg/m³</div>
                 <div className="forecast-range">Khoảng: {fc.range[0]} - {fc.range[1]} µg/m³</div>
+                {fc.confidence != null && <div className="forecast-range">Độ tin cậy: {Math.round(fc.confidence * 100)}%</div>}
               </div>
             ))}
           </div>
+          {forecast.limitations?.map((limitation) => <p className="forecast-meta" key={limitation}>{limitation}</p>)}
         </section>
       )}
 
@@ -181,8 +202,8 @@ export const StationDetail: React.FC = () => {
             <AreaChart data={history}>
               <defs>
                 <linearGradient id="pm25Gradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={severity.color} stopOpacity={0.8} />
-                  <stop offset="95%" stopColor={severity.color} stopOpacity={0.05} />
+                  <stop offset="5%" stopColor={pm25Severity.color} stopOpacity={0.8} />
+                  <stop offset="95%" stopColor={pm25Severity.color} stopOpacity={0.05} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -192,7 +213,7 @@ export const StationDetail: React.FC = () => {
                 contentStyle={{ backgroundColor: "#1e293b", borderColor: "#475569", color: "#f8fafc" }}
                 formatter={(val: any) => [`${val} µg/m³`, "PM2.5"]}
               />
-              <Area type="monotone" dataKey="pm25" stroke={severity.color} fillOpacity={1} fill="url(#pm25Gradient)" />
+              <Area type="monotone" dataKey="pm25" stroke={pm25Severity.color} fillOpacity={1} fill="url(#pm25Gradient)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>

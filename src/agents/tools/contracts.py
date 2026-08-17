@@ -23,6 +23,7 @@ class ToolName(StrEnum):
 
 class ToolErrorCode(StrEnum):
     VALIDATION_ERROR = "validation_error"
+    PERMISSION_DENIED = "permission_denied"
     NOT_FOUND = "not_found"
     UNAVAILABLE = "backend_unavailable"
     TIMEOUT = "backend_timeout"
@@ -157,7 +158,16 @@ class WarningProposalInput(StrictModel):
 
 class StationMeasurement(BackendOutputModel):
     station_id: str
+<<<<<<< HEAD
     pm25: float | None = Field(..., ge=0)
+=======
+    pm25: float = Field(..., ge=0)
+    aqi: int | None = Field(default=None, ge=0, le=500)
+    aqi_category: str | None = Field(default=None, min_length=1, max_length=80)
+    co2: float | None = Field(default=None, ge=0)
+    noise_db: float | None = Field(default=None, ge=0)
+    temperature: float | None = None
+>>>>>>> dd46d3fc9426e86d81a4c06d467e970fce937fb6
     status: Literal["online", "offline", "stale", "invalid"]
     level: str | None = None
     is_stale: bool
@@ -214,6 +224,7 @@ class WeatherContext(BackendOutputModel):
     rainfall: float | None = None
     observed_at: AwareDatetime
     source: str = Field(..., min_length=1, max_length=100)
+    is_fallback: bool
     is_stale: bool
 
 
@@ -257,13 +268,15 @@ class ActiveAlert(BackendOutputModel):
     station_id: str
     alert_type: str
     severity: str
-    observed_value: float = Field(..., ge=0)
-    threshold_value: float = Field(..., ge=0)
+    observed_value: float | None = Field(default=None, ge=0)
+    threshold_value: float | None = Field(default=None, ge=0)
     status: Literal["active"]
     created_at: AwareDatetime
     source: str = Field(..., min_length=1, max_length=100)
     title: str | None = None
     description: str | None = None
+    unit: str | None = Field(default=None, max_length=20)
+    recommendation: str | None = Field(default=None, max_length=500)
 
     @field_validator("station_id")
     @classmethod
@@ -306,7 +319,7 @@ class ToolSpec(StrictModel):
 TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
     ToolName.GET_CURRENT_PM25: ToolSpec(
         name=ToolName.GET_CURRENT_PM25,
-        description="Fetch the latest valid PM2.5 measurement for one AirGuard station.",
+        description="Fetch the latest valid environmental snapshot for one AirGuard station, with AQI as the primary index and PM2.5 as supporting evidence.",
         input_schema=CurrentPm25Input,
         output_schema=StationMeasurement,
         method="GET",
@@ -346,7 +359,7 @@ TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
     ),
     ToolName.GET_ACTIVE_ALERTS: ToolSpec(
         name=ToolName.GET_ACTIVE_ALERTS,
-        description="Fetch active PM2.5 alerts, optionally filtered by station.",
+        description="Fetch active deterministic AQI/environmental alerts, optionally filtered by station.",
         input_schema=ActiveAlertsInput,
         output_schema=ActiveAlerts,
         method="GET",

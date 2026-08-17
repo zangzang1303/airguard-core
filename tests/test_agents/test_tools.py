@@ -107,9 +107,45 @@ async def test_backend_adapter_maps_success_and_request_id_header():
 
 
 @pytest.mark.asyncio
+async def test_active_alert_adapter_requests_only_active_backend_records():
+    seen_query: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_query.update(dict(request.url.params))
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "alert_id": "alert-S01-active",
+                        "station_id": "S01",
+                        "alert_type": "pm25_threshold",
+                        "severity": "warning",
+                        "observed_value": 55.0,
+                        "threshold_value": 50.0,
+                        "status": "active",
+                        "created_at": "2026-08-11T09:00:00+07:00",
+                        "source": "backend_alert_rule:pm25-threshold-v1",
+                    }
+                ],
+                "timestamp": "2026-08-11T09:00:01+07:00",
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://backend") as http_client:
+        adapter = BackendToolClient("http://backend", client=http_client)
+        result = await adapter.get_active_alerts({"station_id": "S01"}, request_id="req-alerts")
+
+    assert result.ok is True
+    assert result.data["items"][0]["status"] == "active"
+    assert seen_query == {"status": "active", "station_id": "S01"}
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("status_code", "expected_code"),
     [
+        (403, ToolErrorCode.PERMISSION_DENIED),
         (404, ToolErrorCode.NOT_FOUND),
         (422, ToolErrorCode.VALIDATION_ERROR),
         (503, ToolErrorCode.UNAVAILABLE),

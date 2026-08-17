@@ -16,16 +16,26 @@ export function getPm25Severity(pm25: number | null | undefined): Pm25SeverityIn
   return { label: "Rất nguy hại (Hazardous)", class: "level-hazardous", color: "var(--pm25-hazardous)" };
 }
 
+export function getAqiSeverity(aqi: number | null | undefined): Pm25SeverityInfo {
+  if (aqi === null || aqi === undefined) return { label: "AQI không khả dụng", class: "status-null", color: "var(--pm25-null)" };
+  if (aqi <= 50) return { label: "AQI tốt", class: "level-good", color: "var(--pm25-good)" };
+  if (aqi <= 100) return { label: "AQI trung bình", class: "level-moderate", color: "var(--pm25-moderate)" };
+  if (aqi <= 150) return { label: "AQI kém cho nhóm nhạy cảm", class: "level-unhealthy", color: "var(--pm25-unhealthy)" };
+  return { label: "AQI không tốt", class: "level-hazardous", color: "var(--pm25-hazardous)" };
+}
+
 interface DataQualityBadgeProps {
   status?: StationStatus;
   isStale?: boolean;
   pm25?: number | null;
+  aqi?: number | null;
 }
 
 export const DataQualityBadge: React.FC<DataQualityBadgeProps> = ({
   status = "online",
   isStale = false,
-  pm25 = null
+  pm25 = null,
+  aqi = null,
 }) => {
   // Data quality precedence: invalid > offline > stale > PM2.5 severity
   if (status === "invalid") {
@@ -38,7 +48,7 @@ export const DataQualityBadge: React.FC<DataQualityBadgeProps> = ({
     return <span className="badge badge-stale" title="Dữ liệu đã quá độ mới cho phép"><Clock3 size={14} aria-hidden="true" /> Dữ liệu cũ</span>;
   }
 
-  const severity = getPm25Severity(pm25);
+  const severity = aqi !== null && aqi !== undefined ? getAqiSeverity(aqi) : getPm25Severity(pm25);
   return (
     <span className={`badge ${severity.class}`}>
       <CheckCircle2 size={14} aria-hidden="true" /> {severity.label}

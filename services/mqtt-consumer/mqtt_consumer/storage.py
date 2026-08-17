@@ -34,10 +34,10 @@ class PostgresStore:
                 cur.execute(
                     """
                     INSERT INTO measurements (
-                        message_id, station_id, measured_at, pm25, temperature, humidity,
-                        wind_speed, wind_direction, rainfall, source, quality_flag
+                        message_id, station_id, measured_at, pm25, co2, noise_db, temperature, humidity,
+                        wind_speed, wind_direction, rainfall, source, quality_flag, received_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'valid')
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'valid', NOW())
                     ON CONFLICT (message_id) DO NOTHING
                     RETURNING measurement_id
                     """,
@@ -46,6 +46,8 @@ class PostgresStore:
                         payload.station_id,
                         payload.timestamp,
                         payload.pm25,
+                        payload.co2,
+                        payload.noise_db,
                         payload.temperature,
                         payload.humidity,
                         payload.wind_speed,

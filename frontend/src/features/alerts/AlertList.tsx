@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { MapPin, RefreshCw, TriangleAlert } from "lucide-react";
+import { Lightbulb, MapPin, RefreshCw, TriangleAlert } from "lucide-react";
 import { api } from "../../api/client";
 import { AlertFilters } from "../../components/common/AlertFilters";
 import { Button } from "../../components/common/Button";
@@ -59,11 +59,17 @@ export const AlertList: React.FC = () => {
     navigateTo("station-detail", { stationId });
   };
 
+  const measurementLabel = (alert: Alert) => {
+    const unit = alert.unit ? ` ${alert.unit}` : "";
+    if (alert.observed_value == null || alert.threshold == null) return "Không có số đo";
+    return `${alert.observed_value}${unit} / ${alert.threshold}${unit}`;
+  };
+
   return (
     <div className="alerts-container">
       <PageHeader
         title="Cảnh báo"
-        description="Theo dõi cảnh báo PM2.5 đang kích hoạt và lịch sử xử lý tại các trạm."
+        description="Theo dõi cảnh báo AQI và các chỉ số môi trường; mỗi cảnh báo có khuyến nghị vận hành từ Rule Engine."
         actions={(
           <Button variant="outline" size="sm" onClick={fetchAlerts} disabled={loading}>
             <RefreshCw className={loading ? "is-spinning" : ""} size={16} aria-hidden="true" />
@@ -110,8 +116,9 @@ export const AlertList: React.FC = () => {
                 <th>Mã cảnh báo</th>
                 <th>Trạm</th>
                 <th>Mức độ</th>
-                <th>Nội dung</th>
+                <th>Chỉ số / nội dung</th>
                 <th>Thực đo / Ngưỡng</th>
+                <th>Khuyến nghị</th>
                 <th>Thời gian</th>
                 <th>Trạng thái</th>
               </tr>
@@ -135,8 +142,11 @@ export const AlertList: React.FC = () => {
                       {SEVERITY_LABEL[alert.severity] ?? alert.severity}
                     </span>
                   </td>
-                  <td data-label="Nội dung">{alert.message}</td>
-                  <td data-label="Thực đo / Ngưỡng"><strong>{alert.observed_value}</strong> / {alert.threshold} µg/m³</td>
+                  <td data-label="Chỉ số / nội dung"><strong>{alert.title}</strong><br /><small>{alert.message}</small></td>
+                  <td data-label="Thực đo / Ngưỡng"><strong>{measurementLabel(alert)}</strong></td>
+                  <td data-label="Khuyến nghị">
+                    {alert.recommendation ? <span className="alert-recommendation"><Lightbulb size={15} aria-hidden="true" />{alert.recommendation}</span> : "—"}
+                  </td>
                   <td data-label="Thời gian">{formatVnDateTime(alert.created_at)}</td>
                   <td data-label="Trạng thái"><StatusBadge status={alert.status} /></td>
                 </tr>

@@ -141,11 +141,16 @@ class BackendToolClient:
             args = ActiveAlertsInput.model_validate(payload)
         except ValidationError as exc:
             return self._validation_error(ToolName.GET_ACTIVE_ALERTS, request_id, exc)
-        result = await self._request_and_validate(ToolName.GET_ACTIVE_ALERTS, request_id, "GET", "/api/v1/alerts")
-        if isinstance(result, ToolError) or args.station_id is None:
-            return result
-        filtered = [item for item in result.data["items"] if item["station_id"] == args.station_id]
-        return ToolEnvelope(tool_name=ToolName.GET_ACTIVE_ALERTS, request_id=request_id, data={"items": filtered})
+        params = {"status": "active"}
+        if args.station_id is not None:
+            params["station_id"] = args.station_id
+        return await self._request_and_validate(
+            ToolName.GET_ACTIVE_ALERTS,
+            request_id,
+            "GET",
+            "/api/v1/alerts",
+            params=params,
+        )
 
     async def get_user_profile(self, payload: Mapping[str, Any], request_id: str | None = None) -> ToolEnvelope | ToolError:
         request_id = request_id or self._new_request_id()
@@ -273,6 +278,8 @@ class BackendToolClient:
 
     def _http_error(self, tool_name: ToolName, request_id: str, response: httpx.Response) -> ToolError:
         code = ToolErrorCode.NOT_FOUND if response.status_code == 404 else ToolErrorCode.UNAVAILABLE
+        if response.status_code in {401, 403}:
+            code = ToolErrorCode.PERMISSION_DENIED
         if response.status_code == 422:
             code = ToolErrorCode.VALIDATION_ERROR
         message = "Backend tool endpoint returned an error."

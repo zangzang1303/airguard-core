@@ -4,8 +4,8 @@ from copy import deepcopy
 
 import pytest
 
-from src.agents.nodes.proposal_workflow import run_proposal_workflow
 from src.agents.graph import build_graph
+from src.agents.nodes.proposal_workflow import run_proposal_workflow
 from src.agents.policies.proposal_eligibility import (
     PROPOSAL_POLICY_VERSION,
     proposal_idempotency_key,
@@ -81,11 +81,32 @@ async def test_graph_routes_proposal_intent_to_pending_hitl_request():
 
     assert result["proposal_id"] == "proposal-001"
     assert result["outcome"] == "proposal_pending"
+    assert result["request_id"] == result["trace"]["request_id"]
+    assert result["trace"]["proposal_policy_version"] == PROPOSAL_POLICY_VERSION
+    assert "pending" in result["answer"]
+    assert "Manager cần review" in result["answer"]
     assert result["used_tools"] == [
         "get_current_pm25",
         "get_active_alerts",
         "create_warning_proposal",
     ]
+
+
+@pytest.mark.asyncio
+async def test_graph_does_not_claim_success_when_create_tool_fails():
+    result = await build_graph(ToolFailureAdapter(ToolName.CREATE_WARNING_PROPOSAL)).ainvoke(
+        {
+            "query": "tao canh bao cho S02",
+            "user_id": "demo-user",
+            "request_id": "req-create-failed",
+        }
+    )
+
+    assert result.get("proposal_id") is None
+    assert result["outcome"] == "failed"
+    assert result["request_id"] == result["trace"]["request_id"] == "req-create-failed"
+    assert "Không thể tạo warning proposal" in result["answer"]
+    assert "Đã tạo warning proposal" not in result["answer"]
 
 
 @pytest.mark.asyncio

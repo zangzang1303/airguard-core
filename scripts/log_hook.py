@@ -25,7 +25,11 @@ _SECRET_ASSIGNMENT_RE = re.compile(
 )
 _BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
 _SHELL_TRANSCRIPT_RE = re.compile(
+<<<<<<< HEAD
     r"^(?:PS\s+[^>]+>\s+\S|\$\s+\S|[^@\n]+@[^:\n]+:.*[#$>]\s+\S|[A-Za-z]:\\[^\n>]*>\s+\S)",
+=======
+    r"^(?:PS\s+[A-Za-z]:\\[^>]*>|[A-Za-z]:\\[^>]*>|\$\s+)"
+>>>>>>> dd46d3fc9426e86d81a4c06d467e970fce937fb6
 )
 
 
@@ -313,12 +317,19 @@ def normalize(data: dict, tool: str) -> dict | None:
             ),
         })
 
+<<<<<<< HEAD
     if _looks_like_terminal_transcript(base.get("prompt", "")):
         return None
 
     # Only keep turns that carry an actual prompt. Tool-only events (Claude
     # PostToolUse for Bash/Read/Edit, Stop) have no prompt and are dropped.
     if not base.get("prompt"):
+=======
+    # Only keep turns that carry an actual AI prompt. Tool-only events and
+    # captured shell transcripts are operational noise rather than user turns.
+    prompt = base.get("prompt", "")
+    if not prompt or _looks_like_terminal_transcript(prompt):
+>>>>>>> dd46d3fc9426e86d81a4c06d467e970fce937fb6
         return None
 
     return base

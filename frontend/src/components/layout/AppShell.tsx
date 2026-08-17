@@ -166,7 +166,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             </span>
             <span>
               <strong>AirGuard AI</strong>
-              <small>PM2.5 Monitoring</small>
+              <small>AQI &amp; môi trường</small>
             </span>
           </button>
           <button

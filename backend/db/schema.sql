@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS measurements (
     station_id VARCHAR(50) NOT NULL REFERENCES stations(station_id),
     measured_at TIMESTAMPTZ NOT NULL,
     pm25 DOUBLE PRECISION NOT NULL CHECK (pm25 >= 0 AND pm25 <= 500),
+    co2 DOUBLE PRECISION CHECK (co2 IS NULL OR (co2 >= 250 AND co2 <= 10000)),
+    noise_db DOUBLE PRECISION CHECK (noise_db IS NULL OR (noise_db >= 20 AND noise_db <= 140)),
     temperature DOUBLE PRECISION CHECK (temperature IS NULL OR (temperature >= -20 AND temperature <= 60)),
     humidity DOUBLE PRECISION CHECK (humidity IS NULL OR (humidity >= 0 AND humidity <= 100)),
     wind_speed DOUBLE PRECISION CHECK (wind_speed IS NULL OR (wind_speed >= 0 AND wind_speed <= 60)),
@@ -39,8 +41,14 @@ CREATE TABLE IF NOT EXISTS measurements (
     source VARCHAR(30) NOT NULL DEFAULT 'simulator',
     quality_flag VARCHAR(20) NOT NULL DEFAULT 'valid',
     quality_reason TEXT,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE IF EXISTS measurements
+    ADD COLUMN IF NOT EXISTS received_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE IF EXISTS measurements ADD COLUMN IF NOT EXISTS co2 DOUBLE PRECISION;
+ALTER TABLE IF EXISTS measurements ADD COLUMN IF NOT EXISTS noise_db DOUBLE PRECISION;
 
 CREATE INDEX IF NOT EXISTS idx_measurements_station_time
 ON measurements(station_id, measured_at DESC);

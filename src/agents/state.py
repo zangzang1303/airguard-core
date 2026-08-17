@@ -23,4 +23,6 @@ class AgentState(TypedDict, total=False):
     proposal_id: str | None
     proposal_reason_code: str | None
     recommendation_policy_version: str
+    impact_policy_version: str
+    generation: dict[str, Any]
     trace: dict[str, Any]
