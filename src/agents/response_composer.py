@@ -203,11 +203,7 @@ def _compose_weather(data_items: list[Mapping[str, Any]]) -> str:
     )
     return (
         f"Bối cảnh thời tiết tại {data['area_id']} lúc {data['observed_at']}: {values}. "
-<<<<<<< HEAD
-        f"Nguồn: {data['source']}. {SIMULATOR_NOTICE}"
-=======
-        f"Nguồn: {data['source']}.{fallback_notice}"
->>>>>>> dd46d3fc9426e86d81a4c06d467e970fce937fb6
+        f"Nguồn: {data['source']}.{fallback_notice} {SIMULATOR_NOTICE}"
     )
 
 

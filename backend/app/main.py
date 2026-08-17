@@ -325,7 +325,7 @@ def get_station_forecast(
             "At least three recent valid measurements are required for forecast",
             503,
         ) from exc
-    return {"station_id": station_id, **forecast, "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"station_id": station_id, **forecast, "is_stale": forecast.get("freshness") != "fresh", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)

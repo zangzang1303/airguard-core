@@ -189,24 +189,15 @@ def test_impact_response_is_aqi_first_and_non_medical() -> None:
 
 
 @pytest.mark.asyncio
-<<<<<<< HEAD
-async def test_proposal_intent_without_user_context_fails_closed():
-=======
 async def test_proposal_intent_without_user_id_requests_clarification():
->>>>>>> dd46d3fc9426e86d81a4c06d467e970fce937fb6
     adapter = FakeBackendToolClient()
     graph = build_graph(adapter)
     result = await graph.ainvoke({"query": "Tạo warning proposal cho S02"})
 
     assert result["used_tools"] == []
     assert adapter.created_proposals == []
-<<<<<<< HEAD
-    assert result["outcome"] == "blocked"
-    assert "invalid_input" in result["answer"]
-=======
     assert result["outcome"] == "clarification"
     assert "user_id" in result["answer"]
->>>>>>> dd46d3fc9426e86d81a4c06d467e970fce937fb6
 
 
 @pytest.mark.asyncio

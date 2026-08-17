@@ -80,19 +80,7 @@ async def execute_tools_node(state: AgentState, *, tool_client: Any) -> dict[str
 
 def compose_node(state: AgentState) -> dict[str, Any]:
     decision = RouteDecision.model_validate(state["route"])
-<<<<<<< HEAD
-    if decision.direct_response is not None:
-        composed = compose_response(decision, [])
-        return {
-            "answer": composed["answer"],
-            "response": composed["answer"],
-            "sources": composed["sources"],
-            "outcome": composed["outcome"],
-        }
-    if decision.intent == Intent.PROPOSAL:
-=======
     if decision.intent == Intent.PROPOSAL and decision.direct_response is None:
->>>>>>> dd46d3fc9426e86d81a4c06d467e970fce937fb6
         outcome = state.get("outcome")
         reason = state.get("proposal_reason_code")
         proposal_id = state.get("proposal_id")

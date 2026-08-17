@@ -164,16 +164,12 @@ class WarningProposalInput(StrictModel):
 
 class StationMeasurement(BackendOutputModel):
     station_id: str
-<<<<<<< HEAD
-    pm25: float | None = Field(..., ge=0)
-=======
     pm25: float = Field(..., ge=0)
     aqi: int | None = Field(default=None, ge=0, le=500)
     aqi_category: str | None = Field(default=None, min_length=1, max_length=80)
     co2: float | None = Field(default=None, ge=0)
     noise_db: float | None = Field(default=None, ge=0)
     temperature: float | None = None
->>>>>>> dd46d3fc9426e86d81a4c06d467e970fce937fb6
     status: Literal["online", "offline", "stale", "invalid"]
     level: str | None = None
     is_stale: bool
