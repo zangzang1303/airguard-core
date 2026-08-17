@@ -27,6 +27,44 @@ const splitAgentReply = (reply: string): { answer: string; explanation: string |
   };
 };
 
+type ReplySection =
+  | { type: "paragraph"; lines: string[] }
+  | { type: "list"; ordered: boolean; items: string[] };
+
+/** Render plain backend text safely while giving lists and paragraphs a readable visual hierarchy. */
+const toReplySections = (text: string): ReplySection[] => text
+  .trim()
+  .split(/\n\s*\n/)
+  .filter(Boolean)
+  .map((block) => {
+    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+    const numbered = lines.every((line) => /^\d+[.)]\s+/.test(line));
+    const bulleted = lines.every((line) => /^[-*•]\s+/.test(line));
+
+    if (numbered || bulleted) {
+      return {
+        type: "list" as const,
+        ordered: numbered,
+        items: lines.map((line) => line.replace(numbered ? /^\d+[.)]\s+/ : /^[-*•]\s+/, "")),
+      };
+    }
+
+    return { type: "paragraph" as const, lines };
+  });
+
+const AgentReply: React.FC<{ text: string }> = ({ text }) => (
+  <div className="message-text message-text--structured">
+    {toReplySections(text).map((section, index) => {
+      if (section.type === "list") {
+        const List = section.ordered ? "ol" : "ul";
+        return <List key={`list-${index}`}>{section.items.map((item) => <li key={item}>{item}</li>)}</List>;
+      }
+
+      return <p key={`paragraph-${index}`}>{section.lines.join(" ")}</p>;
+    })}
+  </div>
+);
+
 export const AgentChat: React.FC = () => {
   const { selectedStationId, userGroup, userId, role, navigateTo, setPendingApprovalsCount } = useAuth();
   const initialMessage: ChatMessage = {
@@ -131,7 +169,7 @@ export const AgentChat: React.FC = () => {
                 </span>
                 <span className="message-time">{message.timestamp}</span>
               </div>
-              <div className="message-text">{message.text}</div>
+              {message.sender === "agent" ? <AgentReply text={message.text} /> : <div className="message-text">{message.text}</div>}
 
               {message.explanation && (
                 <details className="agent-explanation">
