@@ -3,7 +3,7 @@
 AirGuard AI là MVP giám sát chất lượng môi trường tại Vinhomes Ocean Park 1 bằng 5 trạm mô phỏng. Hệ thống thu thập dữ liệu qua MQTT, lưu vào PostgreSQL, hiển thị dashboard AQI-first, tạo cảnh báo theo rule, dự báo ngắn hạn và cung cấp AI Agent có grounding cùng luồng Human-in-the-Loop (HITL).
 
 > Toàn bộ dữ liệu môi trường hiện tại đến từ simulator phục vụ học tập và demo. Đây không phải hệ thống quan trắc được chứng nhận, không dùng để chẩn đoán sức khỏe, tuyên bố khẩn cấp hoặc ra quyết định y tế/pháp lý.
-
+ 
 ## Trạng thái hiện tại
 
 | Khả năng | Trạng thái |

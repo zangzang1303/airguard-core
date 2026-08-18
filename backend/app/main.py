@@ -334,7 +334,7 @@ def get_user_profile(user_id: str) -> UserProfileResponse:
     return UserProfileResponse(
         user_id=str(row["user_id"]), role=row["role"], user_group=row.get("sensitivity_group")
     )
-
+ 
 
 @app.post("/api/v1/agent/chat")
 async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
