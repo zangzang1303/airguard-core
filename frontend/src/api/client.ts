@@ -530,3 +530,25 @@ export const api = {
     }
   },
 };
+
+export const fetchStations = api.getStations;
+export const fetchAlerts = api.getAlerts;
+export const fetchStationHistory = api.getStationHistory;
+export const fetchStationForecast = api.getStationForecast;
+export const fetchProposals = async (_status?: string): Promise<{ items: Proposal[] }> => {
+  try {
+    const items = await api.getProposals({ userId: "USR-002", role: "manager" });
+    return { items };
+  } catch {
+    return { items: FALLBACK_PROPOSALS };
+  }
+};
+export const approveProposal = (proposalId: string, version: number, note = "Approved by manager") =>
+  api.approveProposal(proposalId, version, note, { userId: "USR-002", role: "manager" });
+export const rejectProposal = (proposalId: string, version: number, note = "Rejected by manager") =>
+  api.rejectProposal(proposalId, version, note, { userId: "USR-002", role: "manager" });
+export const sendAgentChat = async (message: string, userId = "USR-002"): Promise<{ response: string; message?: string }> => {
+  const res = await api.sendAgentMessage(message, null, userId);
+  return { response: res.reply };
+};
+
