@@ -165,6 +165,7 @@ CREATE TABLE IF NOT EXISTS device_command_intents (
 
 CREATE INDEX IF NOT EXISTS idx_device_command_intents_approval
 ON device_command_intents(approval_request_id);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
     audit_id BIGSERIAL PRIMARY KEY,
     actor_type VARCHAR(30) NOT NULL,
@@ -195,6 +196,7 @@ DROP TRIGGER IF EXISTS audit_logs_no_update ON audit_logs;
 CREATE TRIGGER audit_logs_no_update
 BEFORE UPDATE OR DELETE ON audit_logs
 FOR EACH ROW EXECUTE FUNCTION prevent_audit_log_mutation();
+
 CREATE TABLE IF NOT EXISTS job_runs (
     task_id VARCHAR(64) PRIMARY KEY,
     job_type VARCHAR(50) NOT NULL,
@@ -213,3 +215,46 @@ CREATE TABLE IF NOT EXISTS job_runs (
 
 CREATE INDEX IF NOT EXISTS idx_job_runs_type_created
 ON job_runs(job_type, created_at DESC);
+
+-- ==========================================
+-- Idempotent Reference Seed Data (S01 - S05)
+-- ==========================================
+INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description, source, status, active)
+VALUES
+    ('S01', 'Truc Da Ton phia Tay Bac', 'northwest_road', 21.0008, 105.9428, 'Diem mo phong tren truc Da Ton, phu khu vuc cua ngo Tay Bac Ocean Park 1', 'simulator', 'online', TRUE),
+    ('S02', 'Khu can ho Sapphire', 'high_rise_residential', 20.9975, 105.9430, 'Diem mo phong trong cum can ho phia Tay Bac, dai dien khu dan cu mat do cao', 'simulator', 'online', TRUE),
+    ('S03', 'Ven Ho Ngoc Trai', 'lakeside_residential', 20.9953, 105.9500, 'Diem mo phong ven Ho Ngoc Trai va khu Ngoc Trai, dai dien khong gian ven ho trung tam', 'simulator', 'online', TRUE),
+    ('S04', 'Khuon vien VinUni', 'university_campus', 20.9898, 105.9467, 'Diem mo phong trong khuon vien VinUni o phia Tay Nam pham vi quan sat', 'simulator', 'online', TRUE),
+    ('S05', 'Khu Hai Au phia Dong Nam', 'southeast_residential', 20.9910, 105.9560, 'Diem mo phong tai khu Hai Au, phu vung dan cu phia Dong Nam Ocean Park 1', 'simulator', 'online', TRUE)
+ON CONFLICT (station_id) DO UPDATE SET
+    station_name = EXCLUDED.station_name,
+    location_type = EXCLUDED.location_type,
+    latitude = EXCLUDED.latitude,
+    longitude = EXCLUDED.longitude,
+    description = EXCLUDED.description,
+    active = EXCLUDED.active,
+    updated_at = NOW();
+
+INSERT INTO station_status (station_id, status, last_seen_at, source)
+SELECT station_id, 'offline', NULL, 'simulator'
+FROM stations
+ON CONFLICT (station_id) DO NOTHING;
+
+INSERT INTO users (user_id, email, password_hash, role, full_name, sensitivity_group)
+VALUES
+    ('00000000-0000-0000-0000-000000000001', 'manager@airguard.local', NULL, 'manager', 'Demo Facility Manager', 'normal'),
+    ('00000000-0000-0000-0000-000000000101', 'resident@vinuni.edu.vn', NULL, 'resident', 'Tran Minh Anh', 'normal'),
+    ('00000000-0000-0000-0000-000000000102', 'manager@vinuni.edu.vn', NULL, 'manager', 'Nguyen Van A', 'sensitive'),
+    ('00000000-0000-0000-0000-000000000103', 'admin@vinuni.edu.vn', NULL, 'admin', 'Le Thi D', 'normal')
+ON CONFLICT (user_id) DO UPDATE SET
+    email = EXCLUDED.email,
+    role = EXCLUDED.role,
+    full_name = EXCLUDED.full_name,
+    sensitivity_group = EXCLUDED.sensitivity_group;
+
+INSERT INTO devices (device_id, device_name, device_type, station_id, status, is_simulated)
+VALUES
+    ('FILTER-01', 'Simulated outdoor filtration unit', 'air_filter', 'S03', 'offline', TRUE),
+    ('FILTER-02', 'Indoor Air Filter S02', 'ventilation_filter', 'S02', 'offline', TRUE),
+    ('FILTER-05', 'Hai Au Air Filter S05', 'ventilation_filter', 'S05', 'offline', TRUE)
+ON CONFLICT (device_id) DO NOTHING;
