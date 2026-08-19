@@ -124,8 +124,8 @@ export const ApprovalQueue: React.FC = () => {
   return (
     <div className="approvals-container">
       <PageHeader
-        title="Phê duyệt đề xuất cảnh báo"
-        description="Hàng chờ Human-in-the-Loop · kiểm tra evidence trước khi phê duyệt hoặc từ chối."
+        title="Phê duyệt đề xuất"
+        description="Xem bằng chứng quan trắc trước khi đưa ra quyết định phê duyệt hoặc từ chối."
         actions={<Button variant="outline" size="sm" onClick={fetchProposals} disabled={loading}><RefreshCw className={loading ? "is-spinning" : ""} size={16} />{loading ? "Đang làm mới" : "Làm mới"}</Button>}
       />
 

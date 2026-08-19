@@ -8,7 +8,6 @@ interface EnvironmentalHeatmapLayerProps {
   stations: Station[];
   activeLayer: EnvironmentalLayerType;
   showHeatmap: boolean;
-  forecastMultiplier?: number;
 }
 
 function getLayerValue(station: Station, layer: EnvironmentalLayerType): number | null {
@@ -25,7 +24,7 @@ function getLayerValue(station: Station, layer: EnvironmentalLayerType): number 
     case "noise_db":
       return station.noise_db ?? null;
     case "humidity":
-      return 68; // default moderate humidity
+      return station.humidity ?? null;
     default:
       return station.aqi ?? null;
   }
@@ -65,7 +64,6 @@ export const EnvironmentalHeatmapLayer: React.FC<EnvironmentalHeatmapLayerProps>
   stations,
   activeLayer,
   showHeatmap,
-  forecastMultiplier = 1.0,
 }) => {
   if (!showHeatmap) return null;
 
@@ -76,8 +74,7 @@ export const EnvironmentalHeatmapLayer: React.FC<EnvironmentalHeatmapLayerProps>
         .map((station) => {
           const rawVal = getLayerValue(station, activeLayer);
           if (rawVal === null) return null;
-          const adjustedVal = rawVal * forecastMultiplier;
-          const color = getLayerColor(adjustedVal, activeLayer);
+          const color = getLayerColor(rawVal, activeLayer);
 
           // Render a multi-tier subtle soft radial halo for smooth blending
           return (
@@ -85,7 +82,7 @@ export const EnvironmentalHeatmapLayer: React.FC<EnvironmentalHeatmapLayerProps>
               {/* Outer soft dispersion ring */}
               <Circle
                 center={[station.latitude, station.longitude]}
-                radius={420 * forecastMultiplier}
+                radius={420}
                 pathOptions={{
                   color: "transparent",
                   fillColor: color,
@@ -96,7 +93,7 @@ export const EnvironmentalHeatmapLayer: React.FC<EnvironmentalHeatmapLayerProps>
               {/* Middle dispersion ring */}
               <Circle
                 center={[station.latitude, station.longitude]}
-                radius={260 * forecastMultiplier}
+                radius={260}
                 pathOptions={{
                   color: "transparent",
                   fillColor: color,

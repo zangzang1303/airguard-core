@@ -20,132 +20,6 @@ export interface DemoApiActor {
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-// Fallback seed data if backend is offline during initial demo
-export const FALLBACK_STATIONS: Station[] = [
-  {
-    station_id: "S01",
-    station_name: "Trục Đa Tốn phía Tây Bắc",
-    latitude: 21.0008,
-    longitude: 105.9428,
-    pm25: 42.5,
-    aqi: 118, co2: 650, noise_db: 57, temperature: 31.1,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S02",
-    station_name: "Khu căn hộ Sapphire",
-    latitude: 20.9975,
-    longitude: 105.943,
-    pm25: 55.2,
-    aqi: 149, co2: 720, noise_db: 65, temperature: 31.8,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S03",
-    station_name: "Ven Hồ Ngọc Trai",
-    latitude: 20.9953,
-    longitude: 105.95,
-    pm25: 66.1,
-    aqi: 158, co2: 780, noise_db: 71, temperature: 32.4,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S04",
-    station_name: "Khuôn viên VinUni",
-    latitude: 20.9898,
-    longitude: 105.9467,
-    pm25: 28.4,
-    aqi: 78, co2: 540, noise_db: 49, temperature: 30.2,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S05",
-    station_name: "Khu Hải Âu phía Đông Nam",
-    latitude: 20.991,
-    longitude: 105.956,
-    pm25: 35.9,
-    aqi: 99, co2: 590, noise_db: 54, temperature: 30.8,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-];
-
-export const FALLBACK_ALERTS: Alert[] = [
-  {
-    alert_id: "ALT-001",
-    station_id: "S03",
-    alert_type: "pm25_threshold",
-    severity: "warning",
-    title: "PM2.5 vượt ngưỡng",
-    message: "PM2.5 vượt ngưỡng khuyến nghị (66.1 µg/m³)",
-    observed_value: 66.1,
-    threshold: 50.0,
-    unit: "µg/m³",
-    recommendation: "Theo dõi lần đo tiếp theo và hạn chế nguồn bụi gần khu vực.",
-    status: "active",
-    created_at: new Date(Date.now() - 15 * 60000).toISOString(),
-  },
-  {
-    alert_id: "ALT-002",
-    station_id: "S02",
-    alert_type: "aqi_threshold",
-    severity: "moderate",
-    title: "AQI cần theo dõi",
-    message: "PM2.5 tăng nhẹ khu vực Bãi đỗ xe",
-    observed_value: 55.2,
-    threshold: 50.0,
-    unit: "",
-    recommendation: "Theo dõi cập nhật AQI trước khi lên kế hoạch hoạt động ngoài trời kéo dài.",
-    status: "active",
-    created_at: new Date(Date.now() - 45 * 60000).toISOString(),
-  },
-];
-
-export const FALLBACK_PROPOSALS: Proposal[] = [
-  {
-    proposal_id: "PROP-101",
-    station_id: "S03",
-    severity: "warning",
-    target: "Khu vực Trục đường chính Ocean Park",
-    action: "Khuyến nghị hạn chế hoạt động thể thao ngoài trời & phát cảnh báo",
-    rationale: "PM2.5 đạt 66.1 µg/m³ duy trì trên 30 phút cùng độ ẩm cao.",
-    status: "pending",
-    version: 1,
-    created_at: new Date(Date.now() - 20 * 60000).toISOString(),
-    evidence: { aqi: 158, pm25: 66.1, co2: 780, noise_db: 71, temperature: 32.4 },
-  },
-];
-
-export const FALLBACK_AUDIT_LOGS: AuditLogEntry[] = [
-  {
-    id: "AUD-01",
-    time: new Date(Date.now() - 120 * 60000).toISOString(),
-    actor: "AI Agent",
-    action: "CREATE_PROPOSAL",
-    target: "PROP-101",
-    outcome: "SUCCESS",
-    correlation_id: "req-9912",
-  },
-  {
-    id: "AUD-02",
-    time: new Date(Date.now() - 300 * 60000).toISOString(),
-    actor: "Manager (Demo)",
-    action: "APPROVE_PROPOSAL",
-    target: "PROP-099",
-    outcome: "SUCCESS",
-    correlation_id: "req-8810",
-  },
-];
-
 const demoNow = new Date();
 const hoursAgo = (h: number) =>
   new Date(demoNow.getTime() - h * 3600 * 1000).toISOString();
@@ -357,27 +231,25 @@ function mapProposal(request: Record<string, any>): Proposal {
     severity: rawEvidence.severity ?? alertEvidence.severity,
     threshold: rawEvidence.threshold ?? alertEvidence.threshold_value,
   };
-  const legacyReason = "Fresh simulator PM2.5 data and an active backend alert require manager review.";
   const actionLabels: Record<string, string> = {
     notify_station_area_users: "Gửi cảnh báo đến người dân trong khu vực",
   };
   return {
     proposal_id: request.request_id,
     station_id: request.station_id,
-    severity: evidence.severity ?? "warning",
-    target: request.device_id ?? request.station_id,
+    severity: evidence.severity ?? "unknown",
+    target: request.device_id ?? request.station_id ?? "Không xác định",
     action: actionLabels[request.proposed_action] ?? request.proposed_action,
-    rationale: request.reason === legacyReason
-      ? "Dữ liệu simulator còn mới và đang có cảnh báo active từ backend; đề xuất cần Manager xem xét."
-      : request.reason,
+    rationale: request.reason ?? "Backend không cung cấp lý do.",
     status: request.status,
     created_at: request.created_at,
+    created_by: request.created_by,
     evidence,
     version: request.version,
     reviewed_by: request.reviewed_by,
     reviewed_at: request.reviewed_at,
     review_note: request.review_note,
-    dispatch_status: request.command_intent?.status ?? "not_configured",
+    dispatch_status: request.command_intent?.status ?? "unknown",
   };
 }
 
@@ -414,15 +286,18 @@ export const api = {
         confidence: typeof data.confidence === "number" ? `${Math.round(data.confidence * 100)}%` : data.confidence,
         model_name: data.model_name,
         limitations: data.limitations,
-        forecasts: data.items.map((item: { hour_offset: number; pm25?: number; pm25_min?: number; pm25_max?: number; value?: number; value_min?: number; value_max?: number; confidence?: number }) => ({
-          horizon: `${item.hour_offset} hour`,
-          pm25_predicted: item.pm25 ?? item.value ?? 0,
-          range: [item.pm25_min ?? item.value_min ?? item.pm25 ?? item.value ?? 0, item.pm25_max ?? item.value_max ?? item.pm25 ?? item.value ?? 0] as [number, number],
-          value: item.value ?? item.pm25,
-          value_min: item.value_min ?? item.pm25_min,
-          value_max: item.value_max ?? item.pm25_max,
-          confidence: item.confidence,
-        })),
+        forecasts: data.items.map((item: { hour_offset: number; pm25?: number; pm25_min?: number; pm25_max?: number; value?: number; value_min?: number; value_max?: number; confidence?: number }) => {
+          const predicted = item.value ?? item.pm25 ?? null;
+          return {
+            horizon: `${item.hour_offset} hour`,
+            pm25_predicted: predicted,
+            range: [item.value_min ?? item.pm25_min ?? predicted, item.value_max ?? item.pm25_max ?? predicted] as [number | null, number | null],
+            value: item.value ?? item.pm25 ?? null,
+            value_min: item.value_min ?? item.pm25_min ?? null,
+            value_max: item.value_max ?? item.pm25_max ?? null,
+            confidence: item.confidence,
+          };
+        }),
       };
     } catch {
       throw new Error("Forecast API unavailable");
@@ -535,18 +410,18 @@ export const fetchStations = api.getStations;
 export const fetchAlerts = api.getAlerts;
 export const fetchStationHistory = api.getStationHistory;
 export const fetchStationForecast = api.getStationForecast;
+const DEMO_MANAGER_ACTOR: DemoApiActor = {
+  userId: "00000000-0000-0000-0000-000000000102",
+  role: "manager",
+};
 export const fetchProposals = async (_status?: string): Promise<{ items: Proposal[] }> => {
-  try {
-    const items = await api.getProposals({ userId: "USR-002", role: "manager" });
-    return { items };
-  } catch {
-    return { items: FALLBACK_PROPOSALS };
-  }
+  const items = await api.getProposals(DEMO_MANAGER_ACTOR);
+  return { items };
 };
 export const approveProposal = (proposalId: string, version: number, note = "Approved by manager") =>
-  api.approveProposal(proposalId, version, note, { userId: "USR-002", role: "manager" });
+  api.approveProposal(proposalId, version, note, DEMO_MANAGER_ACTOR);
 export const rejectProposal = (proposalId: string, version: number, note = "Rejected by manager") =>
-  api.rejectProposal(proposalId, version, note, { userId: "USR-002", role: "manager" });
+  api.rejectProposal(proposalId, version, note, DEMO_MANAGER_ACTOR);
 export const sendAgentChat = async (message: string, userId = "USR-002"): Promise<{ response: string; message?: string }> => {
   const res = await api.sendAgentMessage(message, null, userId);
   return { response: res.reply };

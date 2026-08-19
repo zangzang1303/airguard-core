@@ -1,6 +1,7 @@
 import React from "react";
-import { Layers, MapPin, Calendar, Clock, Bell, AlertTriangle, Sparkles, MessageSquarePlus } from "lucide-react";
+import { Layers, MapPin, Calendar, Bell, Sparkles, MessageSquarePlus } from "lucide-react";
 import { ActiveDrawerType } from "../../types/superApp";
+
 
 interface BottomActionDockProps {
   activeDrawer: ActiveDrawerType;
@@ -49,16 +50,6 @@ export const BottomActionDock: React.FC<BottomActionDockProps> = ({
         <span className="dock-label">Hôm nay</span>
       </button>
 
-      {/* 4. Forecast Timeline Slider */}
-      <button
-        className={`dock-action-btn ${activeDrawer === "forecast-bar" ? "active" : ""}`}
-        onClick={() => onOpenDrawer(activeDrawer === "forecast-bar" ? null : "forecast-bar")}
-        title="Dự báo chất lượng không khí theo dòng thời gian"
-      >
-        <Clock size={18} />
-        <span className="dock-label">Dự báo</span>
-      </button>
-
       {/* 5. Alerts */}
       <button
         className={`dock-action-btn ${activeDrawer === "alerts" ? "active" : ""}`}
@@ -72,7 +63,7 @@ export const BottomActionDock: React.FC<BottomActionDockProps> = ({
         <span className="dock-label">Cảnh báo</span>
       </button>
 
-      {/* 6. Community Report */}
+      {/* 7. Community Report */}
       <button
         className={`dock-action-btn ${activeDrawer === "community-report" ? "active" : ""}`}
         onClick={() => onOpenDrawer(activeDrawer === "community-report" ? null : "community-report")}
@@ -82,7 +73,7 @@ export const BottomActionDock: React.FC<BottomActionDockProps> = ({
         <span className="dock-label">Phản ánh</span>
       </button>
 
-      {/* 7. Ask AirGuard AI */}
+      {/* 8. Ask AirGuard AI */}
       <button
         className={`dock-action-btn ai-highlight-btn ${activeDrawer === "ai-chat" ? "active" : ""}`}
         onClick={() => onOpenDrawer(activeDrawer === "ai-chat" ? null : "ai-chat")}
@@ -94,3 +85,4 @@ export const BottomActionDock: React.FC<BottomActionDockProps> = ({
     </nav>
   );
 };
+

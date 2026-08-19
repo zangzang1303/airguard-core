@@ -32,9 +32,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 20.9898,
     longitude: 105.9467,
     description: "Trường đại học tinh hoa với khuôn viên xanh rộng lớn, cây cối rợp bóng và hồ cảnh quan trong lành.",
-    estimatedAqi: 42,
     sensorIdRef: "S04",
-    bestTimeToVisit: "06:30 – 17:30",
     iconName: "GraduationCap",
   },
   {
@@ -45,9 +43,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 20.9953,
     longitude: 105.9500,
     description: "Trái tim của Ocean Park 1 với bờ cát trắng trải dài, hàng dừa xanh và không gian lộng gió.",
-    estimatedAqi: 158,
     sensorIdRef: "S03",
-    bestTimeToVisit: "Sau 19:30 khi mật độ xe giảm",
     iconName: "Waves",
   },
   {
@@ -58,9 +54,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 20.9945,
     longitude: 105.9585,
     description: "Biển hồ nước mặn nhân tạo 6.1ha mang làn nước trong xanh nhiệt đới ngay giữa lòng đại đô thị.",
-    estimatedAqi: 75,
     sensorIdRef: "S05",
-    bestTimeToVisit: "07:00 – 10:00",
     iconName: "Sun",
   },
   {
@@ -71,9 +65,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 20.9975,
     longitude: 105.9430,
     description: "Cụm căn hộ hiện đại mật độ cao, sôi động với nhiều tiện ích thể thao và shophouse khối đế.",
-    estimatedAqi: 72,
     sensorIdRef: "S02",
-    bestTimeToVisit: "Cả ngày",
     iconName: "Building2",
   },
   {
@@ -84,9 +76,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 20.9935,
     longitude: 105.9405,
     description: "Căn hộ phong cách Nhật Bản với vườn thiền Zenpark, hồ cá Koi và đồi tùng thanh tịnh.",
-    estimatedAqi: 48,
     sensorIdRef: "S02",
-    bestTimeToVisit: "06:00 – 08:30",
     iconName: "Trees",
   },
   {
@@ -97,9 +87,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 20.9910,
     longitude: 105.9560,
     description: "Khu biệt thự thương mại ven biển hồ, không gian thoáng đãng dọc đại lộ 52m.",
-    estimatedAqi: 65,
     sensorIdRef: "S05",
-    bestTimeToVisit: "Buổi sáng sớm",
     iconName: "Home",
   },
   {
@@ -110,9 +98,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 20.9870,
     longitude: 105.9490,
     description: "Công viên sinh thái ven sông với thảm cỏ nướng BBQ, đường dạo bộ và vườn nướng dã ngoại.",
-    estimatedAqi: 38,
     sensorIdRef: "S04",
-    bestTimeToVisit: "15:30 – 18:00",
     iconName: "Flower2",
   },
   {
@@ -123,9 +109,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 20.9960,
     longitude: 105.9575,
     description: "Trung tâm thương mại biển đầu tiên tại Hà Nội với hàng trăm gian hàng mua sắm, ẩm thực và rạp chiếu phim.",
-    estimatedAqi: 82,
     sensorIdRef: "S05",
-    bestTimeToVisit: "10:00 – 21:00",
     iconName: "ShoppingBag",
   },
   {
@@ -136,9 +120,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 20.9885,
     longitude: 105.9420,
     description: "Tòa tháp văn phòng thông minh Top 10 thế giới đạt chứng chỉ xanh LEED Platinum.",
-    estimatedAqi: 45,
     sensorIdRef: "S04",
-    bestTimeToVisit: "Giờ hành chính",
     iconName: "Building",
   },
   {
@@ -149,9 +131,7 @@ export const OCEAN_PARK_POIS: PlacePOI[] = [
     latitude: 21.0008,
     longitude: 105.9428,
     description: "Cửa ngõ kết nối Ocean Park 1 với đường Đa Tốn và Quốc lộ 5B.",
-    estimatedAqi: 118,
     sensorIdRef: "S01",
-    bestTimeToVisit: "Tránh giờ cao điểm",
     iconName: "Compass",
   },
 ];

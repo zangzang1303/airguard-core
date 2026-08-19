@@ -6,7 +6,6 @@ import {
   ChevronRight,
   CircleUserRound,
   FileClock,
-  GitCompareArrows,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -17,7 +16,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ScreenType, useAuth } from "../../context/AuthContext";
-import { SimulatorBanner } from "../common/SimulatorBanner";
 import "./AppShell.css";
 
 interface AppShellProps {
@@ -44,9 +42,6 @@ const screenMetadata: Record<ScreenType, { label: string }> = {
   "admin-settings": { label: "Cài đặt" },
   "station-detail": {
     label: "Chi tiết trạm",
-  },
-  compare: {
-    label: "So sánh khu vực",
   },
   agent: {
     label: "AI Agent",
@@ -99,7 +94,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const navigationItems = useMemo<NavigationItem[]>(
     () => [
       { screen: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { screen: "compare", label: "So sánh khu vực", icon: GitCompareArrows },
       { screen: "agent", label: "AI Agent", icon: Bot },
       { screen: "alerts", label: "Cảnh báo", icon: Siren },
       {
@@ -266,8 +260,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             </button>
           </div>
         </header>
-
-        <SimulatorBanner />
 
         <main ref={contentRef} className="app-shell__content" id="main-content">
           <div className="page-content">{children}</div>

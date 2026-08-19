@@ -19,7 +19,7 @@ import {
   Wind,
 } from "lucide-react";
 import { Circle, CircleMarker, MapContainer, Polygon, Popup, TileLayer, Tooltip, useMap } from "react-leaflet";
-import { api, FALLBACK_ALERTS, FALLBACK_STATIONS } from "../../api/client";
+import { api } from "../../api/client";
 import { Button } from "../../components/common/Button";
 import { DataQualityBadge } from "../../components/common/DataQualityBadge";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -88,7 +88,6 @@ export const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showHeatmap, setShowHeatmap] = useState(true);
-  const [usingFixture, setUsingFixture] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
@@ -97,16 +96,11 @@ export const Dashboard: React.FC = () => {
       const [stationData, alertData] = await Promise.all([api.getStations(), api.getAlerts()]);
       setStations(stationData);
       setAlerts(alertData);
-      setUsingFixture(false);
       setActiveStationId((current) => {
         if (current && stationData.some((station) => station.station_id === current)) return current;
         return null;
       });
     } catch {
-      setStations(FALLBACK_STATIONS);
-      setAlerts(FALLBACK_ALERTS);
-      setUsingFixture(true);
-      setActiveStationId((current) => current ?? null);
       setError("Không thể tải đầy đủ dữ liệu Dashboard. Vui lòng thử lại.");
     } finally {
       setLoading(false);
@@ -342,7 +336,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="dashboard-map-footnote">
             <span className="dashboard-map-footnote__scope"><i /> Phạm vi giám sát Ocean Park 1</span>
-            <span>{usingFixture ? "Fixture simulator · " : ""}Vùng màu là cường độ AQI, không phải mô hình lan truyền.</span>
+            <span>Vùng màu là cường độ AQI từ API, không phải mô hình lan truyền.</span>
           </div>
 
           {selectedStation && (

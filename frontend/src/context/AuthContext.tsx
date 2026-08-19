@@ -8,7 +8,6 @@ export type ScreenType =
   | "admin-devices"
   | "admin-settings"
   | "station-detail"
-  | "compare"
   | "agent"
   | "alerts"
   | "approvals"
@@ -88,8 +87,6 @@ interface AuthContextType {
   registerResident: (input: RegisterResidentInput) => AuthResult;
   selectedStationId: string;
   setSelectedStationId: (id: string) => void;
-  compareStationIds: [string, string];
-  setCompareStationIds: (ids: [string, string]) => void;
   role: UserRole;
   userGroup: UserGroup;
   setUserGroup: (group: UserGroup) => void;
@@ -100,7 +97,7 @@ interface AuthContextType {
   organization: string;
   pendingApprovalsCount: number;
   setPendingApprovalsCount: React.Dispatch<React.SetStateAction<number>>;
-  navigateTo: (screen: ScreenType, params?: { stationId?: string; compareIds?: [string, string] }) => void;
+  navigateTo: (screen: ScreenType, params?: { stationId?: string }) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -111,7 +108,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [registeredAccounts, setRegisteredAccounts] = useState<StoredAccount[]>([]);
   const [selectedStationId, setSelectedStationId] = useState("S01");
-  const [compareStationIds, setCompareStationIds] = useState<[string, string]>(["S01", "S02"]);
   const [role, setRole] = useState<UserRole>("resident");
   const [userGroup, setUserGroup] = useState<UserGroup>("normal");
   const [userName, setUserName] = useState("Trần Minh Anh");
@@ -179,13 +175,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return { success: true };
   };
 
-  const navigateTo = (screen: ScreenType, params?: { stationId?: string; compareIds?: [string, string] }) => {
+  const navigateTo = (screen: ScreenType, params?: { stationId?: string }) => {
     if (!isAuthenticated && screen !== "login" && screen !== "register") {
       setCurrentScreen("login");
       return;
     }
     if (params?.stationId) setSelectedStationId(params.stationId);
-    if (params?.compareIds) setCompareStationIds(params.compareIds);
     setCurrentScreen(screen);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -203,8 +198,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       registerResident,
       selectedStationId,
       setSelectedStationId,
-      compareStationIds,
-      setCompareStationIds,
       role,
       userGroup,
       setUserGroup,
