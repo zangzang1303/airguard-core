@@ -261,30 +261,36 @@ class AlertEngine:
                         return [self._enrich_alert(dict(row)) for row in rows]
         except Exception:
             pass
+        return self._fallback_alerts(station_id=station_id)
+
+    def _fallback_alerts(self, station_id: str | None = None) -> list[dict[str, Any]]:
         from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).isoformat()
-        fallback = [
-            {
-                "alert_id": "ALT-001",
-                "station_id": "S03",
-                "alert_type": "pm25_threshold",
-                "rule_version": "pm25-threshold-v1",
-                "severity": "warning",
-                "observed_value": 66.1,
-                "threshold_value": 50.0,
-                "title": "PM2.5 vượt ngưỡng khuyến nghị",
-                "description": "Nồng độ PM2.5 tại Ven Hồ Ngọc Trai đạt 66.1 µg/m³ vượt ngưỡng 50 µg/m³",
-                "recommendation": "Hạn chế nguồn bụi gần khu vực và theo dõi lần đo kế tiếp trước khi thực hiện hành động cần phê duyệt.",
-                "unit": "µg/m³",
-                "metric": "PM2.5",
-                "status": "active",
-                "created_at": now,
-                "source": "backend_alert_rule:pm25-threshold-v1",
-            }
-        ]
-        if station_id:
-            return [a for a in fallback if a["station_id"] == station_id]
-        return fallback
+        stations = self.station_service._fallback_stations()
+        alerts = []
+        for s in stations:
+            if station_id and s["station_id"] != station_id:
+                continue
+            pm = s.get("pm25") or 0.0
+            if pm >= self.warning_threshold:
+                severity = "critical" if pm >= self.critical_threshold else "warning"
+                alerts.append({
+                    "alert_id": f"ALT-{s['station_id']}-PM25",
+                    "station_id": s["station_id"],
+                    "alert_type": "pm25_threshold",
+                    "rule_version": "pm25-threshold-v1",
+                    "severity": severity,
+                    "observed_value": pm,
+                    "threshold_value": self.warning_threshold,
+                    "title": f"PM2.5 tại {s['station_name']} vượt ngưỡng",
+                    "description": f"Nồng độ PM2.5 tại {s['station_name']} đạt {pm} µg/m³ vượt ngưỡng {self.warning_threshold} µg/m³",
+                    "recommendation": "Hạn chế nguồn bụi gần khu vực và theo dõi lần đo kế tiếp trước khi thực hiện hành động cần phê duyệt.",
+                    "unit": "µg/m³",
+                    "metric": "PM2.5",
+                    "status": "active",
+                    "created_at": s.get("measured_at") or datetime.now(timezone.utc).isoformat(),
+                    "source": "backend_alert_rule:pm25-threshold-v1",
+                })
+        return alerts
 
     def _enrich_alert(self, alert: dict[str, Any]) -> dict[str, Any]:
         rule = next((item for item in self.rules if item.alert_type == alert.get("alert_type")), None)

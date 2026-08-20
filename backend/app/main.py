@@ -159,6 +159,19 @@ async def add_request_id(request: Request, call_next):
     return response
 
 
+@app.on_event("startup")
+async def start_background_telemetry():
+    async def _telemetry_ticker():
+        while True:
+            try:
+                from .services.live_telemetry_engine import live_engine
+                live_engine.tick()
+            except Exception:
+                pass
+            await asyncio.sleep(10)
+    asyncio.create_task(_telemetry_ticker())
+
+
 def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "unknown")
 
