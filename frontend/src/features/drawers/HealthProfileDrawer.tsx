@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { X, User, Heart, Shield, Check, Activity, Bell, Compass } from "lucide-react";
+import { X, Check, LogOut, Mail, Building, ShieldCheck } from "lucide-react";
 import { HealthProfile } from "../../types/superApp";
+import { useAuth } from "../../context/AuthContext";
 
 interface HealthProfileDrawerProps {
   profile: HealthProfile;
@@ -13,12 +14,13 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
   onUpdateProfile,
   onClose,
 }) => {
+  const { userName, userEmail, role, organization, logout } = useAuth();
   const [formData, setFormData] = useState<HealthProfile>(profile);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const SENSITIVITY_GROUPS: { id: HealthProfile["sensitivityGroup"]; label: string; desc: string; emoji: string }[] = [
     { id: "normal", label: "Cư dân thông thường (Normal)", desc: "Sức khỏe ổn định, không có tiền sử dị ứng thời tiết", emoji: "🏃" },
-    { id: "sensitive", label: "Nhóm nhạy cảm (Sensitive)", desc: "Dễ bị kích ứng đường thở khi bụi mịn vượt ngưỡng 100", emoji: "🌿" },
+    { id: "sensitive", label: "Nhóm nhạy cảm (Sensitive)", desc: "Ưu tiên nhận cảnh báo và giải thích thận trọng hơn", emoji: "🌿" },
     { id: "respiratory", label: "Bệnh lý hô hấp (Respiratory)", desc: "Viêm xoang, hen suyễn, cần tránh ô nhiễm đột ngột", emoji: "🫁" },
     { id: "outdoor_sport", label: "Vận động viên ngoài trời (Athlete)", desc: "Thường xuyên chạy bộ, đạp xe, bơi lội trong khu", emoji: "🚴" },
     { id: "elderly", label: "Người cao tuổi (Elderly)", desc: "Cần khung giờ đi dạo dưỡng sinh an toàn, mát mẻ", emoji: "👴" },
@@ -50,31 +52,50 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
     }, 800);
   };
 
+  const roleLabel = role === "resident" ? "Cư dân" : role === "manager" ? "Manager BQL" : "Admin";
+
   return (
     <aside className="contextual-drawer right-drawer health-profile-drawer">
       <div className="drawer-header-bar">
         <div className="drawer-title-group">
-          <div className="badge-tag">Cá nhân hóa trải nghiệm</div>
-          <h2 className="drawer-main-title">Hồ sơ sức khỏe & Thói quen</h2>
+          <div className="badge-tag">Tài khoản & Cá nhân hóa</div>
+          <h2 className="drawer-main-title">Hồ sơ người dùng</h2>
         </div>
-        <button className="drawer-close-btn" onClick={onClose} aria-label="Đóng">
+        <button className="drawer-close-btn" onClick={onClose} aria-label="Đóng hồ sơ">
           <X size={18} />
         </button>
       </div>
 
       <div className="drawer-scroll-body">
-        {/* Personal Exposure Status Card */}
+        {/* User Account Card */}
+        <div className="user-account-card" style={{ padding: "14px 16px", background: "linear-gradient(135deg, #1e293b, #0f172a)", color: "#fff", borderRadius: "12px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ width: "42px", height: "42px", borderRadius: "50%", background: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "1.1rem" }}>
+              {userName ? userName.charAt(0) : "U"}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: "1rem" }}>{userName || "Người dùng AirGuard"}</div>
+              <div style={{ fontSize: "0.8rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
+                <Mail size={12} /> {userEmail}
+              </div>
+            </div>
+            <span style={{ padding: "3px 8px", borderRadius: "12px", background: role === "resident" ? "#10b981" : role === "manager" ? "#f59e0b" : "#6366f1", fontSize: "0.72rem", fontWeight: 700 }}>
+              {roleLabel}
+            </span>
+          </div>
+          <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: "0.78rem", color: "#cbd5e1", display: "flex", alignItems: "center", gap: "6px" }}>
+            <Building size={13} /> Organization: {organization || "Vinhomes Ocean Park 1"}
+          </div>
+        </div>
+
+        {/* Grounding notice: the frontend does not calculate personal exposure. */}
         <div className="exposure-summary-card">
           <div className="exposure-header">
-            <Heart size={18} className="heart-icon" />
-            <span>Mức độ phơi nhiễm cá nhân hôm nay:</span>
-          </div>
-          <div className="exposure-val-row">
-            <span className="exposure-tag-pill low">THẤP (LOW EXPOSURE)</span>
-            <span className="exposure-score">An toàn 96%</span>
+            <ShieldCheck size={18} className="heart-icon" />
+            <span>Cá nhân hóa có kiểm chứng</span>
           </div>
           <p className="exposure-note">
-            AI tự động điều chỉnh lời khuyên theo hồ sơ <strong>{SENSITIVITY_GROUPS.find((g) => g.id === formData.sensitivityGroup)?.label}</strong>.
+            Hồ sơ này chỉ được dùng làm ngữ cảnh. Mức phơi nhiễm và khuyến nghị chỉ hiển thị khi Agent có dữ liệu môi trường cùng bằng chứng backend; giao diện không tự tính điểm an toàn.
           </p>
         </div>
 
@@ -124,7 +145,7 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
           <label className="section-form-label">Cài đặt thông báo môi trường:</label>
           <div className="settings-toggle-list">
             <label className="setting-toggle-row">
-              <span>Nhận cảnh báo khẩn khi AQI &gt; 150</span>
+              <span>Nhận cảnh báo khẩn do backend phát hành</span>
               <input
                 type="checkbox"
                 checked={formData.alertPushEnabled}
@@ -143,14 +164,28 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
         </div>
       </div>
 
-      <div className="drawer-footer-actions">
-        <button className="action-pill-btn secondary" onClick={onClose}>
-          Hủy
+      <div className="drawer-footer-actions" style={{ display: "flex", gap: "8px", justifyContent: "space-between" }}>
+        <button
+          className="action-pill-btn danger"
+          onClick={() => {
+            onClose();
+            logout();
+          }}
+          style={{ background: "#ef4444", color: "#fff" }}
+        >
+          <LogOut size={15} />
+          <span>Đăng xuất</span>
         </button>
-        <button className="action-pill-btn primary" onClick={handleSave}>
-          {savedSuccess ? "Đã lưu thành công!" : "Lưu hồ sơ sức khỏe"}
-        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button className="action-pill-btn secondary" onClick={onClose}>
+            Hủy
+          </button>
+          <button className="action-pill-btn primary" onClick={handleSave}>
+            {savedSuccess ? "Đã lưu!" : "Lưu hồ sơ"}
+          </button>
+        </div>
       </div>
     </aside>
   );
 };
+

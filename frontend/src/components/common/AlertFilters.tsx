@@ -6,9 +6,11 @@ interface AlertFiltersProps {
   search: string;
   status: string;
   severity: string;
+  sortBy?: "newest" | "severity";
   onSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
   onSeverityChange: (value: string) => void;
+  onSortByChange?: (value: "newest" | "severity") => void;
   onReset: () => void;
 }
 
@@ -16,9 +18,11 @@ export const AlertFilters: React.FC<AlertFiltersProps> = ({
   search,
   status,
   severity,
+  sortBy = "newest",
   onSearchChange,
   onStatusChange,
   onSeverityChange,
+  onSortByChange,
   onReset,
 }) => (
   <section className="filter-toolbar" aria-label="Bộ lọc cảnh báo">
@@ -53,10 +57,20 @@ export const AlertFilters: React.FC<AlertFiltersProps> = ({
         <option value="critical">Nghiêm trọng</option>
       </select>
     </div>
+    {onSortByChange && (
+      <div className="filter-group">
+        <label htmlFor="alert-sort">Sắp xếp</label>
+        <select id="alert-sort" value={sortBy} onChange={(e) => onSortByChange(e.target.value as "newest" | "severity")} className="role-select">
+          <option value="newest">Thời gian mới nhất</option>
+          <option value="severity">Mức độ nghiêm trọng</option>
+        </select>
+      </div>
+    )}
     <Button variant="ghost" size="sm" onClick={onReset}>
       <RotateCcw size={16} aria-hidden="true" />
       Đặt lại
     </Button>
   </section>
 );
+
 

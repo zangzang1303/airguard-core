@@ -148,9 +148,6 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                     <div className="item-name">{poi.name}</div>
                     <div className="item-sub">{poi.subdivision}</div>
                   </div>
-                  {poi.estimatedAqi && (
-                    <span className="item-aqi-chip">AQI {poi.estimatedAqi}</span>
-                  )}
                 </div>
               ))}
             </div>

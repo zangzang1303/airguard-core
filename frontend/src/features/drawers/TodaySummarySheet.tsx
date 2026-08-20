@@ -1,76 +1,113 @@
-import React from "react";
-import { X, Calendar, Sun, Wind, Volume2, AlertTriangle, Clock, ArrowRight } from "lucide-react";
+import React, { useMemo } from "react";
+import { AlertTriangle, Bot, Calendar, CheckCircle2, Clock3, Database, RefreshCw, Wifi, WifiOff, X } from "lucide-react";
+
+import { Alert, Station } from "../../types";
+import { formatVnDateTime } from "../../utils/datetime";
 
 interface TodaySummarySheetProps {
+  stations: Station[];
+  alerts: Alert[];
+  loading: boolean;
+  loadError: string | null;
   onClose: () => void;
-  onOpenForecast: () => void;
+  onOpenAiChat: () => void;
+  onRetry: () => Promise<void>;
 }
 
 export const TodaySummarySheet: React.FC<TodaySummarySheetProps> = ({
+  stations,
+  alerts,
+  loading,
+  loadError,
   onClose,
-  onOpenForecast,
+  onOpenAiChat,
+  onRetry,
 }) => {
+  const summary = useMemo(() => {
+    const fresh = stations.filter((station) => station.status === "online" && !station.is_stale);
+    const stale = stations.filter((station) => station.status === "stale" || station.is_stale);
+    const offline = stations.filter((station) => station.status === "offline");
+    const activeAlerts = alerts.filter((alert) => alert.status === "active");
+    const recommendations = Array.from(
+      new Map(
+        activeAlerts
+          .filter((alert) => Boolean(alert.recommendation))
+          .map((alert) => [alert.alert_id, alert]),
+      ).values(),
+    );
+    const latestUpdatedAt = fresh
+      .map((station) => station.updated_at)
+      .filter(Boolean)
+      .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
+
+    return { fresh, stale, offline, activeAlerts, recommendations, latestUpdatedAt };
+  }, [alerts, stations]);
+
   return (
     <div className="floating-bottom-sheet today-summary-sheet">
       <div className="sheet-header-row">
         <div className="sheet-title-group">
-          <Calendar size={18} className="sheet-pin-icon" />
+          <Calendar size={18} className="sheet-pin-icon" aria-hidden="true" />
           <div>
-            <h3 className="sheet-title">Tổng quan môi trường hôm nay tại Ocean Park 1</h3>
-            <span className="sheet-sub">Bản tin tổng hợp tự động · Cập nhật lúc 07:00 sáng</span>
+            <h3 className="sheet-title">Tổng quan môi trường hiện tại</h3>
+            <span className="sheet-sub">
+              {summary.latestUpdatedAt
+                ? `Dữ liệu mới nhất ${formatVnDateTime(summary.latestUpdatedAt)}`
+                : "Chưa có thời điểm đo hợp lệ"}
+            </span>
           </div>
         </div>
-        <button className="sheet-close-btn" onClick={onClose} aria-label="Đóng">
+        <button className="sheet-close-btn" onClick={onClose} aria-label="Đóng tổng quan môi trường">
           <X size={18} />
         </button>
       </div>
 
-      <div className="today-summary-grid">
-        <div className="today-bullet-item">
-          <span className="bullet-emoji">🌿</span>
-          <div className="bullet-text">
-            <strong>Chất lượng không khí nhìn chung ở mức Tốt</strong>
-            <p>AQI trung bình ngày dao động từ 38 – 65 trên toàn khu đô thị.</p>
-          </div>
+      {loadError && (
+        <div className="today-state-message is-error" role="alert">
+          <AlertTriangle size={17} aria-hidden="true" />
+          <span>{loadError}</span>
+          <button type="button" onClick={onRetry} disabled={loading}>
+            <RefreshCw size={14} className={loading ? "spin-icon" : ""} aria-hidden="true" /> Thử lại
+          </button>
         </div>
+      )}
 
-        <div className="today-bullet-item">
-          <span className="bullet-emoji">🌡️</span>
-          <div className="bullet-text">
-            <strong>Nhiệt độ 29°C – 32°C</strong>
-            <p>Trời nắng nhẹ, gió hồ thổi đều 2.4 m/s hướng Đông Nam, độ ẩm 68%.</p>
-          </div>
-        </div>
-
-        <div className="today-bullet-item">
-          <span className="bullet-emoji">🔊</span>
-          <div className="bullet-text">
-            <strong>Độ ồn bình thường (51 dB)</strong>
-            <p>Không ghi nhận công trình thi công gây ồn đột biến quanh khu dân cư.</p>
-          </div>
-        </div>
-
-        <div className="today-bullet-item warning">
-          <span className="bullet-emoji">⚠️</span>
-          <div className="bullet-text">
-            <strong>Lưu ý: Ô nhiễm tăng nhẹ lúc 18:00</strong>
-            <p>Khu vực ven đường Đa Tốn và Hồ Ngọc Trai có thể tăng PM2.5 do mật độ xe cộ giờ tan tầm.</p>
-          </div>
-        </div>
+      <div className="today-status-grid" aria-label="Trạng thái dữ liệu trạm">
+        <div><Wifi size={17} aria-hidden="true" /><strong>{summary.fresh.length}</strong><span>Online và fresh</span></div>
+        <div><Clock3 size={17} aria-hidden="true" /><strong>{summary.stale.length}</strong><span>Dữ liệu cũ</span></div>
+        <div><WifiOff size={17} aria-hidden="true" /><strong>{summary.offline.length}</strong><span>Offline</span></div>
+        <div><AlertTriangle size={17} aria-hidden="true" /><strong>{summary.activeAlerts.length}</strong><span>Cảnh báo active</span></div>
       </div>
 
-      <div className="today-best-period-box">
-        <div className="period-label">
-          <Clock size={16} />
-          <span>Khoảng thời gian lý tưởng nhất cho thể thao ngoài trời:</span>
+      <section className="today-grounded-section" aria-labelledby="today-recommendations-title">
+        <div className="today-section-heading">
+          <Database size={16} aria-hidden="true" />
+          <h4 id="today-recommendations-title">Khuyến nghị từ Rule Engine</h4>
         </div>
-        <div className="period-val">06:00 – 09:00 & 20:00 – 22:30</div>
-      </div>
+        {summary.recommendations.length === 0 ? (
+          <div className="today-no-recommendation">
+            <CheckCircle2 size={18} aria-hidden="true" />
+            <span>Backend chưa trả về khuyến nghị active. Giao diện không tự suy diễn kết luận an toàn.</span>
+          </div>
+        ) : (
+          <ul className="today-recommendation-list">
+            {summary.recommendations.map((alert) => (
+              <li key={alert.alert_id}>
+                <strong>{alert.station_id} · {alert.title}</strong>
+                <span>{alert.recommendation}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <p className="today-simulator-note">
+        Dữ liệu giả lập cho MVP — không phải quan trắc chính thức và không dùng cho quyết định y tế hoặc pháp lý.
+      </p>
 
       <div className="today-footer-row">
-        <button className="sheet-btn primary full-width" onClick={onOpenForecast}>
-          <span>Xem dự báo chi tiết theo từng giờ</span>
-          <ArrowRight size={15} />
+        <button className="sheet-btn primary" onClick={onOpenAiChat}>
+          <Bot size={15} aria-hidden="true" /> Hỏi AI về sinh hoạt
         </button>
       </div>
     </div>
