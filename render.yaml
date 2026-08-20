@@ -11,10 +11,16 @@ services:
         fromDatabase:
           name: airguard-postgres
           property: connectionString
+      - key: AGENT_SERVICE_URL
+        value: http://airguard-agent:10000
+      - key: CORS_ORIGINS
+        value: https://airguard-app.vercel.app,https://airguard-jls475si2-t-074.vercel.app,http://localhost:5173
       - key: SENSOR_SCENARIO
         value: normal
       - key: AUTO_PROPOSAL_ENABLED
         value: "true"
+      - key: STALE_AFTER_SECONDS
+        value: "300"
 
   - type: web
     name: airguard-agent

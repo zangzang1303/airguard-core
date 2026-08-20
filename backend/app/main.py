@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
@@ -207,6 +208,26 @@ async def unhandled_error_handler(request: Request, exc: Exception):
         code="internal_error",
         message="Internal server error",
     )
+
+
+@app.on_event("startup")
+def bootstrap_database():
+    if not settings.database_url:
+        return
+    try:
+        with db.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'stations')")
+                exists = cur.fetchone()[0]
+                if not exists:
+                    schema_path = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
+                    seed_path = Path(__file__).resolve().parent.parent / "db" / "seed.sql"
+                    if schema_path.exists():
+                        cur.execute(schema_path.read_text(encoding="utf-8"))
+                    if seed_path.exists():
+                        cur.execute(seed_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"Database bootstrap notice: {exc}")
 
 
 @app.get("/health")
