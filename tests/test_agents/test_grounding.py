@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from types import SimpleNamespace
 
@@ -329,7 +330,7 @@ async def test_live_llm_can_explain_a_safety_refusal_without_changing_the_policy
         "src.agents.nodes.orchestration.get_settings",
         lambda: SimpleNamespace(openai_api_key="local-test-key", model_name="test-model"),
     )
-    monkeypatch.setattr("src.agents.nodes.orchestration.get_llm", lambda: FakeLlm())
+    monkeypatch.setattr("src.agents.nodes.orchestration.get_llm", lambda **_kwargs: FakeLlm())
 
     result = await generate_explanation_node(
         {
@@ -342,6 +343,70 @@ async def test_live_llm_can_explain_a_safety_refusal_without_changing_the_policy
     assert result["generation"]["generation_mode"] == "live_llm"
     assert result["generation"]["model"] == "test-model"
     assert result["answer"].startswith("Mình không thể tự phê duyệt")
+
+
+@pytest.mark.asyncio
+async def test_live_llm_prompt_excludes_fact_bearing_answer_and_keeps_evidence_boundary(monkeypatch):
+    captured: dict[str, str] = {}
+
+    class FakeReply:
+        content = "Kết quả này phụ thuộc dữ liệu mô phỏng đã được xác thực."
+        usage_metadata = {}
+
+    class FakeLlm:
+        async def ainvoke(self, prompt):
+            captured["prompt"] = prompt
+            return FakeReply()
+
+    monkeypatch.setattr(
+        "src.agents.nodes.orchestration.get_settings",
+        lambda: SimpleNamespace(openai_api_key="local-test-key", model_name="test-model"),
+    )
+    monkeypatch.setattr("src.agents.nodes.orchestration.get_llm", lambda **_kwargs: FakeLlm())
+
+    result = await generate_explanation_node(
+        {
+            "answer": "Quan sát tại S01: PM2.5 999 µg/m³.",
+            "outcome": "answered",
+            "sources": [{"tool_name": "get_current_pm25", "station_id": "S01"}],
+        }
+    )
+
+    assert result["generation"]["generation_mode"] == "live_llm"
+    assert "Evidence backend cùng request: present" in captured["prompt"]
+    assert "get_current_pm25" not in captured["prompt"]
+    assert "999" not in captured["prompt"]
+    assert "S01" not in captured["prompt"]
+
+
+@pytest.mark.asyncio
+async def test_live_llm_deadline_returns_grounded_fallback_before_proxy_timeout(monkeypatch):
+    class SlowLlm:
+        async def ainvoke(self, _prompt):
+            await asyncio.sleep(1)
+
+    monkeypatch.setattr(
+        "src.agents.nodes.orchestration.get_settings",
+        lambda: SimpleNamespace(
+            openai_api_key="local-test-key",
+            model_name="test-model",
+            llm_response_deadline_seconds=0.01,
+        ),
+    )
+    monkeypatch.setattr("src.agents.nodes.orchestration.get_llm", lambda **_kwargs: SlowLlm())
+
+    result = await generate_explanation_node(
+        {
+            "answer": "Câu trả lời deterministic đã grounded.",
+            "outcome": "answered",
+            "sources": [{"tool_name": "get_current_pm25", "station_id": "S01"}],
+        }
+    )
+
+    assert "answer" not in result
+    assert result["generation"]["generation_mode"] == "deterministic_grounded"
+    assert result["generation"]["provider"] == "openai"
+    assert result["generation"]["failure_code"] == "provider_deadline_exceeded"
 
 
 @pytest.mark.asyncio

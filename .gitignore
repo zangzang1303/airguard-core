@@ -60,3 +60,5 @@ out/
 .ai-log/*.jsonl
 .ai-log/archive/
 .vercel
+.pytest-agent-cache/
+.pytest_cache/

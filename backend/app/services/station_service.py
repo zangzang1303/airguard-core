@@ -5,6 +5,7 @@ from typing import Any
 
 from .database import Database, ServiceError, dict_cursor
 from .air_quality import aqi_category, pm25_aqi
+from .live_telemetry_engine import live_engine
 
 
 def pm25_level(pm25: float | None) -> str | None:
@@ -25,85 +26,14 @@ class StationService:
         self.stale_after_seconds = stale_after_seconds
 
     def _fallback_stations(self) -> list[dict[str, Any]]:
-        now_iso = datetime.now(timezone.utc).isoformat()
-        seeds = [
-            {"station_id": "S01", "station_name": "Trục Đa Tốn phía Tây Bắc", "location_type": "northwest_road", "latitude": 21.0008, "longitude": 105.9428, "pm25": 42.5, "co2": 650, "noise_db": 57, "temperature": 31.1},
-            {"station_id": "S02", "Khu căn hộ Sapphire": "Khu căn hộ Sapphire", "station_name": "Khu căn hộ Sapphire", "location_type": "high_rise_residential", "latitude": 20.9975, "longitude": 105.9430, "pm25": 55.2, "co2": 720, "noise_db": 65, "temperature": 31.8},
-            {"station_id": "S03", "station_name": "Ven Hồ Ngọc Trai", "location_type": "lakeside_residential", "latitude": 20.9953, "longitude": 105.9500, "pm25": 66.1, "co2": 780, "noise_db": 71, "temperature": 32.4},
-            {"station_id": "S04", "station_name": "Khuôn viên VinUni", "location_type": "university_campus", "latitude": 20.9898, "longitude": 105.9467, "pm25": 28.4, "co2": 540, "noise_db": 49, "temperature": 30.2},
-            {"station_id": "S05", "station_name": "Khu Hải Âu phía Đông Nam", "location_type": "southeast_residential", "latitude": 20.9910, "longitude": 105.9560, "pm25": 35.9, "co2": 590, "noise_db": 54, "temperature": 30.8},
-        ]
-        result = []
-        for s in seeds:
-            aqi = pm25_aqi(s["pm25"])
-            result.append({
-                "station_id": s["station_id"],
-                "station_name": s["station_name"],
-                "location_type": s["location_type"],
-                "latitude": s["latitude"],
-                "longitude": s["longitude"],
-                "description": f"Trạm quan trắc {s['station_name']}",
-                "active": True,
-                "pm25": s["pm25"],
-                "aqi": aqi,
-                "aqi_category": aqi_category(aqi),
-                "aqi_standard": "US_EPA_PM25_24H_2012",
-                "co2": s["co2"],
-                "noise_db": s["noise_db"],
-                "temperature": s["temperature"],
-                "level": pm25_level(s["pm25"]),
-                "status": "online",
-                "is_stale": False,
-                "freshness": "fresh",
-                "updated_at": now_iso,
-                "last_seen_at": now_iso,
-                "source": "simulator",
-            })
-        return result
+        return live_engine.get_current_stations()
 
     def _fallback_history(self, station_id: str, hours: int) -> dict[str, Any]:
-        st = next((s for s in self._fallback_stations() if s["station_id"] == station_id), None)
-        base_pm = st["pm25"] if st else 40.0
-        now = datetime.now(timezone.utc)
-        items = []
-        for i in range(hours, 0, -1):
-            t = now - timedelta(hours=i)
-            pm = round(base_pm + (i % 5 - 2) * 2.5, 1)
-            items.append({
-                "station_id": station_id,
-                "message_id": f"HIST-{station_id}-{i}",
-                "measured_at": t.isoformat(),
-                "received_at": t.isoformat(),
-                "timestamp": t.isoformat(),
-                "pm25": pm,
-                "aqi": pm25_aqi(pm),
-                "co2": 600 + i * 5,
-                "noise_db": 55 + (i % 4),
-                "temperature": 30.0 + (i % 3),
-                "humidity": 65,
-                "source": "simulator",
-                "quality_flag": "valid",
-            })
+        items = live_engine.get_history(station_id, hours=hours)
         return {"station_id": station_id, "hours": hours, "items": items}
 
     def _fallback_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
-        st = next((s for s in self._fallback_stations() if s["station_id"] == station_id), None)
-        base_pm = st["pm25"] if st else 40.0
-        now = datetime.now(timezone.utc)
-        history = []
-        for i in range(12, 0, -1):
-            t = now - timedelta(minutes=i * 5)
-            pm = round(base_pm + (i % 3 - 1) * 1.5, 1)
-            history.append({
-                "measured_at": t.isoformat(),
-                "pm25": pm,
-                "aqi": pm25_aqi(pm),
-                "co2": 620,
-                "noise_db": 56.0,
-                "temperature": 31.0,
-                "source": "simulator",
-            })
-        return history
+        return live_engine.get_forecast_history(station_id)
 
     def list_stations(self) -> list[dict[str, Any]]:
         try:

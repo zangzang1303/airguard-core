@@ -21,12 +21,25 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
 
     # LLM
+    llm_provider: Literal["auto", "openai", "agentrouter", "gemini"] = "auto"
     openai_api_key: str = ""
     openai_base_url: str | None = None
     model_name: str = "gpt-4o-mini"
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     llm_timeout_seconds: float = Field(default=12.0, gt=0, le=60)
+    llm_response_deadline_seconds: float = Field(default=5.0, gt=0, le=30)
     llm_max_tokens: int = Field(default=280, ge=64, le=1000)
+    llm_max_retries: int = Field(default=1, ge=0, le=3)
+    agentrouter_api_key: str = ""
+    agentrouter_model: str = ""
+    agentrouter_base_url: str = "https://co.agentrouter.org"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.6-flash"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    gemini_thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal"
+    gemini_max_tokens: int = Field(default=32, ge=16, le=512)
+    gemini_retry_base_seconds: float = Field(default=1.0, gt=0, le=10)
+    gemini_retry_max_seconds: float = Field(default=60.0, gt=0, le=120)
 
     # Backend tools (the Agent has no DB or MQTT credentials)
     agent_backend_base_url: str = "http://localhost:8000"

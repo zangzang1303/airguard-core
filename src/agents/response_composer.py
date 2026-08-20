@@ -6,7 +6,7 @@ from typing import Any
 
 from src.agents.policies.forecast_response import assess_forecast
 from src.agents.policies.grounding import Intent, RouteDecision
-from src.agents.policies.impact_assessment import IMPACT_POLICY_VERSION, assess_environmental_impact
+from src.agents.policies.impact_assessment import assess_environmental_impact
 from src.agents.policies.recommendations import RECOMMENDATION_POLICY_VERSION, build_recommendation
 
 INSUFFICIENT_DATA_MESSAGE = (
@@ -100,9 +100,9 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
             for item in items
         )
     if intent == Intent.RECOMMENDATION:
-        if len(data_items) != 5:
+        if len(data_items) != 6:
             return False
-        current, weather, forecast, alerts, profile = data_items
+        current, weather, forecast, alerts, profile, comparison = data_items
         return (
             _measurement_is_usable(current)
             and weather.get("is_stale") is False
@@ -112,6 +112,8 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
             and forecast.get("freshness") in (None, "fresh", "valid")
             and isinstance(alerts.get("items"), list)
             and profile.get("group") in {"normal", "sensitive", "outdoor_sport"}
+            and bool(comparison.get("items"))
+            and all(_measurement_is_usable(item) for item in comparison.get("items", []))
         )
     if intent == Intent.PROPOSAL:
         return _measurement_is_usable(data_items[0])
@@ -264,12 +266,13 @@ def _compose_proposal_gate(data_items: list[Mapping[str, Any]]) -> str:
 
 
 def _compose_recommendation(data_items: list[Mapping[str, Any]]) -> str:
-    current, weather, forecast, alerts, profile = (dict(item) for item in data_items)
+    current, weather, forecast, alerts, profile, comparison = (dict(item) for item in data_items)
     decision, assessment = build_recommendation(
         current=current,
         alerts=alerts,
         forecast=forecast,
         profile=profile,
+        comparison=comparison,
     )
     forecast_points = []
     for item in forecast["items"]:

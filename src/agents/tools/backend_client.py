@@ -12,6 +12,7 @@ from src.agents.tools.contracts import (
     ActiveAlertsInput,
     CompareStationsInput,
     CurrentPm25Input,
+    ExtendedForecastInput,
     Pm25ForecastInput,
     StationComparison,
     StationHistoryInput,
@@ -134,6 +135,22 @@ class BackendToolClient:
             "GET",
             f"/api/v1/stations/{args.station_id}/forecast",
             params={"hours": args.hours},
+        )
+
+    async def get_extended_forecast(
+        self, payload: Mapping[str, Any], request_id: str | None = None
+    ) -> ToolEnvelope | ToolError:
+        request_id = request_id or self._new_request_id()
+        try:
+            args = ExtendedForecastInput.model_validate(payload)
+        except ValidationError as exc:
+            return self._validation_error(ToolName.GET_EXTENDED_FORECAST, request_id, exc)
+        return await self._request_and_validate(
+            ToolName.GET_EXTENDED_FORECAST,
+            request_id,
+            "GET",
+            f"/api/v1/stations/{args.station_id}/forecast",
+            params={"hours": args.hours, "metric": args.metric, "model": "prophet"},
         )
 
     async def get_active_alerts(self, payload: Mapping[str, Any], request_id: str | None = None) -> ToolEnvelope | ToolError:

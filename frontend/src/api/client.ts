@@ -381,28 +381,37 @@ export const api = {
     return data.items.map((point) => ({ ...point, timestamp: point.measured_at ?? point.timestamp }));
   },
 
-  getStationForecast: async (stationId: string, metric: ForecastData["metric"] = "pm25"): Promise<ForecastData> => {
+  getStationForecast: async (
+    stationId: string,
+    metric: ForecastData["metric"] = "pm25",
+    hours = 24,
+    model: "prophet" | "baseline" = "prophet",
+  ): Promise<ForecastData> => {
     try {
       const data = await apiFetch<any>(
-        `/api/v1/stations/${stationId}/forecast?metric=${metric}`,
+        `/api/v1/stations/${stationId}/forecast?metric=${metric}&hours=${hours}&model=${model}`,
       );
+      const items = data.horizons ?? data.items ?? [];
       return {
         station_id: data.station_id,
-        horizon_hours: data.items.length,
+        horizon_hours: items.length,
         metric: data.metric ?? metric,
-        source: data.source,
+        source: data.source ?? data.model ?? "prophet_time_series_v1",
         confidence: typeof data.confidence === "number" ? `${Math.round(data.confidence * 100)}%` : data.confidence,
-        model_name: data.model_name,
-        limitations: data.limitations,
-        forecasts: data.items.map((item: { hour_offset: number; pm25?: number; pm25_min?: number; pm25_max?: number; value?: number; value_min?: number; value_max?: number; confidence?: number }) => {
-          const predicted = item.value ?? item.pm25 ?? null;
+        model_name: data.model_name ?? "Prophet Time-Series ML v1.0",
+        limitations: data.limitations ?? data.trend_summary,
+        forecasts: items.map((item: any) => {
+          const predicted = item.predicted_value ?? item.value ?? item.pm25 ?? null;
+          const minVal = item.lower_bound ?? item.value_min ?? item.pm25_min ?? predicted;
+          const maxVal = item.upper_bound ?? item.value_max ?? item.pm25_max ?? predicted;
+          const h = item.hours_ahead ?? item.hour_offset ?? 1;
           return {
-            horizon: `${item.hour_offset} hour`,
+            horizon: `${h} hour`,
             pm25_predicted: predicted,
-            range: [item.value_min ?? item.pm25_min ?? predicted, item.value_max ?? item.pm25_max ?? predicted] as [number | null, number | null],
-            value: item.value ?? item.pm25 ?? null,
-            value_min: item.value_min ?? item.pm25_min ?? null,
-            value_max: item.value_max ?? item.pm25_max ?? null,
+            range: [minVal, maxVal] as [number | null, number | null],
+            value: predicted,
+            value_min: minVal,
+            value_max: maxVal,
             confidence: item.confidence,
           };
         }),
@@ -432,34 +441,35 @@ export const api = {
 
   sendAgentMessage: async (
     message: string,
-    contextStationId: string | null,
-    userId: string,
+    contextStationId: string | null = null,
+    userId: string = "demo-user",
+    mapContext?: Record<string, any>,
   ): Promise<AgentResponse> => {
-    const response = await apiFetch<{
-      answer: string;
-      used_tools: string[];
-      sources: Array<Record<string, unknown>>;
-      request_id: string;
-      trace: Record<string, unknown>;
-      proposal_id?: string | null;
-    }>("/api/v1/agent/chat", {
+    const response = await apiFetch<any>("/api/v1/agent/chat", {
       method: "POST",
       body: JSON.stringify({
         message,
         station_id: contextStationId,
         user_id: userId,
+        map_context: mapContext,
       }),
     });
+
+    const answerObj = typeof response.answer === "object" ? response.answer : { summary: response.answer, details: "" };
+    const textReply = response.response || (answerObj.summary + (answerObj.details ? `\n\n${answerObj.details}` : ""));
+
     return {
-      reply: response.answer,
-      used_tools: response.used_tools,
-      evidence: {
-        sources: response.sources,
-        request_id: response.request_id,
-        trace: response.trace,
-      },
+      reply: textReply,
+      answer: answerObj,
+      intent: response.intent,
+      time_context: response.time_context,
+      data_mode: response.data_mode,
+      evidence: response.evidence || response.sources || {},
+      map_actions: response.map_actions || [],
+      used_tools: response.used_tools || [],
       proposal_created: null,
       proposal_id: response.proposal_id ?? null,
+      request_id: response.request_id,
     };
   },
 
