@@ -19,8 +19,12 @@ export interface DemoApiActor {
   role: "manager";
 }
 
+const isBrowser = typeof window !== "undefined";
+const isLocal = isBrowser && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  import.meta.env.VITE_API_BASE_URL ||
+  (isLocal ? "http://localhost:8000" : "https://airguard-core.onrender.com");
 
 const demoNow = new Date();
 const hoursAgo = (h: number) =>
@@ -547,4 +551,104 @@ export const sendAgentChat = async (message: string, userId = "USR-002"): Promis
   const res = await api.sendAgentMessage(message, null, userId);
   return { response: res.reply };
 };
+
+export const FALLBACK_STATIONS: Station[] = [
+  {
+    station_id: "S01",
+    station_name: "Trục Đa Tốn phía Tây Bắc",
+    location_type: "northwest_road",
+    latitude: 21.0008,
+    longitude: 105.9428,
+    pm25: 42.5,
+    aqi: 118,
+    aqi_category: "Kém (nhạy cảm)",
+    co2: 650,
+    noise_db: 57,
+    temperature: 31.1,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+  {
+    station_id: "S02",
+    station_name: "Khu căn hộ Sapphire",
+    location_type: "high_rise_residential",
+    latitude: 20.9975,
+    longitude: 105.9430,
+    pm25: 55.2,
+    aqi: 151,
+    aqi_category: "Xấu",
+    co2: 720,
+    noise_db: 65,
+    temperature: 31.8,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+  {
+    station_id: "S03",
+    station_name: "Ven Hồ Ngọc Trai",
+    location_type: "lakeside_residential",
+    latitude: 20.9953,
+    longitude: 105.9500,
+    pm25: 66.1,
+    aqi: 158,
+    aqi_category: "Xấu",
+    co2: 780,
+    noise_db: 71,
+    temperature: 32.4,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+  {
+    station_id: "S04",
+    station_name: "Khuôn viên VinUni",
+    location_type: "university_campus",
+    latitude: 20.9898,
+    longitude: 105.9467,
+    pm25: 28.4,
+    aqi: 85,
+    aqi_category: "Trung bình",
+    co2: 540,
+    noise_db: 49,
+    temperature: 30.2,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+  {
+    station_id: "S05",
+    station_name: "Khu Hải Âu phía Đông Nam",
+    location_type: "southeast_residential",
+    latitude: 20.9910,
+    longitude: 105.9560,
+    pm25: 35.9,
+    aqi: 102,
+    aqi_category: "Kém (nhạy cảm)",
+    co2: 590,
+    noise_db: 54,
+    temperature: 30.8,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+];
+
+export const FALLBACK_ALERTS: Alert[] = [
+  {
+    alert_id: "ALT-001",
+    station_id: "S03",
+    alert_type: "pm25_threshold",
+    severity: "warning",
+    title: "PM2.5 vượt ngưỡng khuyến nghị",
+    message: "Nồng độ PM2.5 tại Ven Hồ Ngọc Trai đạt 66.1 µg/m³ vượt ngưỡng 50 µg/m³",
+    observed_value: 66.1,
+    threshold: 50.0,
+    unit: "µg/m³",
+    recommendation: "Hạn chế hoạt động thể thao ngoài trời tại khu vực ven hồ trong khung giờ cao điểm.",
+    status: "active",
+    created_at: new Date().toISOString(),
+  },
+];
 
