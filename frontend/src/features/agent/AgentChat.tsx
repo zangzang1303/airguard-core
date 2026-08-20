@@ -150,81 +150,81 @@ export const AgentChat: React.FC = () => {
         </aside>
 
         <div className="chat-container">
-        <div className="preset-pills" aria-label="Câu hỏi gợi ý">
-          {presetPrompts.map((prompt) => (
-            <button key={prompt} type="button" className="pill-btn" onClick={() => setInput(prompt)}>
-              <MessageSquare size={15} aria-hidden="true" />
-              {prompt}
-            </button>
-          ))}
-        </div>
+          <div className="preset-pills" aria-label="Câu hỏi gợi ý">
+            {presetPrompts.map((prompt) => (
+              <button key={prompt} type="button" className="pill-btn" onClick={() => setInput(prompt)}>
+                <MessageSquare size={15} aria-hidden="true" />
+                {prompt}
+              </button>
+            ))}
+          </div>
 
-        <div className="chat-messages" aria-live="polite">
-          {messages.map((message) => (
-            <div key={message.id} className={`message-bubble ${message.sender}`}>
-              <div className="message-header">
-                <span className="sender-name">
-                  {message.sender === "user" ? <UserRound size={15} aria-hidden="true" /> : <Bot size={15} aria-hidden="true" />}
-                  {message.sender === "user" ? "Bạn" : "AirGuard Agent"}
-                </span>
-                <span className="message-time">{message.timestamp}</span>
-              </div>
-              {message.sender === "agent" ? <AgentReply text={message.text} /> : <div className="message-text">{message.text}</div>}
-
-              {message.explanation && (
-                <details className="agent-explanation">
-                  <summary>Giải thích và số liệu</summary>
-                  <div className="agent-explanation__content">{message.explanation}</div>
-                </details>
-              )}
-
-              {message.used_tools && <TechnicalDetails tools={message.used_tools} />}
-
-              {message.proposal_created && (
-                <div className="proposal-card-chat">
-                  <div className="proposal-badge">
-                    <ShieldAlert size={16} aria-hidden="true" />
-                    Đề xuất đang chờ Manager phê duyệt
-                  </div>
-                  <div><strong>Mục tiêu:</strong> {message.proposal_created.target}</div>
-                  <div><strong>Hành động:</strong> {message.proposal_created.action}</div>
-                  <div><strong>Lý do:</strong> {message.proposal_created.rationale}</div>
-                  {role === "manager" || role === "admin" ? (
-                    <Button variant="primary" size="sm" className="proposal-card-chat__action" onClick={() => navigateTo("approvals")}>
-                      Mở hàng chờ phê duyệt
-                    </Button>
-                  ) : (
-                    <small className="proposal-card-chat__permission">
-                      <LockKeyhole size={14} aria-hidden="true" />
-                      Chỉ Manager/Admin có quyền phê duyệt đề xuất này.
-                    </small>
-                  )}
+          <div className="chat-messages" aria-live="polite">
+            {messages.map((message) => (
+              <div key={message.id} className={`message-bubble ${message.sender}`}>
+                <div className="message-header">
+                  <span className="sender-name">
+                    {message.sender === "user" ? <UserRound size={15} aria-hidden="true" /> : <Bot size={15} aria-hidden="true" />}
+                    {message.sender === "user" ? "Bạn" : "AirGuard Agent"}
+                  </span>
+                  <span className="message-time">{message.timestamp}</span>
                 </div>
-              )}
-            </div>
-          ))}
-          {sending && (
-            <div className="message-bubble agent sending">
-              <div className="typing-indicator"><Bot size={16} aria-hidden="true" /> Agent đang xử lý yêu cầu...</div>
-            </div>
-          )}
-        </div>
+                {message.sender === "agent" ? <AgentReply text={message.text} /> : <div className="message-text">{message.text}</div>}
 
-        <form onSubmit={handleSend} className="chat-input-form">
-          <input
-            type="text"
-            aria-label="Câu hỏi cho AI Agent"
-            placeholder="Nhập câu hỏi của bạn cho Agent..."
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            className="chat-input"
-            disabled={sending}
-          />
-          <Button type="submit" variant="primary" disabled={sending || !input.trim()}>
-            <Send size={16} aria-hidden="true" />
-            {sending ? "Đang gửi" : "Gửi"}
-          </Button>
-        </form>
+                {message.explanation && (
+                  <details className="agent-explanation">
+                    <summary>Giải thích và số liệu</summary>
+                    <div className="agent-explanation__content">{message.explanation}</div>
+                  </details>
+                )}
+
+                {message.used_tools && <TechnicalDetails tools={message.used_tools} />}
+
+                {message.proposal_created && (
+                  <div className="proposal-card-chat">
+                    <div className="proposal-badge">
+                      <ShieldAlert size={16} aria-hidden="true" />
+                      Đề xuất đang chờ Manager phê duyệt
+                    </div>
+                    <div><strong>Mục tiêu:</strong> {message.proposal_created.target}</div>
+                    <div><strong>Hành động:</strong> {message.proposal_created.action}</div>
+                    <div><strong>Lý do:</strong> {message.proposal_created.rationale}</div>
+                    {role === "manager" || role === "admin" ? (
+                      <Button variant="primary" size="sm" className="proposal-card-chat__action" onClick={() => navigateTo("approvals")}>
+                        Mở hàng chờ phê duyệt
+                      </Button>
+                    ) : (
+                      <small className="proposal-card-chat__permission">
+                        <LockKeyhole size={14} aria-hidden="true" />
+                        Chỉ Manager/Admin có quyền phê duyệt đề xuất này.
+                      </small>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            {sending && (
+              <div className="message-bubble agent sending">
+                <div className="typing-indicator"><Bot size={16} aria-hidden="true" /> Agent đang xử lý yêu cầu...</div>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleSend} className="chat-input-form">
+            <input
+              type="text"
+              aria-label="Câu hỏi cho AI Agent"
+              placeholder="Nhập câu hỏi của bạn cho Agent..."
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              className="chat-input"
+              disabled={sending}
+            />
+            <Button type="submit" variant="primary" disabled={sending || !input.trim()}>
+              <Send size={16} aria-hidden="true" />
+              {sending ? "Đang gửi" : "Gửi"}
+            </Button>
+          </form>
         </div>
       </div>
     </div>

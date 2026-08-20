@@ -11,25 +11,9 @@ interface SensorMarkersProps {
   showSensors: boolean;
 }
 
-export function getAqiColorHex(aqi: number | null | undefined): string {
-  if (aqi === null || aqi === undefined) return "#94a3b8"; // slate-400
-  if (aqi <= 50) return "#10b981"; // Emerald/Green (Good)
-  if (aqi <= 100) return "#eab308"; // Yellow (Moderate)
-  if (aqi <= 150) return "#f97316"; // Orange (Unhealthy for sensitive)
-  if (aqi <= 200) return "#ef4444"; // Red (Unhealthy)
-  if (aqi <= 300) return "#8b5cf6"; // Purple (Very Unhealthy)
-  return "#831843"; // Maroon (Hazardous)
-}
+import { getAqiColorHex, getAqiCategoryLabel } from "../../constants/aqi";
 
-export function getAqiCategoryLabel(aqi: number | null | undefined): { label: string; classTag: string } {
-  if (aqi === null || aqi === undefined) return { label: "Không khả dụng", classTag: "na" };
-  if (aqi <= 50) return { label: "Tốt (Good)", classTag: "good" };
-  if (aqi <= 100) return { label: "Trung bình (Moderate)", classTag: "moderate" };
-  if (aqi <= 150) return { label: "Kém (Sensitive)", classTag: "sensitive" };
-  if (aqi <= 200) return { label: "Xấu (Unhealthy)", classTag: "unhealthy" };
-  if (aqi <= 300) return { label: "Rất xấu (Very Unhealthy)", classTag: "very-unhealthy" };
-  return { label: "Nguy hại (Hazardous)", classTag: "hazardous" };
-}
+export { getAqiColorHex, getAqiCategoryLabel };
 
 function createAqiBadgeIcon(
   aqi: number | null | undefined,

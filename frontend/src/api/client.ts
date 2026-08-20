@@ -266,8 +266,8 @@ export function normalizeSpatialHeatmapResponse(raw: any): SpatialHeatmapRespons
 
   const forecastHour =
     typeof raw.forecast_hour === "number" &&
-    Number.isFinite(raw.forecast_hour) &&
-    raw.forecast_hour >= 0
+      Number.isFinite(raw.forecast_hour) &&
+      raw.forecast_hour >= 0
       ? raw.forecast_hour
       : 0;
 
