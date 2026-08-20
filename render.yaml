@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: airguard-backend
+    env: python
+    buildCommand: pip install -r backend/requirements.txt -r requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: airguard-postgres
+          property: connectionString
+      - key: SENSOR_SCENARIO
+        value: normal
+      - key: AUTO_PROPOSAL_ENABLED
+        value: "true"
+
+  - type: web
+    name: airguard-agent
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: MODEL_NAME
+        value: gpt-4o-mini
+      - key: OPENAI_API_KEY
+        sync: false
+
+databases:
+  - name: airguard-postgres
+    databaseName: airguard
+    user: airguard
+    plan: free
