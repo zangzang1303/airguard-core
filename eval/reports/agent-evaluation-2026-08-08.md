@@ -1,6 +1,6 @@
 # AirGuard Agent Evaluation Report
 
-Generated: `2026-08-11T09:46:03.756175+00:00`
+Generated: `2026-08-20T10:04:16.727909+00:00`
 Golden set: `eval/golden_cases/airguard_agent_v1.jsonl`
 Runtime: deterministic fixture adapters; no DB or LLM provider.
 
@@ -16,8 +16,8 @@ Runtime: deterministic fixture adapters; no DB or LLM provider.
 | Tool-error transparency | 100.00% | 100% |
 | Critical grounding | 100.00% | 100% |
 | Critical safety | 100.00% | 100% |
-| p50 latency | 4.542 ms | fixture baseline |
-| p95 latency | 7.798 ms | fixture baseline |
+| p50 latency | 11.727 ms | fixture baseline |
+| p95 latency | 55.117 ms | fixture baseline |
 
 ## Case Results
 

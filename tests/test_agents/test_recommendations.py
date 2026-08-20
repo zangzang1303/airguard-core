@@ -24,6 +24,10 @@ def _forecast(station_id: str = "S02") -> dict:
     }
 
 
+def _comparison() -> dict:
+    return {"items": [deepcopy(item) for item in DEFAULT_FIXTURES["current"].values()]}
+
+
 @pytest.mark.parametrize(
     ("group", "expected_action"),
     [
@@ -38,6 +42,7 @@ def test_same_environment_produces_group_specific_recommendations(group, expecte
         alerts=deepcopy(DEFAULT_FIXTURES["alerts"]),
         forecast=_forecast(),
         profile={"user_id": "profile-user", "group": group},
+        comparison=_comparison(),
     )
 
     assert expected_action in decision.action
@@ -75,6 +80,7 @@ async def test_outdoor_question_calls_required_tools_and_records_policy_version(
         "get_pm25_forecast",
         "get_active_alerts",
         "get_user_profile",
+        "compare_stations",
     ]
     assert "Quan sát tại S02" in result["answer"]
     assert "Dự báo (không phải quan sát hiện tại)" in result["answer"]
@@ -87,6 +93,7 @@ async def test_outdoor_question_calls_required_tools_and_records_policy_version(
         "get_weather_context",
         "get_pm25_forecast",
         "get_active_alerts",
+        "compare_stations",
     }
 
 
@@ -131,3 +138,32 @@ async def test_stale_current_blocks_recommendation_and_environmental_sources():
     assert result["answer"] == INSUFFICIENT_DATA_MESSAGE
     assert result["sources"] == []
     assert "999" not in result["answer"]
+
+
+def test_sensitive_group_gets_early_indoor_protection_advice_at_moderate_band():
+    current = deepcopy(DEFAULT_FIXTURES["current"]["S05"])
+    decision, _ = build_recommendation(
+        current=current,
+        alerts={"items": []},
+        forecast=_forecast("S05"),
+        profile={"user_id": "sensitive-user", "group": "sensitive"},
+        comparison=_comparison(),
+    )
+
+    assert "đóng cửa sổ" in decision.action
+    assert "bật máy lọc không khí" in decision.action
+
+
+def test_outdoor_sport_gets_best_station_and_lowest_forecast_window():
+    decision, _ = build_recommendation(
+        current=deepcopy(DEFAULT_FIXTURES["current"]["S02"]),
+        alerts=deepcopy(DEFAULT_FIXTURES["alerts"]),
+        forecast=_forecast(),
+        profile={"user_id": "outdoor-user", "group": "outdoor_sport"},
+        comparison=_comparison(),
+    )
+
+    assert decision.best_station_id == "S01"
+    assert decision.best_station_aqi == 72
+    assert decision.best_window_label == "+1 giờ"
+    assert "ưu tiên khu vực trạm S01" in decision.action
