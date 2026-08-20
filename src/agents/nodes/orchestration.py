@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from time import perf_counter
 from typing import Any
 from uuid import uuid4
@@ -13,7 +14,7 @@ from src.agents.state import AgentState
 from src.agents.tools.contracts import ToolError, ToolErrorCode
 from src.agents.trace import emit_trace
 from src.config import get_settings
-from src.services.llm import get_llm
+from src.services.llm import LlmProviderError, get_llm, resolve_llm_provider, resolved_model_name
 
 
 def route_node(state: AgentState) -> dict[str, Any]:
@@ -130,22 +131,22 @@ async def generate_explanation_node(state: AgentState) -> dict[str, Any]:
     # for transparent insufficient-data and safety-refusal outcomes. This lets
     # live eval cover those cases without delegating a quality gate or HITL
     # decision to the model.
-    if not settings.openai_api_key:
+    provider = resolve_llm_provider(settings)
+    if provider is None:
         return {"generation": fallback}
-    evidence = state.get("sources", [])
+    has_backend_evidence = bool(state.get("sources", []))
     started = perf_counter()
     try:
-        llm = get_llm()
+        llm = get_llm(settings=settings)
         prompt = (
-            "You explain an already-grounded AirGuard answer. Do not add, change, infer, "
-            "or repeat any measurements, timestamps, station names, forecast values, thresholds, "
-            "medical advice, operational instruction, approval decision, device action, or claims of certainty. "
-            "Write one short Vietnamese sentence that only explains the evidence limitation or safety boundary.\n"
-            f"Grounded answer (immutable): {base_answer}\n"
-            f"Evidence references: {evidence}\n"
-            "Return only the one explanatory sentence."
+            "Viết đúng một câu tiếng Việt ngắn, tối đa mười hai từ, chỉ nêu giới hạn dữ liệu "
+            "hoặc ranh giới an toàn. Không thêm hay lặp số đo, thời gian, tên trạm, chỉ số, "
+            "chẩn đoán, lệnh vận hành hoặc quyết định phê duyệt. "
+            f"Outcome đã khóa: {state.get('outcome', 'unknown')}. "
+            f"Evidence backend cùng request: {'present' if has_backend_evidence else 'none'}."
         )
-        reply = await llm.ainvoke(prompt)
+        deadline_seconds = float(getattr(settings, "llm_response_deadline_seconds", 5.0))
+        reply = await asyncio.wait_for(llm.ainvoke(prompt), timeout=deadline_seconds)
         explanation = str(reply.content).strip()
         # No numeric facts or station identifiers may come from the model-generated suffix.
         if not explanation or any(character.isdigit() for character in explanation) or "S0" in explanation.upper():
@@ -155,14 +156,33 @@ async def generate_explanation_node(state: AgentState) -> dict[str, Any]:
             "answer": f"{base_answer}\n\nGiải thích: {explanation}",
             "generation": {
                 "generation_mode": "live_llm",
-                "provider": "openai",
-                "model": settings.model_name,
+                "provider": provider,
+                "model": resolved_model_name(settings, provider),
                 "latency_ms": round((perf_counter() - started) * 1000, 3),
                 "token_usage": dict(usage),
             },
         }
+    except TimeoutError:
+        return {
+            "generation": {
+                **fallback,
+                "provider": provider,
+                "model": resolved_model_name(settings, provider),
+                "failure_code": "provider_deadline_exceeded",
+                "latency_ms": round((perf_counter() - started) * 1000, 3),
+            }
+        }
     except Exception as exc:
-        return {"generation": {**fallback, "failure_code": exc.__class__.__name__, "latency_ms": round((perf_counter() - started) * 1000, 3)}}
+        failure_code = str(exc) if isinstance(exc, LlmProviderError) else exc.__class__.__name__
+        return {
+            "generation": {
+                **fallback,
+                "provider": provider,
+                "model": resolved_model_name(settings, provider),
+                "failure_code": failure_code,
+                "latency_ms": round((perf_counter() - started) * 1000, 3),
+            }
+        }
 
 
 def trace_node(state: AgentState) -> dict[str, Any]:
