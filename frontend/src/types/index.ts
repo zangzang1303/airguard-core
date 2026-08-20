@@ -308,12 +308,30 @@ export interface AuditLogEntry {
 }
 
 
+export interface AgentResponseAnswer {
+  summary: string;
+  details: string;
+}
+
 export interface AgentResponse {
   reply: string;
-  used_tools: string[];
-  evidence: Record<string, any>;
+  answer?: AgentResponseAnswer | string;
+  intent?: string;
+  time_context?: {
+    type: "live" | "forecast";
+    is_forecast?: boolean;
+    label?: string;
+    start?: string;
+    end?: string;
+    forecast_hour?: number;
+  };
+  data_mode?: "live" | "forecast";
+  evidence: Record<string, any> | Array<Record<string, any>>;
+  map_actions?: Array<Record<string, any>>;
+  used_tools?: string[];
   proposal_created?: Proposal | null;
   proposal_id?: string | null;
+  request_id?: string;
 }
 
 export interface SpatialHeatmapPoint {

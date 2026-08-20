@@ -10,6 +10,7 @@ import { UserLocationMarker } from "./UserLocationMarker";
 import { SubZoneLabels } from "./SubZoneLabels";
 import { HeatmapLayer } from "../stations/HeatmapLayer";
 import { TimelineSlider } from "../stations/TimelineSlider";
+import { mapActionController } from "./MapActionController";
 
 interface SuperMapProps {
   stations: Station[];
@@ -24,6 +25,18 @@ interface SuperMapProps {
   onSelectPoi: (poi: PlacePOI) => void;
   onOpenNearMe: () => void;
 }
+
+// Controller component to bind Leaflet map to MapActionController
+const MapActionBinder: React.FC = () => {
+  const map = useMap();
+  useEffect(() => {
+    mapActionController.setMap(map);
+    return () => {
+      mapActionController.setMap(null);
+    };
+  }, [map]);
+  return null;
+};
 
 // Controller component to smoothly animate camera to target
 const MapCameraController: React.FC<{
@@ -79,6 +92,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
       >
         <InitialBoundsSetter />
         <MapCameraController flyToTarget={flyToTarget} />
+        <MapActionBinder />
 
         {/* Clean, high-clarity street basemap layer */}
         <TileLayer

@@ -36,6 +36,7 @@ import {
   HealthProfile,
   CommunityReport,
 } from "./types/superApp";
+import { USER_DEFAULT_LOCATION } from "./features/map/poiData";
 import {
   fetchStations,
   fetchAlerts,
@@ -312,6 +313,12 @@ const SuperAppMain: React.FC<{
         <AiAssistantDrawer
           initialPrompt={aiInitialPrompt}
           onClose={() => setActiveDrawer(null)}
+          mapContext={{
+            selected_sensor: selectedStationId,
+            selected_location: selectedPoi?.name || selectedPoi?.id,
+            active_layer: layerConfig.activeEnvironmentalLayer,
+            user_location: USER_DEFAULT_LOCATION,
+          }}
         />
       )}
 
