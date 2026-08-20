@@ -16,12 +16,16 @@ export function getPm25Severity(pm25: number | null | undefined): Pm25SeverityIn
   return { label: "Rất nguy hại (Hazardous)", class: "level-hazardous", color: "var(--pm25-hazardous)" };
 }
 
+import { getAqiLevel } from "../../constants/aqi";
+
 export function getAqiSeverity(aqi: number | null | undefined): Pm25SeverityInfo {
-  if (aqi === null || aqi === undefined) return { label: "AQI không khả dụng", class: "status-null", color: "var(--pm25-null)" };
-  if (aqi <= 50) return { label: "AQI tốt", class: "level-good", color: "var(--pm25-good)" };
-  if (aqi <= 100) return { label: "AQI trung bình", class: "level-moderate", color: "var(--pm25-moderate)" };
-  if (aqi <= 150) return { label: "AQI kém cho nhóm nhạy cảm", class: "level-unhealthy", color: "var(--pm25-unhealthy)" };
-  return { label: "AQI không tốt", class: "level-hazardous", color: "var(--pm25-hazardous)" };
+  const level = getAqiLevel(aqi);
+  if (!level) return { label: "AQI không khả dụng", class: "status-null", color: "var(--pm25-null)" };
+  return {
+    label: `AQI ${level.label.toLowerCase()}`,
+    class: `level-${level.classTag}`,
+    color: level.color,
+  };
 }
 
 interface DataQualityBadgeProps {

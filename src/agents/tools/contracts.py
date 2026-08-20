@@ -19,6 +19,7 @@ class ToolName(StrEnum):
     GET_ACTIVE_ALERTS = "get_active_alerts"
     GET_USER_PROFILE = "get_user_profile"
     CREATE_WARNING_PROPOSAL = "create_warning_proposal"
+    GET_SPATIAL_AIR_QUALITY = "get_spatial_air_quality"
 
 
 class ToolErrorCode(StrEnum):
@@ -317,6 +318,24 @@ class ToolSpec(StrictModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
+class SpatialAirQualityInput(StrictModel):
+    metric: str = Field(default="aqi")
+    forecast_hour: int = Field(default=0, ge=0, le=3)
+
+
+class SpatialAirQuality(BackendOutputModel):
+    metric: str
+    unit: str = "AQI"
+    timestamp: str
+    forecast_hour: int
+    source: str
+    model_version: str
+    wind_speed_ms: float
+    wind_direction_deg: int
+    grid_points: list[dict[str, Any]]
+    disclaimer: str
+
+
 TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
     ToolName.GET_CURRENT_PM25: ToolSpec(
         name=ToolName.GET_CURRENT_PM25,
@@ -382,5 +401,13 @@ TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
         method="POST",
         endpoint="/api/v1/proposals",
         mutating=True,
+    ),
+    ToolName.GET_SPATIAL_AIR_QUALITY: ToolSpec(
+        name=ToolName.GET_SPATIAL_AIR_QUALITY,
+        description="Fetch spatial IDW air quality / environmental dispersion grid and wind metrics across Ocean Park 1.",
+        input_schema=SpatialAirQualityInput,
+        output_schema=SpatialAirQuality,
+        method="GET",
+        endpoint="/api/v1/spatial/heatmap?metric={metric}&forecast_hour={forecast_hour}",
     ),
 }

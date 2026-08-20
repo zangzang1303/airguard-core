@@ -18,6 +18,7 @@ from src.agents.tools.contracts import (
     StationHistory,
     StationHistoryInput,
     StationMeasurement,
+    SpatialAirQualityInput,
     ToolEnvelope,
     ToolError,
     ToolErrorCode,
@@ -273,6 +274,31 @@ class FakeBackendToolClient:
         except ValidationError as exc:
             return self._validation_error(ToolName.CREATE_WARNING_PROPOSAL, request_id, exc)
         return ToolEnvelope(tool_name=ToolName.CREATE_WARNING_PROPOSAL, request_id=request_id, data=data)
+
+    async def get_spatial_air_quality(
+        self, payload: Mapping[str, Any], request_id: str = "fixture-request"
+    ) -> ToolEnvelope | ToolError:
+        try:
+            args = SpatialAirQualityInput.model_validate(payload)
+            metric = args.metric.lower()
+            data = {
+                "metric": metric,
+                "unit": "AQI" if metric == "aqi" else "µg/m³" if metric == "pm25" else "ppm" if metric == "co2" else "°C" if metric == "temperature" else "dB",
+                "timestamp": FIXED_NOW.isoformat(),
+                "forecast_hour": args.forecast_hour,
+                "source": "spatial_idw_dispersion_model",
+                "model_version": "idw-dispersion-v1.0",
+                "wind_speed_ms": 3.2,
+                "wind_direction_deg": 135,
+                "grid_points": [
+                    {"lat": 20.9912, "lon": 105.9521, "value": 72.4, "level": "moderate"},
+                    {"lat": 20.9915, "lon": 105.9525, "value": 115.8, "level": "unhealthy_sensitive"},
+                ],
+                "disclaimer": "Mô hình nội suy trực quan hóa IDW kết hợp vector khí tượng mô phỏng.",
+            }
+        except ValidationError as exc:
+            return self._validation_error(ToolName.GET_SPATIAL_AIR_QUALITY, request_id, exc)
+        return ToolEnvelope(tool_name=ToolName.GET_SPATIAL_AIR_QUALITY, request_id=request_id, data=data)
 
     def _validation_error(self, tool_name: ToolName, request_id: str, exc: ValidationError) -> ToolError:
         return ToolError(

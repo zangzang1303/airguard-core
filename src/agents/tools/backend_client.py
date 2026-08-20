@@ -15,6 +15,7 @@ from src.agents.tools.contracts import (
     Pm25ForecastInput,
     StationComparison,
     StationHistoryInput,
+    SpatialAirQualityInput,
     ToolEnvelope,
     ToolError,
     ToolErrorCode,
@@ -195,6 +196,20 @@ class BackendToolClient:
             json=backend_payload,
             headers={"Idempotency-Key": args.idempotency_key},
             max_retries=0,
+        )
+
+    async def get_spatial_air_quality(self, payload: Mapping[str, Any], request_id: str | None = None) -> ToolEnvelope | ToolError:
+        request_id = request_id or self._new_request_id()
+        try:
+            args = SpatialAirQualityInput.model_validate(payload)
+        except ValidationError as exc:
+            return self._validation_error(ToolName.GET_SPATIAL_AIR_QUALITY, request_id, exc)
+        return await self._request_and_validate(
+            ToolName.GET_SPATIAL_AIR_QUALITY,
+            request_id,
+            "GET",
+            "/api/v1/spatial/heatmap",
+            params={"metric": args.metric, "forecast_hour": args.forecast_hour},
         )
 
     async def _request_and_validate(
