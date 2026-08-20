@@ -106,12 +106,107 @@ ALTER TABLE IF EXISTS alerts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT
 CREATE TABLE IF NOT EXISTS users (
     user_id UUID PRIMARY KEY,
     email VARCHAR(200) UNIQUE NOT NULL,
+    email_normalized VARCHAR(200) GENERATED ALWAYS AS (LOWER(BTRIM(email))) STORED,
     password_hash TEXT,
     role VARCHAR(30) NOT NULL,
     full_name VARCHAR(150),
     sensitivity_group VARCHAR(50),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    email_verified_at TIMESTAMPTZ,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    failed_login_count INTEGER NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
+    locked_until TIMESTAMPTZ,
+    password_changed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE IF EXISTS users
+    ADD COLUMN IF NOT EXISTS email_normalized VARCHAR(200)
+    GENERATED ALWAYS AS (LOWER(BTRIM(email))) STORED;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS failed_login_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ;
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+DO $users_constraints$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'users_failed_login_count_nonnegative'
+          AND conrelid = 'users'::regclass
+    ) THEN
+        ALTER TABLE users
+            ADD CONSTRAINT users_failed_login_count_nonnegative CHECK (failed_login_count >= 0);
+    END IF;
+END;
+$users_constraints$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_normalized
+ON users(email_normalized);
+
+CREATE OR REPLACE FUNCTION set_row_updated_at()
+RETURNS trigger AS $updated_at$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$updated_at$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS users_set_updated_at ON users;
+CREATE TRIGGER users_set_updated_at
+BEFORE UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION set_row_updated_at();
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+    session_id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    session_token_hash CHAR(64) UNIQUE NOT NULL
+        CHECK (session_token_hash ~ '^[0-9a-f]{64}$'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ,
+    CHECK (expires_at > created_at),
+    CHECK (revoked_at IS NULL OR revoked_at >= created_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_expires
+ON user_sessions(user_id, expires_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_active
+ON user_sessions(user_id, revoked_at, expires_at);
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    token_id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    token_hash CHAR(64) UNIQUE NOT NULL CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+    email_normalized VARCHAR(200) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    CHECK (expires_at > created_at),
+    CHECK (used_at IS NULL OR used_at >= created_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_expires
+ON email_verification_tokens(user_id, expires_at DESC);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token_id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    token_hash CHAR(64) UNIQUE NOT NULL CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    CHECK (expires_at > created_at),
+    CHECK (used_at IS NULL OR used_at >= created_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_expires
+ON password_reset_tokens(user_id, expires_at DESC);
 
 CREATE TABLE IF NOT EXISTS devices (
     device_id VARCHAR(50) PRIMARY KEY,
@@ -241,17 +336,22 @@ SELECT station_id, 'offline', NULL, 'simulator'
 FROM stations
 ON CONFLICT (station_id) DO NOTHING;
 
-INSERT INTO users (user_id, email, password_hash, role, full_name, sensitivity_group)
+INSERT INTO users (
+    user_id, email, password_hash, role, full_name, sensitivity_group,
+    email_verified_at, is_active
+)
 VALUES
-    ('00000000-0000-0000-0000-000000000001', 'manager@airguard.local', NULL, 'manager', 'Demo Facility Manager', 'normal'),
-    ('00000000-0000-0000-0000-000000000101', 'resident@vinuni.edu.vn', NULL, 'resident', 'Tran Minh Anh', 'normal'),
-    ('00000000-0000-0000-0000-000000000102', 'manager@vinuni.edu.vn', NULL, 'manager', 'Nguyen Van A', 'sensitive'),
-    ('00000000-0000-0000-0000-000000000103', 'admin@vinuni.edu.vn', NULL, 'admin', 'Le Thi D', 'normal')
+    ('00000000-0000-0000-0000-000000000001', 'manager@airguard.local', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'manager', 'Demo Facility Manager', 'normal', NOW(), TRUE),
+    ('00000000-0000-0000-0000-000000000101', 'resident@vinuni.edu.vn', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'resident', 'Tran Minh Anh', 'normal', NOW(), TRUE),
+    ('00000000-0000-0000-0000-000000000102', 'manager@vinuni.edu.vn', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'manager', 'Nguyen Van A', 'sensitive', NOW(), TRUE),
+    ('00000000-0000-0000-0000-000000000103', 'admin@vinuni.edu.vn', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'admin', 'Le Thi D', 'normal', NOW(), TRUE)
 ON CONFLICT (user_id) DO UPDATE SET
     email = EXCLUDED.email,
+    password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash),
     role = EXCLUDED.role,
     full_name = EXCLUDED.full_name,
-    sensitivity_group = EXCLUDED.sensitivity_group;
+    sensitivity_group = EXCLUDED.sensitivity_group,
+    email_verified_at = COALESCE(users.email_verified_at, EXCLUDED.email_verified_at);
 
 INSERT INTO devices (device_id, device_name, device_type, station_id, status, is_simulated)
 VALUES
@@ -259,3 +359,4 @@ VALUES
     ('FILTER-02', 'Indoor Air Filter S02', 'ventilation_filter', 'S02', 'offline', TRUE),
     ('FILTER-05', 'Hai Au Air Filter S05', 'ventilation_filter', 'S05', 'offline', TRUE)
 ON CONFLICT (device_id) DO NOTHING;
+

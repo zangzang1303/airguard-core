@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 from dataclasses import dataclass
@@ -27,6 +27,18 @@ class Settings:
     auto_proposal_enabled: bool
     proposal_pending_ttl_seconds: int
     auto_proposal_stations: tuple[str, ...]
+    session_ttl_seconds: int
+    verification_token_ttl_seconds: int
+    reset_token_ttl_seconds: int
+    cookie_secure: bool
+    cookie_samesite: str
+    frontend_url: str
+    rate_limit_login_max_attempts: int
+    rate_limit_lockout_seconds: int
+    auth_demo_mode: bool
+    google_client_id: str | None
+    google_client_secret: str | None
+    google_redirect_uri: str | None
 
     @classmethod
     def load(cls) -> Settings:
@@ -74,6 +86,37 @@ class Settings:
         if invalid_stations:
             raise ValueError(f"AUTO_PROPOSAL_STATIONS contains invalid station(s): {','.join(invalid_stations)}")
 
+        def _get_int(key: str, default: int) -> int:
+            val = os.getenv(key)
+            if val is None or not val.strip():
+                return default
+            return int(val.strip())
+
+        session_ttl_seconds = _get_int("SESSION_TTL_SECONDS", 604800)
+        if session_ttl_seconds <= 0:
+            raise ValueError("SESSION_TTL_SECONDS must be positive")
+        verification_token_ttl_seconds = _get_int("VERIFICATION_TOKEN_TTL_SECONDS", 86400)
+        if verification_token_ttl_seconds <= 0:
+            raise ValueError("VERIFICATION_TOKEN_TTL_SECONDS must be positive")
+        reset_token_ttl_seconds = _get_int("RESET_TOKEN_TTL_SECONDS", 3600)
+        if reset_token_ttl_seconds <= 0:
+            raise ValueError("RESET_TOKEN_TTL_SECONDS must be positive")
+        cookie_secure_raw = (os.getenv("COOKIE_SECURE") or "false").strip().lower()
+        cookie_secure = cookie_secure_raw in {"true", "1", "yes"}
+        cookie_samesite = (os.getenv("COOKIE_SAMESITE") or "lax").strip().lower()
+        if cookie_samesite not in {"lax", "strict", "none"}:
+            cookie_samesite = "lax"
+        frontend_url = (os.getenv("FRONTEND_URL") or "http://localhost:5173").strip().rstrip("/")
+        rate_limit_max = _get_int("RATE_LIMIT_LOGIN_MAX_ATTEMPTS", 5)
+        rate_limit_lockout = _get_int("RATE_LIMIT_LOCKOUT_SECONDS", 900)
+
+        demo_mode_raw = (os.getenv("AUTH_DEMO_MODE") or "true").strip().lower()
+        auth_demo_mode = demo_mode_raw in {"true", "1", "yes"}
+
+        google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+        google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+        google_redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/google/callback")
+
         return cls(
             database_url=os.getenv("DATABASE_URL"),
             cors_origins=[origin.strip() for origin in raw_origins.split(",") if origin.strip()],
@@ -96,4 +139,16 @@ class Settings:
             auto_proposal_enabled=auto_proposal_raw == "true",
             proposal_pending_ttl_seconds=proposal_pending_ttl_seconds,
             auto_proposal_stations=auto_proposal_stations,
+            session_ttl_seconds=session_ttl_seconds,
+            verification_token_ttl_seconds=verification_token_ttl_seconds,
+            reset_token_ttl_seconds=reset_token_ttl_seconds,
+            cookie_secure=cookie_secure,
+            cookie_samesite=cookie_samesite,
+            frontend_url=frontend_url,
+            rate_limit_login_max_attempts=rate_limit_max,
+            rate_limit_lockout_seconds=rate_limit_lockout,
+            auth_demo_mode=auth_demo_mode,
+            google_client_id=google_client_id.strip() if google_client_id and google_client_id.strip() else None,
+            google_client_secret=google_client_secret.strip() if google_client_secret and google_client_secret.strip() else None,
+            google_redirect_uri=google_redirect_uri.strip() if google_redirect_uri and google_redirect_uri.strip() else None,
         )

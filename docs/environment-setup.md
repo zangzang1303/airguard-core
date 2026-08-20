@@ -72,3 +72,18 @@ idempotent demo bootstrap without deleting data:
 
 This is for local demo environments only. Do not use it as a replacement for a
 versioned migration process in a shared or production database.
+
+### Apply the authentication foundation migration
+
+The bootstrap schema contains the authentication storage for a newly created database.
+For an existing database, apply the additive migration without deleting the volume:
+
+```powershell
+Get-Content -Raw backend/db/migrations/20260820_001_auth_foundation.sql |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U airguard -d airguard
+```
+
+The migration is transactional and safe to re-run. It intentionally fails when legacy
+users contain emails that differ only by letter case; resolve those identities manually
+before retrying. The migration stores only token hashes and does not enable login APIs or
+replace the current demo-header RBAC by itself.

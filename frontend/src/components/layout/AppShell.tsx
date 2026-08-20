@@ -64,6 +64,15 @@ const screenMetadata: Record<ScreenType, { label: string }> = {
   register: {
     label: "Đăng ký",
   },
+  "verify-email": {
+    label: "Xác minh Email",
+  },
+  "forgot-password": {
+    label: "Quên mật khẩu",
+  },
+  "reset-password": {
+    label: "Đặt lại mật khẩu",
+  },
 };
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {

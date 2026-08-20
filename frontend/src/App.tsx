@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Login } from "./features/auth/Login";
 import { Register } from "./features/auth/Register";
+import { VerifyEmail } from "./features/auth/VerifyEmail";
+import { ForgotPassword } from "./features/auth/ForgotPassword";
+import { ResetPassword } from "./features/auth/ResetPassword";
 import { StationDetail } from "./features/stations/StationDetail";
 import { AlertList } from "./features/alerts/AlertList";
 import { ApprovalQueue } from "./features/approvals/ApprovalQueue";
@@ -418,7 +421,7 @@ const SuperAppMain: React.FC<{
 };
 
 const AppContent: React.FC = () => {
-  const { currentScreen, isAuthenticated, role, navigateTo } = useAuth();
+  const { currentScreen, setCurrentScreen, isAuthenticated, isLoading, role, navigateTo } = useAuth();
 
   // Data States
   const [stations, setStations] = useState<Station[]>([]);
@@ -431,6 +434,21 @@ const AppContent: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const isManager = role === "manager" || role === "admin";
+
+  // Check URL pathname or query for deep links
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const pathname = window.location.pathname;
+      const search = window.location.search;
+      if (pathname.includes("verify-email") || (search.includes("token=") && !search.includes("reset"))) {
+        setCurrentScreen("verify-email");
+      } else if (pathname.includes("reset-password") || (search.includes("token=") && pathname.includes("reset"))) {
+        setCurrentScreen("reset-password");
+      } else if (pathname.includes("forgot-password")) {
+        setCurrentScreen("forgot-password");
+      }
+    }
+  }, [setCurrentScreen]);
 
   const refreshData = useCallback(async () => {
     setLoading(true);
@@ -476,7 +494,6 @@ const AppContent: React.FC = () => {
 
   // Polling with Page Visibility API
   useEffect(() => {
-    if (!isAuthenticated) return;
     refreshData();
 
     const interval = setInterval(() => {
@@ -496,13 +513,56 @@ const AppContent: React.FC = () => {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isAuthenticated, refreshData]);
+  }, [refreshData]);
 
-  if (!isAuthenticated) {
-    if (currentScreen === "register") {
-      return <Register />;
-    }
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: "#0f172a",
+          color: "#f8fafc",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              display: "inline-block",
+              width: "42px",
+              height: "42px",
+              border: "3px solid rgba(16,185,129,0.2)",
+              borderTopColor: "#10b981",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
+          <p style={{ marginTop: "1rem", fontSize: "0.95rem", color: "#94a3b8", fontWeight: 500 }}>
+            Đang tải AirGuard AI...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Auth Screen Routing
+  if (currentScreen === "login") {
     return <Login />;
+  }
+  if (currentScreen === "register") {
+    return <Register />;
+  }
+  if (currentScreen === "verify-email") {
+    return <VerifyEmail />;
+  }
+  if (currentScreen === "forgot-password") {
+    return <ForgotPassword />;
+  }
+  if (currentScreen === "reset-password") {
+    return <ResetPassword />;
   }
 
   // Admin / Special view overlay on map

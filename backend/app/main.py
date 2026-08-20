@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal, Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from fastapi import BackgroundTasks, Body, FastAPI, Header, Query, Request
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,9 +17,25 @@ from .schemas.measurements import MeasurementIngestionRequest
 from .services.agent_service import AgentService, AgentServiceError
 from .services.alert_engine import AlertEngine
 from .services.automatic_proposal_service import AutomaticProposalService
+from .dependencies.auth import (
+    get_auth_service,
+    get_current_user,
+    get_optional_user,
+    require_admin,
+    require_manager,
+    set_auth_service,
+)
+from .services.auth_service import AuthService
+from .services.email_service import AuthEmailService
+from .services.csrf_service import (
+    CSRF_COOKIE_NAME,
+    CSRF_HEADER_NAME,
+    generate_csrf_token,
+    validate_csrf,
+)
+from .services.database import Database, ServiceError, dict_cursor
 from .services.approval_service import ApprovalService, configure_default_service
 from .services.audit_service import AuditService
-from .services.database import Database, ServiceError
 from .services.device_service import DeviceService
 from .services.forecast_service import InsufficientForecastHistory, trend_forecast
 from .services.ingestion_service import MeasurementIngestionService
@@ -94,12 +110,64 @@ class ApprovalReviewRequest(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
 
 
+class RegisterRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=200, examples=["user@example.com"])
+    password: str = Field(..., min_length=8, max_length=1024, examples=["SecurePassword123!"])
+    full_name: str | None = Field(default=None, max_length=150, examples=["Nguyen Van B"])
+    sensitivity_group: str | None = Field(default="normal", examples=["normal", "sensitive", "outdoor_sport"])
+
+
+from fastapi.responses import JSONResponse, RedirectResponse
+
+
+class DemoLoginRequest(BaseModel):
+    persona: Literal["resident", "manager", "admin"] = Field(..., examples=["resident", "manager", "admin"])
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=1, max_length=200, examples=["resident@vinuni.edu.vn"])
+    password: str = Field(..., min_length=1, max_length=1024, examples=["AirGuard@2026"])
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(..., min_length=16, max_length=256)
+
+
+class ResendVerificationRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=200, examples=["user@example.com"])
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=200, examples=["user@example.com"])
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=16, max_length=256)
+    new_password: str = Field(..., min_length=8, max_length=1024, examples=["NewSecurePassword123!"])
+
+
 settings = Settings.load()
 db = Database(settings.database_url)
 audit_service = AuditService(db)
 station_service = StationService(db, settings.stale_after_seconds)
 user_service = UserService(db)
 device_service = DeviceService(db)
+email_service = AuthEmailService(frontend_url=settings.frontend_url)
+auth_service = AuthService(
+    db,
+    audit_service,
+    email_service,
+    session_ttl_seconds=settings.session_ttl_seconds,
+    verification_token_ttl_seconds=settings.verification_token_ttl_seconds,
+    reset_token_ttl_seconds=settings.reset_token_ttl_seconds,
+    rate_limit_max_attempts=settings.rate_limit_login_max_attempts,
+    rate_limit_lockout_seconds=settings.rate_limit_lockout_seconds,
+    demo_mode_enabled=settings.auth_demo_mode,
+    google_client_id=settings.google_client_id,
+    google_client_secret=settings.google_client_secret,
+    google_redirect_uri=settings.google_redirect_uri,
+)
+set_auth_service(auth_service)
 approval_service = ApprovalService(
     db,
     audit_service,
@@ -180,11 +248,6 @@ def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "unknown")
 
 
-def _require_manager_role(role: str) -> None:
-    if role != "manager":
-        raise ServiceError("forbidden", "Only manager role can access this resource", 403)
-
-
 def _error_response(request: Request, *, status_code: int, code: str, message: str, details: dict | list | None = None):
     return JSONResponse(
         status_code=status_code,
@@ -247,6 +310,256 @@ def bootstrap_database():
                         cur.execute(seed_path.read_text(encoding="utf-8"))
     except Exception as exc:
         print(f"Database bootstrap notice: {exc}")
+
+
+@app.get("/api/v1/auth/config")
+def get_auth_config() -> dict:
+    return {
+        "demo_mode": settings.auth_demo_mode,
+        "google_auth_enabled": bool(settings.google_client_id),
+    }
+
+
+@app.get("/api/v1/auth/csrf")
+def get_csrf_token() -> JSONResponse:
+    csrf_token = generate_csrf_token()
+    res = JSONResponse(
+        content={
+            "csrf_token": csrf_token,
+            "demo_mode": settings.auth_demo_mode,
+            "google_auth_enabled": bool(settings.google_client_id),
+        }
+    )
+    res.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=csrf_token,
+        httponly=False,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=settings.session_ttl_seconds,
+        path="/",
+    )
+    return res
+
+
+@app.post("/api/v1/auth/demo-login")
+def auth_demo_login(
+    request: Request,
+    body: DemoLoginRequest,
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> JSONResponse:
+    validate_csrf(request)
+    client_ip = request.client.host if request.client else None
+    raw_session_token, user_info = auth_svc.demo_login(
+        persona=body.persona,
+        correlation_id=_request_id(request),
+        ip_address=client_ip,
+    )
+    csrf_token = generate_csrf_token()
+    response = JSONResponse(
+        content={
+            "user": user_info,
+            "csrf_token": csrf_token,
+            "message": f"Đăng nhập thành công với vai trò {user_info['role']}.",
+        }
+    )
+    response.set_cookie(
+        key="airguard_session",
+        value=raw_session_token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=settings.session_ttl_seconds,
+        path="/",
+    )
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=csrf_token,
+        httponly=False,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=settings.session_ttl_seconds,
+        path="/",
+    )
+    return response
+
+
+@app.get("/api/v1/auth/google/start")
+def auth_google_start(
+    request: Request,
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> RedirectResponse:
+    if not auth_svc.google_client_id:
+        return RedirectResponse(
+            url=f"{settings.frontend_url}/?auth=google_error&error=not_configured",
+            status_code=307,
+        )
+    auth_url = auth_svc.get_google_auth_url()
+    return RedirectResponse(url=auth_url, status_code=307)
+
+
+@app.get("/api/v1/auth/google/callback")
+def auth_google_callback(
+    request: Request,
+    code: str = Query(None),
+    state: str = Query(None),
+    error: str = Query(None),
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> RedirectResponse:
+    if error or not code:
+        reason = error or "cancelled"
+        return RedirectResponse(url=f"{settings.frontend_url}/?auth=google_error&error={reason}", status_code=307)
+    try:
+        client_ip = request.client.host if request.client else None
+        raw_session_token, user_info = auth_svc.handle_google_callback(
+            code=code,
+            state=state,
+            client_ip=client_ip,
+            correlation_id=_request_id(request),
+        )
+        csrf_token = generate_csrf_token()
+        response = RedirectResponse(url=f"{settings.frontend_url}/?auth=google_success", status_code=307)
+        response.set_cookie(
+            key="airguard_session",
+            value=raw_session_token,
+            httponly=True,
+            secure=settings.cookie_secure,
+            samesite=settings.cookie_samesite,
+            max_age=settings.session_ttl_seconds,
+            path="/",
+        )
+        response.set_cookie(
+            key=CSRF_COOKIE_NAME,
+            value=csrf_token,
+            httponly=False,
+            secure=settings.cookie_secure,
+            samesite=settings.cookie_samesite,
+            max_age=settings.session_ttl_seconds,
+            path="/",
+        )
+        return response
+    except Exception as exc:
+        return RedirectResponse(url=f"{settings.frontend_url}/?auth=google_error&error=server_error", status_code=307)
+
+
+@app.post("/api/v1/auth/register", status_code=201)
+def auth_register(
+    request: Request,
+    body: RegisterRequest,
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> dict:
+    validate_csrf(request)
+    return auth_svc.register(
+        email=body.email,
+        password=body.password,
+        full_name=body.full_name,
+        sensitivity_group=body.sensitivity_group,
+        correlation_id=_request_id(request),
+    )
+
+
+@app.post("/api/v1/auth/verify-email")
+def auth_verify_email(
+    request: Request,
+    body: VerifyEmailRequest,
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> dict:
+    validate_csrf(request)
+    return auth_svc.verify_email(raw_token=body.token, correlation_id=_request_id(request))
+
+
+@app.post("/api/v1/auth/resend-verification")
+def auth_resend_verification(
+    request: Request,
+    body: ResendVerificationRequest,
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> dict:
+    validate_csrf(request)
+    return auth_svc.resend_verification(email=body.email, correlation_id=_request_id(request))
+
+
+@app.post("/api/v1/auth/login")
+def auth_login(
+    request: Request,
+    body: LoginRequest,
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> JSONResponse:
+    client_ip = request.client.host if request.client else None
+    raw_session_token, user_info = auth_svc.login(
+        email=body.email,
+        password=body.password,
+        correlation_id=_request_id(request),
+        ip_address=client_ip,
+    )
+    csrf_token = generate_csrf_token()
+    response = JSONResponse(
+        content={
+            "user": user_info,
+            "csrf_token": csrf_token,
+            "message": "Đăng nhập thành công.",
+        }
+    )
+    response.set_cookie(
+        key="airguard_session",
+        value=raw_session_token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=settings.session_ttl_seconds,
+        path="/",
+    )
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=csrf_token,
+        httponly=False,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=settings.session_ttl_seconds,
+        path="/",
+    )
+    return response
+
+
+@app.get("/api/v1/auth/me")
+def auth_me(current_user: dict = Depends(get_current_user)) -> dict:
+    return {"user": current_user}
+
+
+@app.post("/api/v1/auth/logout")
+def auth_logout(
+    request: Request,
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> JSONResponse:
+    session_cookie = request.cookies.get("airguard_session") or ""
+    auth_svc.logout(raw_session_token=session_cookie, correlation_id=_request_id(request))
+    response = JSONResponse(content={"success": True, "message": "Đã đăng xuất an toàn."})
+    response.delete_cookie(key="airguard_session", path="/")
+    response.delete_cookie(key=CSRF_COOKIE_NAME, path="/")
+    return response
+
+
+@app.post("/api/v1/auth/forgot-password")
+def auth_forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> dict:
+    validate_csrf(request)
+    return auth_svc.forgot_password(email=body.email, correlation_id=_request_id(request))
+
+
+@app.post("/api/v1/auth/reset-password")
+def auth_reset_password(
+    request: Request,
+    body: ResetPasswordRequest,
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> dict:
+    validate_csrf(request)
+    return auth_svc.reset_password(
+        raw_token=body.token,
+        new_password=body.new_password,
+        correlation_id=_request_id(request),
+    )
 
 
 @app.get("/health")
@@ -335,14 +648,14 @@ def get_alerts(status: str | None = Query(default=None), station_id: str | None 
 def resolve_alert(
     request: Request,
     alert_id: str,
-    x_user_id: str = Header(default="00000000-0000-0000-0000-000000000001"),
-    x_user_role: str = Header(default="viewer"),
+    current_user: dict = Depends(require_manager),
 ) -> dict:
+    validate_csrf(request)
     return alert_engine.resolve_alert(
         alert_id,
-        actor_id=x_user_id,
-        actor_role=x_user_role,
-    correlation_id=_request_id(request),
+        actor_id=current_user["user_id"],
+        actor_role=current_user["role"],
+        correlation_id=_request_id(request),
     )
 
 
@@ -525,17 +838,15 @@ def create_approval(
 def get_approvals(
     request: Request,
     status: str | None = Query(default=None),
-    x_user_role: str = Header(default="viewer"),
+    current_user: dict = Depends(require_manager),
 ) -> dict:
-    _require_manager_role(x_user_role)
     approval_service.expire_pending_requests(correlation_id=_request_id(request))
     return {"items": approval_service.list_requests(status=status)}
 
 
 @app.get("/api/v1/approvals/{request_id}")
 @app.get("/api/v1/proposals/{request_id}")
-def get_approval(request_id: str, x_user_role: str = Header(default="viewer")) -> dict:
-    _require_manager_role(x_user_role)
+def get_approval(request_id: str, current_user: dict = Depends(require_manager)) -> dict:
     return approval_service.get_request(request_id)
 
 
@@ -545,14 +856,14 @@ def approve_request(
     request: Request,
     request_id: str,
     body: ApprovalReviewRequest,
-    x_user_id: str = Header(default="00000000-0000-0000-0000-000000000001"),
-    x_user_role: str = Header(default="viewer"),
+    current_user: dict = Depends(require_manager),
 ) -> dict:
+    validate_csrf(request)
     result = approval_service.approve(
         request_id=request_id,
         expected_version=body.version,
-        reviewer_id=x_user_id,
-        reviewer_role=x_user_role,
+        reviewer_id=current_user["user_id"],
+        reviewer_role=current_user["role"],
         note=body.note,
         correlation_id=_request_id(request),
     )
@@ -586,14 +897,14 @@ def reject_request(
     request: Request,
     request_id: str,
     body: ApprovalReviewRequest,
-    x_user_id: str = Header(default="00000000-0000-0000-0000-000000000001"),
-    x_user_role: str = Header(default="viewer"),
+    current_user: dict = Depends(require_manager),
 ) -> dict:
+    validate_csrf(request)
     return approval_service.reject(
         request_id=request_id,
         expected_version=body.version,
-        reviewer_id=x_user_id,
-        reviewer_role=x_user_role,
+        reviewer_id=current_user["user_id"],
+        reviewer_role=current_user["role"],
         note=body.note or "",
         correlation_id=_request_id(request),
     )
@@ -604,11 +915,25 @@ def get_audit_logs(
     entity_type: str | None = Query(default=None),
     entity_id: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
-    x_user_role: str = Header(default="viewer"),
+    current_user: dict = Depends(require_manager),
 ) -> dict:
-    if x_user_role != "manager":
-        raise ServiceError("forbidden", "Only manager role can read audit logs", 403)
     return {"items": audit_service.list_logs(entity_type=entity_type, entity_id=entity_id, limit=limit)}
+
+
+@app.get("/api/v1/users")
+def get_users(current_user: dict = Depends(require_manager)) -> dict:
+    with db.connection() as conn:
+        with dict_cursor(conn) as cur:
+            cur.execute(
+                """
+                SELECT user_id, email, role, full_name, sensitivity_group,
+                       email_verified_at, is_active, created_at
+                FROM users
+                ORDER BY created_at DESC
+                """
+            )
+            rows = cur.fetchall()
+            return {"items": [dict(r) for r in rows]}
 
 
 
