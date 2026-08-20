@@ -175,38 +175,41 @@ class ApprovalService:
 
     def expire_pending_requests(self, *, correlation_id: str | None = None) -> int:
         """Expire unreviewed proposals while preserving them and their audit trail."""
-        with self.db.connection() as conn:
-            with dict_cursor(conn) as cur:
-                cur.execute(
-                    """
-                    UPDATE approval_requests
-                    SET status = 'expired', reviewed_at = NOW(),
-                        review_note = 'Expired automatically after the manager review window elapsed.',
-                        version = version + 1
-                    WHERE status = 'pending'
-                      AND created_at < NOW() - (%s * INTERVAL '1 second')
-                    RETURNING request_id, station_id
-                    """,
-                    (self.pending_ttl_seconds,),
-                )
-                expired = [dict(row) for row in cur.fetchall()]
-                for expired_request in expired:
-                    self.audit.record(
-                        actor_type="system",
-                        actor_role="backend",
-                        action="approval.expire",
-                        entity_type="approval_request",
-                        entity_id=str(expired_request["request_id"]),
-                        correlation_id=correlation_id,
-                        outcome="expired",
-                        details={
-                            "station_id": expired_request["station_id"],
-                            "ttl_seconds": self.pending_ttl_seconds,
-                            "reason": "manager_review_window_elapsed",
-                        },
-                        conn=conn,
+        try:
+            with self.db.connection() as conn:
+                with dict_cursor(conn) as cur:
+                    cur.execute(
+                        """
+                        UPDATE approval_requests
+                        SET status = 'expired', reviewed_at = NOW(),
+                            review_note = 'Expired automatically after the manager review window elapsed.',
+                            version = version + 1
+                        WHERE status = 'pending'
+                          AND created_at < NOW() - (%s * INTERVAL '1 second')
+                        RETURNING request_id, station_id
+                        """,
+                        (self.pending_ttl_seconds,),
                     )
-                return len(expired)
+                    expired = [dict(row) for row in cur.fetchall()]
+                    for expired_request in expired:
+                        self.audit.record(
+                            actor_type="system",
+                            actor_role="backend",
+                            action="approval.expire",
+                            entity_type="approval_request",
+                            entity_id=str(expired_request["request_id"]),
+                            correlation_id=correlation_id,
+                            outcome="expired",
+                            details={
+                                "station_id": expired_request["station_id"],
+                                "ttl_seconds": self.pending_ttl_seconds,
+                                "reason": "manager_review_window_elapsed",
+                            },
+                            conn=conn,
+                        )
+                    return len(expired)
+        except Exception:
+            return 0
 
     def approve(
         self,
