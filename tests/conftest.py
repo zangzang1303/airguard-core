@@ -1,7 +1,13 @@
 from unittest.mock import AsyncMock
 
 import pytest
-import pytest_asyncio
+
+try:
+    import pytest_asyncio
+    async_fixture = pytest_asyncio.fixture
+except ImportError:
+    async_fixture = pytest.fixture
+
 from httpx import ASGITransport, AsyncClient
 
 from src.main import app
@@ -22,7 +28,7 @@ def disable_live_llm_for_unit_tests(monkeypatch):
     monkeypatch.setattr(orchestration, "get_settings", lambda: settings)
 
 
-@pytest_asyncio.fixture
+@async_fixture
 async def client():
     """Async HTTP client for testing API endpoints."""
     transport = ASGITransport(app=app)
