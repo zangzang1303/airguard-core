@@ -12,6 +12,8 @@ from src.agents.tools.contracts import (
     ActiveAlertsInput,
     CompareStationsInput,
     CurrentPm25Input,
+    ExtendedForecast,
+    ExtendedForecastInput,
     Pm25Forecast,
     Pm25ForecastInput,
     StationComparison,
@@ -105,18 +107,36 @@ DEFAULT_FIXTURES: dict[str, Any] = {
             "source": "simulator",
         },
     },
+    "history": {
+        "S01": [
+            {
+                "measured_at": (FIXED_NOW - timedelta(hours=idx)).isoformat(),
+                "pm25": 20.0 + idx * 0.5,
+                "co2": 600.0 + idx * 10,
+                "noise_db": 50.0 + idx,
+                "temperature": 28.0 + idx * 0.2,
+                "quality_flag": "valid",
+                "source": "simulator",
+            }
+            for idx in range(24)
+        ],
+    },
     "alerts": {
         "items": [
             {
-                "alert_id": "alert-S02-001",
+                "alert_id": "ALT-001",
                 "station_id": "S02",
                 "alert_type": "pm25_threshold",
-                "severity": "warning",
+                "severity": "critical",
                 "observed_value": 58.2,
-                "threshold_value": 50,
+                "threshold_value": 50.0,
                 "status": "active",
                 "created_at": FIXED_NOW.isoformat(),
-                "source": "fixture_alert_rule",
+                "source": "simulator",
+                "title": "PM2.5 exceeded threshold",
+                "description": "High particulate level recorded.",
+                "unit": "ug/m3",
+                "recommendation": "Wear masks and limit outdoor sports.",
             }
         ]
     },
@@ -144,7 +164,7 @@ DEFAULT_FIXTURES: dict[str, Any] = {
             "user_group": "outdoor_sport",
             "display_name": "Outdoor User",
             "source": "fixture",
-        }
+        },
     },
 }
 
@@ -170,21 +190,8 @@ class FakeBackendToolClient:
     async def get_station_history(self, payload: Mapping[str, Any], request_id: str = "fixture-request") -> ToolEnvelope | ToolError:
         try:
             args = StationHistoryInput.model_validate(payload)
-            current = self.fixtures["current"][args.station_id]
-            items = [
-                {
-                    "station_id": args.station_id,
-                    "measured_at": (FIXED_NOW - timedelta(hours=args.hours - offset)).isoformat(),
-                    "pm25": max(1.0, current["pm25"] - 0.5 + offset * 0.1),
-                    "source": current["source"],
-                }
-                for offset in range(args.hours)
-            ]
-            data = StationHistory.model_validate({"station_id": args.station_id, "hours": args.hours, "items": items}).model_dump(
-                mode="json"
-            )
-        except KeyError:
-            return self._error(ToolName.GET_STATION_HISTORY, request_id, ToolErrorCode.NOT_FOUND, "Station fixture not found.")
+            points = self.fixtures["history"].get(args.station_id, self.fixtures["history"]["S01"])[: args.hours]
+            data = StationHistory.model_validate({"station_id": args.station_id, "hours": args.hours, "items": points}).model_dump(mode="json")
         except ValidationError as exc:
             return self._validation_error(ToolName.GET_STATION_HISTORY, request_id, exc)
         return ToolEnvelope(tool_name=ToolName.GET_STATION_HISTORY, request_id=request_id, data=data)
@@ -234,6 +241,36 @@ class FakeBackendToolClient:
         except ValidationError as exc:
             return self._validation_error(ToolName.GET_PM25_FORECAST, request_id, exc)
         return ToolEnvelope(tool_name=ToolName.GET_PM25_FORECAST, request_id=request_id, data=data)
+
+    async def get_extended_forecast(self, payload: Mapping[str, Any], request_id: str = "fixture-request") -> ToolEnvelope | ToolError:
+        try:
+            args = ExtendedForecastInput.model_validate(payload)
+            current = self.fixtures["current"][args.station_id]
+            base = float(current.get("pm25") or 40.0)
+            horizons = [
+                {
+                    "hours_ahead": h,
+                    "timestamp": (FIXED_NOW + timedelta(hours=h)).isoformat(),
+                    "predicted_value": round(base + (h % 5 - 2) * 1.5, 1),
+                    "lower_bound": round(base * 0.85, 1),
+                    "upper_bound": round(base * 1.15, 1),
+                    "confidence": 0.88,
+                }
+                for h in range(1, args.hours + 1)
+            ]
+            data = ExtendedForecast.model_validate({
+                "station_id": args.station_id,
+                "metric": args.metric,
+                "model": "prophet_time_series_v1",
+                "trend_summary": "Dự kiến chất lượng không khí duy trì ổn định.",
+                "confidence": "high",
+                "horizons": horizons,
+            }).model_dump(mode="json")
+        except KeyError:
+            return self._error(ToolName.GET_EXTENDED_FORECAST, request_id, ToolErrorCode.NOT_FOUND, "Station fixture not found.")
+        except ValidationError as exc:
+            return self._validation_error(ToolName.GET_EXTENDED_FORECAST, request_id, exc)
+        return ToolEnvelope(tool_name=ToolName.GET_EXTENDED_FORECAST, request_id=request_id, data=data)
 
     async def get_active_alerts(self, payload: Mapping[str, Any], request_id: str = "fixture-request") -> ToolEnvelope | ToolError:
         try:
@@ -285,4 +322,3 @@ class FakeBackendToolClient:
 
     def _error(self, tool_name: ToolName, request_id: str, code: ToolErrorCode, message: str) -> ToolError:
         return ToolError(tool_name=tool_name, code=code, message=message, request_id=request_id)
-

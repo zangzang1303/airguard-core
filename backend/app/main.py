@@ -25,6 +25,7 @@ from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.spatial_dispersion_service import SpatialDispersionService
 from .services.station_service import StationService
+from .services.prophet_forecast_service import prophet_service
 from .services.user_service import UserService
 from .services.weather_service import WeatherService
 
@@ -362,38 +363,19 @@ def get_spatial_heatmap(
 @app.get("/api/v1/stations/{station_id}/forecast")
 def get_station_forecast(
     station_id: str,
-    hours: int = Query(default=3, ge=1, le=3),
+    hours: int = Query(default=24, ge=1, le=24),
     metric: Literal["pm25", "aqi", "co2", "noise_db", "temperature"] = Query(default="pm25"),
+    model: Literal["prophet", "baseline"] = Query(default="prophet"),
 ) -> dict:
+    history = station_service.get_forecast_history(station_id)
+    if model == "prophet":
+        return prophet_service.forecast(station_id, history, hours=hours, metric=metric)
+
     try:
-        station = station_service.get_station(station_id)
-        history = station_service.get_forecast_history(station_id)
-        forecast = trend_forecast(history, hours, metric=metric)
+        forecast = trend_forecast(history, min(3, hours), metric=metric)
         return {"station_id": station_id, **forecast, "timestamp": datetime.now(timezone.utc).isoformat()}
     except Exception:
-        base_map = {"aqi": 112.0, "pm25": 42.5, "co2": 650.0, "noise_db": 57.0, "temperature": 31.1}
-        base_val = base_map.get(metric, 40.0)
-        items = []
-        for h in range(1, hours + 1):
-            val = round(base_val * (1.0 + h * 0.03), 1)
-            items.append({
-                "hour_offset": h,
-                "pm25": val if metric == "pm25" else None,
-                "pm25_min": round(val * 0.9, 1) if metric == "pm25" else None,
-                "pm25_max": round(val * 1.1, 1) if metric == "pm25" else None,
-                "value": val,
-                "value_min": round(val * 0.9, 1),
-                "value_max": round(val * 1.1, 1),
-                "confidence": round(0.88 - h * 0.04, 2),
-            })
-        return {
-            "station_id": station_id,
-            "metric": metric,
-            "source": "trend_baseline_model",
-            "confidence": 0.85,
-            "items": items,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+        return prophet_service.forecast(station_id, history, hours=hours, metric=metric)
 
 
 @app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)
