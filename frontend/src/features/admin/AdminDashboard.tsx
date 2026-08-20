@@ -29,6 +29,7 @@ import { api } from "../../api/client";
 import { getPm25Severity } from "../../components/common/DataQualityBadge";
 import { useAuth } from "../../context/AuthContext";
 import { Alert, HistoryPoint, Proposal, Station } from "../../types";
+import { ReportViewer } from "./ReportViewer";
 import "./AdminDashboard.css";
 
 const MAP_POSITIONS = [
@@ -323,6 +324,11 @@ export const AdminDashboard: React.FC = () => {
           </table>
           {!loading && alerts.length === 0 && <div className="admin-panel-state">Không có cảnh báo phù hợp.</div>}
         </div>
+      </section>
+
+      {/* Periodic Environment Report Viewer Section */}
+      <section style={{ marginTop: "24px" }}>
+        <ReportViewer />
       </section>
     </div>
   );

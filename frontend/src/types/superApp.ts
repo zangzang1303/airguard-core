@@ -1,6 +1,7 @@
 export type ActiveDrawerType =
   | null
   | "station-poi"
+  | "forecast"
   | "analysis"
   | "ai-chat"
   | "near-me"
@@ -12,7 +13,6 @@ export type ActiveDrawerType =
   | "directions"
   | "audit";
 
-
 export type EnvironmentalLayerType =
   | "aqi"
   | "pm25"
@@ -21,8 +21,11 @@ export type EnvironmentalLayerType =
   | "noise_db"
   | "humidity";
 
+export type MapViewMode = "markers" | "heatmap";
+
 export interface MapLayerConfig {
   activeEnvironmentalLayer: EnvironmentalLayerType;
+  viewMode: MapViewMode;
   showBoundary: boolean;
   showPlaces: boolean;
   showSensors: boolean;
@@ -61,4 +64,3 @@ export interface CommunityReport {
   createdAt: string;
   status: "pending" | "investigating" | "resolved";
 }
-

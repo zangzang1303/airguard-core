@@ -10,6 +10,8 @@ import {
   AdminUser,
   AdminAuditEntry,
   UserMutationResult,
+  SpatialHeatmapResponse,
+  SpatialHeatmapPoint,
 } from "../types";
 
 export interface DemoApiActor {
@@ -226,7 +228,6 @@ function mapProposal(request: Record<string, any>): Proposal {
     pm25: rawEvidence.pm25 ?? currentEvidence.observed_value,
     co2: rawEvidence.co2 ?? currentEvidence.co2,
     noise_db: rawEvidence.noise_db ?? currentEvidence.noise_db,
-    temperature: rawEvidence.temperature ?? currentEvidence.temperature,
     observed_at: rawEvidence.observed_at ?? currentEvidence.measured_at,
     severity: rawEvidence.severity ?? alertEvidence.severity,
     threshold: rawEvidence.threshold ?? alertEvidence.threshold_value,
@@ -245,11 +246,112 @@ function mapProposal(request: Record<string, any>): Proposal {
     created_at: request.created_at,
     created_by: request.created_by,
     evidence,
-    version: request.version,
-    reviewed_by: request.reviewed_by,
-    reviewed_at: request.reviewed_at,
-    review_note: request.review_note,
+    version: request.version ?? 1,
     dispatch_status: request.command_intent?.status ?? "unknown",
+  };
+}
+
+export function normalizeSpatialHeatmapResponse(raw: any): SpatialHeatmapResponse {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Spatial Heatmap API response contract failure: response object is missing.");
+  }
+
+  if (typeof raw.metric !== "string" || !raw.metric.trim()) {
+    throw new Error("Spatial Heatmap API response contract failure: missing or invalid 'metric'.");
+  }
+
+  const forecastHour =
+    typeof raw.forecast_hour === "number" &&
+    Number.isFinite(raw.forecast_hour) &&
+    raw.forecast_hour >= 0
+      ? raw.forecast_hour
+      : 0;
+
+  if (!Array.isArray(raw.grid_points)) {
+    throw new Error("Spatial Heatmap API response contract failure: 'grid_points' must be an array.");
+  }
+
+  if (typeof raw.source !== "string" || !raw.source.trim()) {
+    throw new Error("Spatial Heatmap API response contract failure: missing or empty 'source'.");
+  }
+
+  const timestampRaw = raw.generated_at ?? raw.timestamp;
+  if (typeof timestampRaw !== "string" || !timestampRaw.trim()) {
+    throw new Error("Spatial Heatmap API response contract failure: missing 'generated_at' / 'timestamp'.");
+  }
+  const dateObj = new Date(timestampRaw);
+  if (Number.isNaN(dateObj.getTime())) {
+    throw new Error("Spatial Heatmap API response contract failure: invalid date string in timestamp.");
+  }
+  const generated_at = dateObj.toISOString();
+
+  let wind_speed_ms: number | undefined;
+  if (raw.wind_speed_ms !== undefined && raw.wind_speed_ms !== null) {
+    if (typeof raw.wind_speed_ms !== "number" || !Number.isFinite(raw.wind_speed_ms) || raw.wind_speed_ms < 0) {
+      throw new Error("Spatial Heatmap API response contract failure: 'wind_speed_ms' must be a non-negative finite number.");
+    }
+    wind_speed_ms = raw.wind_speed_ms;
+  }
+
+  let wind_direction_deg: number | undefined;
+  if (raw.wind_direction_deg !== undefined && raw.wind_direction_deg !== null) {
+    if (typeof raw.wind_direction_deg !== "number" || !Number.isFinite(raw.wind_direction_deg)) {
+      throw new Error("Spatial Heatmap API response contract failure: 'wind_direction_deg' must be a finite number.");
+    }
+    let deg = raw.wind_direction_deg % 360;
+    if (deg < 0) deg += 360;
+    wind_direction_deg = deg;
+  }
+
+  let model_version: string | undefined;
+  if (typeof raw.model_version === "string" && raw.model_version.trim()) {
+    model_version = raw.model_version.trim();
+  }
+
+  let disclaimer: string | undefined;
+  if (typeof raw.disclaimer === "string" && raw.disclaimer.trim()) {
+    disclaimer = raw.disclaimer.trim();
+  }
+
+  const validGridPoints: SpatialHeatmapPoint[] = [];
+  for (const p of raw.grid_points) {
+    if (
+      p &&
+      typeof p.lat === "number" &&
+      Number.isFinite(p.lat) &&
+      p.lat >= -90 &&
+      p.lat <= 90 &&
+      typeof p.lon === "number" &&
+      Number.isFinite(p.lon) &&
+      p.lon >= -180 &&
+      p.lon <= 180 &&
+      typeof p.value === "number" &&
+      Number.isFinite(p.value) &&
+      typeof p.intensity === "number" &&
+      Number.isFinite(p.intensity)
+    ) {
+      const clampedIntensity = Math.min(1.0, Math.max(0.0, p.intensity));
+      validGridPoints.push({
+        lat: p.lat,
+        lon: p.lon,
+        value: p.value,
+        intensity: clampedIntensity,
+        level: typeof p.level === "string" ? p.level : undefined,
+      });
+    }
+  }
+
+  return {
+    metric: raw.metric,
+    forecast_hour: forecastHour,
+    generated_at,
+    timestamp: generated_at,
+    source: raw.source,
+    wind_speed_ms,
+    wind_direction_deg,
+    model_version,
+    disclaimer,
+    grid_points: validGridPoints,
   };
 }
 
@@ -393,6 +495,23 @@ export const api = {
       outcome: entry.outcome,
       correlation_id: entry.correlation_id ?? "—",
     }));
+  },
+
+  // ---- Spatial Heatmap Endpoint ----
+  getSpatialHeatmap: async (
+    metric: string = "aqi",
+    forecastHour: number = 0,
+    signal?: AbortSignal,
+  ): Promise<SpatialHeatmapResponse> => {
+    const params = new URLSearchParams({
+      metric: encodeURIComponent(metric),
+      forecast_hour: String(forecastHour),
+    });
+    const data = await apiFetch<any>(
+      `/api/v1/spatial/heatmap?${params.toString()}`,
+      { signal },
+    );
+    return normalizeSpatialHeatmapResponse(data);
   },
 
   // ---- P2 · Quản lý người dùng (demo client-side, contract pending) ----

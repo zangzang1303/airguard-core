@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Login } from "./features/auth/Login";
-
 import { Register } from "./features/auth/Register";
 import { StationDetail } from "./features/stations/StationDetail";
 import { AlertList } from "./features/alerts/AlertList";
@@ -12,6 +11,7 @@ import { UserManagement } from "./features/admin/UserManagement";
 import { RegionStations } from "./features/admin/RegionStations";
 import { IotDevices } from "./features/admin/IotDevices";
 import { AdminDashboard } from "./features/admin/AdminDashboard";
+import { ReportViewer } from "./features/admin/ReportViewer";
 
 import { SuperMap } from "./features/map/SuperMap";
 import { TopFloatingBar } from "./features/navigation/TopFloatingBar";
@@ -19,6 +19,7 @@ import { BottomActionDock } from "./features/navigation/BottomActionDock";
 import { ManagerStationStatusBar } from "./features/navigation/ManagerStationStatusBar";
 import { MapLayersPopover } from "./features/navigation/MapLayersPopover";
 import { StationPoiDrawer } from "./features/drawers/StationPoiDrawer";
+import { StationForecastDrawer } from "./features/drawers/StationForecastDrawer";
 import { AnalysisWorkspaceDrawer } from "./features/drawers/AnalysisWorkspaceDrawer";
 import { AiAssistantDrawer } from "./features/drawers/AiAssistantDrawer";
 import { NearMePanel } from "./features/drawers/NearMePanel";
@@ -67,7 +68,7 @@ const SuperAppMain: React.FC<{
   connectionStatus,
   lastUpdated,
 }) => {
-  const { role, currentScreen, navigateTo } = useAuth();
+  const { role } = useAuth();
   const isManager = role === "manager" || role === "admin";
 
   // Active Overlay & Drawer States
@@ -83,6 +84,7 @@ const SuperAppMain: React.FC<{
   // Layer Configuration State
   const [layerConfig, setLayerConfig] = useState<MapLayerConfig>({
     activeEnvironmentalLayer: "aqi",
+    viewMode: "heatmap",
     showBoundary: true,
     showPlaces: true,
     showSensors: true,
@@ -170,6 +172,10 @@ const SuperAppMain: React.FC<{
     [alerts],
   );
 
+  // Hooks must run before every conditional return so the order stays stable
+  // while the initial station request moves through loading/error/success.
+  const [forecastHour, setForecastHour] = useState<number>(0);
+
   // Cold Start Loading Skeleton
   if (loading && stations.length === 0) {
     return (
@@ -196,7 +202,10 @@ const SuperAppMain: React.FC<{
   }
 
   return (
-    <div className="map-super-app-root" style={{ width: "100vw", height: "100dvh", position: "relative", overflow: "hidden", margin: 0, padding: 0 }}>
+    <div
+      className={`map-super-app-root${isManager ? " is-manager" : ""}`}
+      style={{ width: "100vw", height: "100dvh", position: "relative", overflow: "hidden", margin: 0, padding: 0 }}
+    >
       {/* 1. LEAFLET MAP (100% Viewport Height & Width) */}
       <SuperMap
         stations={stations}
@@ -205,6 +214,8 @@ const SuperAppMain: React.FC<{
         selectedPoi={selectedPoi}
         layerConfig={layerConfig}
         flyToTarget={flyToTarget}
+        forecastHour={forecastHour}
+        onForecastHourChange={setForecastHour}
         onSelectStation={handleSelectStation}
         onSelectPoi={handleSelectPoi}
         onOpenNearMe={() => setActiveDrawer("near-me")}
@@ -230,7 +241,6 @@ const SuperAppMain: React.FC<{
       />
 
       {isManager && <ManagerStationStatusBar stations={stations} alerts={alerts} />}
-
 
       {/* 3. MAP LAYERS POPOVER */}
       {isLayersOpen && (
@@ -267,8 +277,23 @@ const SuperAppMain: React.FC<{
             setSelectedStationId(stId);
             setActiveDrawer("analysis");
           }}
-          onOpenForecast={(stationId) => navigateTo("station-detail", { stationId })}
+          onOpenForecast={(stationId) => {
+            setSelectedStationId(stationId);
+            setSelectedPoi(null);
+            setActiveDrawer("forecast");
+          }}
           onAskAiAboutStation={handleAskAiAboutStation}
+        />
+      )}
+
+      {activeDrawer === "forecast" && activeStation && (
+        <StationForecastDrawer
+          station={activeStation}
+          onBack={() => setActiveDrawer("station-poi")}
+          onClose={() => {
+            setActiveDrawer(null);
+            setSelectedStationId(null);
+          }}
         />
       )}
 
@@ -476,6 +501,7 @@ const AppContent: React.FC = () => {
     if (currentScreen === "admin-users") return <UserManagement />;
     if (currentScreen === "admin-regions") return <RegionStations />;
     if (currentScreen === "admin-devices") return <IotDevices />;
+    if ((currentScreen as string) === "admin-reports" || (currentScreen as string) === "reports") return <ReportViewer />;
     if (currentScreen === "admin-settings") return <AdminDashboard />;
     return null;
   };
@@ -541,5 +567,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
-

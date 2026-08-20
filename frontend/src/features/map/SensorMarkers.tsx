@@ -31,7 +31,6 @@ export function getAqiCategoryLabel(aqi: number | null | undefined): { label: st
   return { label: "Nguy hại (Hazardous)", classTag: "hazardous" };
 }
 
-// Function to generate customized Leaflet DivIcon for AQI badge
 function createAqiBadgeIcon(
   aqi: number | null | undefined,
   isSelected: boolean,
@@ -72,8 +71,7 @@ export const SensorMarkers: React.FC<SensorMarkersProps> = ({
         const hasUsableCurrentData = station.status === "online" && !station.is_stale;
         const markerAqi = hasUsableCurrentData ? station.aqi : null;
         const dataState = hasUsableCurrentData ? "fresh" : station.is_stale || station.status === "stale" ? "stale" : "unavailable";
-        const isCritical = hasUsableCurrentData
-          && criticalStationIds.has(station.station_id);
+        const isCritical = hasUsableCurrentData && criticalStationIds.has(station.station_id);
         const icon = createAqiBadgeIcon(markerAqi, isSelected, dataState, isCritical);
         const { label: categoryLabel } = getAqiCategoryLabel(markerAqi);
 
@@ -88,7 +86,9 @@ export const SensorMarkers: React.FC<SensorMarkersProps> = ({
           >
             <Tooltip direction="top" offset={[0, -18]} opacity={1}>
               <div className="sensor-map-tooltip">
-                <div className="tooltip-title">{station.station_name}</div>
+                <div className="tooltip-title">
+                  {station.station_name}
+                </div>
                 <div className="tooltip-aqi-row">
                   <span
                     className="tooltip-aqi-pill"
