@@ -441,34 +441,35 @@ export const api = {
 
   sendAgentMessage: async (
     message: string,
-    contextStationId: string | null,
-    userId: string,
+    contextStationId: string | null = null,
+    userId: string = "demo-user",
+    mapContext?: Record<string, any>,
   ): Promise<AgentResponse> => {
-    const response = await apiFetch<{
-      answer: string;
-      used_tools: string[];
-      sources: Array<Record<string, unknown>>;
-      request_id: string;
-      trace: Record<string, unknown>;
-      proposal_id?: string | null;
-    }>("/api/v1/agent/chat", {
+    const response = await apiFetch<any>("/api/v1/agent/chat", {
       method: "POST",
       body: JSON.stringify({
         message,
         station_id: contextStationId,
         user_id: userId,
+        map_context: mapContext,
       }),
     });
+
+    const answerObj = typeof response.answer === "object" ? response.answer : { summary: response.answer, details: "" };
+    const textReply = response.response || (answerObj.summary + (answerObj.details ? `\n\n${answerObj.details}` : ""));
+
     return {
-      reply: response.answer,
-      used_tools: response.used_tools,
-      evidence: {
-        sources: response.sources,
-        request_id: response.request_id,
-        trace: response.trace,
-      },
+      reply: textReply,
+      answer: answerObj,
+      intent: response.intent,
+      time_context: response.time_context,
+      data_mode: response.data_mode,
+      evidence: response.evidence || response.sources || {},
+      map_actions: response.map_actions || [],
+      used_tools: response.used_tools || [],
       proposal_created: null,
       proposal_id: response.proposal_id ?? null,
+      request_id: response.request_id,
     };
   },
 

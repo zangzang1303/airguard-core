@@ -183,7 +183,6 @@ class LiveTelemetryEngine:
         return next((s for s in stations if s["station_id"] == station_id), None)
 
     def get_history(self, station_id: str, hours: int = 24) -> list[dict[str, Any]]:
-        self.tick()
         all_pts = self._history.get(station_id, [])
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(hours=hours)
@@ -204,6 +203,21 @@ class LiveTelemetryEngine:
             }
             for p in history[-12:]
         ]
+
+    def get_latest(self, station_id: str) -> dict[str, Any]:
+        if self._history.get(station_id):
+            return self._history[station_id][-1]
+        return self._calculate_measurement_at(self.STATION_DEFINITIONS[0], datetime.now(timezone.utc))
+
+    def get_all_histories(self, hours: int = 48) -> dict[str, list[dict[str, Any]]]:
+        return {s["station_id"]: self.get_history(s["station_id"], hours=hours) for s in self.STATION_DEFINITIONS}
+
+    def update_station(self, station_id: str, overrides: dict[str, Any]) -> None:
+        """Testing & simulation override helper."""
+        now = datetime.now(timezone.utc)
+        curr = self.get_latest(station_id)
+        updated = {**curr, **overrides, "station_id": station_id, "measured_at": now.isoformat(), "timestamp": now.isoformat()}
+        self._history[station_id].append(updated)
 
 
 # Global singleton

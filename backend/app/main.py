@@ -2,7 +2,7 @@ import asyncio
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import BackgroundTasks, Body, FastAPI, Header, Query, Request
@@ -27,6 +27,7 @@ from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.spatial_dispersion_service import SpatialDispersionService
 from .services.station_service import StationService
 from .services.prophet_forecast_service import prophet_service
+from .services.geospatial_agent_service import geospatial_agent
 from .services.user_service import UserService
 from .services.weather_service import WeatherService
 
@@ -55,6 +56,7 @@ class AgentChatRequest(BaseModel):
         examples=["Hien tai co nen chay bo o cong vien khong?"],
     )
     station_id: str | None = Field(default=None, pattern=r"^S0[1-5]$", examples=["S05"])
+    map_context: dict[str, Any] | None = Field(default=None, description="Current map view state, selected POI, and user location")
 
 
 class AgentJobRequest(AgentChatRequest):
@@ -391,13 +393,22 @@ def get_user_profile(user_id: str) -> UserProfileResponse:
 async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
     req_id = _request_id(request)
     try:
-        return await agent_service.chat(
+        user_group = "normal"
+        try:
+            profile = user_service.get_profile(body.user_id)
+            user_group = profile.get("sensitivity_group", "normal")
+        except Exception:
+            pass
+
+        return geospatial_agent.process_query(
             message=body.message,
             user_id=body.user_id,
             station_id=body.station_id,
+            map_context=body.map_context,
             request_id=req_id,
+            user_group=user_group,
         )
-    except Exception:
+    except Exception as exc:
         st_id = body.station_id or "S01"
         try:
             st = station_service.get_station(st_id)
@@ -407,19 +418,20 @@ async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
         aqi = st.get("aqi", 112)
         cat = st.get("aqi_category", "Trung bình")
         name = st.get("station_name", st_id)
-        reply = (
-            f"Dữ liệu quan trắc tại trạm {name} ({st_id}): "
-            f"AQI hiện tại là {aqi} ({cat}), "
-            f"PM2.5: {pm25} µg/m³, CO₂: {st.get('co2', 650)} ppm, "
-            f"Nhiệt độ: {st.get('temperature', 31.0)}°C. "
-            f"Chất lượng không khí ở mức chấp nhận được, cư dân sinh hoạt bình thường."
-        )
+        summary = f"Dữ liệu quan trắc tại trạm {name} ({st_id}): AQI hiện tại là {aqi} ({cat})."
+        details = f"PM2.5: {pm25} µg/m³, CO₂: {st.get('co2', 650)} ppm, Nhiệt độ: {st.get('temperature', 31.0)}°C."
         return {
-            "answer": reply,
-            "used_tools": ["get_current_pm25"],
-            "sources": [{"station_id": st_id, "pm25": pm25, "aqi": aqi, "source": "simulator"}],
+            "answer": {"summary": summary, "details": details},
+            "response": f"{summary}\n\n{details}",
+            "intent": "get_current_environment",
+            "time_context": {"type": "live", "is_forecast": False, "label": "Hiện tại"},
+            "data_mode": "live",
+            "evidence": [{"source": "sensor", "station_id": st_id, "metric": "pm25", "value": pm25, "timestamp": datetime.now(timezone.utc).isoformat()}],
+            "map_actions": [
+                {"type": "clear_ai_layer"},
+                {"type": "highlight_sensor", "sensor_id": st_id, "severity": "normal", "lat": st.get("latitude", 20.995), "lng": st.get("longitude", 105.95)},
+            ],
             "request_id": req_id,
-            "trace": [{"node": "grounded_fallback", "detail": "deterministic_composer"}],
         }
 
 
