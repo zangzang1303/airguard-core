@@ -6,6 +6,7 @@ import { Station } from "../../types";
 interface SensorMarkersProps {
   stations: Station[];
   selectedStationId: string | null;
+  criticalStationIds: ReadonlySet<string>;
   onSelectStation: (stationId: string) => void;
   showSensors: boolean;
 }
@@ -30,17 +31,22 @@ export function getAqiCategoryLabel(aqi: number | null | undefined): { label: st
   return { label: "Nguy hại (Hazardous)", classTag: "hazardous" };
 }
 
-// Function to generate customized Leaflet DivIcon for AQI badge
-function createAqiBadgeIcon(aqi: number | null | undefined, isSelected: boolean, isStale: boolean) {
-  const color = isStale ? "#f59e0b" : getAqiColorHex(aqi);
+function createAqiBadgeIcon(
+  aqi: number | null | undefined,
+  isSelected: boolean,
+  dataState: "fresh" | "stale" | "unavailable",
+  isCritical: boolean,
+) {
+  const color = dataState === "stale" ? "#f59e0b" : dataState === "unavailable" ? "#94a3b8" : getAqiColorHex(aqi);
   const displayVal = aqi !== null && aqi !== undefined ? Math.round(aqi) : "—";
   const selectedClass = isSelected ? "sensor-badge-selected" : "";
+  const criticalClass = isCritical ? "sensor-badge-critical" : "";
 
   return L.divIcon({
     className: "custom-sensor-div-icon",
     html: `
-      <div class="sensor-aqi-badge ${selectedClass}" style="--badge-color: ${color}">
-        <div class="badge-ring"></div>
+      <div class="sensor-aqi-badge ${selectedClass} ${criticalClass}" style="--badge-color: ${color}">
+        ${isCritical ? '<div class="badge-ring" aria-hidden="true"></div>' : ""}
         <span class="badge-number">${displayVal}</span>
       </div>
     `,
@@ -52,6 +58,7 @@ function createAqiBadgeIcon(aqi: number | null | undefined, isSelected: boolean,
 export const SensorMarkers: React.FC<SensorMarkersProps> = ({
   stations,
   selectedStationId,
+  criticalStationIds,
   onSelectStation,
   showSensors,
 }) => {
@@ -61,8 +68,12 @@ export const SensorMarkers: React.FC<SensorMarkersProps> = ({
     <>
       {stations.map((station) => {
         const isSelected = selectedStationId === station.station_id;
-        const icon = createAqiBadgeIcon(station.aqi, isSelected, station.is_stale);
-        const { label: categoryLabel } = getAqiCategoryLabel(station.aqi);
+        const hasUsableCurrentData = station.status === "online" && !station.is_stale;
+        const markerAqi = hasUsableCurrentData ? station.aqi : null;
+        const dataState = hasUsableCurrentData ? "fresh" : station.is_stale || station.status === "stale" ? "stale" : "unavailable";
+        const isCritical = hasUsableCurrentData && criticalStationIds.has(station.station_id);
+        const icon = createAqiBadgeIcon(markerAqi, isSelected, dataState, isCritical);
+        const { label: categoryLabel } = getAqiCategoryLabel(markerAqi);
 
         return (
           <Marker
@@ -75,19 +86,21 @@ export const SensorMarkers: React.FC<SensorMarkersProps> = ({
           >
             <Tooltip direction="top" offset={[0, -18]} opacity={1}>
               <div className="sensor-map-tooltip">
-                <div className="tooltip-title">{station.station_name}</div>
+                <div className="tooltip-title">
+                  {station.station_name}
+                </div>
                 <div className="tooltip-aqi-row">
                   <span
                     className="tooltip-aqi-pill"
-                    style={{ backgroundColor: getAqiColorHex(station.aqi) }}
+                    style={{ backgroundColor: getAqiColorHex(markerAqi) }}
                   >
-                    AQI {station.aqi ?? "—"}
+                    AQI {markerAqi ?? "—"}
                   </span>
                   <span className="tooltip-category">{categoryLabel}</span>
                 </div>
                 <div className="tooltip-meta">
                   <span className="meta-tag">Cảm biến {station.station_id}</span>
-                  {station.pm25 !== null && station.pm25 !== undefined && (
+                  {hasUsableCurrentData && station.pm25 !== null && station.pm25 !== undefined && (
                     <span className="meta-val">PM2.5: {station.pm25} µg/m³</span>
                   )}
                 </div>

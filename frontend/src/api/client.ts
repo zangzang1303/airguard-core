@@ -10,6 +10,8 @@ import {
   AdminUser,
   AdminAuditEntry,
   UserMutationResult,
+  SpatialHeatmapResponse,
+  SpatialHeatmapPoint,
 } from "../types";
 
 export interface DemoApiActor {
@@ -17,134 +19,12 @@ export interface DemoApiActor {
   role: "manager";
 }
 
+const isBrowser = typeof window !== "undefined";
+const isLocal = isBrowser && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
-// Fallback seed data if backend is offline during initial demo
-export const FALLBACK_STATIONS: Station[] = [
-  {
-    station_id: "S01",
-    station_name: "Trục Đa Tốn phía Tây Bắc",
-    latitude: 21.0008,
-    longitude: 105.9428,
-    pm25: 42.5,
-    aqi: 118, co2: 650, noise_db: 57, temperature: 31.1,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S02",
-    station_name: "Khu căn hộ Sapphire",
-    latitude: 20.9975,
-    longitude: 105.943,
-    pm25: 55.2,
-    aqi: 149, co2: 720, noise_db: 65, temperature: 31.8,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S03",
-    station_name: "Ven Hồ Ngọc Trai",
-    latitude: 20.9953,
-    longitude: 105.95,
-    pm25: 66.1,
-    aqi: 158, co2: 780, noise_db: 71, temperature: 32.4,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S04",
-    station_name: "Khuôn viên VinUni",
-    latitude: 20.9898,
-    longitude: 105.9467,
-    pm25: 28.4,
-    aqi: 78, co2: 540, noise_db: 49, temperature: 30.2,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S05",
-    station_name: "Khu Hải Âu phía Đông Nam",
-    latitude: 20.991,
-    longitude: 105.956,
-    pm25: 35.9,
-    aqi: 99, co2: 590, noise_db: 54, temperature: 30.8,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-];
-
-export const FALLBACK_ALERTS: Alert[] = [
-  {
-    alert_id: "ALT-001",
-    station_id: "S03",
-    alert_type: "pm25_threshold",
-    severity: "warning",
-    title: "PM2.5 vượt ngưỡng",
-    message: "PM2.5 vượt ngưỡng khuyến nghị (66.1 µg/m³)",
-    observed_value: 66.1,
-    threshold: 50.0,
-    unit: "µg/m³",
-    recommendation: "Theo dõi lần đo tiếp theo và hạn chế nguồn bụi gần khu vực.",
-    status: "active",
-    created_at: new Date(Date.now() - 15 * 60000).toISOString(),
-  },
-  {
-    alert_id: "ALT-002",
-    station_id: "S02",
-    alert_type: "aqi_threshold",
-    severity: "moderate",
-    title: "AQI cần theo dõi",
-    message: "PM2.5 tăng nhẹ khu vực Bãi đỗ xe",
-    observed_value: 55.2,
-    threshold: 50.0,
-    unit: "",
-    recommendation: "Theo dõi cập nhật AQI trước khi lên kế hoạch hoạt động ngoài trời kéo dài.",
-    status: "active",
-    created_at: new Date(Date.now() - 45 * 60000).toISOString(),
-  },
-];
-
-export const FALLBACK_PROPOSALS: Proposal[] = [
-  {
-    proposal_id: "PROP-101",
-    station_id: "S03",
-    severity: "warning",
-    target: "Khu vực Trục đường chính Ocean Park",
-    action: "Khuyến nghị hạn chế hoạt động thể thao ngoài trời & phát cảnh báo",
-    rationale: "PM2.5 đạt 66.1 µg/m³ duy trì trên 30 phút cùng độ ẩm cao.",
-    status: "pending",
-    version: 1,
-    created_at: new Date(Date.now() - 20 * 60000).toISOString(),
-    evidence: { aqi: 158, pm25: 66.1, co2: 780, noise_db: 71, temperature: 32.4 },
-  },
-];
-
-export const FALLBACK_AUDIT_LOGS: AuditLogEntry[] = [
-  {
-    id: "AUD-01",
-    time: new Date(Date.now() - 120 * 60000).toISOString(),
-    actor: "AI Agent",
-    action: "CREATE_PROPOSAL",
-    target: "PROP-101",
-    outcome: "SUCCESS",
-    correlation_id: "req-9912",
-  },
-  {
-    id: "AUD-02",
-    time: new Date(Date.now() - 300 * 60000).toISOString(),
-    actor: "Manager (Demo)",
-    action: "APPROVE_PROPOSAL",
-    target: "PROP-099",
-    outcome: "SUCCESS",
-    correlation_id: "req-8810",
-  },
-];
+  import.meta.env.VITE_API_BASE_URL ||
+  (isLocal ? "http://localhost:8000" : "https://airguard-core.onrender.com");
 
 const demoNow = new Date();
 const hoursAgo = (h: number) =>
@@ -352,32 +232,132 @@ function mapProposal(request: Record<string, any>): Proposal {
     pm25: rawEvidence.pm25 ?? currentEvidence.observed_value,
     co2: rawEvidence.co2 ?? currentEvidence.co2,
     noise_db: rawEvidence.noise_db ?? currentEvidence.noise_db,
-    temperature: rawEvidence.temperature ?? currentEvidence.temperature,
     observed_at: rawEvidence.observed_at ?? currentEvidence.measured_at,
     severity: rawEvidence.severity ?? alertEvidence.severity,
     threshold: rawEvidence.threshold ?? alertEvidence.threshold_value,
   };
-  const legacyReason = "Fresh simulator PM2.5 data and an active backend alert require manager review.";
   const actionLabels: Record<string, string> = {
     notify_station_area_users: "Gửi cảnh báo đến người dân trong khu vực",
   };
   return {
     proposal_id: request.request_id,
     station_id: request.station_id,
-    severity: evidence.severity ?? "warning",
-    target: request.device_id ?? request.station_id,
+    severity: evidence.severity ?? "unknown",
+    target: request.device_id ?? request.station_id ?? "Không xác định",
     action: actionLabels[request.proposed_action] ?? request.proposed_action,
-    rationale: request.reason === legacyReason
-      ? "Dữ liệu simulator còn mới và đang có cảnh báo active từ backend; đề xuất cần Manager xem xét."
-      : request.reason,
+    rationale: request.reason ?? "Backend không cung cấp lý do.",
     status: request.status,
     created_at: request.created_at,
+    created_by: request.created_by,
     evidence,
-    version: request.version,
-    reviewed_by: request.reviewed_by,
-    reviewed_at: request.reviewed_at,
-    review_note: request.review_note,
-    dispatch_status: request.command_intent?.status ?? "not_configured",
+    version: request.version ?? 1,
+    dispatch_status: request.command_intent?.status ?? "unknown",
+  };
+}
+
+export function normalizeSpatialHeatmapResponse(raw: any): SpatialHeatmapResponse {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Spatial Heatmap API response contract failure: response object is missing.");
+  }
+
+  if (typeof raw.metric !== "string" || !raw.metric.trim()) {
+    throw new Error("Spatial Heatmap API response contract failure: missing or invalid 'metric'.");
+  }
+
+  const forecastHour =
+    typeof raw.forecast_hour === "number" &&
+    Number.isFinite(raw.forecast_hour) &&
+    raw.forecast_hour >= 0
+      ? raw.forecast_hour
+      : 0;
+
+  if (!Array.isArray(raw.grid_points)) {
+    throw new Error("Spatial Heatmap API response contract failure: 'grid_points' must be an array.");
+  }
+
+  if (typeof raw.source !== "string" || !raw.source.trim()) {
+    throw new Error("Spatial Heatmap API response contract failure: missing or empty 'source'.");
+  }
+
+  const timestampRaw = raw.generated_at ?? raw.timestamp;
+  if (typeof timestampRaw !== "string" || !timestampRaw.trim()) {
+    throw new Error("Spatial Heatmap API response contract failure: missing 'generated_at' / 'timestamp'.");
+  }
+  const dateObj = new Date(timestampRaw);
+  if (Number.isNaN(dateObj.getTime())) {
+    throw new Error("Spatial Heatmap API response contract failure: invalid date string in timestamp.");
+  }
+  const generated_at = dateObj.toISOString();
+
+  let wind_speed_ms: number | undefined;
+  if (raw.wind_speed_ms !== undefined && raw.wind_speed_ms !== null) {
+    if (typeof raw.wind_speed_ms !== "number" || !Number.isFinite(raw.wind_speed_ms) || raw.wind_speed_ms < 0) {
+      throw new Error("Spatial Heatmap API response contract failure: 'wind_speed_ms' must be a non-negative finite number.");
+    }
+    wind_speed_ms = raw.wind_speed_ms;
+  }
+
+  let wind_direction_deg: number | undefined;
+  if (raw.wind_direction_deg !== undefined && raw.wind_direction_deg !== null) {
+    if (typeof raw.wind_direction_deg !== "number" || !Number.isFinite(raw.wind_direction_deg)) {
+      throw new Error("Spatial Heatmap API response contract failure: 'wind_direction_deg' must be a finite number.");
+    }
+    let deg = raw.wind_direction_deg % 360;
+    if (deg < 0) deg += 360;
+    wind_direction_deg = deg;
+  }
+
+  let model_version: string | undefined;
+  if (typeof raw.model_version === "string" && raw.model_version.trim()) {
+    model_version = raw.model_version.trim();
+  }
+
+  let disclaimer: string | undefined;
+  if (typeof raw.disclaimer === "string" && raw.disclaimer.trim()) {
+    disclaimer = raw.disclaimer.trim();
+  }
+
+  const validGridPoints: SpatialHeatmapPoint[] = [];
+  for (const p of raw.grid_points) {
+    if (
+      p &&
+      typeof p.lat === "number" &&
+      Number.isFinite(p.lat) &&
+      p.lat >= -90 &&
+      p.lat <= 90 &&
+      typeof p.lon === "number" &&
+      Number.isFinite(p.lon) &&
+      p.lon >= -180 &&
+      p.lon <= 180 &&
+      typeof p.value === "number" &&
+      Number.isFinite(p.value)
+    ) {
+      const rawIntensity =
+        typeof p.intensity === "number" && Number.isFinite(p.intensity)
+          ? p.intensity
+          : Math.min(1.0, Math.max(0.0, p.value / 250.0));
+      const clampedIntensity = Math.min(1.0, Math.max(0.0, rawIntensity));
+      validGridPoints.push({
+        lat: p.lat,
+        lon: p.lon,
+        value: p.value,
+        intensity: clampedIntensity,
+        level: typeof p.level === "string" ? p.level : undefined,
+      });
+    }
+  }
+
+  return {
+    metric: raw.metric,
+    forecast_hour: forecastHour,
+    generated_at,
+    timestamp: generated_at,
+    source: raw.source,
+    wind_speed_ms,
+    wind_direction_deg,
+    model_version,
+    disclaimer,
+    grid_points: validGridPoints,
   };
 }
 
@@ -414,15 +394,18 @@ export const api = {
         confidence: typeof data.confidence === "number" ? `${Math.round(data.confidence * 100)}%` : data.confidence,
         model_name: data.model_name,
         limitations: data.limitations,
-        forecasts: data.items.map((item: { hour_offset: number; pm25?: number; pm25_min?: number; pm25_max?: number; value?: number; value_min?: number; value_max?: number; confidence?: number }) => ({
-          horizon: `${item.hour_offset} hour`,
-          pm25_predicted: item.pm25 ?? item.value ?? 0,
-          range: [item.pm25_min ?? item.value_min ?? item.pm25 ?? item.value ?? 0, item.pm25_max ?? item.value_max ?? item.pm25 ?? item.value ?? 0] as [number, number],
-          value: item.value ?? item.pm25,
-          value_min: item.value_min ?? item.pm25_min,
-          value_max: item.value_max ?? item.pm25_max,
-          confidence: item.confidence,
-        })),
+        forecasts: data.items.map((item: { hour_offset: number; pm25?: number; pm25_min?: number; pm25_max?: number; value?: number; value_min?: number; value_max?: number; confidence?: number }) => {
+          const predicted = item.value ?? item.pm25 ?? null;
+          return {
+            horizon: `${item.hour_offset} hour`,
+            pm25_predicted: predicted,
+            range: [item.value_min ?? item.pm25_min ?? predicted, item.value_max ?? item.pm25_max ?? predicted] as [number | null, number | null],
+            value: item.value ?? item.pm25 ?? null,
+            value_min: item.value_min ?? item.pm25_min ?? null,
+            value_max: item.value_max ?? item.pm25_max ?? null,
+            confidence: item.confidence,
+          };
+        }),
       };
     } catch {
       throw new Error("Forecast API unavailable");
@@ -520,6 +503,23 @@ export const api = {
     }));
   },
 
+  // ---- Spatial Heatmap Endpoint ----
+  getSpatialHeatmap: async (
+    metric: string = "aqi",
+    forecastHour: number = 0,
+    signal?: AbortSignal,
+  ): Promise<SpatialHeatmapResponse> => {
+    const params = new URLSearchParams({
+      metric: encodeURIComponent(metric),
+      forecast_hour: String(forecastHour),
+    });
+    const data = await apiFetch<any>(
+      `/api/v1/spatial/heatmap?${params.toString()}`,
+      { signal },
+    );
+    return normalizeSpatialHeatmapResponse(data);
+  },
+
   // ---- P2 · Quản lý người dùng (demo client-side, contract pending) ----
   getAdminUsers: async (): Promise<AdminUser[]> => {
     try {
@@ -535,20 +535,120 @@ export const fetchStations = api.getStations;
 export const fetchAlerts = api.getAlerts;
 export const fetchStationHistory = api.getStationHistory;
 export const fetchStationForecast = api.getStationForecast;
+const DEMO_MANAGER_ACTOR: DemoApiActor = {
+  userId: "00000000-0000-0000-0000-000000000102",
+  role: "manager",
+};
 export const fetchProposals = async (_status?: string): Promise<{ items: Proposal[] }> => {
-  try {
-    const items = await api.getProposals({ userId: "USR-002", role: "manager" });
-    return { items };
-  } catch {
-    return { items: FALLBACK_PROPOSALS };
-  }
+  const items = await api.getProposals(DEMO_MANAGER_ACTOR);
+  return { items };
 };
 export const approveProposal = (proposalId: string, version: number, note = "Approved by manager") =>
-  api.approveProposal(proposalId, version, note, { userId: "USR-002", role: "manager" });
+  api.approveProposal(proposalId, version, note, DEMO_MANAGER_ACTOR);
 export const rejectProposal = (proposalId: string, version: number, note = "Rejected by manager") =>
-  api.rejectProposal(proposalId, version, note, { userId: "USR-002", role: "manager" });
+  api.rejectProposal(proposalId, version, note, DEMO_MANAGER_ACTOR);
 export const sendAgentChat = async (message: string, userId = "USR-002"): Promise<{ response: string; message?: string }> => {
   const res = await api.sendAgentMessage(message, null, userId);
   return { response: res.reply };
 };
+
+export const FALLBACK_STATIONS: Station[] = [
+  {
+    station_id: "S01",
+    station_name: "Trục Đa Tốn phía Tây Bắc",
+    location_type: "northwest_road",
+    latitude: 21.0008,
+    longitude: 105.9428,
+    pm25: 42.5,
+    aqi: 118,
+    aqi_category: "Kém (nhạy cảm)",
+    co2: 650,
+    noise_db: 57,
+    temperature: 31.1,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+  {
+    station_id: "S02",
+    station_name: "Khu căn hộ Sapphire",
+    location_type: "high_rise_residential",
+    latitude: 20.9975,
+    longitude: 105.9430,
+    pm25: 55.2,
+    aqi: 151,
+    aqi_category: "Xấu",
+    co2: 720,
+    noise_db: 65,
+    temperature: 31.8,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+  {
+    station_id: "S03",
+    station_name: "Ven Hồ Ngọc Trai",
+    location_type: "lakeside_residential",
+    latitude: 20.9953,
+    longitude: 105.9500,
+    pm25: 66.1,
+    aqi: 158,
+    aqi_category: "Xấu",
+    co2: 780,
+    noise_db: 71,
+    temperature: 32.4,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+  {
+    station_id: "S04",
+    station_name: "Khuôn viên VinUni",
+    location_type: "university_campus",
+    latitude: 20.9898,
+    longitude: 105.9467,
+    pm25: 28.4,
+    aqi: 85,
+    aqi_category: "Trung bình",
+    co2: 540,
+    noise_db: 49,
+    temperature: 30.2,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+  {
+    station_id: "S05",
+    station_name: "Khu Hải Âu phía Đông Nam",
+    location_type: "southeast_residential",
+    latitude: 20.9910,
+    longitude: 105.9560,
+    pm25: 35.9,
+    aqi: 102,
+    aqi_category: "Kém (nhạy cảm)",
+    co2: 590,
+    noise_db: 54,
+    temperature: 30.8,
+    status: "online",
+    is_stale: false,
+    updated_at: new Date().toISOString(),
+  },
+];
+
+export const FALLBACK_ALERTS: Alert[] = [
+  {
+    alert_id: "ALT-001",
+    station_id: "S03",
+    alert_type: "pm25_threshold",
+    severity: "warning",
+    title: "PM2.5 vượt ngưỡng khuyến nghị",
+    message: "Nồng độ PM2.5 tại Ven Hồ Ngọc Trai đạt 66.1 µg/m³ vượt ngưỡng 50 µg/m³",
+    observed_value: 66.1,
+    threshold: 50.0,
+    unit: "µg/m³",
+    recommendation: "Hạn chế hoạt động thể thao ngoài trời tại khu vực ven hồ trong khung giờ cao điểm.",
+    status: "active",
+    created_at: new Date().toISOString(),
+  },
+];
 

@@ -14,6 +14,15 @@ Start the full local stack:
 docker compose up --build
 ```
 
+The development frontend bind-mounts `frontend/src` and the Vite/TypeScript
+configuration, while `node_modules` stays inside the rebuilt image. Source and
+style edits therefore keep Vite HMR, and dependency changes require rebuilding
+the frontend service:
+
+```powershell
+docker compose up -d --build --force-recreate frontend
+```
+
 The relevant HTTP services are:
 
 | Service | Local URL | Responsibility |

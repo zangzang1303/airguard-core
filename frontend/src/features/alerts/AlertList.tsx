@@ -37,14 +37,23 @@ export const AlertList: React.FC = () => {
     fetchAlerts();
   }, []);
 
+  const [sortBy, setSortBy] = useState<"newest" | "severity">("newest");
+
   const stationNames = useMemo(
     () => new Map(stations.map((station) => [station.station_id, station.station_name])),
     [stations],
   );
 
+  const severityRank: Record<string, number> = {
+    critical: 4,
+    warning: 3,
+    moderate: 2,
+    good: 1,
+  };
+
   const filteredAlerts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("vi");
-    return alerts.filter((alert) => {
+    const result = alerts.filter((alert) => {
       const stationName = stationNames.get(alert.station_id) ?? "";
       const matchesSearch = !query
         || alert.station_id.toLocaleLowerCase("vi").includes(query)
@@ -53,7 +62,16 @@ export const AlertList: React.FC = () => {
       const matchesStatus = filterStatus === "all" || alert.status === filterStatus;
       return matchesSearch && matchesSeverity && matchesStatus;
     });
-  }, [alerts, filterSeverity, filterStatus, search, stationNames]);
+
+    return result.sort((a, b) => {
+      if (sortBy === "severity") {
+        const rankDiff = (severityRank[b.severity] || 0) - (severityRank[a.severity] || 0);
+        if (rankDiff !== 0) return rankDiff;
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [alerts, filterSeverity, filterStatus, search, sortBy, stationNames]);
+
 
   const handleFocusStation = (stationId: string) => {
     navigateTo("station-detail", { stationId });
@@ -82,15 +100,19 @@ export const AlertList: React.FC = () => {
         search={search}
         status={filterStatus}
         severity={filterSeverity}
+        sortBy={sortBy}
         onSearchChange={setSearch}
         onStatusChange={setFilterStatus}
         onSeverityChange={setFilterSeverity}
+        onSortByChange={setSortBy}
         onReset={() => {
           setSearch("");
           setFilterStatus("active");
           setFilterSeverity("all");
+          setSortBy("newest");
         }}
       />
+
 
       {error && (
         <div className="alert-box alert-error">

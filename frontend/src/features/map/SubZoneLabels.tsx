@@ -59,9 +59,6 @@ export const SubZoneLabels: React.FC<SubZoneLabelsProps> = ({
               <div className="poi-tooltip">
                 <div className="poi-title">{poi.name}</div>
                 <div className="poi-sub">{poi.subdivision}</div>
-                {poi.estimatedAqi && (
-                  <div className="poi-aqi-chip">Chất lượng KK: AQI ~{poi.estimatedAqi}</div>
-                )}
               </div>
             </Tooltip>
           </Marker>

@@ -193,6 +193,9 @@ export interface Station {
   is_stale: boolean;
   updated_at: string;
   location_type?: string;
+  source?: string | null;
+  freshness?: string;
+  humidity?: number | null;
 }
 
 export interface WeatherContext {
@@ -214,16 +217,19 @@ export interface HistoryPoint {
   co2?: number | null;
   noise_db?: number | null;
   temperature?: number | null;
-  humidity?: number;
+  humidity?: number | null;
+  source?: string | null;
+  quality_flag?: string;
+  message_id?: string;
 }
 
 export interface ForecastHorizon {
   horizon: string;
-  pm25_predicted: number;
-  range: [number, number];
-  value?: number;
-  value_min?: number;
-  value_max?: number;
+  pm25_predicted: number | null;
+  range: [number | null, number | null];
+  value?: number | null;
+  value_min?: number | null;
+  value_max?: number | null;
   confidence?: number;
 }
 
@@ -272,12 +278,22 @@ export interface Proposal {
   rationale: string;
   status: "pending" | "approved" | "rejected" | "expired";
   created_at: string;
+  created_by?: string;
   evidence: Evidence;
   version: number;
   reviewed_by?: string;
   reviewed_at?: string;
   review_note?: string;
-  dispatch_status?: "not_configured" | "queued" | "pending" | "succeeded" | "failed";
+  dispatch_status?: "unknown" | "not_configured" | "queued" | "pending" | "succeeded" | "failed";
+}
+
+export interface AuditLogEntry {
+  id: string;
+  time: string;
+  actor: string;
+  action: string;
+  target: string;
+  outcome: string;
 }
 
 export interface AuditLogEntry {
@@ -288,7 +304,9 @@ export interface AuditLogEntry {
   target: string;
   outcome: string;
   correlation_id: string;
+  detail?: string;
 }
+
 
 export interface AgentResponse {
   reply: string;
@@ -296,4 +314,25 @@ export interface AgentResponse {
   evidence: Record<string, any>;
   proposal_created?: Proposal | null;
   proposal_id?: string | null;
+}
+
+export interface SpatialHeatmapPoint {
+  lat: number;
+  lon: number;
+  value: number;
+  intensity: number;
+  level?: string;
+}
+
+export interface SpatialHeatmapResponse {
+  metric: string;
+  forecast_hour: number;
+  generated_at?: string;
+  timestamp?: string;
+  wind_speed_ms?: number;
+  wind_direction_deg?: number;
+  model_version?: string;
+  source?: string;
+  grid_points: SpatialHeatmapPoint[];
+  disclaimer?: string;
 }
