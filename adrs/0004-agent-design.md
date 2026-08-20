@@ -45,3 +45,24 @@ fails closed.
 The production topology exposes the root Agent as an isolated HTTP service. The system-of-record
 backend keeps the canonical `/api/v1/agent/chat` endpoint and proxies the correlation id, user id
 and station context. The Agent container receives a backend HTTP URL but no DB or MQTT credential.
+
+## Implementation record - 2026-08-19
+
+The live-generation boundary now supports typed `LLM_PROVIDER=auto|gemini|openai|agentrouter` configuration.
+`auto` prefers Gemini, then AgentRouter/Claude, then OpenAI when the relevant key and model are present. Claude uses the Anthropic
+Messages contract with bounded retry/timeout and sanitized failures; provider failure preserves the
+deterministic grounded answer and cannot be reported as `live_llm`.
+
+Recommendation policy v2 adds early indoor-protection language for `sensitive` users outside the
+good band. `outdoor_sport` responses compare fresh snapshots for S01-S05 and identify the lowest-AQI
+station, while selecting the lowest PM2.5 point from the requested station's fresh forecast. These
+facts remain code-owned and tool-grounded; the model only appends a fact-free limitation sentence.
+
+Gemini 3.5 Flash uses the Generate Content REST contract with `thinkingLevel=MINIMAL`, a capped
+fact-free suffix, and a process-scoped HTTP client. This keeps connection setup out of repeated
+requests while preserving deterministic composition, evidence sources and all safety/HITL gates.
+
+The orchestration boundary also applies a five-second total LLM response deadline, shorter than
+the backend proxy timeout. Provider HTTP retries remain bounded inside that deadline. Deadline
+expiry preserves the deterministic grounded answer, records `provider_deadline_exceeded`, and is
+never labeled `live_llm`.

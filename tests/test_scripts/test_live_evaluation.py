@@ -33,7 +33,7 @@ def test_evaluate_case_requires_live_provider_trace(monkeypatch):
             200,
             {
                 "request_id": request_id,
-                "answer": "PM2.5 grounded output",
+                "answer": "PM2.5 tại S01, nguồn simulator, dữ liệu mô phỏng.",
                 "used_tools": ["get_current_pm25"],
                 "sources": [{"tool_name": "get_current_pm25", "token": "must-redact"}],
                 "trace": {"generation_mode": "live_llm", "provider": "openai", "model": "test", "final_outcome": "answered"},
@@ -72,3 +72,47 @@ def test_evaluate_case_blocks_deterministic_fallback(monkeypatch):
 
     assert result["result"] == "FAIL"
     assert "generation_mode is not live_llm" in result["failure_reasons"]
+
+
+def test_p95_uses_nearest_rank_and_enforces_worst_of_five():
+    module = _module()
+
+    assert module._p95([100, 200, 300, 400, 500]) == 500
+    assert module._p95([]) is None
+
+
+def test_evaluate_case_can_require_agentrouter_provider(monkeypatch):
+    module = _module()
+    case = module.LIVE_CASES[0]
+    monkeypatch.setattr(module.uuid, "uuid4", lambda: "fixed")
+    monkeypatch.setattr(
+        module,
+        "_post_json",
+        lambda *_args, **_kwargs: (
+            200,
+            {
+                "request_id": "live-eval-live-01-fixed",
+                "answer": "PM2.5 tại S01, nguồn simulator, dữ liệu mô phỏng.",
+                "used_tools": ["get_current_pm25"],
+                "sources": [{"tool_name": "get_current_pm25"}],
+                "trace": {
+                    "generation_mode": "live_llm",
+                    "provider": "openai",
+                    "model": "test",
+                    "final_outcome": "answered",
+                },
+            },
+            12.0,
+        ),
+    )
+
+    result = module.evaluate_case(
+        case,
+        base_url="http://test/api/v1",
+        user_id="user",
+        timeout=1,
+        expected_provider="agentrouter",
+    )
+
+    assert result["result"] == "FAIL"
+    assert "provider expected 'agentrouter', got 'openai'" in result["failure_reasons"]

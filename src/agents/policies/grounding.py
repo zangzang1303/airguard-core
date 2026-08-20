@@ -265,6 +265,7 @@ def route_query(
                 ToolName.GET_PM25_FORECAST,
                 ToolName.GET_ACTIVE_ALERTS,
                 ToolName.GET_USER_PROFILE,
+                ToolName.COMPARE_STATIONS,
             ],
             tool_arguments=[
                 {"station_id": stations[0]},
@@ -272,6 +273,7 @@ def route_query(
                 {"station_id": stations[0], "hours": hours},
                 {"station_id": stations[0]},
                 {"user_id": user_id},
+                {"station_ids": ["S01", "S02", "S03", "S04", "S05"]},
             ],
         )
 
