@@ -294,6 +294,15 @@ export interface AuditLogEntry {
   action: string;
   target: string;
   outcome: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  time: string;
+  actor: string;
+  action: string;
+  target: string;
+  outcome: string;
   correlation_id: string;
   detail?: string;
 }
@@ -305,4 +314,25 @@ export interface AgentResponse {
   evidence: Record<string, any>;
   proposal_created?: Proposal | null;
   proposal_id?: string | null;
+}
+
+export interface SpatialHeatmapPoint {
+  lat: number;
+  lon: number;
+  value: number;
+  intensity: number;
+  level?: string;
+}
+
+export interface SpatialHeatmapResponse {
+  metric: string;
+  forecast_hour: number;
+  generated_at?: string;
+  timestamp?: string;
+  wind_speed_ms?: number;
+  wind_direction_deg?: number;
+  model_version?: string;
+  source?: string;
+  grid_points: SpatialHeatmapPoint[];
+  disclaimer?: string;
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { Check, Layers, Eye, Wind, Activity, Thermometer, Volume2, Droplets, MapPin, Radio } from "lucide-react";
-import { MapLayerConfig, EnvironmentalLayerType } from "../../types/superApp";
+import { MapLayerConfig, EnvironmentalLayerType, MapViewMode } from "../../types/superApp";
 
 interface MapLayersPopoverProps {
   config: MapLayerConfig;
@@ -11,15 +11,24 @@ interface MapLayersPopoverProps {
 export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
   config,
   onChangeConfig,
-  onClose,
 }) => {
   const setEnvLayer = (layer: EnvironmentalLayerType) => {
     onChangeConfig({ ...config, activeEnvironmentalLayer: layer });
   };
 
+  const setViewMode = (mode: MapViewMode) => {
+    onChangeConfig({
+      ...config,
+      viewMode: mode,
+      showHeatmap: mode === "heatmap",
+    });
+  };
+
   const toggleFeature = (key: keyof MapLayerConfig) => {
     onChangeConfig({ ...config, [key]: !config[key] });
   };
+
+  const currentViewMode: MapViewMode = config.viewMode ?? (config.showHeatmap ? "heatmap" : "markers");
 
   return (
     <div className="map-layers-popover-card">
@@ -30,11 +39,40 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
         </div>
       </div>
 
+      {/* View Mode Toggle Section */}
+      <div className="popover-section">
+        <div className="section-label">Chế độ hiển thị chính</div>
+        <div className="layer-options-grid" role="radiogroup" aria-label="Chế độ hiển thị chính">
+          <button
+            type="button"
+            className={`layer-option-btn ${currentViewMode === "markers" ? "active" : ""}`}
+            onClick={() => setViewMode("markers")}
+            aria-pressed={currentViewMode === "markers"}
+          >
+            <Radio size={15} />
+            <span>Điểm đo Trạm</span>
+            {currentViewMode === "markers" && <Check size={14} className="check-icon" />}
+          </button>
+
+          <button
+            type="button"
+            className={`layer-option-btn ${currentViewMode === "heatmap" ? "active" : ""}`}
+            onClick={() => setViewMode("heatmap")}
+            aria-pressed={currentViewMode === "heatmap"}
+          >
+            <Eye size={15} />
+            <span>Bản đồ nhiệt Lan truyền</span>
+            {currentViewMode === "heatmap" && <Check size={14} className="check-icon" />}
+          </button>
+        </div>
+      </div>
+
       {/* Environmental Metrics Section */}
       <div className="popover-section">
         <div className="section-label">Chỉ số môi trường</div>
         <div className="layer-options-grid">
           <button
+            type="button"
             className={`layer-option-btn ${config.activeEnvironmentalLayer === "aqi" ? "active" : ""}`}
             onClick={() => setEnvLayer("aqi")}
           >
@@ -44,6 +82,7 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
           </button>
 
           <button
+            type="button"
             className={`layer-option-btn ${config.activeEnvironmentalLayer === "pm25" ? "active" : ""}`}
             onClick={() => setEnvLayer("pm25")}
           >
@@ -53,6 +92,7 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
           </button>
 
           <button
+            type="button"
             className={`layer-option-btn ${config.activeEnvironmentalLayer === "co2" ? "active" : ""}`}
             onClick={() => setEnvLayer("co2")}
           >
@@ -62,6 +102,7 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
           </button>
 
           <button
+            type="button"
             className={`layer-option-btn ${config.activeEnvironmentalLayer === "temperature" ? "active" : ""}`}
             onClick={() => setEnvLayer("temperature")}
           >
@@ -71,6 +112,7 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
           </button>
 
           <button
+            type="button"
             className={`layer-option-btn ${config.activeEnvironmentalLayer === "noise_db" ? "active" : ""}`}
             onClick={() => setEnvLayer("noise_db")}
           >
@@ -83,16 +125,8 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
 
       {/* Map Elements Toggle Section */}
       <div className="popover-section">
-        <div className="section-label">Thành phần bản đồ</div>
+        <div className="section-label">Thành phần phụ hỗ trợ</div>
         <div className="feature-toggles-list">
-          <label className="toggle-item-row" onClick={() => toggleFeature("showHeatmap")}>
-            <div className="toggle-label-wrap">
-              <Eye size={15} />
-              <span>Bản đồ nhiệt lan truyền (Heatmap)</span>
-            </div>
-            <input type="checkbox" checked={config.showHeatmap} readOnly />
-          </label>
-
           <label className="toggle-item-row" onClick={() => toggleFeature("showBoundary")}>
             <div className="toggle-label-wrap">
               <Layers size={15} />
