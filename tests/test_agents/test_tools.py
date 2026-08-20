@@ -36,6 +36,7 @@ def test_tool_registry_has_all_required_tools():
         ToolName.GET_ACTIVE_ALERTS,
         ToolName.GET_USER_PROFILE,
         ToolName.CREATE_WARNING_PROPOSAL,
+        ToolName.GET_SPATIAL_AIR_QUALITY,
     }
 
 
@@ -60,6 +61,16 @@ async def test_fake_adapter_validates_without_llm_or_db():
     invalid = await adapter.get_station_history({"station_id": "S01", "hours": 73}, request_id="req-2")
     assert isinstance(invalid, ToolError)
     assert invalid.code == ToolErrorCode.VALIDATION_ERROR
+
+
+@pytest.mark.asyncio
+async def test_fake_adapter_spatial_air_quality():
+    adapter = FakeBackendToolClient()
+    result = await adapter.get_spatial_air_quality({"metric": "aqi", "forecast_hour": 0}, request_id="req-spatial")
+    assert result.ok is True
+    assert result.data["metric"] == "aqi"
+    assert result.data["source"] == "spatial_idw_dispersion_model"
+    assert len(result.data["grid_points"]) > 0
 
 
 @pytest.mark.asyncio

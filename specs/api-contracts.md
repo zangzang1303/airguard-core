@@ -1,4 +1,4 @@
-﻿# API Contracts
+# API Contracts
 
 Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Errors use `{ "code", "message", "request_id", "details" }` with no secret or stack trace.
 
