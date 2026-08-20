@@ -7,6 +7,7 @@ import { SpatialHeatmapResponse, SpatialHeatmapPoint } from "../../types";
 import { EnvironmentalLayerType, MapViewMode } from "../../types/superApp";
 import { formatVnDateTime } from "../../utils/datetime";
 import { AlertTriangle, RefreshCw, Wind, Compass, Layers, Info, Clock, Cpu } from "lucide-react";
+import { OCEAN_PARK_1_BOUNDARY } from "../map/poiData";
 
 export interface HeatmapLayerProps {
   activeLayer?: EnvironmentalLayerType;
@@ -128,6 +129,28 @@ const METRIC_LEGEND_CONFIGS: Record<
   },
 };
 
+function isPointInBoundaryPolygon(lat: number, lon: number, polygon: [number, number][]): boolean {
+  let inside = false;
+  const n = polygon.length;
+  let p1 = polygon[0];
+  for (let i = 1; i <= n; i++) {
+    const p2 = polygon[i % n];
+    if (lat > Math.min(p1[0], p2[0]) && lat <= Math.max(p1[0], p2[0])) {
+      if (lon <= Math.max(p1[1], p2[1])) {
+        let x_inters = p1[1];
+        if (p1[0] !== p2[0]) {
+          x_inters = ((lat - p1[0]) * (p2[1] - p1[1])) / (p2[0] - p1[0]) + p1[1];
+        }
+        if (p1[1] === p2[1] || lon <= x_inters) {
+          inside = !inside;
+        }
+      }
+    }
+    p1 = p2;
+  }
+  return inside;
+}
+
 function generateFallbackHeatmap(metric: string, forecastHour: number): SpatialHeatmapResponse {
   const seeds = [
     { lat: 21.0008, lon: 105.9428, val: 42.5 },
@@ -137,14 +160,17 @@ function generateFallbackHeatmap(metric: string, forecastHour: number): SpatialH
     { lat: 20.9910, lon: 105.9560, val: 35.9 },
   ];
   const grid_points: SpatialHeatmapPoint[] = [];
-  const rows = 20, cols = 20;
-  const latMin = 20.985, latMax = 21.005, lonMin = 105.938, lonMax = 105.962;
+  const rows = 28, cols = 28;
+  const latMin = 20.984, latMax = 21.005, lonMin = 105.933, lonMax = 105.963;
   const latStep = (latMax - latMin) / (rows - 1);
   const lonStep = (lonMax - lonMin) / (cols - 1);
   for (let r = 0; r < rows; r++) {
     const lat = latMin + r * latStep;
     for (let c = 0; c < cols; c++) {
       const lon = lonMin + c * lonStep;
+      if (!isPointInBoundaryPolygon(lat, lon, OCEAN_PARK_1_BOUNDARY)) {
+        continue;
+      }
       let sumW = 0, sumV = 0;
       for (const s of seeds) {
         const d = Math.hypot((lat - s.lat) * 111, (lon - s.lon) * 103);
@@ -172,7 +198,7 @@ function generateFallbackHeatmap(metric: string, forecastHour: number): SpatialH
     wind_speed_ms: 3.2 + forecastHour * 0.3,
     wind_direction_deg: 135,
     grid_points,
-    disclaimer: "Mô hình nội suy trực quan hóa IDW mô phỏng quanh Vinhomes Ocean Park 1.",
+    disclaimer: "Mô hình nội suy trực quan hóa IDW mô phỏng trong ranh giới Vinhomes Ocean Park 1.",
   };
 }
 
@@ -241,7 +267,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
     };
   }, [activeLayer, forecastHour, isActive, reloadToken]);
 
-  // Memoized grid points for Canvas layer
+  // Memoized grid points for Canvas layer strictly within Ocean Park 1 boundary
   const heatPoints = useMemo<Array<[number, number, number]>>(() => {
     if (!data || !Array.isArray(data.grid_points) || error != null) return [];
     return data.grid_points
@@ -253,7 +279,8 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
           typeof p.lon === "number" &&
           Number.isFinite(p.lon) &&
           typeof p.intensity === "number" &&
-          Number.isFinite(p.intensity),
+          Number.isFinite(p.intensity) &&
+          isPointInBoundaryPolygon(p.lat, p.lon, OCEAN_PARK_1_BOUNDARY),
       )
       .map((p) => [p.lat, p.lon, Math.min(1.0, Math.max(0.0, p.intensity))]);
   }, [data, error]);
@@ -263,11 +290,11 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
     if (!map) return;
 
     const layer = L.heatLayer([], {
-      radius: 28,
-      blur: 18,
+      radius: 19,
+      blur: 13,
       maxZoom: 17,
       max: 1.0,
-      minOpacity: 0.18,
+      minOpacity: 0.2,
       gradient: AQI_HEAT_GRADIENT,
     });
     heatLayerRef.current = layer;

@@ -11,31 +11,59 @@ from .station_service import StationService
 class SpatialDispersionService:
     """
     Inverse Distance Weighting (IDW) interpolation engine with wind dispersion vector
-    for simulated spatial air quality mapping across Vinhomes Ocean Park 1.
+    strictly clipped to the polygon boundary of Vinhomes Ocean Park 1.
     """
 
-    # Ocean Park 1 Bounding Box Coordinates
-    LAT_MIN = 20.9850
+    # Exact Ocean Park 1 Boundary Polygon
+    BOUNDARY_POLYGON: list[tuple[float, float]] = [
+        (21.0047847, 105.9477604),
+        (20.9933962, 105.9628773),
+        (20.9890436, 105.9600712),
+        (20.9852230, 105.9518985),
+        (20.9840728, 105.9509930),
+        (20.9851752, 105.9432602),
+        (20.9921545, 105.9371584),
+        (20.9968500, 105.9334673),
+        (20.9980664, 105.9352872),
+        (21.0017814, 105.9420739),
+    ]
+
+    # Bounding Box Coordinates matching polygon
+    LAT_MIN = 20.9840
     LAT_MAX = 21.0050
-    LON_MIN = 105.9380
-    LON_MAX = 105.9620
+    LON_MIN = 105.9330
+    LON_MAX = 105.9630
 
     # Grid Resolution
-    GRID_ROWS = 28
-    GRID_COLS = 28
+    GRID_ROWS = 36
+    GRID_COLS = 36
 
     def __init__(self, station_service: StationService) -> None:
         self.station_service = station_service
+
+    @classmethod
+    def _is_inside_boundary(cls, lat: float, lon: float) -> bool:
+        """Ray-casting algorithm to test if (lat, lon) is strictly within Ocean Park 1 boundary."""
+        poly = cls.BOUNDARY_POLYGON
+        n = len(poly)
+        inside = False
+        p1_lat, p1_lon = poly[0]
+        for i in range(1, n + 1):
+            p2_lat, p2_lon = poly[i % n]
+            if min(p1_lat, p2_lat) < lat <= max(p1_lat, p2_lat):
+                if lon <= max(p1_lon, p2_lon):
+                    if p1_lat != p2_lat:
+                        x_inters = (lat - p1_lat) * (p2_lon - p1_lon) / (p2_lat - p1_lat) + p1_lon
+                    if p1_lon == p2_lon or lon <= x_inters:
+                        inside = not inside
+            p1_lat, p1_lon = p2_lat, p2_lon
+        return inside
 
     def calculate_heatmap(
         self,
         metric: str = "aqi",
         forecast_hour: int = 0,
     ) -> dict[str, Any]:
-        """
-        Calculates a 2D grid matrix of interpolated values based on current station measurements
-        adjusted by wind speed and wind direction.
-        """
         metric = metric.lower()
         if metric not in {"aqi", "pm25", "co2", "noise_db", "temperature"}:
             metric = "aqi"
@@ -43,25 +71,19 @@ class SpatialDispersionService:
         stations = self.station_service.list_stations()
         valid_stations = [s for s in stations if s.get("latitude") and s.get("longitude")]
 
-        # Default fallback stations if none available
         if not valid_stations:
             valid_stations = self.station_service._fallback_stations()
 
-        # Simulated wind conditions (can be fetched from weather context)
+        # Simulated wind conditions
         wind_speed_ms = 3.2 + (forecast_hour * 0.4)
-        # Wind direction in degrees (e.g. 135 deg = Southeast wind blowing towards Northwest)
         wind_direction_deg = (135 + forecast_hour * 10) % 360
         wind_rad = math.radians(wind_direction_deg)
-        # Wind vector components (direction vector of where the wind is blowing towards)
-        # 0 deg = North, 90 deg = East, 180 deg = South, 270 deg = West
         wind_vec_x = math.sin(wind_rad)
         wind_vec_y = math.cos(wind_rad)
 
-        # Extract values from stations
         station_data = []
         for s in valid_stations:
             val = self._extract_metric_value(s, metric)
-            # Forecast progression factor
             if forecast_hour > 0:
                 drift_factor = 1.0 + (math.sin(forecast_hour * 0.8) * 0.15)
                 val = round(val * drift_factor, 1)
@@ -84,26 +106,23 @@ class SpatialDispersionService:
             for c in range(self.GRID_COLS):
                 curr_lon = round(self.LON_MIN + c * lon_step, 5)
 
+                # Strictly clip grid points to Ocean Park 1 boundary polygon
+                if not self._is_inside_boundary(curr_lat, curr_lon):
+                    continue
+
                 sum_weights = 0.0
                 sum_weighted_vals = 0.0
 
                 for st in station_data:
-                    # Euclidean distance in degrees scaled to approximate km
                     d_lat = (curr_lat - st["lat"]) * 111.0
                     d_lon = (curr_lon - st["lon"]) * 103.0
                     dist = math.sqrt(d_lat * d_lat + d_lon * d_lon)
 
                     # Wind dispersion effect: adjust effective distance
                     if dist > 0.001 and wind_speed_ms > 0:
-                        # Vector from station to grid point
                         norm_dx = d_lon / dist
                         norm_dy = d_lat / dist
-
-                        # Cosine of angle between station->point vector and wind vector
                         cos_theta = norm_dx * wind_vec_x + norm_dy * wind_vec_y
-
-                        # If point is downwind (cos_theta > 0), distance is effectively shorter (pollution carries farther)
-                        # If point is upwind (cos_theta < 0), distance is effectively longer (pollution attenuates faster)
                         dispersion_factor = 1.0 - (cos_theta * min(0.6, wind_speed_ms * 0.08))
                         effective_dist = max(dist * max(0.2, dispersion_factor), epsilon)
                     else:
@@ -137,7 +156,7 @@ class SpatialDispersionService:
             "wind_speed_ms": round(wind_speed_ms, 1),
             "wind_direction_deg": int(wind_direction_deg),
             "grid_points": grid_points,
-            "disclaimer": "Mô hình nội suy trực quan hóa IDW kết hợp vector khí tượng mô phỏng quanh Vinhomes Ocean Park 1.",
+            "disclaimer": "Mô hình nội suy trực quan hóa IDW kết hợp vector khí tượng mô phỏng trong ranh giới Vinhomes Ocean Park 1.",
         }
 
     @staticmethod
@@ -216,4 +235,3 @@ class SpatialDispersionService:
         elif metric == "temperature":
             return round(min(1.0, max(0.0, (value - 22.0) / 20.0)), 3)
         return 0.5
-
