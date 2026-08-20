@@ -455,12 +455,29 @@ export const api = {
       }),
     });
 
-    const answerObj = typeof response.answer === "object" ? response.answer : { summary: response.answer, details: "" };
-    const textReply = response.response || (answerObj.summary + (answerObj.details ? `\n\n${answerObj.details}` : ""));
+    const rawAnswer = response.answer;
+    let summaryStr = "";
+    let detailsStr = "";
+
+    if (typeof rawAnswer === "string") {
+      summaryStr = rawAnswer;
+    } else if (rawAnswer && typeof rawAnswer === "object") {
+      summaryStr = typeof rawAnswer.summary === "string" ? rawAnswer.summary : (typeof rawAnswer.summary === "object" ? JSON.stringify(rawAnswer.summary) : String(rawAnswer.summary || ""));
+      detailsStr = typeof rawAnswer.details === "string" ? rawAnswer.details : (typeof rawAnswer.details === "object" ? JSON.stringify(rawAnswer.details) : String(rawAnswer.details || ""));
+    }
+
+    let textReply = "";
+    if (typeof response.response === "string" && response.response.trim()) {
+      textReply = response.response;
+    } else if (typeof response.reply === "string" && response.reply.trim()) {
+      textReply = response.reply;
+    } else {
+      textReply = summaryStr + (detailsStr ? `\n\n${detailsStr}` : "");
+    }
 
     return {
-      reply: textReply,
-      answer: answerObj,
+      reply: textReply || "Agent đã xử lý yêu cầu.",
+      answer: { summary: summaryStr, details: detailsStr },
       intent: response.intent,
       time_context: response.time_context,
       data_mode: response.data_mode,
