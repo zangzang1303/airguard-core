@@ -326,11 +326,13 @@ export function normalizeSpatialHeatmapResponse(raw: any): SpatialHeatmapRespons
       p.lon >= -180 &&
       p.lon <= 180 &&
       typeof p.value === "number" &&
-      Number.isFinite(p.value) &&
-      typeof p.intensity === "number" &&
-      Number.isFinite(p.intensity)
+      Number.isFinite(p.value)
     ) {
-      const clampedIntensity = Math.min(1.0, Math.max(0.0, p.intensity));
+      const rawIntensity =
+        typeof p.intensity === "number" && Number.isFinite(p.intensity)
+          ? p.intensity
+          : Math.min(1.0, Math.max(0.0, p.value / 250.0));
+      const clampedIntensity = Math.min(1.0, Math.max(0.0, rawIntensity));
       validGridPoints.push({
         lat: p.lat,
         lon: p.lon,

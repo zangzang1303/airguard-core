@@ -23,6 +23,7 @@ from .services.device_service import DeviceService
 from .services.forecast_service import InsufficientForecastHistory, trend_forecast
 from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
+from .services.spatial_dispersion_service import SpatialDispersionService
 from .services.station_service import StationService
 from .services.user_service import UserService
 from .services.weather_service import WeatherService
@@ -136,6 +137,7 @@ automatic_proposal_service = AutomaticProposalService(
     enabled=settings.auto_proposal_enabled,
     allowed_stations=settings.auto_proposal_stations,
 )
+spatial_service = SpatialDispersionService(station_service)
 
 app = FastAPI(title="AirGuard AI API", version="0.3.0")
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
@@ -326,6 +328,15 @@ weather_service = WeatherService()
 @app.get("/api/v1/weather/current")
 def get_current_weather() -> dict:
     return {**weather_service.current_weather(), "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/api/v1/spatial/heatmap")
+def get_spatial_heatmap(
+    metric: str = Query(default="aqi"),
+    forecast_hour: int = Query(default=0, ge=0, le=24),
+) -> dict:
+    return spatial_service.calculate_heatmap(metric=metric, forecast_hour=forecast_hour)
+
 
 
 
