@@ -1,4 +1,15 @@
-﻿# API Contracts
+# API Contracts
+
+## Authentication foundation status
+
+The database contains additive storage for case-normalized user email, account status,
+login sessions, email-verification tokens and password-reset tokens. Raw session and
+action tokens must never be persisted; services store only their SHA-256 hashes.
+
+Authentication endpoints are not enabled by this schema change. Until a later contract
+introduces authenticated sessions and server-derived roles, the existing frontend identity
+and `X-User-ID`/`X-User-Role` behavior remain demo-only and must not be represented as
+production authentication.
 
 Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Errors use `{ "code", "message", "request_id", "details" }` with no secret or stack trace.
 

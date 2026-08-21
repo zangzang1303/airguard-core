@@ -198,20 +198,74 @@ export const DEMO_USER_AUDIT: AdminAuditEntry[] = [
   },
 ];
 
-async function apiFetch<T>(
+let cachedCsrfToken: string | null = null;
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(^|;\\s*)(${name})=([^;]*)`));
+  return match ? decodeURIComponent(match[3]) : null;
+}
+
+export async function fetchCsrfToken(): Promise<string> {
+  const fromCookie = getCookie("airguard_csrf");
+  if (fromCookie) {
+    cachedCsrfToken = fromCookie;
+    return fromCookie;
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/auth/csrf`, {
+      credentials: "include",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.csrf_token) {
+        cachedCsrfToken = data.csrf_token;
+        return data.csrf_token;
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to fetch CSRF token:", e);
+  }
+  return cachedCsrfToken || "";
+}
+
+export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((options.headers as Record<string, string>) || {}),
+  };
+
+  const method = (options.method || "GET").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    const csrfToken = getCookie("airguard_csrf") || cachedCsrfToken || (await fetchCsrfToken());
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
+  }
+
   try {
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
+      credentials: "include",
+      headers,
     });
+
     if (!res.ok) {
-      throw new Error(`API Error ${res.status}: ${res.statusText}`);
+      let errBody: any = null;
+      try {
+        errBody = await res.json();
+      } catch {
+        // Not JSON
+      }
+      const message = errBody?.message || `API Error ${res.status}: ${res.statusText}`;
+      const err: any = new Error(message);
+      err.status = res.status;
+      err.code = errBody?.code;
+      err.details = errBody?.details;
+      throw err;
     }
     return await res.json();
   } catch (err: any) {
@@ -266,8 +320,8 @@ export function normalizeSpatialHeatmapResponse(raw: any): SpatialHeatmapRespons
 
   const forecastHour =
     typeof raw.forecast_hour === "number" &&
-    Number.isFinite(raw.forecast_hour) &&
-    raw.forecast_hour >= 0
+      Number.isFinite(raw.forecast_hour) &&
+      raw.forecast_hour >= 0
       ? raw.forecast_hour
       : 0;
 
@@ -455,12 +509,29 @@ export const api = {
       }),
     });
 
-    const answerObj = typeof response.answer === "object" ? response.answer : { summary: response.answer, details: "" };
-    const textReply = response.response || (answerObj.summary + (answerObj.details ? `\n\n${answerObj.details}` : ""));
+    const rawAnswer = response.answer;
+    let summaryStr = "";
+    let detailsStr = "";
+
+    if (typeof rawAnswer === "string") {
+      summaryStr = rawAnswer;
+    } else if (rawAnswer && typeof rawAnswer === "object") {
+      summaryStr = typeof rawAnswer.summary === "string" ? rawAnswer.summary : (typeof rawAnswer.summary === "object" ? JSON.stringify(rawAnswer.summary) : String(rawAnswer.summary || ""));
+      detailsStr = typeof rawAnswer.details === "string" ? rawAnswer.details : (typeof rawAnswer.details === "object" ? JSON.stringify(rawAnswer.details) : String(rawAnswer.details || ""));
+    }
+
+    let textReply = "";
+    if (typeof response.response === "string" && response.response.trim()) {
+      textReply = response.response;
+    } else if (typeof response.reply === "string" && response.reply.trim()) {
+      textReply = response.reply;
+    } else {
+      textReply = summaryStr + (detailsStr ? `\n\n${detailsStr}` : "");
+    }
 
     return {
-      reply: textReply,
-      answer: answerObj,
+      reply: textReply || "Agent đã xử lý yêu cầu.",
+      answer: { summary: summaryStr, details: detailsStr },
       intent: response.intent,
       time_context: response.time_context,
       data_mode: response.data_mode,
@@ -473,35 +544,29 @@ export const api = {
     };
   },
 
-  getProposals: async (actor: DemoApiActor): Promise<Proposal[]> => {
-    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/approvals", {
-      headers: { "X-User-ID": actor.userId, "X-User-Role": actor.role },
-    });
+  getProposals: async (_actor?: DemoApiActor): Promise<Proposal[]> => {
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/approvals");
     return data.items.map(mapProposal);
   },
 
-  approveProposal: async (proposalId: string, version: number, note: string, actor: DemoApiActor): Promise<Proposal> => {
+  approveProposal: async (proposalId: string, version: number, note: string, _actor?: DemoApiActor): Promise<Proposal> => {
     const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/approve`, {
       method: "POST",
-      headers: { "X-User-ID": actor.userId, "X-User-Role": actor.role },
       body: JSON.stringify({ version, note }),
     });
     return mapProposal(data);
   },
 
-  rejectProposal: async (proposalId: string, version: number, note: string, actor: DemoApiActor): Promise<Proposal> => {
+  rejectProposal: async (proposalId: string, version: number, note: string, _actor?: DemoApiActor): Promise<Proposal> => {
     const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/reject`, {
       method: "POST",
-      headers: { "X-User-ID": actor.userId, "X-User-Role": actor.role },
       body: JSON.stringify({ version, note }),
     });
     return mapProposal(data);
   },
 
-  getAuditLogs: async (actor: DemoApiActor): Promise<AuditLogEntry[]> => {
-    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/audit-logs", {
-      headers: { "X-User-ID": actor.userId, "X-User-Role": actor.role },
-    });
+  getAuditLogs: async (_actor?: DemoApiActor): Promise<AuditLogEntry[]> => {
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/audit-logs");
     return data.items.map((entry) => ({
       id: String(entry.audit_id),
       time: entry.created_at,
@@ -511,6 +576,92 @@ export const api = {
       outcome: entry.outcome,
       correlation_id: entry.correlation_id ?? "—",
     }));
+  },
+
+  // ---- Authentication Endpoints ----
+  register: async (input: {
+    email: string;
+    password: string;
+    full_name?: string;
+    sensitivity_group?: string;
+  }): Promise<{ user_id: string; email: string; role: string; full_name: string; message: string }> => {
+    return await apiFetch("/api/v1/auth/register", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  login: async (input: {
+    email: string;
+    password: string;
+  }): Promise<{ user: any; csrf_token: string; message: string }> => {
+    const res = await apiFetch<{ user: any; csrf_token: string; message: string }>("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    if (res.csrf_token) {
+      cachedCsrfToken = res.csrf_token;
+    }
+    return res;
+  },
+
+  getMe: async (): Promise<{ user: any }> => {
+    return await apiFetch<{ user: any }>("/api/v1/auth/me");
+  },
+
+  logout: async (): Promise<{ success: boolean; message: string }> => {
+    const res = await apiFetch<{ success: boolean; message: string }>("/api/v1/auth/logout", {
+      method: "POST",
+    });
+    cachedCsrfToken = null;
+    return res;
+  },
+
+  verifyEmail: async (token: string): Promise<{ success: boolean; message: string }> => {
+    return await apiFetch<{ success: boolean; message: string }>("/api/v1/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  resendVerification: async (email: string): Promise<{ success: boolean; message: string }> => {
+    return await apiFetch<{ success: boolean; message: string }>("/api/v1/auth/resend-verification", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  forgotPassword: async (email: string): Promise<{ success: boolean; message: string }> => {
+    return await apiFetch<{ success: boolean; message: string }>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  resetPassword: async (token: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    return await apiFetch<{ success: boolean; message: string }>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, new_password: newPassword }),
+    });
+  },
+
+  getAuthConfig: async (): Promise<{ demo_mode: boolean; google_auth_enabled: boolean }> => {
+    return await apiFetch<{ demo_mode: boolean; google_auth_enabled: boolean }>("/api/v1/auth/config");
+  },
+
+  demoLogin: async (persona: "resident" | "manager" | "admin"): Promise<{ user: any; csrf_token: string; message: string }> => {
+    const res = await apiFetch<{ user: any; csrf_token: string; message: string }>("/api/v1/auth/demo-login", {
+      method: "POST",
+      body: JSON.stringify({ persona }),
+    });
+    if (res.csrf_token) {
+      cachedCsrfToken = res.csrf_token;
+    }
+    return res;
+  },
+
+  getGoogleAuthStartUrl: (): string => {
+    return `${API_BASE_URL}/api/v1/auth/google/start`;
   },
 
   // ---- Spatial Heatmap Endpoint ----
@@ -530,7 +681,7 @@ export const api = {
     return normalizeSpatialHeatmapResponse(data);
   },
 
-  // ---- P2 · Quản lý người dùng (demo client-side, contract pending) ----
+  // ---- Quản lý người dùng ----
   getAdminUsers: async (): Promise<AdminUser[]> => {
     try {
       const data = await apiFetch<any>("/api/v1/users");
@@ -545,18 +696,14 @@ export const fetchStations = api.getStations;
 export const fetchAlerts = api.getAlerts;
 export const fetchStationHistory = api.getStationHistory;
 export const fetchStationForecast = api.getStationForecast;
-const DEMO_MANAGER_ACTOR: DemoApiActor = {
-  userId: "00000000-0000-0000-0000-000000000102",
-  role: "manager",
-};
 export const fetchProposals = async (_status?: string): Promise<{ items: Proposal[] }> => {
-  const items = await api.getProposals(DEMO_MANAGER_ACTOR);
+  const items = await api.getProposals();
   return { items };
 };
 export const approveProposal = (proposalId: string, version: number, note = "Approved by manager") =>
-  api.approveProposal(proposalId, version, note, DEMO_MANAGER_ACTOR);
+  api.approveProposal(proposalId, version, note);
 export const rejectProposal = (proposalId: string, version: number, note = "Rejected by manager") =>
-  api.rejectProposal(proposalId, version, note, DEMO_MANAGER_ACTOR);
+  api.rejectProposal(proposalId, version, note);
 export const sendAgentChat = async (message: string, userId = "USR-002"): Promise<{ response: string; message?: string }> => {
   const res = await api.sendAgentMessage(message, null, userId);
   return { response: res.reply };

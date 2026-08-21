@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 import sys
@@ -54,7 +54,7 @@ def test_ready_returns_error_envelope_when_database_is_missing() -> None:
     assert "stack" not in body
 
 
-def test_reject_approval_requires_manager_role_before_database_use() -> None:
+def test_approval_requires_authentication_before_database_use() -> None:
     client_class = require_test_client()
     if client_class is None:
         return
@@ -65,8 +65,8 @@ def test_reject_approval_requires_manager_role_before_database_use() -> None:
         headers={"X-User-Role": "viewer"},
     )
 
-    assert response.status_code == 403
-    assert response.json()["code"] == "forbidden"
+    assert response.status_code == 401
+    assert response.json()["code"] == "unauthenticated"
 
 
 def test_openapi_schema_loads() -> None:

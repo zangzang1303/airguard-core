@@ -379,21 +379,22 @@ class ApprovalService:
         try:
             return str(UUID(user_id))
         except ValueError as exc:
-            raise ServiceError("invalid_user_id", "X-User-ID must be a UUID", 422) from exc
+            raise ServiceError("invalid_user_id", "User ID must be a valid UUID", 422) from exc
 
     @staticmethod
     def _ensure_user(cur, user_id: str, role: str) -> None:
         cur.execute(
             """
-            INSERT INTO users (user_id, email, role, full_name)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role
+            INSERT INTO users (user_id, email, role, full_name, is_active)
+            VALUES (%s, %s, %s, %s, TRUE)
+            ON CONFLICT (user_id) DO NOTHING
             """,
-            (user_id, f"{user_id}@local.airguard", role, "Demo Manager"),
+            (user_id, f"{user_id}@local.airguard", role, "Manager"),
         )
+
     @staticmethod
     def _require_manager(role: str) -> None:
-        if role != "manager":
+        if role not in {"manager", "admin"}:
             raise ServiceError("forbidden", "Only manager role can approve or reject requests", 403)
 
     @staticmethod

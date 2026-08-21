@@ -303,7 +303,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 ) : (
                   /* Standard rich text reply */
                   <div className="bubble-text" style={{ fontSize: "13.5px", lineHeight: "1.6", whiteSpace: "pre-line" }}>
-                    {msg.text}
+                    {typeof msg.text === "string" ? msg.text : (typeof msg.summary === "string" ? msg.summary : JSON.stringify(msg.text || ""))}
                   </div>
                 )}
 

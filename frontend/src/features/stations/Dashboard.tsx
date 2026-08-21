@@ -27,6 +27,7 @@ import { StatusBadge } from "../../components/common/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { Alert, Station } from "../../types";
 import { formatVnDateTime } from "../../utils/datetime";
+import { getAqiColorHex } from "../../constants/aqi";
 
 const severityLabel: Record<Alert["severity"], string> = {
   good: "Thấp",
@@ -35,14 +36,7 @@ const severityLabel: Record<Alert["severity"], string> = {
   critical: "Nghiêm trọng",
 };
 
-const getAqiColor = (aqi: number | null | undefined) => {
-  if (aqi == null) return "var(--pm25-offline)";
-  if (aqi <= 50) return "#22a06b";
-  if (aqi <= 100) return "#e6a700";
-  if (aqi <= 150) return "#f97316";
-  if (aqi <= 200) return "#e5484d";
-  return "#7c3aed";
-};
+const getAqiColor = (aqi: number | null | undefined) => getAqiColorHex(aqi);
 
 // Simplified from OpenStreetMap way 761986888 (Vinhomes Ocean Park residential area),
 // retrieved 2026-08-13. Dashboard scope only; it is not an administrative/legal boundary.

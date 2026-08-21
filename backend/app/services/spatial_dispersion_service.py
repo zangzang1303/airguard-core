@@ -34,9 +34,9 @@ class SpatialDispersionService:
     LON_MIN = 105.9330
     LON_MAX = 105.9630
 
-    # Grid Resolution
-    GRID_ROWS = 36
-    GRID_COLS = 36
+    # Canonical Grid Resolution (30 x 30)
+    GRID_ROWS = 30
+    GRID_COLS = 30
 
     def __init__(self, station_service: StationService) -> None:
         self.station_service = station_service
@@ -65,18 +65,46 @@ class SpatialDispersionService:
         forecast_hour: int = 0,
     ) -> dict[str, Any]:
         metric = metric.lower()
-        if metric not in {"aqi", "pm25", "co2", "noise_db", "temperature"}:
+        if metric in {"noise", "noise_db"}:
+            metric = "noise_db"
+        elif metric not in {"aqi", "pm25", "co2", "temperature"}:
             metric = "aqi"
 
-        stations = self.station_service.list_stations()
-        valid_stations = [s for s in stations if s.get("latitude") and s.get("longitude")]
+        units_map = {
+            "aqi": "AQI",
+            "pm25": "µg/m³",
+            "co2": "ppm",
+            "temperature": "°C",
+            "noise_db": "dB",
+        }
+        unit = units_map.get(metric, "AQI")
 
+        all_stations = self.station_service.list_stations()
+        stations_used: list[str] = []
+        stations_excluded: list[str] = []
+
+        valid_stations = []
+        for s in all_stations:
+            st_id = s.get("station_id", "")
+            has_coords = s.get("latitude") and s.get("longitude")
+            is_usable = s.get("status") == "online" and not s.get("is_stale")
+
+            if has_coords and is_usable:
+                valid_stations.append(s)
+                if st_id:
+                    stations_used.append(st_id)
+            else:
+                if st_id:
+                    stations_excluded.append(st_id)
+
+        # Fallback if all stations are offline/stale in demo
         if not valid_stations:
             valid_stations = self.station_service._fallback_stations()
+            stations_used = [s.get("station_id", "") for s in valid_stations if s.get("station_id")]
 
         # Simulated wind conditions
-        wind_speed_ms = 3.2 + (forecast_hour * 0.4)
-        wind_direction_deg = (135 + forecast_hour * 10) % 360
+        wind_speed_ms = round(3.2 + (forecast_hour * 0.4), 1)
+        wind_direction_deg = int((135 + forecast_hour * 10) % 360)
         wind_rad = math.radians(wind_direction_deg)
         wind_vec_x = math.sin(wind_rad)
         wind_vec_y = math.cos(wind_rad)
@@ -146,15 +174,41 @@ class SpatialDispersionService:
                     "level": level,
                 })
 
+        now_iso = datetime.now(timezone.utc).isoformat()
+
         return {
             "metric": metric,
+            "unit": unit,
+            "timestamp": now_iso,
+            "generated_at": now_iso,
             "forecast_hour": forecast_hour,
             "source": "spatial_idw_dispersion_model",
             "model_version": "idw-dispersion-v1.0",
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "wind_speed_ms": round(wind_speed_ms, 1),
-            "wind_direction_deg": int(wind_direction_deg),
+            "model": {
+                "name": "spatial_idw_dispersion_model",
+                "version": "1.0",
+                "grid_rows": self.GRID_ROWS,
+                "grid_columns": self.GRID_COLS,
+                "power": power,
+            },
+            "weather": {
+                "wind_speed_ms": wind_speed_ms,
+                "wind_direction_deg": wind_direction_deg,
+                "source": "simulator",
+            },
+            "extent": {
+                "south": self.LAT_MIN,
+                "west": self.LON_MIN,
+                "north": self.LAT_MAX,
+                "east": self.LON_MAX,
+            },
+            "data_quality": {
+                "stations_used": stations_used,
+                "stations_excluded": stations_excluded,
+                "status": "valid",
+            },
+            "wind_speed_ms": wind_speed_ms,
+            "wind_direction_deg": wind_direction_deg,
             "grid_points": grid_points,
             "disclaimer": "Mô hình nội suy trực quan hóa IDW kết hợp vector khí tượng mô phỏng trong ranh giới Vinhomes Ocean Park 1.",
         }

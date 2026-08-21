@@ -56,11 +56,14 @@ VALUES
     ('ALT-001', 'S03', 'pm25_threshold', 'warning', 'PM2.5 vượt ngưỡng khuyến nghị', 'Nồng độ PM2.5 tại Ven Hồ Ngọc Trai đạt 66.1 µg/m³ vượt ngưỡng 50 µg/m³', 66.1, 50.0, 'µg/m³', 'Theo dõi diễn biến chất lượng không khí và cân nhắc kích hoạt hệ thống lọc khí.', 'active', 'pm25-threshold-v1')
 ON CONFLICT (alert_id) DO NOTHING;
 
-INSERT INTO users (user_id, email, password_hash, role, full_name, sensitivity_group)
+INSERT INTO users (
+    user_id, email, password_hash, role, full_name, sensitivity_group,
+    email_verified_at, is_active
+)
 VALUES
-    ('00000000-0000-0000-0000-000000000101', 'resident@vinuni.edu.vn', NULL, 'resident', 'Trần Minh Anh', 'normal'),
-    ('00000000-0000-0000-0000-000000000102', 'manager@vinuni.edu.vn', NULL, 'manager', 'Nguyễn Văn A', 'sensitive'),
-    ('00000000-0000-0000-0000-000000000103', 'admin@vinuni.edu.vn', NULL, 'admin', 'Lê Thị D', 'normal')
+    ('00000000-0000-0000-0000-000000000101', 'resident@vinuni.edu.vn', NULL, 'resident', 'Trần Minh Anh', 'normal', NULL, TRUE),
+    ('00000000-0000-0000-0000-000000000102', 'manager@vinuni.edu.vn', NULL, 'manager', 'Nguyễn Văn A', 'sensitive', NULL, TRUE),
+    ('00000000-0000-0000-0000-000000000103', 'admin@vinuni.edu.vn', NULL, 'admin', 'Lê Thị D', 'normal', NULL, TRUE)
 ON CONFLICT (user_id) DO UPDATE SET
     email = EXCLUDED.email,
     role = EXCLUDED.role,
