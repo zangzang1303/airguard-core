@@ -67,11 +67,78 @@ async def test_fake_adapter_validates_without_llm_or_db():
 @pytest.mark.asyncio
 async def test_fake_adapter_spatial_air_quality():
     adapter = FakeBackendToolClient()
-    result = await adapter.get_spatial_air_quality({"metric": "aqi", "forecast_hour": 0}, request_id="req-spatial")
+    result = await adapter.get_spatial_air_quality({"metric": "aqi", "forecast_hour": 24}, request_id="req-spatial")
     assert result.ok is True
     assert result.data["metric"] == "aqi"
     assert result.data["source"] == "spatial_idw_dispersion_model"
+    assert result.data["forecast_hour"] == 24
+    assert result.data["data_quality"]["status"] == "valid"
+    assert result.data["weather"]["source"] == "simulator_fallback_weather"
+    assert result.data["model"]["name"] == "wind_adjusted_inverse_distance_weighting"
+    assert result.data["extent"]["north"] > result.data["extent"]["south"]
+    assert len(result.data["station_inputs"]) == 5
     assert len(result.data["grid_points"]) > 0
+
+    invalid = await adapter.get_spatial_air_quality(
+        {"metric": "ozone", "forecast_hour": 25},
+        request_id="req-spatial-invalid",
+    )
+    assert isinstance(invalid, ToolError)
+    assert invalid.code == ToolErrorCode.VALIDATION_ERROR
+
+
+@pytest.mark.asyncio
+async def test_backend_spatial_adapter_preserves_typed_provenance_fields():
+    fixture_result = await FakeBackendToolClient().get_spatial_air_quality(
+        {"metric": "aqi", "forecast_hour": 0},
+        request_id="spatial-fixture",
+    )
+    assert fixture_result.ok is True
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=fixture_result.data)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="http://backend",
+    ) as http_client:
+        adapter = BackendToolClient("http://backend", client=http_client)
+        result = await adapter.get_spatial_air_quality(
+            {"metric": "aqi", "forecast_hour": 0},
+            request_id="req-spatial-provenance",
+        )
+
+    assert result.ok is True
+    assert result.data["model"] == fixture_result.data["model"]
+    assert result.data["extent"] == fixture_result.data["extent"]
+    assert result.data["station_inputs"] == fixture_result.data["station_inputs"]
+
+
+@pytest.mark.asyncio
+async def test_backend_spatial_adapter_rejects_missing_provenance_fields():
+    fixture_result = await FakeBackendToolClient().get_spatial_air_quality(
+        {"metric": "aqi", "forecast_hour": 0},
+        request_id="spatial-fixture",
+    )
+    assert fixture_result.ok is True
+    incomplete_payload = dict(fixture_result.data)
+    incomplete_payload.pop("model")
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=incomplete_payload)
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="http://backend",
+    ) as http_client:
+        adapter = BackendToolClient("http://backend", client=http_client)
+        result = await adapter.get_spatial_air_quality(
+            {"metric": "aqi", "forecast_hour": 0},
+            request_id="req-spatial-missing-provenance",
+        )
+
+    assert isinstance(result, ToolError)
+    assert result.code == ToolErrorCode.SCHEMA_DRIFT
 
 
 @pytest.mark.asyncio

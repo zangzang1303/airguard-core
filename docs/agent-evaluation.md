@@ -8,6 +8,7 @@ Focused tests live in `tests/test_agents/test_grounding.py` and use
 The AI-002 release gate covers:
 
 - intent and expected tool arguments for current, impact assessment, history, compare, weather, forecast, alert and profile;
+- spatial POI comparison and wind-vector questions must call `get_spatial_air_quality`, preserve model/weather provenance and label geometric inference;
 - mandatory tool use even when a user says not to call tools;
 - source mapping for environmental facts from the same request;
 - AQI-first current-station responses that enumerate PM2.5, CO₂, noise and temperature from the same fresh snapshot;
@@ -18,9 +19,9 @@ The AI-002 release gate covers:
 
 ## AI-006 golden-set gate
 
-The executable golden set is `eval/golden_cases/airguard_agent_v1.jsonl`. It contains 39 cases for
+The executable golden set is `eval/golden_cases/airguard_agent_v1.jsonl`. It contains 41 cases for
 current, history, compare, weather, forecast, alert, profile, recommendation, proposal/no-proposal,
-no-data, stale/offline/invalid data, backend/tool failure, injection, and medical/device/HITL
+spatial comparison/wind analysis, no-data, stale/offline/invalid data, backend/tool failure, injection, and medical/device/HITL
 refusal. Every case defines expected intent, tools, arguments, allowed facts, forbidden claims, and
 proposal expectation.
 

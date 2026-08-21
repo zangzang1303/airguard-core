@@ -1,16 +1,3 @@
-import { getAqiColorHex } from "../constants/aqi";
-
-export interface StationPoint {
-  lat: number;
-  lon: number;
-  val: number;
-}
-
-export interface WindContext {
-  speedMs: number;
-  directionDeg: number;
-}
-
 export interface GeographicExtent {
   latMin: number;
   latMax: number;
@@ -70,54 +57,6 @@ export function isPointInBoundaryPolygon(
   return inside;
 }
 
-/**
- * Pure geographic Inverse Distance Weighting (IDW) field evaluation.
- * Formula: valueAt(lat, lon, stations, windConfig)
- * ABSOLUTELY NO camera zoom, viewport size, or pixel coordinates in calculation.
- */
-export function calculateIdwValueAt(
-  lat: number,
-  lon: number,
-  stations: StationPoint[],
-  wind?: WindContext,
-  power = 2.0,
-  epsilon = 0.0001
-): number {
-  if (!stations || stations.length === 0) return 50.0;
-
-  let sumWeights = 0.0;
-  let sumWeightedVals = 0.0;
-
-  const windSpeed = wind ? wind.speedMs : 0.0;
-  const windRad = wind ? (wind.directionDeg * Math.PI) / 180.0 : 0.0;
-  const windVecX = Math.sin(windRad);
-  const windVecY = Math.cos(windRad);
-
-  for (const st of stations) {
-    const dLat = (lat - st.lat) * 111.0; // Approx km
-    const dLon = (lon - st.lon) * 103.0; // Approx km
-    const dist = Math.hypot(dLat, dLon);
-
-    let effectiveDist = dist;
-    if (dist > 0.001 && windSpeed > 0) {
-      const normDx = dLon / dist;
-      const normDy = dLat / dist;
-      const cosTheta = normDx * windVecX + normDy * windVecY;
-      const dispersionFactor = 1.0 - cosTheta * Math.min(0.6, windSpeed * 0.08);
-      effectiveDist = Math.max(dist * Math.max(0.2, dispersionFactor), epsilon);
-    } else {
-      effectiveDist = Math.max(dist, epsilon);
-    }
-
-    const weight = 1.0 / Math.pow(effectiveDist, power);
-    sumWeights += weight;
-    sumWeightedVals += weight * st.val;
-  }
-
-  const result = sumWeights > 0 ? sumWeightedVals / sumWeights : 50.0;
-  return Math.round(result * 10) / 10;
-}
-
 import { getMetricColor } from "../constants/metrics";
 
 /**
@@ -150,10 +89,8 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } {
  * Pure rendering step — zero dependency on zoom or Leaflet camera.
  */
 export function createDispersionOffscreenCanvas(
-  gridPoints: Array<{ lat: number; lon: number; value: number }> | null,
-  stations: StationPoint[],
+  gridPoints: Array<{ lat: number; lon: number; value: number }>,
   metric: string,
-  wind?: WindContext,
   width = 120,
   height = 120,
   extent = OCEAN_PARK_1_EXTENT,
@@ -186,13 +123,8 @@ export function createDispersionOffscreenCanvas(
         continue;
       }
 
-      let val: number;
-      if (gridPoints && gridPoints.length > 0) {
-        // Interpolate value from grid points or IDW
-        val = interpolateValueFromGridOrIdw(lat, lon, gridPoints, stations, wind);
-      } else {
-        val = calculateIdwValueAt(lat, lon, stations, wind);
-      }
+      if (gridPoints.length === 0) continue;
+      const val = interpolateValueFromGrid(lat, lon, gridPoints);
 
       const hexColor = getMetricColorHex(metric, val);
       const rgb = hexToRgb(hexColor);
@@ -208,29 +140,25 @@ export function createDispersionOffscreenCanvas(
   return canvas;
 }
 
-function interpolateValueFromGridOrIdw(
+function interpolateValueFromGrid(
   lat: number,
   lon: number,
   gridPoints: Array<{ lat: number; lon: number; value: number }>,
-  stations: StationPoint[],
-  wind?: WindContext
 ): number {
-  let closestDist = Infinity;
-  let closestVal = 50.0;
+  let weightedValue = 0;
+  let totalWeight = 0;
 
   for (const pt of gridPoints) {
     const dLat = (lat - pt.lat) * 111.0;
     const dLon = (lon - pt.lon) * 103.0;
-    const d = Math.hypot(dLat, dLon);
-    if (d < closestDist) {
-      closestDist = d;
-      closestVal = pt.value;
-    }
+    const distance = Math.hypot(dLat, dLon);
+    if (distance <= 0.0001) return pt.value;
+    const weight = 1 / Math.pow(distance + 0.0001, 2);
+    totalWeight += weight;
+    weightedValue += weight * pt.value;
   }
-
-  if (closestDist < 0.15) {
-    return closestVal;
+  if (totalWeight <= 0) {
+    throw new Error("Spatial grid contains no usable interpolation weights.");
   }
-
-  return calculateIdwValueAt(lat, lon, stations, wind);
+  return weightedValue / totalWeight;
 }
