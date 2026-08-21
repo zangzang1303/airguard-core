@@ -16,6 +16,9 @@ class ProposalEligibilityDecision:
     reason_code: str
     evidence: tuple[ProposalEvidence, ...] = ()
     alert_id: str | None = None
+    proposed_action: str = "notify_station_area_users"
+    duration_minutes: int | None = None
+    intensity_percent: int | None = None
 
 
 def evaluate_proposal_eligibility(
@@ -31,13 +34,18 @@ def evaluate_proposal_eligibility(
     if current.get("pm25") is None or not current.get("source") or not current.get("updated_at"):
         return ProposalEligibilityDecision(False, "measurement_invalid")
 
+    active_alerts = [
+        item
+        for item in alerts
+        if item.get("station_id") == station_id and item.get("status") == "active"
+    ]
     alert = next(
         (
-            item
-            for item in alerts
-            if item.get("station_id") == station_id and item.get("status") == "active"
+            item for item in active_alerts
+            if item.get("alert_type") in {"pm25_threshold", "co2_threshold"}
+            and item.get("ventilation_eligible") is True
         ),
-        None,
+        active_alerts[0] if active_alerts else None,
     )
     if alert is None:
         return ProposalEligibilityDecision(False, "active_alert_required")
@@ -68,13 +76,29 @@ def evaluate_proposal_eligibility(
             source=alert["source"],
             rule_version=alert.get("rule_version"),
             severity=alert.get("severity"),
+            alert_type=alert.get("alert_type"),
+            ventilation_eligible=alert.get("ventilation_eligible"),
+            ventilation_policy_version=alert.get("ventilation_policy_version"),
+            qualified_duration_seconds=alert.get("qualified_duration_seconds"),
+            qualification_window_start=alert.get("qualification_window_start"),
+            qualification_window_end=alert.get("qualification_window_end"),
+            triggered_metrics=alert.get("triggered_metrics") or [],
         ),
     )
+    is_ventilation = (
+        alert.get("alert_type") in {"pm25_threshold", "co2_threshold"}
+        and alert.get("ventilation_eligible") is True
+    )
+    duration_minutes = int(alert.get("recommended_duration_minutes") or 45) if is_ventilation else None
+    intensity_percent = int(alert.get("recommended_intensity_percent") or 80) if is_ventilation else None
     return ProposalEligibilityDecision(
         True,
         "eligible",
         evidence=evidence,
         alert_id=str(alert["alert_id"]),
+        proposed_action="ventilation_boost" if is_ventilation else "notify_station_area_users",
+        duration_minutes=duration_minutes,
+        intensity_percent=intensity_percent,
     )
 
 
@@ -87,5 +111,7 @@ def proposal_idempotency_key(
     return f"agent-proposal-{sha256(material).hexdigest()[:32]}"
 
 
-def proposal_action() -> Literal["notify_station_area_users"]:
-    return "notify_station_area_users"
+def proposal_action(
+    decision: ProposalEligibilityDecision | None = None,
+) -> Literal["notify_station_area_users", "ventilation_boost"]:
+    return decision.proposed_action if decision else "notify_station_area_users"

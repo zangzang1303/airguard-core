@@ -96,13 +96,15 @@ async def run_proposal_workflow(
         "user_id": user_id,
         "idempotency_key": proposal_idempotency_key(station_id, decision.alert_id),
         "target": {"audience": "station_area", "station_id": station_id},
-        "action": proposal_action(),
+        "action": proposal_action(decision),
         "rationale": (
             "Dữ liệu simulator còn mới và đang có cảnh báo active từ backend; "
             "đề xuất cần Manager xem xét."
         ),
         "policy_version": PROPOSAL_POLICY_VERSION,
         "evidence": evidence,
+        "duration_minutes": decision.duration_minutes,
+        "intensity_percent": decision.intensity_percent,
     }
     created = await _call_tool(
         tool_client,

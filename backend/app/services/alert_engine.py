@@ -7,6 +7,7 @@ from uuid import uuid4
 from .audit_service import AuditService
 from .database import Database, ServiceError, dict_cursor
 from .station_service import StationService
+from .ventilation_service import VentilationService
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,9 @@ class AlertEngine:
         temperature_warning_threshold: float = 35,
         temperature_critical_threshold: float = 39,
         environmental_rule_version: str = "environmental-threshold-v1",
+        ventilation_service: VentilationService | None = None,
+        ventilation_default_duration_minutes: int = 45,
+        ventilation_default_intensity_percent: int = 80,
     ) -> None:
         self.db = db
         self.station_service = station_service
@@ -52,6 +56,14 @@ class AlertEngine:
         self.rule_version = rule_version
         self.consecutive_measurements = max(1, consecutive_measurements)
         self.stale_after_seconds = max(1, stale_after_seconds)
+        self.ventilation_service = ventilation_service or VentilationService(
+            db,
+            pm25_threshold=warning_threshold,
+            co2_threshold=co2_warning_threshold,
+            stale_after_seconds=self.stale_after_seconds,
+            default_duration_minutes=ventilation_default_duration_minutes,
+            default_intensity_percent=ventilation_default_intensity_percent,
+        )
         self.rules = (
             EnvironmentalAlertRule("pm25_threshold", "pm25", "PM2.5", "µg/m³", warning_threshold, critical_threshold, rule_version),
             EnvironmentalAlertRule("aqi_threshold", "aqi", "AQI", "", aqi_warning_threshold, aqi_critical_threshold, environmental_rule_version),
@@ -75,7 +87,24 @@ class AlertEngine:
             alert for rule in self.rules
             if (alert := self._evaluate_rule(station, rule, correlation_id=correlation_id)) is not None
         ]
-        return max(evaluated, key=lambda item: (self._severity_rank(item["severity"]), item["updated_at"])) if evaluated else None
+        enriched = [self._with_ventilation_context(alert) for alert in evaluated]
+        ventilation_candidates = [
+            alert for alert in enriched
+            if alert.get("status") == "active" and alert.get("ventilation_eligible") is True
+        ]
+        if ventilation_candidates:
+            return max(
+                ventilation_candidates,
+                key=lambda item: (self._severity_rank(item["severity"]), item["updated_at"]),
+            )
+
+        recovery = self._recovery_signal(station["station_id"])
+        if recovery is not None:
+            return recovery
+        return max(
+            enriched,
+            key=lambda item: (self._severity_rank(item["severity"]), item["updated_at"]),
+        ) if enriched else None
 
     def _evaluate_rule(
         self,
@@ -244,12 +273,13 @@ class AlertEngine:
 
     def list_alerts(self, *, status: str | None = None, station_id: str | None = None) -> list[dict[str, Any]]:
         try:
-            self.evaluate_all_current()
             clauses, params = [], []
             if status:
-                clauses.append("status = %s"); params.append(status)
+                clauses.append("status = %s")
+                params.append(status)
             if station_id:
-                clauses.append("station_id = %s"); params.append(station_id)
+                clauses.append("station_id = %s")
+                params.append(station_id)
             where = "WHERE " + " AND ".join(clauses) if clauses else ""
             with self.db.connection() as conn:
                 with dict_cursor(conn) as cur:
@@ -257,44 +287,19 @@ class AlertEngine:
                         threshold_value, title, description, status, created_at, updated_at, resolved_at FROM alerts {where}
                         ORDER BY created_at DESC""", params)
                     rows = cur.fetchall()
-                    if rows:
-                        return [self._enrich_alert(dict(row)) for row in rows]
-        except Exception:
-            pass
-        return self._fallback_alerts(station_id=station_id)
-
-    def _fallback_alerts(self, station_id: str | None = None) -> list[dict[str, Any]]:
-        from datetime import datetime, timezone
-        stations = self.station_service._fallback_stations()
-        alerts = []
-        for s in stations:
-            if station_id and s["station_id"] != station_id:
-                continue
-            pm = s.get("pm25") or 0.0
-            if pm >= self.warning_threshold:
-                severity = "critical" if pm >= self.critical_threshold else "warning"
-                alerts.append({
-                    "alert_id": f"ALT-{s['station_id']}-PM25",
-                    "station_id": s["station_id"],
-                    "alert_type": "pm25_threshold",
-                    "rule_version": "pm25-threshold-v1",
-                    "severity": severity,
-                    "observed_value": pm,
-                    "threshold_value": self.warning_threshold,
-                    "title": f"PM2.5 tại {s['station_name']} vượt ngưỡng",
-                    "description": f"Nồng độ PM2.5 tại {s['station_name']} đạt {pm} µg/m³ vượt ngưỡng {self.warning_threshold} µg/m³",
-                    "recommendation": "Hạn chế nguồn bụi gần khu vực và theo dõi lần đo kế tiếp trước khi thực hiện hành động cần phê duyệt.",
-                    "unit": "µg/m³",
-                    "metric": "PM2.5",
-                    "status": "active",
-                    "created_at": s.get("measured_at") or datetime.now(timezone.utc).isoformat(),
-                    "source": "backend_alert_rule:pm25-threshold-v1",
-                })
-        return alerts
+                    return [self._enrich_alert(dict(row)) for row in rows]
+        except ServiceError:
+            raise
+        except Exception as exc:
+            raise ServiceError(
+                "alert_store_unavailable",
+                "Alert store is unavailable",
+                503,
+            ) from exc
 
     def _enrich_alert(self, alert: dict[str, Any]) -> dict[str, Any]:
         rule = next((item for item in self.rules if item.alert_type == alert.get("alert_type")), None)
-        enriched = self._with_source(alert)
+        enriched = self._with_ventilation_context(self._with_source(alert))
         if rule is None:
             return enriched
         return {
@@ -302,6 +307,60 @@ class AlertEngine:
             "metric": rule.label,
             "unit": rule.unit,
             "recommendation": self._recommendation(rule, str(alert.get("severity") or "warning")),
+        }
+
+    def _with_ventilation_context(self, alert: dict[str, Any]) -> dict[str, Any]:
+        if alert.get("status") != "active" or alert.get("alert_type") not in {
+            "pm25_threshold",
+            "co2_threshold",
+        }:
+            return alert
+        try:
+            assessment = self.ventilation_service.assess_trigger(str(alert["station_id"]))
+        except Exception:
+            return {
+                **alert,
+                "ventilation_eligible": False,
+                "ventilation_reason_code": "continuity_check_unavailable",
+            }
+        evidence = assessment.as_evidence()
+        return {
+            **alert,
+            "ventilation_eligible": assessment.eligible,
+            "ventilation_reason_code": assessment.reason_code,
+            "ventilation_policy_version": assessment.policy_version,
+            "qualified_duration_seconds": assessment.continuous_duration_seconds,
+            "qualification_window_start": evidence["window_start"],
+            "qualification_window_end": evidence["window_end"],
+            "triggered_metrics": evidence["triggered_metrics"],
+            "recommended_action": "ventilation_boost",
+            "recommended_duration_minutes": self.ventilation_service.default_duration_minutes,
+            "recommended_intensity_percent": self.ventilation_service.default_intensity_percent,
+        }
+
+    def _recovery_signal(self, station_id: str) -> dict[str, Any] | None:
+        try:
+            assessment = self.ventilation_service.assess_recovery(station_id)
+        except Exception:
+            return None
+        if not assessment.eligible or not assessment.source_command_intent_id:
+            return None
+        evidence = assessment.as_evidence()
+        observed_at = evidence["window_end"]
+        return {
+            "alert_id": f"eco-recovery:{assessment.source_command_intent_id}",
+            "station_id": station_id,
+            "alert_type": "ventilation_recovery",
+            "rule_version": assessment.policy_version,
+            "severity": "info",
+            "status": "active",
+            "created_at": observed_at,
+            "updated_at": observed_at,
+            "source": f"backend_alert_rule:{assessment.policy_version}",
+            "ventilation_recovery_eligible": True,
+            "ventilation_evidence": evidence,
+            "device_id": assessment.device_id,
+            "recommended_action": "eco_mode",
         }
 
     def resolve_alert(self, alert_id: str, *, actor_id: str, actor_role: str, correlation_id: str | None) -> dict[str, Any]:

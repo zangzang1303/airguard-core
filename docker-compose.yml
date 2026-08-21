@@ -18,6 +18,24 @@ services:
       timeout: 5s
       retries: 5
 
+  db-migrate:
+    image: postgres:16
+    container_name: airguard-db-migrate
+    environment:
+      PGPASSWORD: airguard
+    volumes:
+      - ./backend/db/migrations:/migrations:ro
+    command:
+      - sh
+      - -c
+      - >-
+        psql -v ON_ERROR_STOP=1 -h postgres -U airguard -d airguard
+        -f /migrations/20260820_001_auth_foundation.sql
+        -f /migrations/20260821_002_auto_ventilation_reports.sql
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   mqtt:
     image: eclipse-mosquitto:2
     container_name: airguard-mqtt
@@ -85,11 +103,21 @@ services:
       AUTO_PROPOSAL_ENABLED: ${AUTO_PROPOSAL_ENABLED:-true}
       AUTO_PROPOSAL_STATIONS: ${AUTO_PROPOSAL_STATIONS:-}
       PROPOSAL_PENDING_TTL_SECONDS: ${PROPOSAL_PENDING_TTL_SECONDS:-3600}
+      VENTILATION_TRIGGER_MINUTES: ${VENTILATION_TRIGGER_MINUTES:-15}
+      VENTILATION_RECOVERY_MINUTES: ${VENTILATION_RECOVERY_MINUTES:-20}
+      VENTILATION_DEFAULT_DURATION_MINUTES: ${VENTILATION_DEFAULT_DURATION_MINUTES:-45}
+      VENTILATION_INTENSITY_PERCENT: ${VENTILATION_INTENSITY_PERCENT:-80}
+      VENTILATION_MAX_GAP_SECONDS: ${VENTILATION_MAX_GAP_SECONDS:-60}
+      REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Ho_Chi_Minh}
+      REPORT_NARRATIVE_ENDPOINT: ${REPORT_NARRATIVE_ENDPOINT:-}
+      REPORT_NARRATIVE_TIMEOUT_SECONDS: ${REPORT_NARRATIVE_TIMEOUT_SECONDS:-5}
+      REPORT_NARRATIVE_SERVICE_TOKEN: ${REPORT_NARRATIVE_SERVICE_TOKEN:-}
       AUTH_DEMO_MODE: ${AUTH_DEMO_MODE:-true}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8000/api/v1/auth/google/callback}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-disabled}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
@@ -110,6 +138,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
 
   agent:
     build:
@@ -242,9 +272,15 @@ services:
       JOB_PERSISTENCE_ENABLED: "true"
       AGENT_SERVICE_URL: http://agent:8001
       AGENT_SERVICE_TIMEOUT_SECONDS: 8
+      REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Ho_Chi_Minh}
+      REPORT_NARRATIVE_ENDPOINT: ${REPORT_NARRATIVE_ENDPOINT:-}
+      REPORT_NARRATIVE_TIMEOUT_SECONDS: ${REPORT_NARRATIVE_TIMEOUT_SECONDS:-5}
+      REPORT_NARRATIVE_SERVICE_TOKEN: ${REPORT_NARRATIVE_SERVICE_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       redis:
@@ -253,6 +289,32 @@ services:
         condition: service_started
       agent:
         condition: service_started
+
+  celery-beat:
+    build:
+      context: ./backend
+    container_name: airguard-celery-beat
+    profiles: ["async-jobs"]
+    command: celery -A app.celery_app:celery_app beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
+    environment:
+      DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
+      CELERY_BROKER_URL: amqp://airguard:airguard@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_TASK_ALWAYS_EAGER: "false"
+      JOB_PERSISTENCE_ENABLED: "true"
+      REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Ho_Chi_Minh}
+      REPORT_NARRATIVE_ENDPOINT: ${REPORT_NARRATIVE_ENDPOINT:-}
+      REPORT_NARRATIVE_TIMEOUT_SECONDS: ${REPORT_NARRATIVE_TIMEOUT_SECONDS:-5}
+      REPORT_NARRATIVE_SERVICE_TOKEN: ${REPORT_NARRATIVE_SERVICE_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:

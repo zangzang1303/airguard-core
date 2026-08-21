@@ -40,10 +40,15 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/approvals?status=` | manager queue | 200 | 403/503 |
 | GET `/approvals/{id}` | manager detail | 200 | 403/404/503 |
 | POST `/approvals/{id}/approve` | manager approve with version | 200 | 403/409/422/503 |
+| POST `/approvals/{id}/quick-approve` | manager one-step approve using the same HITL checks plus idempotency key | 200 | 403/409/422/503 |
 | POST `/approvals/{id}/reject` | manager reject with note and version | 200 | 403/409/422/503 |
 | GET `/audit-logs` | manager read-only audit query | 200 | 403/503 |
 | GET `/devices` | simulated device list | 200 | 503 |
 | GET `/devices/{id}/status` | simulated device status | 200 | 404/503 |
+| GET `/reports?type=daily|weekly&limit=&offset=` | manager report list | 200 | 401/403/422/503 |
+| GET `/reports/{id}` | manager report detail from one persisted record | 200 | 401/403/404/422/503 |
+| POST `/reports/generate` | manager manual deterministic report generation | 201 | 401/403/409/422/503 |
+| GET `/reports/{id}/export?format=markdown|html|pdf` | export the same persisted report record | 200 | 401/403/404/409/422/503 |
 
 ## Station response
 
@@ -64,8 +69,21 @@ Manager reviews it. Pending proposals automatically expire after `PROPOSAL_PENDI
 longer be approved or dispatched. No Manager decision or device command is automated. A failed/missing LLM is
 audited and leaves the alert active without a proposal.
 
-For a focused demo, `AUTO_PROPOSAL_STATIONS=S05` restricts automatic proposal creation to S05.
+For a focused demo, `AUTO_PROPOSAL_STATIONS=S03` matches the `spike` scenario and registered `FILTER-01` device.
 Other stations may still produce backend alerts, but their alerts do not schedule Agent proposals.
+
+For auto ventilation, only `pm25_threshold` and `co2_threshold` alerts qualify. The Rule Engine must
+also prove a continuous valid/fresh window longer than or equal to 15 minutes with PM2.5 strictly
+above 50 µg/m³ or CO₂ strictly above 1000 ppm. The canonical action is
+`ventilation_boost`; the backend resolves `device_id` from its device registry and applies the
+default `duration_minutes=45` and `intensity_percent=80`. LLM output cannot choose a device,
+threshold, duration or intensity. The additive device action allow-list is
+`ventilation_boost|air_purifier_on|eco_mode`; timed actions accept 5..180 minutes. Existing
+non-device warning actions remain readable for compatibility.
+
+After a successfully acknowledged boost, a continuous 20-minute valid window at or below both safe
+thresholds may create one idempotent `pending` `eco_mode` proposal. It still requires Manager
+approval and never dispatches automatically.
 
 ## Ingestion response
 
@@ -80,6 +98,52 @@ History items include `message_id`, `station_id`, `measured_at`, `received_at`, 
 ```
 
 `X-User-Role: manager` is required for list/detail/approve/reject/audit. `X-User-ID` must be a UUID for review actions. Approve creates a `device_command_intents` row only when `device_id` is present. Reject never creates dispatch intent and requires a non-empty note.
+
+The authenticated implementation derives identity and role from the HttpOnly session; legacy
+identity headers are not trusted. Approve, quick-approve, reject and report generation require the
+double-submit CSRF token. Quick approve uses the same JSON body and additionally requires an
+`Idempotency-Key` header of at least eight characters. A retry with the same key returns the original
+approved result and must not create or publish a second command. A stale version or a different key
+after review returns `409`.
+
+Ventilation proposal/approval responses add `device_id`, canonical `proposed_action`, optional
+`duration_minutes`, optional `intensity_percent`, `review_mode` and the command intent state. MQTT
+publication and device acknowledgement are separate states. The dispatcher persists `command_id`;
+the consumer correlates the simulator status event to that command and audits success, rejection or
+failure. UI must not show `RUNNING_BOOST` until the acknowledged device state is returned.
+
+## Environmental report request and response
+
+Manual generation accepts:
+
+```json
+{
+  "type": "daily",
+  "period_start": "2026-08-20T00:00:00+07:00",
+  "period_end": "2026-08-21T00:00:00+07:00",
+  "timezone": "Asia/Ho_Chi_Minh"
+}
+```
+
+`period_start` and `period_end` must both be omitted or both be timezone-aware. When omitted, daily
+generation uses the last completed local day and weekly generation uses the last completed
+Monday-to-Monday week. The identity `(type, period_start, period_end, timezone)` is idempotent;
+repeated manual or scheduled generation reuses the persisted record.
+
+Each report contains `report_id`, `report_type`, half-open time range, `timezone`, generation
+`status`, deterministic `statistics`, `evidence_summary`, `narrative`, `generation_mode`,
+`model_source`, timestamps and an optional sanitized `failure_code`. Statistics include valid and
+excluded sample counts, per-station AQI/PM2.5/CO₂/noise/temperature aggregates, daily trend,
+weekday/weekend comparison, alert/proposal counts, acknowledged ventilation activation duration and
+before/after effectiveness. AQI is derived by backend policy from stored PM2.5; quantitative values
+never come from the LLM.
+
+The optional narrative provider receives aggregate evidence only. A response is accepted as
+`generation_mode=live_llm` only when it satisfies the grounded narrative contract. Missing,
+timed-out, malformed or unsafe provider output stores a `deterministic_grounded` narrative and a
+sanitized fallback reason without failing the statistics report. All report records retain the
+simulator/non-certified disclaimer and contain no raw prompt, secret, session token, email or user
+profile. Markdown, HTML and PDF exports render the same stored record; they never recalculate data.
 
 ## Agent response
 The canonical backend `POST /api/v1/agent/chat` accepts

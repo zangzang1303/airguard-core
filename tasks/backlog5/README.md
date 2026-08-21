@@ -40,3 +40,9 @@
 - [ ] Ban quản lý có thể kích hoạt hệ thống thông gió tòa nhà chỉ với 1 click xác nhận khi có đợt spike ô nhiễm.
 - [ ] Báo cáo tổng kết chất lượng môi trường được sinh tự động, có phân tích chuyên sâu của AI.
 - [ ] Tất cả tính năng nâng cao đã được update lên Live URL thành công.
+
+## 4. Cập nhật Person B — 21/08/2026
+
+- **B5-AUTO-01:** implementation và test backend/Agent/IoT hoàn tất; full-stack latency `< 1 giây` chưa được đo vì Docker daemon không hoạt động trong phiên kiểm tra.
+- **B5-REP-01:** daily/weekly persistence, API, Celery Beat, grounded narrative fallback và Markdown/HTML/PDF export đã hoàn tất.
+- Contract và quyết định an toàn nằm tại `specs/api-contracts.md`, `specs/domain-model.md` và ADR 0011; không có auto-approve hay direct Agent-to-MQTT path.

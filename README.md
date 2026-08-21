@@ -131,6 +131,10 @@ Stack cơ bản dùng eager/in-memory cho demo. Để bật RabbitMQ, Redis và 
 docker compose --profile async-jobs up -d --build
 ```
 
+Profile này khởi động thêm Celery worker và Celery Beat. Beat tạo báo cáo của ngày đã hoàn tất lúc
+00:10 hằng ngày và báo cáo tuần đã hoàn tất lúc 00:20 thứ Hai theo `REPORT_TIMEZONE`; khóa duy nhất
+`report_type + period_start + period_end + timezone` ngăn tạo trùng.
+
 ### 5. Dừng
 
 ```bash
@@ -306,10 +310,16 @@ Không cần nhập prompt tạo proposal để demo luồng tự động. Khi c
 ## HITL, audit và notification
 
 - Agent chỉ tạo proposal `pending` khi có fresh evidence và active alert.
+- Proposal `ventilation_boost`/`air_purifier_on` chỉ hợp lệ khi backend xác nhận PM2.5 > 50 µg/m³
+  hoặc CO₂ > 1000 ppm liên tục 15 phút; dữ liệu stale/offline/invalid hoặc có gap sẽ bị chặn.
 - Chỉ role `manager` được approve/reject ở backend.
+- Quick approve vẫn bắt buộc session Manager, CSRF, expected version, idempotency key và audit.
 - Approve có thể tạo command intent; dispatcher mới publish MQTT.
+- ACK simulator được đối chiếu bằng `command_id`; UI không coi trạng thái publish là thiết bị đã thực thi.
 - Reject không tạo device command.
 - Proposal create/review/dispatch/failure có audit và correlation ID.
+- Sau một boost thành công và 20 phút dữ liệu an toàn liên tục, backend chỉ tạo proposal `eco_mode`
+  `pending`; Manager vẫn phải duyệt trước dispatch.
 - SMTP gửi thật khi `NOTIFICATION_PROVIDER=smtp` và cấu hình SMTP hợp lệ.
 
 Auth frontend hiện là demo identity, chưa phải authentication production.
@@ -331,7 +341,12 @@ Base URL: `/api/v1`.
 | `POST /proposals` | Tạo proposal pending |
 | `GET /approvals` | Manager queue |
 | `POST /approvals/{id}/approve` | Manager approve |
+| `POST /approvals/{id}/quick-approve` | Manager quick approve có CSRF/version/idempotency |
 | `POST /approvals/{id}/reject` | Manager reject |
+| `GET /reports?type=daily|weekly` | Danh sách báo cáo đã lưu cho Manager |
+| `GET /reports/{id}` | Chi tiết cùng một report record |
+| `POST /reports/generate` | Manager tạo báo cáo thủ công |
+| `GET /reports/{id}/export?format=markdown|html|pdf` | Xuất report record đã lưu |
 | `GET /audit-logs` | Audit cho manager |
 | `GET /devices` | Device simulator state |
 
@@ -359,8 +374,13 @@ Sao chép `.env.example` thành `.env`; không commit file `.env`. Stack demo c�
 | `PM25_ALERT_CONSECUTIVE_MEASUREMENTS` | Không | Số phép đo PM2.5 liên tiếp vượt ngưỡng; mặc định 2. |
 | `*_WARNING_THRESHOLD`, `*_CRITICAL_THRESHOLD` | Không | Ngưỡng MVP cho PM2.5, AQI, CO₂, tiếng ồn và nhiệt độ. |
 | `AUTO_PROPOSAL_ENABLED` | Không | Bật/tắt automatic warning proposal; mặc định `true`. |
-| `AUTO_PROPOSAL_STATIONS` | Không | Để trống là mọi trạm; đặt `S05` để demo chỉ tạo proposal tự động cho S05. |
+| `AUTO_PROPOSAL_STATIONS` | Không | Để trống là mọi trạm; đặt `S03` cho demo `spike` vì `FILTER-01` được đăng ký tại S03. |
 | `PROPOSAL_PENDING_TTL_SECONDS` | Không | Thời gian proposal chờ xử lý trước khi chuyển `expired`; mặc định 3600 giây. |
+| `VENTILATION_TRIGGER_MINUTES`, `VENTILATION_RECOVERY_MINUTES` | Không | Cửa sổ liên tục cho proposal boost/eco; mặc định 15/20 phút. |
+| `VENTILATION_DEFAULT_DURATION_MINUTES`, `VENTILATION_INTENSITY_PERCENT` | Không | Policy điều khiển backend; mặc định 45 phút/80%. |
+| `VENTILATION_MAX_GAP_SECONDS` | Không | Gap tối đa trong chuỗi hợp lệ; mặc định 60 giây. |
+| `REPORT_TIMEZONE` | Không | Múi giờ kỳ báo cáo và Celery Beat; mặc định `Asia/Ho_Chi_Minh`. |
+| `REPORT_NARRATIVE_ENDPOINT` | Không | Endpoint LLM nội bộ tùy chọn; để trống dùng narrative deterministic grounded. |
 | `NOTIFICATION_PROVIDER` | Không | Mặc định `disabled`; đặt `smtp` chỉ khi đã cấu hình SMTP. |
 | `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD` | Chỉ khi dùng SMTP | Secret local; không in ra log, screenshot hoặc commit. |
 | `CELERY_TASK_ALWAYS_EAGER` | Không | `true` trong demo; async worker thật dùng profile `async-jobs`. |

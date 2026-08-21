@@ -10,6 +10,11 @@ import {
   AdminUser,
   AdminAuditEntry,
   UserMutationResult,
+  Report,
+  ReportExport,
+  ReportExportFormat,
+  ReportGenerateRequest,
+  ReportType,
   SpatialHeatmapResponse,
   SpatialHeatmapPoint,
 } from "../types";
@@ -276,6 +281,8 @@ export async function apiFetch<T>(
 
 function mapProposal(request: Record<string, any>): Proposal {
   const rawEvidence = request.evidence ?? {};
+  const rawControl =
+    rawEvidence.control && typeof rawEvidence.control === "object" ? rawEvidence.control : {};
   const evidenceItems = Array.isArray(rawEvidence.items) ? rawEvidence.items : [];
   const currentEvidence = evidenceItems.find((item: Record<string, any>) => item.source_tool === "get_current_pm25") ?? {};
   const alertEvidence = evidenceItems.find((item: Record<string, any>) => item.source_tool === "get_active_alerts") ?? {};
@@ -292,20 +299,75 @@ function mapProposal(request: Record<string, any>): Proposal {
   };
   const actionLabels: Record<string, string> = {
     notify_station_area_users: "Gửi cảnh báo đến người dân trong khu vực",
+    ventilation_boost: "Tăng cường thông gió",
+    air_purifier_on: "Bật hệ thống lọc không khí",
+    eco_mode: "Đưa thiết bị về chế độ tiết kiệm",
   };
+  const deviceId = request.device_id ?? rawControl.device_id ?? null;
+  const proposedAction = request.proposed_action ?? rawControl.action;
+  const rawDispatchStatus = request.dispatch_status ?? request.command_intent?.status;
+  const dispatchStatus: Proposal["dispatch_status"] =
+    rawDispatchStatus === "queued"
+      ? "queued"
+      : rawDispatchStatus === "pending" || rawDispatchStatus === "published"
+        ? "pending"
+        : rawDispatchStatus === "succeeded" || rawDispatchStatus === "acknowledged"
+          ? "succeeded"
+          : rawDispatchStatus === "failed" || rawDispatchStatus === "rejected"
+            ? "failed"
+            : rawDispatchStatus === "not_configured"
+              ? "not_configured"
+              : "unknown";
   return {
     proposal_id: request.request_id,
     station_id: request.station_id,
+    request_type: request.request_type,
+    device_id: deviceId,
+    proposed_action: proposedAction,
+    duration_minutes:
+      request.duration_minutes ?? request.command_intent?.duration_minutes ?? rawControl.duration_minutes ?? null,
     severity: evidence.severity ?? "unknown",
-    target: request.device_id ?? request.station_id ?? "Không xác định",
-    action: actionLabels[request.proposed_action] ?? request.proposed_action,
+    target: deviceId ?? request.station_id ?? "Không xác định",
+    action: actionLabels[proposedAction] ?? proposedAction,
     rationale: request.reason ?? "Backend không cung cấp lý do.",
     status: request.status,
     created_at: request.created_at,
     created_by: request.created_by,
     evidence,
     version: request.version ?? 1,
-    dispatch_status: request.command_intent?.status ?? "unknown",
+    reviewed_by: request.reviewed_by,
+    reviewed_at: request.reviewed_at,
+    review_note: request.review_note,
+    dispatch_status: dispatchStatus,
+  };
+}
+
+async function downloadApiFile(endpoint: string): Promise<ReportExport> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, { credentials: "include" });
+  if (!response.ok) {
+    let errorBody: Record<string, any> | null = null;
+    try {
+      errorBody = await response.json();
+    } catch {
+      // The shared API error envelope may be unavailable for proxy-level failures.
+    }
+    const error: any = new Error(errorBody?.message || `API Error ${response.status}: ${response.statusText}`);
+    error.status = response.status;
+    error.code = errorBody?.code;
+    error.details = errorBody?.details;
+    throw error;
+  }
+
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const quotedFilename = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  const filename = encodedFilename
+    ? decodeURIComponent(encodedFilename)
+    : quotedFilename || "airguard-report";
+  return {
+    blob: await response.blob(),
+    filename,
+    media_type: response.headers.get("Content-Type") ?? "application/octet-stream",
   };
 }
 
@@ -557,12 +619,49 @@ export const api = {
     return mapProposal(data);
   },
 
+  quickApproveProposal: async (
+    proposalId: string,
+    version: number,
+    note: string,
+    idempotencyKey: string,
+    _actor?: DemoApiActor,
+  ): Promise<Proposal> => {
+    const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/quick-approve`, {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ version, note }),
+    });
+    return mapProposal(data);
+  },
+
   rejectProposal: async (proposalId: string, version: number, note: string, _actor?: DemoApiActor): Promise<Proposal> => {
     const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/reject`, {
       method: "POST",
       body: JSON.stringify({ version, note }),
     });
     return mapProposal(data);
+  },
+
+  getReports: async (type: ReportType): Promise<Report[]> => {
+    const data = await apiFetch<{ items: Report[] }>(`/api/v1/reports?type=${encodeURIComponent(type)}`);
+    return data.items;
+  },
+
+  getReport: async (reportId: string): Promise<Report> => {
+    return apiFetch<Report>(`/api/v1/reports/${encodeURIComponent(reportId)}`);
+  },
+
+  generateReport: async (input: ReportGenerateRequest): Promise<Report> => {
+    return apiFetch<Report>("/api/v1/reports/generate", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  exportReport: async (reportId: string, format: ReportExportFormat): Promise<ReportExport> => {
+    return downloadApiFile(
+      `/api/v1/reports/${encodeURIComponent(reportId)}/export?format=${encodeURIComponent(format)}`,
+    );
   },
 
   getAuditLogs: async (_actor?: DemoApiActor): Promise<AuditLogEntry[]> => {

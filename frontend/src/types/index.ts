@@ -272,6 +272,10 @@ export interface Evidence {
 export interface Proposal {
   proposal_id: string;
   station_id: string;
+  request_type?: string;
+  device_id?: string | null;
+  proposed_action?: "notify_station_area_users" | "ventilation_boost" | "air_purifier_on" | "eco_mode";
+  duration_minutes?: number | null;
   severity: string;
   target: string;
   action: string;
@@ -285,6 +289,129 @@ export interface Proposal {
   reviewed_at?: string;
   review_note?: string;
   dispatch_status?: "unknown" | "not_configured" | "queued" | "pending" | "succeeded" | "failed";
+}
+
+export type ReportType = "daily" | "weekly";
+export type ReportStatus = "generating" | "completed" | "failed";
+export type ReportGenerationMode = "live_llm" | "deterministic_grounded";
+export type ReportTrendDirection = "improving" | "worsening" | "stable" | "insufficient_data";
+export type VentilationEffectivenessOutcome = "improved" | "worsened" | "mixed" | "insufficient_data";
+export type ReportExportFormat = "markdown" | "html" | "pdf";
+
+export interface ReportStationStatistics {
+  station_id: string;
+  sample_count: number;
+  avg_aqi: number | null;
+  max_aqi: number | null;
+  avg_pm25: number | null;
+  max_pm25: number | null;
+  avg_co2: number | null;
+  max_co2: number | null;
+  avg_noise_db: number | null;
+  max_noise_db: number | null;
+  avg_temperature: number | null;
+  max_temperature: number | null;
+}
+
+export interface ReportMeasurementStatistics {
+  valid_sample_count: number;
+  excluded_sample_count: number;
+  station_count: number;
+  overall_avg_aqi: number | null;
+  overall_max_aqi: number | null;
+  worst_station_id: string | null;
+  stations: ReportStationStatistics[];
+}
+
+export interface ReportDailyTrendPoint {
+  date: string;
+  valid_sample_count: number;
+  avg_aqi: number | null;
+  avg_pm25: number | null;
+}
+
+export interface ReportTrendStatistics {
+  direction: ReportTrendDirection;
+  daily_series: ReportDailyTrendPoint[];
+  weekday_avg_aqi: number | null;
+  weekend_avg_aqi: number | null;
+  weekend_minus_weekday_aqi: number | null;
+}
+
+export interface ReportCountBreakdown {
+  total_count: number;
+  threshold_exceedance_count: number;
+  by_type: Record<string, number>;
+  by_severity: Record<string, number>;
+}
+
+export interface ReportProposalStatistics {
+  total_count: number;
+  by_status: Record<string, number>;
+  by_action: Record<string, number>;
+}
+
+export interface VentilationEffectivenessStatistics {
+  evaluated_cycle_count: number;
+  insufficient_cycle_count: number;
+  mean_pm25_change: number | null;
+  mean_pm25_change_percent: number | null;
+  mean_co2_change: number | null;
+  mean_co2_change_percent: number | null;
+  outcome: VentilationEffectivenessOutcome;
+}
+
+export interface ReportVentilationStatistics {
+  activation_count: number;
+  total_duration_minutes: number;
+  by_action: Record<string, number>;
+  effectiveness: VentilationEffectivenessStatistics;
+}
+
+export interface ReportDataQualityStatistics {
+  source_labels: string[];
+  disclaimer: string;
+}
+
+export interface ReportStatistics {
+  measurements: ReportMeasurementStatistics;
+  trends: ReportTrendStatistics;
+  alerts: ReportCountBreakdown;
+  proposals: ReportProposalStatistics;
+  ventilation: ReportVentilationStatistics;
+  data_quality: ReportDataQualityStatistics;
+}
+
+export interface Report {
+  report_id: string;
+  report_type: ReportType;
+  period_start: string;
+  period_end: string;
+  timezone: string;
+  status: ReportStatus;
+  statistics: ReportStatistics;
+  evidence_summary: Record<string, unknown>;
+  narrative: string;
+  generation_mode: ReportGenerationMode;
+  model_source: string;
+  generated_by: string | null;
+  failure_code: string | null;
+  created_at: string;
+  completed_at: string | null;
+  reused?: boolean;
+}
+
+export interface ReportGenerateRequest {
+  type: ReportType;
+  period_start?: string;
+  period_end?: string;
+  timezone: string;
+}
+
+export interface ReportExport {
+  blob: Blob;
+  filename: string;
+  media_type: string;
 }
 
 export interface AuditLogEntry {

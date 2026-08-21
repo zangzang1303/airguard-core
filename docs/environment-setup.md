@@ -14,6 +14,18 @@ Start the full local stack:
 docker compose up --build
 ```
 
+`db-migrate` applies the additive authentication and Auto Ventilation/Report migrations before the
+backend starts. Existing named volumes are preserved. To enable scheduled daily/weekly reports,
+start the async profile, which includes RabbitMQ, Redis, Celery worker and Celery Beat:
+
+```powershell
+docker compose --profile async-jobs up -d --build
+```
+
+Beat uses `REPORT_TIMEZONE` (default `Asia/Ho_Chi_Minh`): daily at 00:10 and weekly at 00:20 on
+Monday. Scheduled/manual retries reuse the same persisted report range rather than creating a
+second record.
+
 The development frontend bind-mounts `frontend/src` and the Vite/TypeScript
 configuration, while `node_modules` stays inside the rebuilt image. Source and
 style edits therefore keep Vite HMR, and dependency changes require rebuilding
@@ -87,3 +99,17 @@ The migration is transactional and safe to re-run. It intentionally fails when l
 users contain emails that differ only by letter case; resolve those identities manually
 before retrying. The migration stores only token hashes and does not enable login APIs or
 replace the current demo-header RBAC by itself.
+
+### Apply the Auto Ventilation and Report migration
+
+Compose applies this migration through `db-migrate`. For an existing database managed outside
+Compose, apply it explicitly after the authentication migration:
+
+```powershell
+Get-Content -Raw backend/db/migrations/20260821_002_auto_ventilation_reports.sql |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U airguard -d airguard
+```
+
+The migration is additive and safe to re-run. It adds proposal control/review metadata, durable
+device-command ACK events and persisted environmental reports; it does not approve or dispatch any
+proposal.

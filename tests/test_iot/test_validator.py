@@ -176,12 +176,42 @@ def test_valid_station_status_accepts_source_and_timezone() -> None:
 
 
 def test_valid_device_status_accepts_simulated_ack() -> None:
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
     result = validate_device_status_message(
         "airguard/devices/FILTER-01/status",
         '{"command_id":"cmd-1","device_id":"FILTER-01","status":"succeeded",'
         '"timestamp":"2026-08-03T08:00:00+00:00","is_simulated":true}',
+        now=now,
     )
 
     assert result.accepted is True
     assert result.payload is not None
     assert result.payload.is_simulated is True
+
+
+def test_device_ack_rejects_future_timestamp_beyond_configured_skew() -> None:
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    result = validate_device_status_message(
+        "airguard/devices/FILTER-01/status",
+        '{"command_id":"cmd-future","device_id":"FILTER-01","status":"succeeded",'
+        '"timestamp":"2026-08-03T08:01:01+00:00","is_simulated":true}',
+        now=now,
+        max_future_skew_seconds=60,
+    )
+
+    assert result.accepted is False
+    assert result.reason == ValidationErrorCode.FUTURE_TIME
+
+
+def test_device_ack_rejects_stale_replay_before_storage_mutation() -> None:
+    now = datetime(2026, 8, 3, 8, 10, tzinfo=timezone.utc)
+    result = validate_device_status_message(
+        "airguard/devices/FILTER-01/status",
+        '{"command_id":"cmd-stale","device_id":"FILTER-01","status":"rejected",'
+        '"timestamp":"2026-08-03T08:04:59+00:00","is_simulated":true}',
+        now=now,
+        stale_after_seconds=300,
+    )
+
+    assert result.accepted is False
+    assert result.reason == ValidationErrorCode.STALE

@@ -189,7 +189,7 @@ async def test_repeated_workflow_reuses_idempotent_proposal():
     assert len(adapter.created_proposals) == 1
     assert adapter.created_proposals[0]["idempotency_key"] == proposal_idempotency_key(
         "S02",
-        "alert-S02-001",
+        "ALT-001",
     )
 
 

@@ -17,11 +17,9 @@ class AutomaticProposalService:
 
     SYSTEM_USER_ID = "system-alert-agent"
     ELIGIBLE_ALERT_TYPES = {
-        "aqi_threshold",
         "pm25_threshold",
         "co2_threshold",
-        "noise_threshold",
-        "temperature_threshold",
+        "ventilation_recovery",
     }
 
     def __init__(
@@ -45,7 +43,13 @@ class AutomaticProposalService:
         self.approval_service.expire_pending_requests()
         if not self.enabled or not alert or alert.get("status") != "active":
             return False
-        if alert.get("alert_type") not in self.ELIGIBLE_ALERT_TYPES:
+        alert_type = alert.get("alert_type")
+        if alert_type not in self.ELIGIBLE_ALERT_TYPES:
+            return False
+        if alert_type == "ventilation_recovery":
+            if alert.get("ventilation_recovery_eligible") is not True:
+                return False
+        elif alert.get("ventilation_eligible") is not True:
             return False
         station_id = alert.get("station_id")
         created_at = alert.get("created_at")
@@ -80,8 +84,19 @@ class AutomaticProposalService:
                     details={"reason": "pending_proposal_exists", "station_id": station_id},
                 )
                 return
+            if alert.get("alert_type") == "ventilation_recovery":
+                self._create_eco_recovery_proposal(
+                    alert=alert,
+                    alert_id=alert_id,
+                    station_id=station_id,
+                    correlation_id=correlation_id,
+                )
+                return
             analysis = self.agent_service.chat_sync(
-                message=f"Danh gia muc do anh huong moi truong tai {station_id}.",
+                message=(
+                    f"Danh gia grounded canh bao {alert_id} tai {station_id}; "
+                    "chi xem xet de xuat thong gio khi backend xac nhan du 15 phut."
+                ),
                 user_id=self.SYSTEM_USER_ID,
                 station_id=station_id,
                 request_id=f"{correlation_id}:analysis",
@@ -98,7 +113,10 @@ class AutomaticProposalService:
                 return
 
             proposal = self.agent_service.chat_sync(
-                message=f"Tao warning proposal cho {station_id} dua tren canh bao backend dang active.",
+                message=(
+                    f"Tao warning proposal ventilation_boost pending cho {station_id} "
+                    f"dua tren canh bao backend {alert_id}; khong phe duyet hoac dispatch."
+                ),
                 user_id=self.SYSTEM_USER_ID,
                 station_id=station_id,
                 request_id=f"{correlation_id}:proposal",
@@ -127,9 +145,65 @@ class AutomaticProposalService:
                 outcome="failure",
                 details={"reason": exc.code},
             )
+        except Exception as exc:
+            self._audit(
+                action="agent.auto_proposal.failure",
+                alert_id=alert_id,
+                correlation_id=correlation_id,
+                outcome="failure",
+                details={"reason": exc.__class__.__name__},
+            )
         finally:
             with self._schedule_lock:
                 self._scheduled_stations.discard(station_id)
+
+    def _create_eco_recovery_proposal(
+        self,
+        *,
+        alert: dict[str, Any],
+        alert_id: str,
+        station_id: str,
+        correlation_id: str,
+    ) -> None:
+        evidence = dict(alert.get("ventilation_evidence") or {})
+        source_intent_id = evidence.get("source_command_intent_id")
+        if not source_intent_id:
+            self._audit(
+                action="agent.auto_proposal.skipped",
+                alert_id=alert_id,
+                correlation_id=correlation_id,
+                outcome="skipped",
+                details={"reason": "recovery_source_intent_missing", "station_id": station_id},
+            )
+            return
+        evidence["control"] = {
+            "action": "eco_mode",
+            "duration_minutes": None,
+            "intensity_percent": None,
+            "policy_version": evidence.get("policy_version"),
+        }
+        proposal = self.approval_service.create_request(
+            request_type="warning_proposal",
+            station_id=station_id,
+            device_id=alert.get("device_id"),
+            proposed_action="eco_mode",
+            reason="Fresh valid simulator data remained at safe PM2.5 and CO2 levels for 20 minutes; Manager review is required before eco mode.",
+            evidence=evidence,
+            created_by="system_ventilation_policy",
+            correlation_id=correlation_id,
+            idempotency_key=f"eco-recovery:{source_intent_id}:v1",
+        )
+        self._audit(
+            action="agent.auto_proposal.create",
+            alert_id=alert_id,
+            correlation_id=correlation_id,
+            details={
+                "proposal_id": str(proposal["request_id"]),
+                "proposed_action": "eco_mode",
+                "source_command_intent_id": str(source_intent_id),
+                "reused": bool(proposal.get("reused")),
+            },
+        )
 
     def _audit(
         self,

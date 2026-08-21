@@ -131,7 +131,12 @@ def build_client(settings: ConsumerSettings, catalog: StationCatalog, store: Pos
 
         if topic.endswith("/status"):
             if DEVICE_STATUS_TOPIC_RE.match(topic):
-                result = validate_device_status_message(topic, raw_payload)
+                result = validate_device_status_message(
+                    topic,
+                    raw_payload,
+                    stale_after_seconds=settings.stale_after_seconds,
+                    max_future_skew_seconds=settings.max_future_skew_seconds,
+                )
                 if not result.accepted or not result.payload:
                     store.record_rejection(
                         topic=topic,

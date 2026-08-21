@@ -14,9 +14,9 @@ from src.agents.tools.contracts import (
     CurrentPm25Input,
     ExtendedForecastInput,
     Pm25ForecastInput,
+    SpatialAirQualityInput,
     StationComparison,
     StationHistoryInput,
-    SpatialAirQualityInput,
     ToolEnvelope,
     ToolError,
     ToolErrorCode,
@@ -191,18 +191,44 @@ class BackendToolClient:
             args = WarningProposalInput.model_validate(payload)
         except ValidationError as exc:
             return self._validation_error(ToolName.CREATE_WARNING_PROPOSAL, request_id, exc)
+        evidence_items: list[dict[str, Any]] = []
+        ventilation_fields = {
+            "alert_type",
+            "ventilation_eligible",
+            "ventilation_policy_version",
+            "qualified_duration_seconds",
+            "qualification_window_start",
+            "qualification_window_end",
+            "triggered_metrics",
+        }
+        for item in args.evidence:
+            serialized = item.model_dump(mode="json")
+            for field in ventilation_fields:
+                if serialized.get(field) in (None, []):
+                    serialized.pop(field, None)
+            evidence_items.append(serialized)
+
+        evidence_payload: dict[str, Any] = {
+            "items": evidence_items,
+            "target": args.target.model_dump(mode="json"),
+            "policy_version": args.policy_version,
+            "requested_by": args.user_id,
+            "expires_at": args.expires_at.isoformat() if args.expires_at else None,
+        }
+        if args.action in {"ventilation_boost", "air_purifier_on", "eco_mode"}:
+            evidence_payload["control"] = {
+                "action": args.action,
+                "duration_minutes": args.duration_minutes,
+                "intensity_percent": args.intensity_percent,
+                "mapping_source": "backend_device_registry",
+            }
+
         backend_payload = {
             "request_type": "warning_proposal",
             "station_id": args.target.station_id,
             "proposed_action": args.action,
             "reason": args.rationale,
-            "evidence": {
-                "items": [item.model_dump(mode="json") for item in args.evidence],
-                "target": args.target.model_dump(mode="json"),
-                "policy_version": args.policy_version,
-                "requested_by": args.user_id,
-                "expires_at": args.expires_at.isoformat() if args.expires_at else None,
-            },
+            "evidence": evidence_payload,
             "created_by": "ai_agent",
         }
         return await self._request_and_validate(

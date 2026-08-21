@@ -60,6 +60,15 @@ Cảm biến CO2 > 1000 ppm HOẶC PM2.5 > 50 µg/m³ kéo dài > 15 phút
 
 ## 3. Tiêu chuẩn nghiệm thu
 
-- [ ] Khi simulator phát kịch bản `spike`, hệ thống tự động sinh Proposal thông gió mà không cần thao tác gõ lệnh thủ công.
-- [ ] BQL bấm Duyệt 1 chạm $\rightarrow$ Device Simulator nhận command trong $< 1$ giây $\rightarrow$ Trạng thái thiết bị đổi sang `RUNNING_BOOST`.
-- [ ] Báo cáo môi trường định kỳ được sinh tự động, số liệu thống kê khớp 100% với dữ liệu database, lời bình của AI khách quan, mạch lạc.
+- [x] Kịch bản `spike` tại S03 đi qua Rule Engine 15 phút, live-LLM grounded analysis và tạo đúng một proposal thông gió `pending`; stale/offline/invalid/gap bị chặn.
+- [ ] BQL bấm Duyệt 1 chạm $\rightarrow$ Device Simulator nhận command trong $< 1$ giây $\rightarrow$ trạng thái đổi sang `RUNNING_BOOST`. Luồng RBAC/CSRF/version/idempotency/dispatch/ACK đã có test; mốc latency cần đo lại khi Docker daemon và full stack hoạt động.
+- [x] Báo cáo daily/weekly được Celery Beat lập lịch, aggregation khớp fixture DB trong test, export Markdown/HTML/PDF dùng cùng record và LLM lỗi có deterministic grounded fallback.
+
+## 4. Trạng thái triển khai Person B — 21/08/2026
+
+- `approval_requests` vẫn là system of record; migration chỉ thêm field/lifecycle và không tạo bảng proposal thứ hai.
+- Backend tự map S03 sang `FILTER-01`; action allow-list là `ventilation_boost`, `air_purifier_on`, `eco_mode`.
+- `eco_mode` sau 20 phút an toàn chỉ được tạo ở trạng thái `pending`; không bypass Manager HITL theo ADR 0011.
+- ACK được correlate bằng stable `command_id`, lưu event/audit và không cho ACK unmatched/out-of-order đổi device truth.
+- Report lưu type/range/timezone/status/statistics/evidence/narrative/mode/source; retry failed hoặc lease stale dùng cùng report record.
+- Test phạm vi nằm tại `test_auto_ventilation.py`, `test_quick_approval.py`, `test_report_generator.py`, `test_person_b_api_security.py` và IoT storage/device tests.

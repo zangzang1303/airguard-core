@@ -2,49 +2,50 @@ import asyncio
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Any
+from typing import Any, Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from .core import Settings
-from .schemas.measurements import MeasurementIngestionRequest
-from .services.agent_service import AgentService, AgentServiceError
-from .services.alert_engine import AlertEngine
-from .services.automatic_proposal_service import AutomaticProposalService
 from .dependencies.auth import (
     get_auth_service,
     get_current_user,
-    get_optional_user,
-    require_admin,
     require_manager,
     set_auth_service,
 )
+from .schemas.measurements import MeasurementIngestionRequest
+from .services.agent_service import AgentService
+from .services.alert_engine import AlertEngine
+from .services.approval_service import ApprovalService, configure_default_service
+from .services.audit_service import AuditService
 from .services.auth_service import AuthService
-from .services.email_service import AuthEmailService
+from .services.automatic_proposal_service import AutomaticProposalService
 from .services.csrf_service import (
     CSRF_COOKIE_NAME,
-    CSRF_HEADER_NAME,
     generate_csrf_token,
     validate_csrf,
 )
 from .services.database import Database, ServiceError, dict_cursor
-from .services.approval_service import ApprovalService, configure_default_service
-from .services.audit_service import AuditService
 from .services.device_service import DeviceService
+from .services.email_service import AuthEmailService
 from .services.forecast_service import InsufficientForecastHistory, trend_forecast
+from .services.geospatial_agent_service import geospatial_agent
 from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
+from .services.prophet_forecast_service import prophet_service
+from .services.report_generator_service import ReportGeneratorService
+from .services.report_narrative_service import HttpReportNarrator
+from .services.report_repository import PostgresReportRepository
 from .services.spatial_dispersion_service import SpatialDispersionService
 from .services.station_service import StationService
-from .services.prophet_forecast_service import prophet_service
-from .services.geospatial_agent_service import geospatial_agent
 from .services.user_service import UserService
+from .services.ventilation_service import VentilationService
 from .services.weather_service import WeatherService
 
 try:
@@ -102,6 +103,8 @@ class ApprovalCreateRequest(BaseModel):
     proposed_action: str = Field(..., min_length=3, max_length=100, examples=["notify_sensitive_users"])
     reason: str = Field(..., min_length=3)
     evidence: dict = Field(default_factory=dict)
+    duration_minutes: int | None = Field(default=None, ge=5, le=180)
+    intensity_percent: int | None = Field(default=None, ge=1, le=100)
     created_by: str = Field(default="ai_agent", min_length=2, max_length=50)
 
 
@@ -110,14 +113,18 @@ class ApprovalReviewRequest(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
 
 
+class ReportGenerateRequest(BaseModel):
+    type: Literal["daily", "weekly"]
+    period_start: datetime | None = None
+    period_end: datetime | None = None
+    timezone: str | None = Field(default=None, min_length=1, max_length=80)
+
+
 class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=200, examples=["user@example.com"])
     password: str = Field(..., min_length=8, max_length=1024, examples=["SecurePassword123!"])
     full_name: str | None = Field(default=None, max_length=150, examples=["Nguyen Van B"])
     sensitivity_group: str | None = Field(default="normal", examples=["normal", "sensitive", "outdoor_sport"])
-
-
-from fastapi.responses import JSONResponse, RedirectResponse
 
 
 class DemoLoginRequest(BaseModel):
@@ -168,10 +175,24 @@ auth_service = AuthService(
     google_redirect_uri=settings.google_redirect_uri,
 )
 set_auth_service(auth_service)
+ventilation_service = VentilationService(
+    db,
+    pm25_threshold=settings.alert_warning_threshold,
+    co2_threshold=settings.co2_warning_threshold,
+    trigger_duration_seconds=settings.ventilation_trigger_minutes * 60,
+    recovery_duration_seconds=settings.ventilation_recovery_minutes * 60,
+    stale_after_seconds=settings.stale_after_seconds,
+    max_gap_seconds=settings.ventilation_max_gap_seconds,
+    default_duration_minutes=settings.ventilation_default_duration_minutes,
+    default_intensity_percent=settings.ventilation_intensity_percent,
+)
 approval_service = ApprovalService(
     db,
     audit_service,
     pending_ttl_seconds=settings.proposal_pending_ttl_seconds,
+    default_duration_minutes=settings.ventilation_default_duration_minutes,
+    default_intensity_percent=settings.ventilation_intensity_percent,
+    ventilation_service=ventilation_service,
 )
 ingestion_service = MeasurementIngestionService(
     db,
@@ -196,6 +217,7 @@ alert_engine = AlertEngine(
     noise_critical_threshold=settings.noise_critical_threshold,
     temperature_warning_threshold=settings.temperature_warning_threshold,
     temperature_critical_threshold=settings.temperature_critical_threshold,
+    ventilation_service=ventilation_service,
 )
 configure_default_service(approval_service)
 agent_service = AgentService(
@@ -209,13 +231,26 @@ automatic_proposal_service = AutomaticProposalService(
     enabled=settings.auto_proposal_enabled,
     allowed_stations=settings.auto_proposal_stations,
 )
+report_narrator = (
+    HttpReportNarrator(
+        settings.report_narrative_endpoint,
+        timeout_seconds=settings.report_narrative_timeout_seconds,
+        service_token=settings.report_narrative_service_token,
+    )
+    if settings.report_narrative_endpoint
+    else None
+)
+report_service = ReportGeneratorService(
+    PostgresReportRepository(db),
+    narrator=report_narrator,
+)
 spatial_service = SpatialDispersionService(station_service)
 
 app = FastAPI(title="AirGuard AI API", version="0.3.0")
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://.*",
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -438,7 +473,7 @@ def auth_google_callback(
             path="/",
         )
         return response
-    except Exception as exc:
+    except Exception:
         return RedirectResponse(url=f"{settings.frontend_url}/?auth=google_error&error=server_error", status_code=307)
 
 
@@ -609,10 +644,15 @@ def compare_stations(body: CompareStationsRequest) -> dict:
 
 
 @app.post("/api/v1/internal/ingestion/measurements", status_code=202)
-def ingest_measurement(request: Request, body: MeasurementIngestionRequest) -> dict:
+def ingest_measurement(
+    request: Request,
+    body: MeasurementIngestionRequest,
+    background_tasks: BackgroundTasks,
+) -> dict:
     result = ingestion_service.ingest(body)
     if result.get("accepted"):
         result["alert"] = alert_engine.evaluate_station(body.station_id, correlation_id=_request_id(request))
+        _schedule_automatic_proposal(background_tasks, result["alert"], _request_id(request))
     return result
 
 
@@ -700,7 +740,7 @@ def get_user_profile(user_id: str) -> UserProfileResponse:
     return UserProfileResponse(
         user_id=str(row["user_id"]), role=row["role"], user_group=row.get("sensitivity_group")
     )
- 
+
 
 @app.post("/api/v1/agent/chat")
 async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
@@ -721,7 +761,7 @@ async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
             request_id=req_id,
             user_group=user_group,
         )
-    except Exception as exc:
+    except Exception:
         st_id = body.station_id or "S01"
         try:
             st = station_service.get_station(st_id)
@@ -811,6 +851,7 @@ def create_approval(
 ) -> dict:
     if idempotency_key is not None and len(idempotency_key) < 8:
         raise ServiceError("invalid_idempotency_key", "Idempotency-Key must be at least 8 characters", 422)
+    evidence = dict(body.evidence)
     if body.request_type == "warning_proposal":
         if not body.station_id or not body.evidence:
             raise ServiceError("proposal_evidence_required", "Warning proposals require station_id and evidence", 422)
@@ -820,13 +861,20 @@ def create_approval(
         active_alerts = alert_engine.list_alerts(status="active", station_id=body.station_id)
         if not active_alerts:
             raise ServiceError("proposal_alert_required", "An active alert is required for a warning proposal", 409)
+    if body.duration_minutes is not None or body.intensity_percent is not None:
+        control = dict(evidence.get("control") or {})
+        if body.duration_minutes is not None:
+            control["duration_minutes"] = body.duration_minutes
+        if body.intensity_percent is not None:
+            control["intensity_percent"] = body.intensity_percent
+        evidence["control"] = control
     return approval_service.create_request(
         request_type=body.request_type,
         station_id=body.station_id,
         device_id=body.device_id,
         proposed_action=body.proposed_action,
         reason=body.reason,
-        evidence=body.evidence,
+        evidence=evidence,
         created_by=body.created_by,
         correlation_id=_request_id(request),
         idempotency_key=idempotency_key,
@@ -867,27 +915,70 @@ def approve_request(
         note=body.note,
         correlation_id=_request_id(request),
     )
-    if publish_approved_device_command is not None and result.get("command_intent"):
-        try:
-            publish_approved_device_command.apply_async(
-                kwargs={
-                    "approval_request_id": request_id,
-                    "device_id": result["command_intent"]["device_id"],
-                    "command": result["command_intent"]["command"],
-                    "idempotency_key": result["command_intent"]["idempotency_key"],
-                }
-            )
-        except Exception as exc:
-            audit_service.record(
-                actor_type="system",
-                actor_role="backend",
-                action="approval.dispatch.failure",
-                entity_type="approval_request",
-                entity_id=request_id,
-                correlation_id=_request_id(request),
-                outcome="failure",
-                details={"error": str(exc)[:200]},
-            )
+    _enqueue_approved_command(request, request_id, result)
+    return result
+
+
+def _enqueue_approved_command(request: Request, request_id: str, result: dict[str, Any]) -> None:
+    """Reserve one durable dispatch job and allow a broker-enqueue failure to be retried."""
+    command_intent = result.get("command_intent")
+    if publish_approved_device_command is None or not command_intent:
+        return
+    payload = {
+        "approval_request_id": request_id,
+        "device_id": command_intent["device_id"],
+        "command": command_intent["command"],
+        "idempotency_key": command_intent["idempotency_key"],
+    }
+    task_id = f"device-command-{command_intent['command_intent_id']}"
+    job, created = reserve_job(
+        task_id,
+        "device_command",
+        command_intent["idempotency_key"],
+        payload,
+    )
+    if not created and job.get("status") != "FAILURE":
+        return
+    dispatch_task_id = str(job.get("task_id") or task_id)
+    try:
+        publish_approved_device_command.apply_async(
+            kwargs=payload,
+            task_id=dispatch_task_id,
+        )
+    except Exception as exc:
+        mark_job_failed(dispatch_task_id, "device_dispatch_enqueue_failed", retrying=False)
+        audit_service.record(
+            actor_type="system",
+            actor_role="backend",
+            action="approval.dispatch.failure",
+            entity_type="approval_request",
+            entity_id=request_id,
+            correlation_id=_request_id(request),
+            outcome="failure",
+            details={"error": str(exc)[:200]},
+        )
+
+
+@app.post("/api/v1/approvals/{request_id}/quick-approve")
+@app.post("/api/v1/proposals/{request_id}/quick-approve")
+def quick_approve_request(
+    request: Request,
+    request_id: str,
+    body: ApprovalReviewRequest,
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=8, max_length=200),
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    validate_csrf(request)
+    result = approval_service.quick_approve(
+        request_id=request_id,
+        expected_version=body.version,
+        reviewer_id=current_user["user_id"],
+        reviewer_role=current_user["role"],
+        note=body.note,
+        correlation_id=_request_id(request),
+        idempotency_key=idempotency_key,
+    )
+    _enqueue_approved_command(request, request_id, result)
     return result
 
 
@@ -907,6 +998,60 @@ def reject_request(
         reviewer_role=current_user["role"],
         note=body.note or "",
         correlation_id=_request_id(request),
+    )
+
+
+@app.get("/api/v1/reports")
+def list_environmental_reports(
+    type: Literal["daily", "weekly"] | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    return {
+        "items": report_service.list_reports(
+            report_type=type,
+            limit=limit,
+            offset=offset,
+        )
+    }
+
+
+@app.post("/api/v1/reports/generate", status_code=201)
+def generate_environmental_report(
+    request: Request,
+    body: ReportGenerateRequest,
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    validate_csrf(request)
+    return report_service.generate_report(
+        body.type,
+        period_start=body.period_start,
+        period_end=body.period_end,
+        timezone_name=body.timezone or settings.report_timezone,
+        generated_by=current_user["user_id"],
+    )
+
+
+@app.get("/api/v1/reports/{report_id}")
+def get_environmental_report(
+    report_id: str,
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    return report_service.get_report(report_id)
+
+
+@app.get("/api/v1/reports/{report_id}/export")
+def export_environmental_report(
+    report_id: str,
+    format: Literal["markdown", "html", "pdf"] = Query(default="markdown"),
+    current_user: dict = Depends(require_manager),
+) -> Response:
+    exported = report_service.export_report(report_id, format)
+    return Response(
+        content=exported.content,
+        media_type=exported.media_type,
+        headers={"Content-Disposition": f'attachment; filename="{exported.filename}"'},
     )
 
 

@@ -149,6 +149,10 @@ def validate_status_message(
 def validate_device_status_message(
     topic: str,
     raw_payload: bytes | str,
+    *,
+    now: datetime | None = None,
+    stale_after_seconds: int = 300,
+    max_future_skew_seconds: int = 60,
 ) -> ValidationResult[DeviceStatusPayload]:
     match = DEVICE_STATUS_TOPIC_RE.match(topic)
     if not match:
@@ -162,6 +166,14 @@ def validate_device_status_message(
         return ValidationResult(False, reason=ValidationErrorCode.RANGE_ERROR, detail=str(exc))
     if payload.device_id != match.group("device_id"):
         return ValidationResult(False, reason=ValidationErrorCode.TOPIC_STATION_MISMATCH, detail="device_id differs from topic")
+    time_error = _validate_time(
+        payload.timestamp,
+        now or datetime.now(timezone.utc),
+        stale_after_seconds,
+        max_future_skew_seconds,
+    )
+    if time_error:
+        return ValidationResult(False, reason=time_error.reason, detail=time_error.detail)
     return ValidationResult(True, payload=payload)
 
 
