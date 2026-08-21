@@ -1,15 +1,39 @@
 from unittest.mock import AsyncMock
 
 import pytest
-import pytest_asyncio
+
+try:
+    import pytest_asyncio
+    async_fixture = pytest_asyncio.fixture
+except ImportError:
+    async_fixture = pytest.fixture
+
 from httpx import ASGITransport, AsyncClient
 
-from src.main import app
+
+@pytest.fixture(autouse=True)
+def disable_live_llm_for_unit_tests(monkeypatch):
+    """Never spend provider calls merely because a developer has a local key.
+
+    Tests that exercise the model boundary explicitly replace ``get_settings``
+    again inside the test. The live-evaluation script remains provider-backed.
+    """
+    try:
+        from src.agents.nodes import orchestration
+
+        settings = orchestration.get_settings().model_copy(
+            update={"openai_api_key": "", "agentrouter_api_key": "", "gemini_api_key": ""}
+        )
+        monkeypatch.setattr(orchestration, "get_settings", lambda: settings)
+    except Exception:
+        pass
 
 
-@pytest_asyncio.fixture
+@async_fixture
 async def client():
     """Async HTTP client for testing API endpoints."""
+    from src.main import app
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

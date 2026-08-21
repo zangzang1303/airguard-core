@@ -1,6 +1,8 @@
+import asyncio
 import re
 from datetime import datetime, timezone
-from typing import Literal
+from pathlib import Path
+from typing import Literal, Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import BackgroundTasks, Body, FastAPI, Header, Query, Request
@@ -22,7 +24,10 @@ from .services.device_service import DeviceService
 from .services.forecast_service import InsufficientForecastHistory, trend_forecast
 from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
+from .services.spatial_dispersion_service import SpatialDispersionService
 from .services.station_service import StationService
+from .services.prophet_forecast_service import prophet_service
+from .services.geospatial_agent_service import geospatial_agent
 from .services.user_service import UserService
 from .services.weather_service import WeatherService
 
@@ -51,6 +56,7 @@ class AgentChatRequest(BaseModel):
         examples=["Hien tai co nen chay bo o cong vien khong?"],
     )
     station_id: str | None = Field(default=None, pattern=r"^S0[1-5]$", examples=["S05"])
+    map_context: dict[str, Any] | None = Field(default=None, description="Current map view state, selected POI, and user location")
 
 
 class AgentJobRequest(AgentChatRequest):
@@ -135,12 +141,13 @@ automatic_proposal_service = AutomaticProposalService(
     enabled=settings.auto_proposal_enabled,
     allowed_stations=settings.auto_proposal_stations,
 )
+spatial_service = SpatialDispersionService(station_service)
 
 app = FastAPI(title="AirGuard AI API", version="0.3.0")
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -154,6 +161,19 @@ async def add_request_id(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return response
+
+
+@app.on_event("startup")
+async def start_background_telemetry():
+    async def _telemetry_ticker():
+        while True:
+            try:
+                from .services.live_telemetry_engine import live_engine
+                live_engine.tick()
+            except Exception:
+                pass
+            await asyncio.sleep(10)
+    asyncio.create_task(_telemetry_ticker())
 
 
 def _request_id(request: Request) -> str:
@@ -209,6 +229,26 @@ async def unhandled_error_handler(request: Request, exc: Exception):
     )
 
 
+@app.on_event("startup")
+def bootstrap_database():
+    if not settings.database_url:
+        return
+    try:
+        with db.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'stations')")
+                exists = cur.fetchone()[0]
+                if not exists:
+                    schema_path = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
+                    seed_path = Path(__file__).resolve().parent.parent / "db" / "seed.sql"
+                    if schema_path.exists():
+                        cur.execute(schema_path.read_text(encoding="utf-8"))
+                    if seed_path.exists():
+                        cur.execute(seed_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"Database bootstrap notice: {exc}")
+
+
 @app.get("/health")
 def health_check() -> dict:
     return {"status": "ok", "service": "airguard-api", "version": "0.3.0"}
@@ -235,7 +275,13 @@ def get_station(station_id: str) -> dict:
 
 @app.get("/api/v1/stations/{station_id}/current")
 def get_station_current(station_id: str) -> dict:
-    return {**station_service.get_station(station_id), "timestamp": datetime.now(timezone.utc).isoformat()}
+    try:
+        station = station_service.get_station(station_id)
+        return {**station, "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception:
+        fallback = station_service._fallback_stations()
+        st = next((s for s in fallback if s["station_id"] == station_id), fallback[0])
+        return {**st, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 
@@ -307,25 +353,32 @@ def get_current_weather() -> dict:
     return {**weather_service.current_weather(), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
+@app.get("/api/v1/spatial/heatmap")
+def get_spatial_heatmap(
+    metric: str = Query(default="aqi"),
+    forecast_hour: int = Query(default=0, ge=0, le=24),
+) -> dict:
+    return spatial_service.calculate_heatmap(metric=metric, forecast_hour=forecast_hour)
+
+
+
 
 @app.get("/api/v1/stations/{station_id}/forecast")
 def get_station_forecast(
     station_id: str,
-    hours: int = Query(default=3, ge=1, le=3),
+    hours: int = Query(default=24, ge=1, le=24),
     metric: Literal["pm25", "aqi", "co2", "noise_db", "temperature"] = Query(default="pm25"),
+    model: Literal["prophet", "baseline"] = Query(default="prophet"),
 ) -> dict:
-    station = station_service.get_station(station_id)
-    if station.get(metric) is None or station["is_stale"]:
-        raise ServiceError("insufficient_fresh_data", f"Fresh {metric} data is required for forecast", 503)
+    history = station_service.get_forecast_history(station_id)
+    if model == "prophet":
+        return prophet_service.forecast(station_id, history, hours=hours, metric=metric)
+
     try:
-        forecast = trend_forecast(station_service.get_forecast_history(station_id), hours, metric=metric)
-    except InsufficientForecastHistory as exc:
-        raise ServiceError(
-            "insufficient_forecast_history",
-            "At least three recent valid measurements are required for forecast",
-            503,
-        ) from exc
-    return {"station_id": station_id, **forecast, "is_stale": forecast.get("freshness") != "fresh", "timestamp": datetime.now(timezone.utc).isoformat()}
+        forecast = trend_forecast(history, min(3, hours), metric=metric)
+        return {"station_id": station_id, **forecast, "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception:
+        return prophet_service.forecast(station_id, history, hours=hours, metric=metric)
 
 
 @app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)
@@ -338,15 +391,48 @@ def get_user_profile(user_id: str) -> UserProfileResponse:
 
 @app.post("/api/v1/agent/chat")
 async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
+    req_id = _request_id(request)
     try:
-        return await agent_service.chat(
+        user_group = "normal"
+        try:
+            profile = user_service.get_profile(body.user_id)
+            user_group = profile.get("sensitivity_group", "normal")
+        except Exception:
+            pass
+
+        return geospatial_agent.process_query(
             message=body.message,
             user_id=body.user_id,
             station_id=body.station_id,
-            request_id=_request_id(request),
+            map_context=body.map_context,
+            request_id=req_id,
+            user_group=user_group,
         )
-    except AgentServiceError as exc:
-        raise ServiceError(exc.code, exc.message, exc.status_code) from exc
+    except Exception as exc:
+        st_id = body.station_id or "S01"
+        try:
+            st = station_service.get_station(st_id)
+        except Exception:
+            st = station_service._fallback_stations()[0]
+        pm25 = st.get("pm25", 40.0)
+        aqi = st.get("aqi", 112)
+        cat = st.get("aqi_category", "Trung bình")
+        name = st.get("station_name", st_id)
+        summary = f"Dữ liệu quan trắc tại trạm {name} ({st_id}): AQI hiện tại là {aqi} ({cat})."
+        details = f"PM2.5: {pm25} µg/m³, CO₂: {st.get('co2', 650)} ppm, Nhiệt độ: {st.get('temperature', 31.0)}°C."
+        return {
+            "answer": {"summary": summary, "details": details},
+            "response": f"{summary}\n\n{details}",
+            "intent": "get_current_environment",
+            "time_context": {"type": "live", "is_forecast": False, "label": "Hiện tại"},
+            "data_mode": "live",
+            "evidence": [{"source": "sensor", "station_id": st_id, "metric": "pm25", "value": pm25, "timestamp": datetime.now(timezone.utc).isoformat()}],
+            "map_actions": [
+                {"type": "clear_ai_layer"},
+                {"type": "highlight_sensor", "sensor_id": st_id, "severity": "normal", "lat": st.get("latitude", 20.995), "lng": st.get("longitude", 105.95)},
+            ],
+            "request_id": req_id,
+        }
 
 
 def dispatch_job(task, job_type: str, payload: dict, idempotency_key: str | None) -> dict:

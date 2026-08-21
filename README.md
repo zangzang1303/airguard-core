@@ -77,16 +77,17 @@ Bash:
 cp .env.example .env
 ```
 
-Điền trong `.env` nếu dùng LLM:
+Điền trong `.env` nếu dùng LLM Gemini:
 
 ```env
-OPENAI_API_KEY=your_key_here
-MODEL_NAME=gpt-4o-mini
+GEMINI_API_KEY=your_key_here
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_THINKING_LEVEL=minimal
 ```
 
 Không commit `.env` hoặc đưa key vào log/screenshot.
 
-> Không có `OPENAI_API_KEY`, dashboard, pipeline MQTT và API vẫn chạy; Agent trả lời bằng deterministic composer. Để demo automatic proposal do Agent tạo, cần cấu hình key hợp lệ.
+> Không có provider key hợp lệ, dashboard, pipeline MQTT và API vẫn chạy; Agent trả lời bằng deterministic composer. Để demo automatic proposal do Agent tạo, cần cấu hình key hợp lệ.
 
 ### 2. Khởi động stack
 
@@ -266,7 +267,7 @@ Luồng trả lời:
 2. Agent gọi backend tools.
 3. Quality gate loại dữ liệu missing/stale/offline/invalid.
 4. Response composer tạo câu trả lời grounded.
-5. Nếu có `OPENAI_API_KEY`, LLM chỉ thêm một câu giải thích giới hạn, không thay số liệu.
+5. Nếu có provider key, LLM chỉ thêm một câu giải thích giới hạn, không thay số liệu; `auto` ưu tiên Gemini.
 6. Trace ghi `generation_mode=live_llm` hoặc `deterministic_grounded`.
 
 ## Sample queries
@@ -342,8 +343,14 @@ Sao chép `.env.example` thành `.env`; không commit file `.env`. Stack demo c�
 
 | Biến | Bắt buộc | Mục đích / giá trị demo |
 |---|---|---|
-| `OPENAI_API_KEY` | Không | Bật giải thích LLM và auto-proposal theo Agent; để trống thì Agent chỉ dùng deterministic grounded response. |
-| `MODEL_NAME` | Không | Mặc định `gpt-4o-mini`. |
+| `LLM_PROVIDER` | Không | `auto` ưu tiên Gemini, sau đó AgentRouter rồi OpenAI; có thể khóa provider cụ thể. |
+| `GEMINI_API_KEY` | Không | Bật Gemini live generation; key chỉ đặt trong `.env` local. |
+| `GEMINI_MODEL` | Không | Mặc định `gemini-3.6-flash`. |
+| `GEMINI_THINKING_LEVEL` | Không | Mặc định `minimal` cho câu giải thích ngắn và latency thấp. |
+| `GEMINI_RETRY_BASE_SECONDS` | Không | Backoff ban đầu khi Gemini gặp lỗi tạm thời; mặc định 1 giây. |
+| `GEMINI_RETRY_MAX_SECONDS` | Không | Giới hạn chờ theo `RetryInfo`; mặc định 60 giây. Quota theo ngày fail-fast và không retry. |
+| `LLM_RESPONSE_DEADLINE_SECONDS` | Không | Deadline tổng cho bước giải thích LLM; mặc định 5 giây để Agent trả deterministic fallback trước timeout 8 giây của backend proxy. |
+| `OPENAI_API_KEY`, `MODEL_NAME` | Không | Provider tương thích ngược; dùng khi `LLM_PROVIDER=openai`. |
 | `DATABASE_URL` | Có khi chạy service ngoài Compose | URL PostgreSQL; Compose tự cấp URL nội bộ cho backend. |
 | `MQTT_HOST`, `MQTT_PORT`, `MQTT_QOS` | Có khi chạy service ngoài Compose | Kết nối Mosquitto; Compose tự đặt host `mqtt`. |
 | `SENSOR_SCENARIO` | Không | `normal`, `rush-hour`, `spike`, `recovery`, `duplicate`, hoặc `station-silence`; mặc định `normal`. |
@@ -359,6 +366,33 @@ Sao chép `.env.example` thành `.env`; không commit file `.env`. Stack demo c�
 | `CELERY_TASK_ALWAYS_EAGER` | Không | `true` trong demo; async worker thật dùng profile `async-jobs`. |
 
 Xem đầy đủ tại [.env.example](.env.example).
+
+## Dùng Claude Code CLI qua AgentRouter
+
+Claude Code được cài ở cấp máy, còn cấu hình và key được nạp riêng khi chạy trong repo này.
+
+1. Thêm key vào `.env.local` hoặc `.env` (cả hai đều đã được Git bỏ qua):
+
+```env
+AGENTROUTER_API_KEY=your_agentrouter_key_here
+AGENTROUTER_MODEL=your_claude_model_id
+AGENTROUTER_BASE_URL=https://co.agentrouter.org
+```
+
+2. Khởi chạy từ PowerShell tại thư mục gốc của repo:
+
+```powershell
+.\scripts\claude-agentrouter.ps1
+```
+
+Có thể truyền trực tiếp tham số của Claude Code, ví dụ:
+
+```powershell
+.\scripts\claude-agentrouter.ps1 --version
+.\scripts\claude-agentrouter.ps1 -p "Tóm tắt kiến trúc repo này"
+```
+
+Launcher dùng `AGENTROUTER_BASE_URL` (mặc định `https://co.agentrouter.org`) và chỉ chuyển key cho tiến trình Claude Code. Agent runtime hiện ưu tiên Gemini khi `LLM_PROVIDER=auto`; AgentRouter/Claude vẫn là tùy chọn tương thích. Nếu provider lỗi, câu trả lời grounded deterministic vẫn được giữ và trace không được gắn `live_llm`. Không commit hoặc dán key vào log, screenshot hay tài liệu.
 
 ## Chạy test
 

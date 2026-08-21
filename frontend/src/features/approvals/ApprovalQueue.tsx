@@ -8,6 +8,8 @@ import { StatusBadge } from "../../components/common/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
 import { Proposal } from "../../types";
 
+import { QuickApprovalCard } from "./QuickApprovalCard";
+
 type ApprovalTab = "pending" | "approved" | "rejected";
 
 const uniquePendingStationCount = (items: Proposal[]) => new Set(
@@ -55,6 +57,11 @@ export const ApprovalQueue: React.FC = () => {
       return true;
     });
   }, [proposals]);
+
+  const topPendingProposal = useMemo(() => {
+    return displayProposals.find((p) => p.status === "pending") || null;
+  }, [displayProposals]);
+
   const tabCounts = useMemo(() => ({
     pending: displayProposals.filter((proposal) => proposal.status === "pending").length,
     approved: proposals.filter((proposal) => proposal.status === "approved").length,
@@ -84,7 +91,6 @@ export const ApprovalQueue: React.FC = () => {
       updateProposal(result);
       setActionSuccess(`Đã phê duyệt ${selectedProposal.proposal_id}. Quyết định đã được ghi nhận.`);
     } catch {
-      // Reconcile once in case the server committed but the browser lost the response.
       try {
         const latest = await api.getProposals({ userId, role: "manager" });
         const serverProposal = latest.find((proposal) => proposal.proposal_id === selectedProposal.proposal_id);
@@ -124,12 +130,21 @@ export const ApprovalQueue: React.FC = () => {
   return (
     <div className="approvals-container">
       <PageHeader
-        title="Phê duyệt đề xuất cảnh báo"
-        description="Hàng chờ Human-in-the-Loop · kiểm tra evidence trước khi phê duyệt hoặc từ chối."
+        title="Phê duyệt đề xuất"
+        description="Xem bằng chứng quan trắc trước khi đưa ra quyết định phê duyệt hoặc từ chối."
         actions={<Button variant="outline" size="sm" onClick={fetchProposals} disabled={loading}><RefreshCw className={loading ? "is-spinning" : ""} size={16} />{loading ? "Đang làm mới" : "Làm mới"}</Button>}
       />
 
       <section className="approval-workspace">
+        {/* Quick Approval Action 1-Tap Card for top pending proposal */}
+        {topPendingProposal && (
+          <QuickApprovalCard
+            proposal={topPendingProposal}
+            onSuccess={updateProposal}
+            onRefreshQueue={fetchProposals}
+          />
+        )}
+
         {proposals.length > displayProposals.length && <div className="alert-box alert-warning">Chỉ hiển thị đề xuất đang chờ mới nhất cho mỗi trạm. Các đề xuất cũ vẫn được lưu trong audit.</div>}
         <div className="approval-tabs" role="tablist" aria-label="Trạng thái đề xuất">
           {(["pending", "approved", "rejected"] as ApprovalTab[]).map((tab) => (

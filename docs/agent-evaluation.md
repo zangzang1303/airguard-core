@@ -51,9 +51,34 @@ in the local environment, run:
 .\.venv\Scripts\python.exe eval\run_live_evaluation.py
 ```
 
+For the AgentRouter/Claude gate used in Backlog 4, configure `AGENTROUTER_API_KEY` and
+`AGENTROUTER_MODEL`, then run:
+
+```powershell
+.\.venv\Scripts\python.exe eval\run_live_evaluation.py --expected-provider agentrouter --max-p95-ms 2500
+```
+
+For Gemini 3.6 Flash, configure `GEMINI_API_KEY` and run:
+
+```powershell
+.\.venv\Scripts\python.exe eval\run_live_evaluation.py --expected-provider gemini --max-p95-ms 2500 --case-delay 1
+```
+
+Gemini áp quota theo Google Cloud project, không theo từng API key. Kết quả
+`provider_daily_quota_exhausted` nghĩa là quota ngày của project/model đã hết; không rerun bộ
+release cho đến khi quota reset hoặc project được nâng tier. Rate limit ngắn hạn sẽ tuân theo
+`RetryInfo` của Google với exponential backoff có giới hạn.
+
 The runner calls the canonical backend endpoint (`POST /api/v1/agent/chat`) for LIVE-01 through
 LIVE-05 and writes a sanitized JSON and Markdown pack under
 `docs/evidence/release/<date>-<git-sha>/`. It records input, expected and actual tools, source/tool
 references, provider/model, LLM and request latency, output, request ID and PASS/FAIL. A case only
 passes with `generation_mode=live_llm`; missing keys, an unavailable stack, deterministic fallback,
 or any contract mismatch produces `BLOCKED` and a non-zero exit code rather than fabricated evidence.
+The release gate also requires nearest-rank provider-latency P95 below 2.5 seconds and checks
+station/source/simulator transparency terms for the three environmental-answer cases.
+
+The Agent enforces `LLM_RESPONSE_DEADLINE_SECONDS` as a total generation deadline independent of
+the provider HTTP retry policy. The default five-second deadline is shorter than the backend
+proxy's eight-second timeout, so a slow provider produces a traced deterministic fallback instead
+of an HTTP 503. Such fallback still fails the live release gate and is excluded from live P95.

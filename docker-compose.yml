@@ -111,11 +111,24 @@
       AGENT_TOOL_TIMEOUT_SECONDS: 3
       AGENT_TOOL_MAX_RETRIES: 1
       CORS_ORIGINS: http://localhost:5173
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       MODEL_NAME: ${MODEL_NAME:-gpt-4o-mini}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
       LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-12}
+      LLM_RESPONSE_DEADLINE_SECONDS: ${LLM_RESPONSE_DEADLINE_SECONDS:-5}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-280}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
+      AGENTROUTER_API_KEY: ${AGENTROUTER_API_KEY:-}
+      AGENTROUTER_MODEL: ${AGENTROUTER_MODEL:-}
+      AGENTROUTER_BASE_URL: ${AGENTROUTER_BASE_URL:-https://co.agentrouter.org}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+      GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-minimal}
+      GEMINI_MAX_TOKENS: ${GEMINI_MAX_TOKENS:-32}
+      GEMINI_RETRY_BASE_SECONDS: ${GEMINI_RETRY_BASE_SECONDS:-1}
+      GEMINI_RETRY_MAX_SECONDS: ${GEMINI_RETRY_MAX_SECONDS:-60}
     command: uvicorn src.main:app --host 0.0.0.0 --port 8001
     ports:
       - "8001:8001"
@@ -131,6 +144,13 @@
       VITE_API_BASE_URL: http://localhost:8000
     ports:
       - "5173:5173"
+    volumes:
+      # Mount only editable frontend sources/config so image-owned node_modules
+      # is not hidden by a stale anonymous volume after dependency updates.
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/vite.config.ts:/app/vite.config.ts
     depends_on:
       - backend
 

@@ -5,7 +5,14 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph
 
-from src.agents.nodes.orchestration import compose_node, execute_tools_node, generate_explanation_node, route_after_intent, route_node, trace_node
+from src.agents.nodes.orchestration import (
+    compose_node,
+    execute_tools_node,
+    generate_explanation_node,
+    route_after_intent,
+    route_node,
+    trace_node,
+)
 from src.agents.nodes.proposal_workflow import run_proposal_workflow
 from src.agents.state import AgentState
 from src.agents.tools.backend_client import BackendToolClient
