@@ -37,6 +37,7 @@ def test_tool_registry_has_all_required_tools():
         ToolName.GET_USER_PROFILE,
         ToolName.CREATE_WARNING_PROPOSAL,
         ToolName.GET_SPATIAL_AIR_QUALITY,
+        ToolName.GET_EXTENDED_FORECAST,
     }
 
 
