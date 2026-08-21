@@ -3,9 +3,18 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import AliasChoices, AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    FiniteFloat,
+    field_validator,
+    model_validator,
+)
 
-TOOL_REGISTRY_VERSION = "2026-08-08.ai-001"
+TOOL_REGISTRY_VERSION = "2026-08-21.ai-spatial-003"
 TOOL_REGISTRY_OWNER = "ai-agent"
 STATION_IDS = {"S01", "S02", "S03", "S04", "S05"}
 
@@ -314,6 +323,7 @@ class ActiveAlert(BackendOutputModel):
     alert_id: str
     station_id: str
     alert_type: str
+    rule_version: str | None = Field(default=None, min_length=1, max_length=100)
     severity: str
     observed_value: float | None = Field(default=None, ge=0)
     threshold_value: float | None = Field(default=None, ge=0)
@@ -374,21 +384,99 @@ class ToolSpec(StrictModel):
 
 
 class SpatialAirQualityInput(StrictModel):
-    metric: str = Field(default="aqi")
-    forecast_hour: int = Field(default=0, ge=0, le=3)
+    metric: Literal["aqi", "pm25", "co2", "noise_db", "temperature"] = "aqi"
+    forecast_hour: int = Field(default=0, ge=0, le=24)
+
+
+class SpatialGridPoint(StrictModel):
+    lat: FiniteFloat = Field(ge=-90, le=90)
+    lon: FiniteFloat = Field(ge=-180, le=180)
+    value: FiniteFloat
+    intensity: FiniteFloat = Field(ge=0, le=1)
+    level: Literal[
+        "good",
+        "moderate",
+        "unhealthy_sensitive",
+        "unhealthy",
+        "very_unhealthy",
+        "hazardous",
+    ]
+
+
+class SpatialWeather(StrictModel):
+    wind_speed_ms: FiniteFloat = Field(ge=0, le=60)
+    wind_direction_deg: int = Field(ge=0, lt=360)
+    source: str = Field(min_length=1)
+    observed_at: AwareDatetime
+    is_fallback: bool
+    is_stale: Literal[False]
+    assumptions: list[str] = Field(default_factory=list)
+
+
+class SpatialDataQuality(StrictModel):
+    status: Literal["valid"]
+    stations_required: int = Field(ge=3)
+    stations_used: list[str] = Field(min_length=3)
+    stations_excluded: list[str] = Field(default_factory=list)
+    exclusion_reasons: dict[str, list[str]] = Field(default_factory=dict)
+    station_sources: list[str] = Field(min_length=1)
+    forecast_sources: list[str] = Field(default_factory=list)
+
+
+class SpatialModel(StrictModel):
+    name: str = Field(min_length=1)
+    version: str = Field(min_length=1)
+    grid_rows: int = Field(ge=1)
+    grid_columns: int = Field(ge=1)
+    power: FiniteFloat = Field(gt=0)
+    minimum_stations: int = Field(ge=3)
+
+
+class SpatialExtent(StrictModel):
+    south: FiniteFloat = Field(ge=-90, le=90)
+    west: FiniteFloat = Field(ge=-180, le=180)
+    north: FiniteFloat = Field(ge=-90, le=90)
+    east: FiniteFloat = Field(ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def ordered_bounds(self) -> SpatialExtent:
+        if self.south >= self.north or self.west >= self.east:
+            raise ValueError("spatial extent bounds must be ordered")
+        return self
+
+
+class SpatialStationInput(StrictModel):
+    station_id: str
+    lat: FiniteFloat = Field(ge=-90, le=90)
+    lon: FiniteFloat = Field(ge=-180, le=180)
+    value: FiniteFloat
+    source: str = Field(min_length=1)
+    observed_at: AwareDatetime
+    forecast_source: str | None = None
+
+    @field_validator("station_id")
+    @classmethod
+    def station_id_known(cls, value: str) -> str:
+        return validate_station_id(value)
 
 
 class SpatialAirQuality(BackendOutputModel):
-    metric: str
-    unit: str = "AQI"
-    timestamp: str
-    forecast_hour: int
-    source: str
-    model_version: str
-    wind_speed_ms: float
-    wind_direction_deg: int
-    grid_points: list[dict[str, Any]]
-    disclaimer: str
+    metric: Literal["aqi", "pm25", "co2", "noise_db", "temperature"]
+    unit: str = Field(min_length=1)
+    timestamp: AwareDatetime
+    generated_at: AwareDatetime
+    forecast_hour: int = Field(ge=0, le=24)
+    source: Literal["spatial_idw_dispersion_model"]
+    model_version: str = Field(min_length=1)
+    model: SpatialModel
+    extent: SpatialExtent
+    weather: SpatialWeather
+    data_quality: SpatialDataQuality
+    station_inputs: list[SpatialStationInput] = Field(min_length=3)
+    wind_speed_ms: FiniteFloat = Field(ge=0, le=60)
+    wind_direction_deg: int = Field(ge=0, lt=360)
+    grid_points: list[SpatialGridPoint] = Field(min_length=1)
+    disclaimer: str = Field(min_length=20)
 
 
 TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
@@ -467,7 +555,10 @@ TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
     ),
     ToolName.GET_SPATIAL_AIR_QUALITY: ToolSpec(
         name=ToolName.GET_SPATIAL_AIR_QUALITY,
-        description="Fetch spatial IDW air quality / environmental dispersion grid and wind metrics across Ocean Park 1.",
+        description=(
+            "Fetch a current or 1-to-24-hour backend-grounded spatial IDW environmental grid, "
+            "including wind provenance and station data-quality evidence across Ocean Park 1."
+        ),
         input_schema=SpatialAirQualityInput,
         output_schema=SpatialAirQuality,
         method="GET",

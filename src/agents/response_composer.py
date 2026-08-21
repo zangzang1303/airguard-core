@@ -8,6 +8,12 @@ from src.agents.policies.forecast_response import assess_forecast
 from src.agents.policies.grounding import Intent, RouteDecision
 from src.agents.policies.impact_assessment import assess_environmental_impact
 from src.agents.policies.recommendations import RECOMMENDATION_POLICY_VERSION, build_recommendation
+from src.agents.policies.spatial_response import (
+    angular_difference,
+    bearing_degrees,
+    get_spatial_location,
+    nearest_grid_point,
+)
 
 INSUFFICIENT_DATA_MESSAGE = (
     "Không đủ dữ liệu đáng tin cậy để trả lời yêu cầu này. "
@@ -51,6 +57,20 @@ def compose_response(
             "sources": _sources(decision.intent, tool_results),
             "outcome": "answered",
             "recommendation_policy_version": RECOMMENDATION_POLICY_VERSION,
+        }
+    if decision.intent == Intent.SPATIAL:
+        try:
+            answer = _compose_spatial(decision, data_items)
+        except (KeyError, TypeError, ValueError):
+            return {
+                "answer": INSUFFICIENT_DATA_MESSAGE,
+                "sources": [],
+                "outcome": "insufficient_data",
+            }
+        return {
+            "answer": answer,
+            "sources": _sources(decision.intent, tool_results),
+            "outcome": "answered",
         }
     composer = composers.get(decision.intent)
     if composer is None:
@@ -100,6 +120,25 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
                 or (item.get("pm25_min") is not None and item.get("pm25_max") is not None)
             )
             for item in items
+        )
+    if intent == Intent.SPATIAL:
+        spatial = data_items[0]
+        data_quality = spatial.get("data_quality", {})
+        weather = spatial.get("weather", {})
+        stations_used = data_quality.get("stations_used", [])
+        stations_required = data_quality.get("stations_required")
+        return (
+            data_quality.get("status") == "valid"
+            and isinstance(stations_required, int)
+            and stations_required >= 3
+            and len(stations_used) >= stations_required
+            and bool(spatial.get("grid_points"))
+            and bool(spatial.get("station_inputs"))
+            and bool(spatial.get("source"))
+            and bool(spatial.get("model_version"))
+            and spatial.get("timestamp") is not None
+            and weather.get("is_stale") is False
+            and bool(weather.get("source"))
         )
     if intent == Intent.RECOMMENDATION:
         if len(data_items) != 6:
@@ -312,6 +351,102 @@ def _compose_recommendation(data_items: list[Mapping[str, Any]]) -> str:
     )
 
 
+def _compose_spatial(
+    decision: RouteDecision,
+    data_items: list[Mapping[str, Any]],
+) -> str:
+    data = data_items[0]
+    grid_points = data["grid_points"]
+    unit = data["unit"]
+    samples = []
+    for location_id in decision.spatial_location_ids:
+        location = get_spatial_location(location_id)
+        point, distance_km = nearest_grid_point(location, grid_points)
+        samples.append(
+            {
+                "location": location,
+                "point": point,
+                "distance_km": distance_km,
+            }
+        )
+
+    time_label = (
+        f"mốc dự báo +{data['forecast_hour']} giờ"
+        if data["forecast_hour"] > 0
+        else "mốc hiện tại"
+    )
+    provenance = (
+        f"Lưới {data['model_version']} lúc {data['timestamp']}, nguồn {data['source']}; "
+        f"gió từ {data['weather']['source']}"
+    )
+
+    if decision.spatial_analysis == "wind" and decision.spatial_origin_id:
+        origin = get_spatial_location(decision.spatial_origin_id)
+        target_samples = [
+            sample
+            for sample in samples
+            if sample["location"].location_id != origin.location_id
+            and sample["location"].category == "residential"
+        ]
+        if not target_samples:
+            raise ValueError("wind analysis requires at least one residential target")
+        wind_direction = float(data["weather"]["wind_direction_deg"])
+        ranked_targets = sorted(
+            target_samples,
+            key=lambda sample: angular_difference(
+                bearing_degrees(origin, sample["location"]),
+                wind_direction,
+            ),
+        )
+        best = ranked_targets[0]
+        target = best["location"]
+        target_bearing = bearing_degrees(origin, target)
+        direction_delta = angular_difference(target_bearing, wind_direction)
+        if direction_delta <= 45:
+            alignment = "phù hợp rõ với hướng xuôi gió"
+        elif direction_delta <= 90:
+            alignment = "phù hợp một phần với hướng xuôi gió"
+        else:
+            alignment = "không nằm rõ trên trục xuôi gió"
+        point = best["point"]
+        return (
+            f"Theo quy ước vector của mô hình, gió hướng {wind_direction:g}° với tốc độ "
+            f"{data['weather']['wind_speed_ms']:g} m/s. Từ {origin.name}, {target.name} là điểm dân cư "
+            f"có hướng gần vector gió nhất trong catalog ({alignment}, lệch {direction_delta:.1f}°). "
+            f"Giá trị nội suy tại điểm lưới gần {target.name} là {point['value']:g} {unit}, "
+            f"mức {point['level']}, ở {time_label}. Đây là suy luận hình học từ grid và vector gió, "
+            f"không phải khẳng định nguồn phát thải hay mô hình lan truyền vật lý. {provenance}. "
+            f"{SIMULATOR_NOTICE}"
+        )
+
+    if samples:
+        observations = "; ".join(
+            f"{sample['location'].name} ≈ {sample['point']['value']:g} {unit} "
+            f"(mức {sample['point']['level']}, điểm lưới cách {sample['distance_km']:.2f} km)"
+            for sample in samples
+        )
+        highest = max(samples, key=lambda sample: float(sample["point"]["value"]))
+        lowest = min(samples, key=lambda sample: float(sample["point"]["value"]))
+        comparison = ""
+        if len(samples) >= 2:
+            comparison = (
+                f" Trong các vị trí này, {highest['location'].name} cao nhất và "
+                f"{lowest['location'].name} thấp nhất theo grid cùng request."
+            )
+        return (
+            f"Ước tính nội suy không gian ở {time_label}: {observations}.{comparison} "
+            f"{provenance}. Các giá trị là điểm lưới IDW gần nhất, không phải trạm đo đặt tại từng POI. "
+            f"{SIMULATOR_NOTICE}"
+        )
+
+    values = [float(point["value"]) for point in grid_points]
+    return (
+        f"Bản đồ nội suy {data['metric']} ở {time_label} có khoảng giá trị "
+        f"{min(values):g}-{max(values):g} {unit} trên {len(grid_points)} điểm lưới. "
+        f"{provenance}. {data['disclaimer']}"
+    )
+
+
 def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
     sources: list[dict[str, Any]] = []
     for result in tool_results:
@@ -355,6 +490,14 @@ def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict
                 {
                     "tool_name": tool_name,
                     "observed_at": data.get("observed_at"),
+                    "source": data.get("source"),
+                }
+            )
+        elif tool_name == "get_spatial_air_quality":
+            sources.append(
+                {
+                    "tool_name": tool_name,
+                    "observed_at": data.get("timestamp"),
                     "source": data.get("source"),
                 }
             )

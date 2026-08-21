@@ -303,7 +303,14 @@ def _grounding_pass(
         return all(source.get("tool_name") != "create_warning_proposal" for source in sources)
     if outcome in {"insufficient_data", "blocked", "failed", "refused", "clarification"}:
         return not sources
-    if case["category"] in {"current", "history", "compare", "weather", "forecast"}:
+    if case["category"] in {
+        "current",
+        "history",
+        "compare",
+        "weather",
+        "forecast",
+        "spatial",
+    }:
         return bool(sources)
     return True
 

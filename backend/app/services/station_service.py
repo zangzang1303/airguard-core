@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
-from .database import Database, ServiceError, dict_cursor
 from .air_quality import aqi_category, pm25_aqi
+from .database import Database, ServiceError, dict_cursor
 from .live_telemetry_engine import live_engine
 
 
@@ -35,7 +35,7 @@ class StationService:
     def _fallback_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
         return live_engine.get_forecast_history(station_id)
 
-    def list_stations(self) -> list[dict[str, Any]]:
+    def list_stations(self, *, allow_fallback: bool = True) -> list[dict[str, Any]]:
         try:
             with self.db.connection() as conn:
                 with dict_cursor(conn) as cur:
@@ -59,13 +59,28 @@ class StationService:
                     )
                     rows = cur.fetchall()
                     if not rows:
-                        return self._fallback_stations()
+                        return self._fallback_stations() if allow_fallback else []
                     stations = [self._shape_station(row) for row in rows]
-                    if all(st.get("pm25") is None for st in stations):
+                    if allow_fallback and all(st.get("pm25") is None for st in stations):
                         return self._fallback_stations()
                     return stations
-        except Exception:
-            return self._fallback_stations()
+        except ServiceError as exc:
+            if allow_fallback:
+                return self._fallback_stations()
+            raise ServiceError(
+                "station_data_unavailable",
+                "Station snapshots are unavailable without simulator fallback",
+                503,
+                {"reason_code": exc.code},
+            ) from exc
+        except Exception as exc:
+            if allow_fallback:
+                return self._fallback_stations()
+            raise ServiceError(
+                "station_data_unavailable",
+                "Station snapshots are unavailable without simulator fallback",
+                503,
+            ) from exc
 
     def get_station(self, station_id: str) -> dict[str, Any]:
         try:
@@ -270,5 +285,5 @@ class StationService:
     def _is_stale(self, last_seen: datetime | None) -> bool:
         if not last_seen:
             return True
-        now = datetime.now(timezone.utc)
-        return (now - last_seen.astimezone(timezone.utc)).total_seconds() > self.stale_after_seconds
+        now = datetime.now(UTC)
+        return (now - last_seen.astimezone(UTC)).total_seconds() > self.stale_after_seconds

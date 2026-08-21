@@ -83,6 +83,17 @@ class StaleForecastAdapter(FakeBackendToolClient):
         )
 
 
+class SpatialOutageAdapter(FakeBackendToolClient):
+    async def get_spatial_air_quality(self, payload, request_id="fixture-request"):
+        return ToolError(
+            tool_name=ToolName.GET_SPATIAL_AIR_QUALITY,
+            code=ToolErrorCode.UNAVAILABLE,
+            message="spatial backend unavailable",
+            request_id=request_id,
+            status_code=503,
+        )
+
+
 @pytest.mark.parametrize(
     ("query", "intent", "tools", "arguments"),
     [
@@ -122,6 +133,43 @@ def test_intent_router_allow_lists_tool_arguments(query, intent, tools, argument
     assert decision.tool_arguments == arguments
 
 
+def test_spatial_router_resolves_named_location_comparison() -> None:
+    decision = route_query(
+        "Khu vực quảng trường cá voi / hồ San Hô không khí thế nào so với khu biển nước mặn?"
+    )
+
+    assert decision.intent == Intent.SPATIAL
+    assert decision.tool_calls == [ToolName.GET_SPATIAL_AIR_QUALITY]
+    assert decision.tool_arguments == [{"metric": "aqi", "forecast_hour": 0}]
+    assert decision.spatial_analysis == "compare"
+    assert decision.spatial_location_ids == ["whale_square", "coral_park", "salt_lake"]
+
+
+def test_spatial_router_expands_allow_list_for_wind_target_question() -> None:
+    decision = route_query(
+        "Gió hôm nay đang thổi ô nhiễm từ đường vành đai về khu căn hộ nào?"
+    )
+
+    assert decision.intent == Intent.SPATIAL
+    assert decision.tool_calls == [ToolName.GET_SPATIAL_AIR_QUALITY]
+    assert decision.tool_arguments == [{"metric": "aqi", "forecast_hour": 0}]
+    assert decision.spatial_analysis == "wind"
+    assert decision.spatial_origin_id == "da_ton_road"
+    assert decision.spatial_location_ids == [
+        "da_ton_road",
+        "sapphire",
+        "ngoc_trai",
+        "hai_au",
+    ]
+
+
+def test_spatial_router_validates_metric_and_explicit_forecast_horizon() -> None:
+    decision = route_query("Bản đồ nhiệt PM2.5 sau 6 giờ ở Ocean Park")
+
+    assert decision.intent == Intent.SPATIAL
+    assert decision.tool_arguments == [{"metric": "pm25", "forecast_hour": 6}]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("query", "expected_tools", "expected_fact"),
@@ -141,6 +189,64 @@ async def test_grounded_current_history_compare(query, expected_tools, expected_
     assert all(source["tool_name"] in expected_tools for source in result["sources"])
     assert result["trace"]["final_outcome"] == "answered"
     assert result["trace"]["request_id"] == "req-grounded"
+
+
+@pytest.mark.asyncio
+async def test_spatial_location_comparison_is_grounded_in_same_request_grid() -> None:
+    graph = build_graph(FakeBackendToolClient())
+    result = await graph.ainvoke(
+        {
+            "query": (
+                "Khu vực quảng trường cá voi / hồ San Hô không khí thế nào "
+                "so với khu biển nước mặn?"
+            ),
+            "request_id": "req-spatial-compare",
+        }
+    )
+
+    assert result["used_tools"] == ["get_spatial_air_quality"]
+    assert "Quảng trường Cá Voi ≈ 72.4 AQI" in result["answer"]
+    assert "Công viên San Hô ≈ 68 AQI" in result["answer"]
+    assert "Biển Hồ Nước Mặn ≈ 115.8 AQI" in result["answer"]
+    assert "không phải trạm đo đặt tại từng POI" in result["answer"]
+    assert result["sources"] == [
+        {
+            "tool_name": "get_spatial_air_quality",
+            "observed_at": "2026-08-04T09:00:00+07:00",
+            "source": "spatial_idw_dispersion_model",
+        }
+    ]
+    assert result["trace"]["final_outcome"] == "answered"
+
+
+@pytest.mark.asyncio
+async def test_spatial_wind_answer_is_a_labeled_geometric_inference() -> None:
+    result = await build_graph(FakeBackendToolClient()).ainvoke(
+        {
+            "query": "Gió hôm nay đang thổi ô nhiễm từ đường vành đai về khu căn hộ nào?",
+            "request_id": "req-spatial-wind",
+        }
+    )
+
+    assert result["used_tools"] == ["get_spatial_air_quality"]
+    assert "Khu ven Hồ Ngọc Trai" in result["answer"]
+    assert "gió hướng 135°" in result["answer"]
+    assert "suy luận hình học từ grid và vector gió" in result["answer"]
+    assert "không phải khẳng định nguồn phát thải" in result["answer"]
+    assert result["sources"][0]["source"] == "spatial_idw_dispersion_model"
+
+
+@pytest.mark.asyncio
+async def test_spatial_tool_failure_fails_closed_without_grid_values() -> None:
+    result = await build_graph(SpatialOutageAdapter()).ainvoke(
+        {"query": "So sánh quảng trường Cá Voi với biển nước mặn"}
+    )
+
+    assert result["used_tools"] == ["get_spatial_air_quality"]
+    assert result["answer"] == INSUFFICIENT_DATA_MESSAGE
+    assert result["sources"] == []
+    assert "115.8" not in result["answer"]
+    assert result["trace"]["tools"][0]["status"] == "backend_unavailable"
 
 
 @pytest.mark.asyncio
