@@ -16,11 +16,12 @@ from src.agents.tools.contracts import (
     ExtendedForecastInput,
     Pm25Forecast,
     Pm25ForecastInput,
+    SpatialAirQuality,
+    SpatialAirQualityInput,
     StationComparison,
     StationHistory,
     StationHistoryInput,
     StationMeasurement,
-    SpatialAirQualityInput,
     ToolEnvelope,
     ToolError,
     ToolErrorCode,
@@ -111,6 +112,7 @@ DEFAULT_FIXTURES: dict[str, Any] = {
     "history": {
         "S01": [
             {
+                "station_id": "S01",
                 "measured_at": (FIXED_NOW - timedelta(hours=idx)).isoformat(),
                 "pm25": 20.0 + idx * 0.5,
                 "co2": 600.0 + idx * 10,
@@ -119,21 +121,22 @@ DEFAULT_FIXTURES: dict[str, Any] = {
                 "quality_flag": "valid",
                 "source": "simulator",
             }
-            for idx in range(24)
+            for idx in reversed(range(24))
         ],
     },
     "alerts": {
         "items": [
             {
-                "alert_id": "ALT-001",
+                "alert_id": "alert-S02-001",
                 "station_id": "S02",
                 "alert_type": "pm25_threshold",
+                "rule_version": "fixture-alert-rule-v1",
                 "severity": "critical",
                 "observed_value": 58.2,
                 "threshold_value": 50.0,
                 "status": "active",
                 "created_at": FIXED_NOW.isoformat(),
-                "source": "simulator",
+                "source": "fixture_alert_rule",
                 "title": "PM2.5 exceeded threshold",
                 "description": "High particulate level recorded.",
                 "unit": "ug/m3",
@@ -191,7 +194,13 @@ class FakeBackendToolClient:
     async def get_station_history(self, payload: Mapping[str, Any], request_id: str = "fixture-request") -> ToolEnvelope | ToolError:
         try:
             args = StationHistoryInput.model_validate(payload)
-            points = self.fixtures["history"].get(args.station_id, self.fixtures["history"]["S01"])[: args.hours]
+            points = self.fixtures["history"].get(args.station_id)
+            if points is None:
+                points = [
+                    {**point, "station_id": args.station_id}
+                    for point in self.fixtures["history"]["S01"]
+                ]
+            points = points[-args.hours :]
             data = StationHistory.model_validate({"station_id": args.station_id, "hours": args.hours, "items": points}).model_dump(mode="json")
         except ValidationError as exc:
             return self._validation_error(ToolName.GET_STATION_HISTORY, request_id, exc)
@@ -322,17 +331,116 @@ class FakeBackendToolClient:
                 "metric": metric,
                 "unit": "AQI" if metric == "aqi" else "µg/m³" if metric == "pm25" else "ppm" if metric == "co2" else "°C" if metric == "temperature" else "dB",
                 "timestamp": FIXED_NOW.isoformat(),
+                "generated_at": FIXED_NOW.isoformat(),
                 "forecast_hour": args.forecast_hour,
                 "source": "spatial_idw_dispersion_model",
-                "model_version": "idw-dispersion-v1.0",
+                "model_version": "idw-dispersion-v2.0",
+                "model": {
+                    "name": "wind_adjusted_inverse_distance_weighting",
+                    "version": "idw-dispersion-v2.0",
+                    "grid_rows": 30,
+                    "grid_columns": 30,
+                    "power": 2.0,
+                    "minimum_stations": 3,
+                },
+                "extent": {
+                    "south": 20.9840,
+                    "west": 105.9330,
+                    "north": 21.0050,
+                    "east": 105.9630,
+                },
                 "wind_speed_ms": 3.2,
                 "wind_direction_deg": 135,
+                "weather": {
+                    "wind_speed_ms": 3.2,
+                    "wind_direction_deg": 135,
+                    "source": "simulator_fallback_weather",
+                    "observed_at": FIXED_NOW.isoformat(),
+                    "is_fallback": True,
+                    "is_stale": False,
+                    "assumptions": ["wind_direction_uses_documented_simulator_assumption"],
+                },
+                "data_quality": {
+                    "status": "valid",
+                    "stations_required": 3,
+                    "stations_used": ["S01", "S02", "S03", "S04", "S05"],
+                    "stations_excluded": [],
+                    "exclusion_reasons": {},
+                    "station_sources": ["simulator"],
+                    "forecast_sources": [],
+                },
+                "station_inputs": [
+                    {
+                        "station_id": station_id,
+                        "lat": latitude,
+                        "lon": longitude,
+                        "value": value,
+                        "source": "simulator",
+                        "observed_at": FIXED_NOW.isoformat(),
+                        "forecast_source": None,
+                    }
+                    for station_id, latitude, longitude, value in (
+                        ("S01", 21.0008, 105.9428, 95.0),
+                        ("S02", 20.9975, 105.9430, 90.0),
+                        ("S03", 20.9953, 105.9500, 80.0),
+                        ("S04", 20.9898, 105.9467, 68.0),
+                        ("S05", 20.9910, 105.9560, 110.0),
+                    )
+                ],
                 "grid_points": [
-                    {"lat": 20.9912, "lon": 105.9521, "value": 72.4, "level": "moderate"},
-                    {"lat": 20.9915, "lon": 105.9525, "value": 115.8, "level": "unhealthy_sensitive"},
+                    {
+                        "lat": 20.9935,
+                        "lon": 105.9405,
+                        "value": 68.0,
+                        "intensity": 0.272,
+                        "level": "moderate",
+                    },
+                    {
+                        "lat": 20.9938,
+                        "lon": 105.9485,
+                        "value": 72.4,
+                        "intensity": 0.29,
+                        "level": "moderate",
+                    },
+                    {
+                        "lat": 20.9945,
+                        "lon": 105.9585,
+                        "value": 115.8,
+                        "intensity": 0.463,
+                        "level": "unhealthy_sensitive",
+                    },
+                    {
+                        "lat": 21.0008,
+                        "lon": 105.9428,
+                        "value": 95.0,
+                        "intensity": 0.38,
+                        "level": "moderate",
+                    },
+                    {
+                        "lat": 20.9975,
+                        "lon": 105.9430,
+                        "value": 90.0,
+                        "intensity": 0.36,
+                        "level": "moderate",
+                    },
+                    {
+                        "lat": 20.9953,
+                        "lon": 105.9500,
+                        "value": 80.0,
+                        "intensity": 0.32,
+                        "level": "moderate",
+                    },
+                    {
+                        "lat": 20.9910,
+                        "lon": 105.9560,
+                        "value": 110.0,
+                        "intensity": 0.44,
+                        "level": "unhealthy_sensitive",
+                    },
                 ],
                 "disclaimer": "Mô hình nội suy trực quan hóa IDW kết hợp vector khí tượng mô phỏng.",
             }
+            data = SpatialAirQuality.model_validate(data).model_dump(mode="json")
         except ValidationError as exc:
             return self._validation_error(ToolName.GET_SPATIAL_AIR_QUALITY, request_id, exc)
         return ToolEnvelope(tool_name=ToolName.GET_SPATIAL_AIR_QUALITY, request_id=request_id, data=data)

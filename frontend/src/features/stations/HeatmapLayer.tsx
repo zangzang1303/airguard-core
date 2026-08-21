@@ -16,8 +16,6 @@ import {
   createDispersionOffscreenCanvas,
   OCEAN_PARK_1_EXTENT,
   OCEAN_PARK_1_BOUNDARY,
-  StationPoint,
-  WindContext,
 } from "../../utils/dispersionField";
 
 export interface HeatmapLayerProps {
@@ -31,53 +29,6 @@ const DISPERSION_BOUNDS: [[number, number], [number, number]] = [
   [OCEAN_PARK_1_EXTENT.latMin, OCEAN_PARK_1_EXTENT.lonMin],
   [OCEAN_PARK_1_EXTENT.latMax, OCEAN_PARK_1_EXTENT.lonMax],
 ];
-
-function generateFallbackHeatmap(metric: string, forecastHour: number): SpatialHeatmapResponse {
-  const seeds = [
-    { lat: 21.0008, lon: 105.9428, val: 42.5 },
-    { lat: 20.9975, lon: 105.9430, val: 55.2 },
-    { lat: 20.9953, lon: 105.9500, val: 66.1 },
-    { lat: 20.9898, lon: 105.9467, val: 28.4 },
-    { lat: 20.9910, lon: 105.9560, val: 35.9 },
-  ];
-  const grid_points: Array<{ lat: number; lon: number; value: number; intensity: number; level: string }> = [];
-  const rows = 36, cols = 36;
-  const latMin = 20.984, latMax = 21.005, lonMin = 105.933, lonMax = 105.963;
-  const latStep = (latMax - latMin) / (rows - 1);
-  const lonStep = (lonMax - lonMin) / (cols - 1);
-  for (let r = 0; r < rows; r++) {
-    const lat = latMin + r * latStep;
-    for (let c = 0; c < cols; c++) {
-      const lon = lonMin + c * lonStep;
-      let sumW = 0, sumV = 0;
-      for (const s of seeds) {
-        const d = Math.hypot((lat - s.lat) * 111, (lon - s.lon) * 103);
-        const w = 1 / Math.max(d * d, 0.001);
-        sumW += w;
-        sumV += w * (s.val * (1 + forecastHour * 0.05));
-      }
-      const value = Math.round((sumV / sumW) * 10) / 10;
-      grid_points.push({
-        lat: Number(lat.toFixed(5)),
-        lon: Number(lon.toFixed(5)),
-        value,
-        intensity: Math.min(1.0, Math.max(0.0, value / 250.0)),
-        level: value <= 50 ? "good" : value <= 100 ? "moderate" : "unhealthy_sensitive",
-      });
-    }
-  }
-  return {
-    metric: (metric as any) || "aqi",
-    forecast_hour: forecastHour,
-    source: "spatial_idw_fallback_model",
-    model_version: "idw-fallback-v1.0",
-    generated_at: new Date().toISOString(),
-    wind_speed_ms: 3.2 + forecastHour * 0.3,
-    wind_direction_deg: 135,
-    grid_points,
-    disclaimer: "Mô hình nội suy trực quan hóa IDW mô phỏng trong ranh giới Vinhomes Ocean Park 1.",
-  };
-}
 
 export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
   activeLayer = "aqi",
@@ -124,10 +75,13 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
         if (controller.signal.aborted || activeRequestKeyRef.current !== requestKey) {
           return;
         }
-        console.warn("Spatial Heatmap API Error (using client fallback):", err?.message);
-        const fallback = generateFallbackHeatmap(activeLayer, forecastHour);
-        setData(fallback);
-        setError(null);
+        console.warn("Spatial Heatmap API Error:", err?.message);
+        setData(null);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Không đủ dữ liệu hợp lệ để tạo bản đồ nhiệt.",
+        );
       })
       .finally(() => {
         if (!controller.signal.aborted && activeRequestKeyRef.current === requestKey) {
@@ -143,26 +97,11 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
   // Pure Geographic Offscreen Canvas & Data URL Generation
   // Derived strictly from geographic coordinates, stations, and wind — 100% zoom-invariant!
   const overlayDataUrl = useMemo(() => {
-    if (!isActive) return null;
-
-    const stations: StationPoint[] = [
-      { lat: 21.0008, lon: 105.9428, val: 42.5 },
-      { lat: 20.9975, lon: 105.9430, val: 55.2 },
-      { lat: 20.9953, lon: 105.9500, val: 66.1 },
-      { lat: 20.9898, lon: 105.9467, val: 28.4 },
-      { lat: 20.9910, lon: 105.9560, val: 35.9 },
-    ];
-
-    const wind: WindContext = {
-      speedMs: data?.wind_speed_ms ?? 3.2,
-      directionDeg: data?.wind_direction_deg ?? 135,
-    };
+    if (!isActive || !data || data.grid_points.length === 0) return null;
 
     const offscreenCanvas = createDispersionOffscreenCanvas(
-      data?.grid_points || null,
-      stations,
+      data.grid_points,
       activeLayer,
-      wind,
       120, // 120x120 resolution raster
       120,
       OCEAN_PARK_1_EXTENT,

@@ -50,7 +50,7 @@ Xay dung Agent co tool calling de giai thich PM2.5, so sanh tram, tham chieu wea
 ### AI-002 - Phan ra va trang thai implementation (04/08/2026)
 
 - [x] Policy va system prompt: tach observation/inference/recommendation, cam invent environmental fact.
-- [x] Intent router: current, history, compare, weather, forecast, alert, profile, proposal va out-of-scope.
+- [x] Intent router: current, history, compare, weather, forecast, spatial, alert, profile, proposal va out-of-scope.
 - [x] Validated arguments: chi trich station/hour/user id allow-list; adapter AI-001 validate lan cuoi truoc HTTP.
 - [x] Graph: `route -> execute_tools -> compose -> trace`; direct response chi cho greeting/clarification/scope/safety.
 - [x] Composer va quality gate: station/time/source/used_tools; block tool error, no-data, stale, invalid, offline.

@@ -7,6 +7,13 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.agents.policies.spatial_response import (
+    SpatialAnalysisMode,
+    expand_spatial_locations_for_query,
+    is_spatial_query,
+    resolve_spatial_location_ids,
+    spatial_analysis_mode,
+)
 from src.agents.tools.contracts import ToolName
 
 GROUNDING_POLICY_VERSION = "2026-08-04.ai-002"
@@ -34,6 +41,7 @@ class Intent(StrEnum):
     USER_PROFILE = "user_profile"
     RECOMMENDATION = "recommendation"
     IMPACT = "impact"
+    SPATIAL = "spatial"
     PROPOSAL = "proposal"
     GREETING = "greeting"
     CLARIFICATION = "clarification"
@@ -56,6 +64,9 @@ class RouteDecision(BaseModel):
     tool_arguments: list[dict[str, Any]] = Field(default_factory=list)
     direct_response: str | None = None
     safety_category: SafetyCategory | None = None
+    spatial_analysis: SpatialAnalysisMode | None = None
+    spatial_location_ids: list[str] = Field(default_factory=list)
+    spatial_origin_id: str | None = None
 
     @property
     def requires_tools(self) -> bool:
@@ -194,7 +205,7 @@ def route_query(
             intent=Intent.GREETING,
             direct_response=(
                 "Chào bạn! Mình có thể kiểm tra PM2.5 hiện tại, lịch sử, so sánh trạm, thời tiết, "
-                "dự báo và cảnh báo từ backend AirGuard."
+                "dự báo, bản đồ phân bố không gian và cảnh báo từ backend AirGuard."
             ),
         )
 
@@ -228,6 +239,33 @@ def route_query(
             intent=Intent.PROPOSAL,
             tool_calls=[ToolName.GET_CURRENT_PM25, ToolName.GET_ACTIVE_ALERTS],
             tool_arguments=[{"station_id": stations[0]}, {"station_id": stations[0]}],
+        )
+
+    explicit_spatial_locations = resolve_spatial_location_ids(stripped)
+    if is_spatial_query(stripped, explicit_spatial_locations):
+        analysis_mode = spatial_analysis_mode(stripped, explicit_spatial_locations)
+        spatial_locations = expand_spatial_locations_for_query(
+            stripped,
+            explicit_spatial_locations,
+            analysis_mode,
+        )
+        forecast_hour = _hours(plain, 0)
+        return RouteDecision(
+            intent=Intent.SPATIAL,
+            tool_calls=[ToolName.GET_SPATIAL_AIR_QUALITY],
+            tool_arguments=[
+                {
+                    "metric": _spatial_metric(plain),
+                    "forecast_hour": forecast_hour,
+                }
+            ],
+            spatial_analysis=analysis_mode,
+            spatial_location_ids=spatial_locations,
+            spatial_origin_id=(
+                explicit_spatial_locations[0]
+                if analysis_mode == "wind" and explicit_spatial_locations
+                else None
+            ),
         )
 
     if _contains_any(
@@ -342,10 +380,22 @@ def route_query(
         intent=Intent.OUT_OF_SCOPE,
         direct_response=(
             "Mình chỉ hỗ trợ phạm vi AirGuard: AQI/mức độ ảnh hưởng, PM2.5, lịch sử/so sánh trạm, thời tiết, dự báo, "
-            "cảnh báo và proposal có manager review."
+            "phân bố ô nhiễm không gian, cảnh báo và proposal có manager review."
         ),
     )
 
 
 def _clarify(message: str) -> RouteDecision:
     return RouteDecision(intent=Intent.CLARIFICATION, direct_response=message)
+
+
+def _spatial_metric(query: str) -> str:
+    if _contains_any(query, ("co2", "co₂", "carbon dioxide")):
+        return "co2"
+    if _contains_any(query, ("pm2.5", "pm25", "bui min")):
+        return "pm25"
+    if _contains_any(query, ("tieng on", "noise", "db")):
+        return "noise_db"
+    if _contains_any(query, ("nhiet do", "temperature")):
+        return "temperature"
+    return "aqi"
