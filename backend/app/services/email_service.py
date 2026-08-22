@@ -19,7 +19,7 @@ class AuthEmailService:
         """Send email verification link with token."""
         verification_link = f"{self.frontend_url}/verify-email?token={raw_token}"
         subject = "AirGuard AI — Xác minh địa chỉ email của bạn"
-        
+
         text_content = (
             f"Xin chào,\n\n"
             f"Cảm ơn bạn đã đăng ký tài khoản tại AirGuard AI.\n"

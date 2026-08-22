@@ -1,10 +1,9 @@
 ﻿from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ..schemas.measurements import MeasurementIngestionRequest
-
 from .audit_service import AuditService
 from .database import Database, ServiceError, dict_cursor
 
@@ -84,8 +83,8 @@ class MeasurementIngestionService:
                 return {"accepted": True, "duplicate": False, "measurement": dict(row)}
 
     def _validate_freshness(self, timestamp: datetime) -> None:
-        now = datetime.now(timezone.utc)
-        event_time = timestamp.astimezone(timezone.utc)
+        now = datetime.now(UTC)
+        event_time = timestamp.astimezone(UTC)
         age = (now - event_time).total_seconds()
         if age < -self.max_future_skew_seconds:
             raise ServiceError("future_time", "Measurement timestamp is too far in the future", 422)

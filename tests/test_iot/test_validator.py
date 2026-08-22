@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 CONSUMER_PATH = Path(__file__).resolve().parents[2] / "services" / "mqtt-consumer"
 sys.path.insert(0, str(CONSUMER_PATH))
 
-from mqtt_consumer.station_catalog import StationCatalog
-from mqtt_consumer.validator import (
+from mqtt_consumer.station_catalog import StationCatalog  # noqa: E402
+from mqtt_consumer.validator import (  # noqa: E402
     ValidationErrorCode,
     validate_device_status_message,
     validate_measurement_message,
@@ -21,7 +21,7 @@ def catalog() -> StationCatalog:
 
 
 def payload(**overrides: object) -> str:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     data = {
         "message_id": "MSG-S01-1",
         "station_id": "S01",
@@ -40,7 +40,7 @@ def payload(**overrides: object) -> str:
 
 
 def test_valid_measurement_accepts_contract_payload() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     result = validate_measurement_message(
         "airguard/stations/S01/measurements",
         payload(),
@@ -55,7 +55,7 @@ def test_valid_measurement_accepts_contract_payload() -> None:
 
 
 def test_unknown_station_is_rejected() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     result = validate_measurement_message(
         "airguard/stations/S99/measurements",
         payload(station_id="S99", message_id="MSG-S99-1"),
@@ -68,7 +68,7 @@ def test_unknown_station_is_rejected() -> None:
 
 
 def test_topic_station_mismatch_is_rejected() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     result = validate_measurement_message(
         "airguard/stations/S02/measurements",
         payload(station_id="S01"),
@@ -81,7 +81,7 @@ def test_topic_station_mismatch_is_rejected() -> None:
 
 
 def test_negative_pm25_is_rejected_as_range_error() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     result = validate_measurement_message(
         "airguard/stations/S01/measurements",
         payload(pm25=-1),
@@ -94,7 +94,7 @@ def test_negative_pm25_is_rejected_as_range_error() -> None:
 
 
 def test_future_timestamp_is_rejected() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     result = validate_measurement_message(
         "airguard/stations/S01/measurements",
         payload(timestamp=(now + timedelta(minutes=5)).isoformat()),
@@ -108,7 +108,7 @@ def test_future_timestamp_is_rejected() -> None:
 
 
 def test_stale_timestamp_is_rejected() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     result = validate_measurement_message(
         "airguard/stations/S01/measurements",
         payload(timestamp=(now - timedelta(minutes=10)).isoformat()),
@@ -123,7 +123,7 @@ def test_stale_timestamp_is_rejected() -> None:
 
 def test_duplicate_message_is_a_persistence_rejection_reason() -> None:
     """The validator accepts delivery retries; storage owns message_id uniqueness."""
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     first = validate_measurement_message(
         "airguard/stations/S01/measurements", payload(), catalog(), now=now
     )
@@ -138,7 +138,7 @@ def test_duplicate_message_is_a_persistence_rejection_reason() -> None:
 
 
 def test_offline_and_recovery_statuses_are_valid_ordered_events() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     offline = validate_status_message(
         "airguard/stations/S01/status",
         '{"station_id":"S01","status":"offline","timestamp":"2026-08-03T08:00:00+00:00",'
@@ -162,7 +162,7 @@ def test_offline_and_recovery_statuses_are_valid_ordered_events() -> None:
 
 
 def test_valid_station_status_accepts_source_and_timezone() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     result = validate_status_message(
         "airguard/stations/S01/status",
         '{"station_id":"S01","status":"online","timestamp":"2026-08-03T08:00:00+00:00","source":"simulator"}',
@@ -176,7 +176,7 @@ def test_valid_station_status_accepts_source_and_timezone() -> None:
 
 
 def test_valid_device_status_accepts_simulated_ack() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     result = validate_device_status_message(
         "airguard/devices/FILTER-01/status",
         '{"command_id":"cmd-1","device_id":"FILTER-01","status":"succeeded",'
@@ -190,7 +190,7 @@ def test_valid_device_status_accepts_simulated_ack() -> None:
 
 
 def test_device_ack_rejects_future_timestamp_beyond_configured_skew() -> None:
-    now = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
     result = validate_device_status_message(
         "airguard/devices/FILTER-01/status",
         '{"command_id":"cmd-future","device_id":"FILTER-01","status":"succeeded",'
@@ -204,7 +204,7 @@ def test_device_ack_rejects_future_timestamp_beyond_configured_skew() -> None:
 
 
 def test_device_ack_rejects_stale_replay_before_storage_mutation() -> None:
-    now = datetime(2026, 8, 3, 8, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, 8, 10, tzinfo=UTC)
     result = validate_device_status_message(
         "airguard/devices/FILTER-01/status",
         '{"command_id":"cmd-stale","device_id":"FILTER-01","status":"rejected",'

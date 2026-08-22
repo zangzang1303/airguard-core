@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from threading import Lock
 from typing import Any
 
@@ -30,12 +31,14 @@ class AutomaticProposalService:
         audit_service: AuditService,
         enabled: bool,
         allowed_stations: tuple[str, ...] = (),
+        proposal_notifier: Callable[..., None] | None = None,
     ) -> None:
         self.agent_service = agent_service
         self.approval_service = approval_service
         self.audit_service = audit_service
         self.enabled = enabled
         self.allowed_stations = frozenset(allowed_stations)
+        self.proposal_notifier = proposal_notifier
         self._scheduled_stations: set[str] = set()
         self._schedule_lock = Lock()
 
@@ -137,6 +140,13 @@ class AutomaticProposalService:
                 correlation_id=correlation_id,
                 details={"proposal_id": proposal_id, "generation_mode": generation_mode},
             )
+            self._notify_proposal(
+                proposal_id=str(proposal_id),
+                station_id=station_id,
+                proposed_action="ventilation_boost",
+                alert_id=alert_id,
+                correlation_id=correlation_id,
+            )
         except AgentServiceError as exc:
             self._audit(
                 action="agent.auto_proposal.failure",
@@ -204,6 +214,42 @@ class AutomaticProposalService:
                 "reused": bool(proposal.get("reused")),
             },
         )
+        self._notify_proposal(
+            proposal_id=str(proposal["request_id"]),
+            station_id=station_id,
+            proposed_action="eco_mode",
+            alert_id=alert_id,
+            correlation_id=correlation_id,
+        )
+
+    def _notify_proposal(
+        self,
+        *,
+        proposal_id: str,
+        station_id: str,
+        proposed_action: str,
+        alert_id: str,
+        correlation_id: str,
+    ) -> None:
+        if self.proposal_notifier is None:
+            return
+        try:
+            self.proposal_notifier(
+                proposal_id=proposal_id,
+                station_id=station_id,
+                proposed_action=proposed_action,
+                correlation_id=correlation_id,
+            )
+        except Exception as exc:
+            # Notification is downstream of proposal persistence. A delivery
+            # failure must be visible but must never erase or re-create HITL state.
+            self._audit(
+                action="proposal.notification.failure",
+                alert_id=alert_id,
+                correlation_id=correlation_id,
+                outcome="failure",
+                details={"proposal_id": proposal_id, "reason": exc.__class__.__name__},
+            )
 
     def _audit(
         self,

@@ -175,6 +175,8 @@ def test_offline_station_blocks_trigger_and_recovery_even_with_fresh_valid_measu
         "status": "succeeded",
         "created_at": now - timedelta(minutes=30),
         "dispatched_at": now - timedelta(minutes=30),
+        "ack_status": "succeeded",
+        "acknowledged_at": now - timedelta(minutes=30),
     }
     service = VentilationService(
         FakeDatabase(rows, [intent], station_status="offline"),
@@ -199,6 +201,8 @@ def test_safe_recovery_requires_succeeded_boost_and_twenty_continuous_minutes() 
         "status": "succeeded",
         "created_at": now - timedelta(minutes=30),
         "dispatched_at": now - timedelta(minutes=30),
+        "ack_status": "succeeded",
+        "acknowledged_at": now - timedelta(minutes=30),
     }
     result = VentilationService(
         FakeDatabase(rows, [intent]),
@@ -208,6 +212,31 @@ def test_safe_recovery_requires_succeeded_boost_and_twenty_continuous_minutes() 
     assert result.eligible is True
     assert result.source_command_intent_id == "intent-001"
     assert result.device_id == "FILTER-01"
+
+
+def test_safe_recovery_requires_correlated_succeeded_acknowledgement() -> None:
+    now = datetime(2026, 8, 21, 5, tzinfo=UTC)
+    rows = continuous_rows(now, minutes=20, pm25=50, co2=1000)
+    intent = {
+        "command_intent_id": "intent-without-ack",
+        "device_id": "FILTER-01",
+        "station_id": "S03",
+        "command": "ventilation_boost",
+        "status": "succeeded",
+        "created_at": now - timedelta(minutes=30),
+        "dispatched_at": now - timedelta(minutes=30),
+        "ack_status": None,
+        "acknowledged_at": None,
+    }
+
+    result = VentilationService(
+        FakeDatabase(rows, [intent]),
+        max_gap_seconds=60,
+    ).assess_recovery("S03", reference_at=now)
+
+    assert result.eligible is False
+    assert result.reason_code == "boost_acknowledgement_missing"
+    assert result.source_command_intent_id == "intent-without-ack"
 
 
 def test_recovery_missing_co2_or_without_succeeded_boost_is_blocked() -> None:
@@ -221,6 +250,8 @@ def test_recovery_missing_co2_or_without_succeeded_boost_is_blocked() -> None:
         "status": "succeeded",
         "created_at": now - timedelta(minutes=30),
         "dispatched_at": now - timedelta(minutes=30),
+        "ack_status": "succeeded",
+        "acknowledged_at": now - timedelta(minutes=30),
     }
 
     missing_co2 = VentilationService(FakeDatabase(rows, [intent]), max_gap_seconds=60).assess_recovery(

@@ -1,25 +1,22 @@
 from __future__ import annotations
 
-import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
 
-from fastapi.testclient import TestClient
+from app.dependencies.auth import set_auth_service  # noqa: E402
+from app.main import app  # noqa: E402
+from app.services.audit_service import AuditService  # noqa: E402
+from app.services.auth_crypto import hash_password  # noqa: E402
+from app.services.auth_service import AuthService  # noqa: E402
+from app.services.email_service import AuthEmailService  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
-from app.core import Settings
-from app.dependencies.auth import set_auth_service
-from app.main import app
-from app.services.audit_service import AuditService
-from app.services.auth_crypto import hash_password
-from app.services.auth_service import AuthService
-from app.services.database import Database
-from app.services.email_service import AuthEmailService
-from tests.test_backend.test_auth_service import FakeDatabase
+from tests.test_backend.test_auth_service import FakeDatabase  # noqa: E402
 
 
 def setup_test_app() -> tuple[TestClient, FakeDatabase, AuthEmailService]:
@@ -128,11 +125,11 @@ def test_rbac_protection_on_privileged_endpoints() -> None:
         "role": "resident",
         "full_name": "Resident A",
         "sensitivity_group": "normal",
-        "email_verified_at": datetime.now(timezone.utc),
+        "email_verified_at": datetime.now(UTC),
         "is_active": True,
         "failed_login_count": 0,
         "locked_until": None,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
     }
 
     fake_db.users[manager_id] = {
@@ -143,11 +140,11 @@ def test_rbac_protection_on_privileged_endpoints() -> None:
         "role": "manager",
         "full_name": "Manager B",
         "sensitivity_group": "normal",
-        "email_verified_at": datetime.now(timezone.utc),
+        "email_verified_at": datetime.now(UTC),
         "is_active": True,
         "failed_login_count": 0,
         "locked_until": None,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
     }
 
     # 1. Unauthenticated request to /api/v1/approvals fails with 401

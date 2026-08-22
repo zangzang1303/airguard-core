@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from math import floor
 
-
 # US EPA PM2.5 24-hour concentration breakpoints. The result is a simulator
 # sub-index, not an official AQI/NowCast observation.
 _BREAKPOINTS = (
@@ -25,9 +24,14 @@ def pm25_aqi(pm25: float | None) -> int | None:
 def aqi_category(aqi: int | None) -> str | None:
     if aqi is None:
         return None
-    if aqi <= 50: return "good"
-    if aqi <= 100: return "moderate"
-    if aqi <= 150: return "unhealthy_sensitive"
-    if aqi <= 200: return "unhealthy"
-    if aqi <= 300: return "very_unhealthy"
+    if aqi <= 50:
+        return "good"
+    if aqi <= 100:
+        return "moderate"
+    if aqi <= 150:
+        return "unhealthy_sensitive"
+    if aqi <= 200:
+        return "unhealthy"
+    if aqi <= 300:
+        return "very_unhealthy"
     return "hazardous"

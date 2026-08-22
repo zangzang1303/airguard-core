@@ -30,6 +30,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/alerts/{id}/resolve` | manager-only manual alert resolution | 200 | 403/404/503 |
 | GET `/stations/{id}/forecast?hours=1..3&metric=pm25|aqi|co2|noise_db|temperature` | damped linear-trend forecast from at least 3 fresh valid measurements of the selected metric; defaults to PM2.5 | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
+| GET `/spatial/heatmap?metric=aqi|pm25|co2|noise_db|temperature&forecast_hour=0..24` | grounded wind-adjusted IDW grid from at least three fresh valid online stations | 200 | 422/503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
 | POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
 | POST `/agent/jobs` | async agent job dispatch | 202 | 422/503 |
@@ -53,6 +54,23 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 ## Station response
 
 `station_id`, `station_name`, `location_type`, `latitude`, `longitude`, `description`, `active`, `pm25`, `aqi`, `aqi_category`, `aqi_standard`, `co2`, `noise_db`, `temperature`, `level`, `status`, `freshness`, `is_stale`, `updated_at`, `last_seen_at`, `source`, `timestamp`. AQI is the PM2.5 concentration sub-index using `US_EPA_PM25_24H_2012`; for this MVP it is computed from simulator data and is not an official AQI/NowCast. Values may be null when unavailable/stale/offline; client must render state, not invent value.
+
+## Spatial heatmap response
+
+`GET /spatial/heatmap` returns `metric`, `unit`, timezone-aware `timestamp` and `generated_at`,
+`forecast_hour`, `source=spatial_idw_dispersion_model`, `model_version`, `model`, `extent`,
+`weather`, `data_quality`, `station_inputs`, wind fields, `grid_points` and `disclaimer`.
+`model` records the IDW name/version, grid dimensions, power and minimum station count. `extent`
+contains ordered south/west/north/east bounds. `station_inputs` preserves station id, coordinates,
+value, measurement source/time and optional forecast source. `data_quality` lists required, used and
+excluded stations plus exclusion reasons and sources. Weather fallback, when configured, is explicit
+through `weather.source`, `is_fallback`, `observed_at` and assumptions; stale weather is rejected.
+
+Interpolation requires at least three geographically distinct, fresh, valid and online station
+snapshots. Empty data or insufficient coverage returns `insufficient_spatial_data` with HTTP 503.
+An unavailable station snapshot store returns `spatial_station_data_unavailable` with HTTP 503.
+Invalid metric or forecast horizon returns the standard structured 422 error. The frontend and Agent
+must not generate substitute grid points, intensity, station values or provenance.
 
 ## Environmental alert response
 
@@ -111,6 +129,15 @@ Ventilation proposal/approval responses add `device_id`, canonical `proposed_act
 publication and device acknowledgement are separate states. The dispatcher persists `command_id`;
 the consumer correlates the simulator status event to that command and audits success, rejection or
 failure. UI must not show `RUNNING_BOOST` until the acknowledged device state is returned.
+
+Creating an automatic ventilation or recovery proposal enqueues at most one Manager notification
+per active Manager/Admin recipient, keyed by `(proposal_id, recipient_user_id)`. Notification is an
+optional side effect: unavailable recipients, disabled SMTP, broker enqueue failure or delivery
+failure must be recorded transparently and must not approve, reject, delete or otherwise mutate the
+persisted `pending` proposal. Audit details identify the recipient by internal user id and must not
+contain the email address. Task results and worker logs must omit both recipient address and message
+body. A real email is sent only when `NOTIFICATION_PROVIDER=smtp` and valid SMTP settings are
+configured; otherwise the job completes with `delivery_status=not_configured`.
 
 ## Environmental report request and response
 

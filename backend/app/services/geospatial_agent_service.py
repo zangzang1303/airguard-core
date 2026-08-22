@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
+from .environmental_scoring import environmental_scoring
+from .live_telemetry_engine import live_engine
+from .prophet_forecast_service import prophet_service
 from .spatial_registry import spatial_registry
 from .temporal_resolver import temporal_resolver
-from .environmental_scoring import environmental_scoring
-from .prophet_forecast_service import prophet_service
-from .live_telemetry_engine import live_engine
 
 
 class GeospatialAgentService:
@@ -75,7 +75,7 @@ class GeospatialAgentService:
                     "co2": current_st.get("co2", 650.0),
                     "noise_db": current_st.get("noise_db", 55.0),
                     "temperature": current_st.get("temperature", 31.0),
-                    "timestamp": current_st.get("measured_at", datetime.now(timezone.utc).isoformat()),
+                    "timestamp": current_st.get("measured_at", datetime.now(UTC).isoformat()),
                 }
             else:
                 # Prophet ML Multi-Step Forecast
@@ -95,7 +95,7 @@ class GeospatialAgentService:
                     "co2": 620.0,
                     "noise_db": 54.0 if forecast_hour >= 20 else 60.0,
                     "temperature": 29.5 if forecast_hour >= 18 else 32.5,
-                    "timestamp": target_horizon.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                    "timestamp": target_horizon.get("timestamp", datetime.now(UTC).isoformat()),
                     "lower_bound": target_horizon.get("lower_bound", predicted_pm25 * 0.85),
                     "upper_bound": target_horizon.get("upper_bound", predicted_pm25 * 1.15),
                 }
@@ -247,7 +247,6 @@ class GeospatialAgentService:
         # (e.g. User clicked a POI/Station and asked "tối nay thì sao?", "vinuni thế nào?", "hồ ngọc trai")
         explicit_poi = spatial_registry.find_poi_by_name(q)
         if explicit_poi or map_context.get("selected_location") or map_context.get("selected_sensor") or station_id:
-            target_poi_name = None
             if explicit_poi:
                 target_poi = next((p for p in ranked_pois if p["id"] == explicit_poi["id"]), ranked_pois[0])
             elif map_context.get("selected_location"):
@@ -410,7 +409,6 @@ class GeospatialAgentService:
     ) -> dict[str, Any]:
         # Worst is candidate with lowest environmental score (highest AQI/PM2.5)
         worst = ranked_pois[-1]
-        time_label = time_ctx["label"]
 
         summary = (
             f"Khu vực **{worst['short_name']}** (gần trạm {worst['sensor_id']}) hiện có mức độ ô nhiễm không khí cao nhất "

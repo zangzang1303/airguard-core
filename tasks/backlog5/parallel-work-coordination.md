@@ -1,7 +1,7 @@
 # Kế hoạch phối hợp song song Backlog 5
 
 > Phạm vi: `spatial-heatmap-dispersion.md` và `auto-ventilation-reporting.md`
-> Cập nhật: 21/08/2026
+> Cập nhật: 22/08/2026
 > Mục tiêu: hai người có thể làm song song, giữ contract nhất quán và hạn chế conflict khi merge.
 
 ## 1. Phân công
@@ -42,7 +42,7 @@ Phần còn thiếu hoặc cần xác minh:
 - điều kiện vượt ngưỡng liên tục 15 phút;
 - action dành riêng cho ventilation và `duration_minutes`;
 - `quick-approve` nhưng vẫn giữ đầy đủ RBAC, CSRF, optimistic version và audit;
-- tự chuyển về `eco_mode` sau khi dữ liệu an toàn liên tục 20 phút;
+- tạo `eco_mode` proposal `pending` sau khi dữ liệu an toàn liên tục 20 phút; Manager vẫn phải duyệt trước khi dispatch;
 - `report_generator_service.py`, report persistence, API, scheduled generation và export;
 - thống kê hiệu quả sau ventilation và lời bình LLM có grounded fallback.
 

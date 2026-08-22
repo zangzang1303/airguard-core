@@ -6,7 +6,7 @@ from pathlib import Path
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
 
-from app.services.auth_crypto import (
+from app.services.auth_crypto import (  # noqa: E402
     dummy_verify_password,
     generate_token,
     hash_password,

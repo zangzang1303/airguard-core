@@ -174,6 +174,7 @@ def test_device_command_id_is_stable_across_dispatch_retries() -> None:
 def test_mqtt_publish_requires_qos_ack_and_terminal_dispatch_is_not_republished() -> None:
     pytest.importorskip("celery")
     from backend.app.tasks.notification_tasks import (  # noqa: PLC0415
+        _close_mqtt_client,
         _dispatch_is_succeeded,
         _wait_for_mqtt_publish,
     )
@@ -192,6 +193,20 @@ def test_mqtt_publish_requires_qos_ack_and_terminal_dispatch_is_not_republished(
     assert _dispatch_is_succeeded({"command_intent_status": "succeeded"}) is True
     assert _dispatch_is_succeeded({"ack_status": "succeeded"}) is True
     assert _dispatch_is_succeeded({"command_intent_status": "published"}) is False
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.events: list[str] = []
+
+        def disconnect(self) -> None:
+            self.events.append("disconnect")
+
+        def loop_stop(self) -> None:
+            self.events.append("loop_stop")
+
+    client = FakeClient()
+    _close_mqtt_client(client)
+    assert client.events == ["disconnect", "loop_stop"]
 
 
 def test_dispatch_persistence_and_approval_lookup_translate_database_outage_for_retry() -> None:

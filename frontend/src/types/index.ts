@@ -466,18 +466,70 @@ export interface SpatialHeatmapPoint {
   lon: number;
   value: number;
   intensity: number;
-  level?: string;
+  level: "good" | "moderate" | "unhealthy_sensitive" | "unhealthy" | "very_unhealthy" | "hazardous";
+}
+
+export interface SpatialModel {
+  name: string;
+  version: string;
+  grid_rows: number;
+  grid_columns: number;
+  power: number;
+  minimum_stations: number;
+}
+
+export interface SpatialExtent {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+export interface SpatialWeather {
+  wind_speed_ms: number;
+  wind_direction_deg: number;
+  source: string;
+  observed_at: string;
+  is_fallback: boolean;
+  is_stale: false;
+  assumptions: string[];
+}
+
+export interface SpatialDataQuality {
+  status: "valid";
+  stations_required: number;
+  stations_used: string[];
+  stations_excluded: string[];
+  exclusion_reasons: Record<string, string[]>;
+  station_sources: string[];
+  forecast_sources: string[];
+}
+
+export interface SpatialStationInput {
+  station_id: string;
+  lat: number;
+  lon: number;
+  value: number;
+  source: string;
+  observed_at: string;
+  forecast_source: string | null;
 }
 
 export interface SpatialHeatmapResponse {
-  metric: string;
+  metric: "aqi" | "pm25" | "co2" | "noise_db" | "temperature";
+  unit: string;
   forecast_hour: number;
-  generated_at?: string;
-  timestamp?: string;
-  wind_speed_ms?: number;
-  wind_direction_deg?: number;
-  model_version?: string;
-  source?: string;
+  generated_at: string;
+  timestamp: string;
+  wind_speed_ms: number;
+  wind_direction_deg: number;
+  model_version: string;
+  model: SpatialModel;
+  extent: SpatialExtent;
+  weather: SpatialWeather;
+  data_quality: SpatialDataQuality;
+  station_inputs: SpatialStationInput[];
+  source: "spatial_idw_dispersion_model";
   grid_points: SpatialHeatmapPoint[];
-  disclaimer?: string;
+  disclaimer: string;
 }

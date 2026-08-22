@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any
 
 from .database import Database, dict_cursor
@@ -96,8 +97,8 @@ class AuditService:
                         return [dict(row) for row in rows]
         except Exception:
             pass
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).isoformat()
+        from datetime import datetime
+        now = datetime.now(UTC).isoformat()
         return [
             {
                 "audit_id": 1,

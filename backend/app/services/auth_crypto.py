@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+
 import argon2
 
 # Argon2id hasher configured for web security and memory hardness

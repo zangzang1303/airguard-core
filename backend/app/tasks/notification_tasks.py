@@ -27,6 +27,12 @@ def _wait_for_mqtt_publish(info, *, timeout_seconds: float = 5) -> None:
         raise TransientTaskError("MQTT QoS acknowledgement timed out")
 
 
+def _close_mqtt_client(client: mqtt.Client) -> None:
+    """Disconnect first so the network loop exits without waiting for its poll timeout."""
+    client.disconnect()
+    client.loop_stop()
+
+
 def _dispatch_is_succeeded(approval: dict) -> bool:
     return (
         approval.get("command_intent_status") == "succeeded"
@@ -53,7 +59,6 @@ def send_notification_job(self, recipient: str, message: str, idempotency_key: s
             return {
                 "task_id": task_id,
                 "job_type": "notification",
-                "recipient": recipient,
                 "delivery_status": "not_configured",
                 "provider": provider,
                 "reason": "Set NOTIFICATION_PROVIDER=smtp and SMTP settings to dispatch a real notification.",
@@ -64,7 +69,6 @@ def send_notification_job(self, recipient: str, message: str, idempotency_key: s
             return {
                 "task_id": task_id,
                 "job_type": "notification",
-                "recipient": recipient,
                 "delivery_status": "failed_validation",
                 "provider": "smtp",
                 "reason": "SMTP_HOST, SMTP_FROM, and a valid recipient are required.",
@@ -88,7 +92,6 @@ def send_notification_job(self, recipient: str, message: str, idempotency_key: s
         return {
             "task_id": task_id,
             "job_type": "notification",
-            "recipient": recipient,
             "delivery_status": "delivered",
             "provider": "smtp",
         }
@@ -186,8 +189,7 @@ def publish_approved_device_command(
             raise TransientTaskError(f"MQTT publish failed: {exc}") from exc
         finally:
             if client is not None:
-                client.loop_stop()
-                client.disconnect()
+                _close_mqtt_client(client)
 
         service.record_device_dispatch(
             request_id=approval_request_id,

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import signal
 import time
-import os
 import urllib.error
 import urllib.request
 from threading import Event
@@ -16,9 +16,9 @@ from .config import ConsumerSettings
 from .station_catalog import StationCatalog
 from .storage import PostgresStore
 from .validator import (
+    DEVICE_STATUS_TOPIC_RE,
     MEASUREMENT_TOPIC_RE,
     STATUS_TOPIC_RE,
-    DEVICE_STATUS_TOPIC_RE,
     ValidationErrorCode,
     validate_device_status_message,
     validate_measurement_message,

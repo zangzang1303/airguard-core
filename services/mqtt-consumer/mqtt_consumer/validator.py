@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Generic, TypeVar
 
@@ -56,8 +56,8 @@ def _validate_time(
     stale_after_seconds: int,
     max_future_skew_seconds: int,
 ) -> ValidationResult[Any] | None:
-    event_utc = event_time.astimezone(timezone.utc)
-    now_utc = now.astimezone(timezone.utc)
+    event_utc = event_time.astimezone(UTC)
+    now_utc = now.astimezone(UTC)
     age_seconds = (now_utc - event_utc).total_seconds()
     if age_seconds < -max_future_skew_seconds:
         return ValidationResult(False, reason=ValidationErrorCode.FUTURE_TIME, detail="timestamp is too far in the future")
@@ -96,7 +96,7 @@ def validate_measurement_message(
 
     time_error = _validate_time(
         payload.timestamp,
-        now or datetime.now(timezone.utc),
+        now or datetime.now(UTC),
         stale_after_seconds,
         max_future_skew_seconds,
     )
@@ -136,7 +136,7 @@ def validate_status_message(
 
     time_error = _validate_time(
         payload.timestamp,
-        now or datetime.now(timezone.utc),
+        now or datetime.now(UTC),
         stale_after_seconds,
         max_future_skew_seconds,
     )
@@ -168,7 +168,7 @@ def validate_device_status_message(
         return ValidationResult(False, reason=ValidationErrorCode.TOPIC_STATION_MISMATCH, detail="device_id differs from topic")
     time_error = _validate_time(
         payload.timestamp,
-        now or datetime.now(timezone.utc),
+        now or datetime.now(UTC),
         stale_after_seconds,
         max_future_skew_seconds,
     )

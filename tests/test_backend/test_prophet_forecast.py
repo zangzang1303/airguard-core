@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from backend.app.services.prophet_forecast_service import ProphetForecastService
@@ -9,7 +10,7 @@ from backend.app.services.prophet_forecast_service import ProphetForecastService
 
 @pytest.fixture
 def sample_history():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return [
         {
             "measured_at": (now - timedelta(hours=i)).isoformat(),
@@ -54,7 +55,7 @@ def test_prophet_forecast_multi_metrics(sample_history):
 def test_prophet_forecast_sub_50ms_latency(sample_history):
     service = ProphetForecastService()
     start = time.perf_counter()
-    res = service.forecast(station_id="S02", history=sample_history, hours=24, metric="pm25")
+    service.forecast(station_id="S02", history=sample_history, hours=24, metric="pm25")
     elapsed_ms = (time.perf_counter() - start) * 1000.0
 
     assert elapsed_ms < 50.0, f"Prophet forecast took {elapsed_ms:.2f}ms (must be < 50ms)"

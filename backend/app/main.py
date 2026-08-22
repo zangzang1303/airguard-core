@@ -1,6 +1,6 @@
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -51,11 +51,12 @@ from .services.weather_service import WeatherService
 try:
     from .tasks.agent_tasks import run_agent_job
     from .tasks.forecast_tasks import run_forecast_job
-    from .tasks.notification_tasks import publish_approved_device_command
+    from .tasks.notification_tasks import publish_approved_device_command, send_notification_job
 except ModuleNotFoundError:
     run_agent_job = None
     run_forecast_job = None
     publish_approved_device_command = None
+    send_notification_job = None
 
 
 class AgentChatRequest(BaseModel):
@@ -153,6 +154,83 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=1024, examples=["NewSecurePassword123!"])
 
 
+def _enqueue_manager_proposal_notification(
+    *,
+    proposal_id: str,
+    station_id: str,
+    proposed_action: str,
+    correlation_id: str,
+) -> None:
+    if send_notification_job is None:
+        audit_service.record(
+            actor_type="system",
+            actor_role="backend",
+            action="proposal.notification.skipped",
+            entity_type="approval_request",
+            entity_id=proposal_id,
+            correlation_id=correlation_id,
+            outcome="skipped",
+            details={"reason": "notification_dependency_missing"},
+        )
+        return
+
+    recipients = user_service.list_manager_notification_recipients()
+    if not recipients:
+        audit_service.record(
+            actor_type="system",
+            actor_role="backend",
+            action="proposal.notification.skipped",
+            entity_type="approval_request",
+            entity_id=proposal_id,
+            correlation_id=correlation_id,
+            outcome="skipped",
+            details={"reason": "manager_recipient_unavailable"},
+        )
+        return
+
+    for recipient in recipients:
+        idempotency_key = f"proposal-notification:{proposal_id}:{recipient['user_id']}"
+        task_id = str(uuid5(NAMESPACE_URL, f"airguard:{idempotency_key}"))
+        payload = {
+            "recipient": recipient["email"],
+            "message": (
+                f"AirGuard có proposal {proposal_id} đang chờ Manager duyệt cho trạm "
+                f"{station_id}, hành động {proposed_action}."
+            ),
+            "idempotency_key": idempotency_key,
+        }
+        job, created = reserve_job(task_id, "proposal_notification", idempotency_key, payload)
+        dispatch_task_id = str(job.get("task_id") or task_id)
+        if not created and job.get("status") != "FAILURE":
+            continue
+        try:
+            send_notification_job.apply_async(kwargs=payload, task_id=dispatch_task_id)
+            audit_service.record(
+                actor_type="system",
+                actor_role="backend",
+                action="proposal.notification.enqueued",
+                entity_type="approval_request",
+                entity_id=proposal_id,
+                correlation_id=correlation_id,
+                details={"recipient_user_id": recipient["user_id"]},
+            )
+        except Exception as exc:
+            mark_job_failed(dispatch_task_id, "proposal_notification_enqueue_failed", retrying=False)
+            audit_service.record(
+                actor_type="system",
+                actor_role="backend",
+                action="proposal.notification.failure",
+                entity_type="approval_request",
+                entity_id=proposal_id,
+                correlation_id=correlation_id,
+                outcome="failure",
+                details={
+                    "recipient_user_id": recipient["user_id"],
+                    "reason": exc.__class__.__name__,
+                },
+            )
+
+
 settings = Settings.load()
 db = Database(settings.database_url)
 audit_service = AuditService(db)
@@ -230,6 +308,7 @@ automatic_proposal_service = AutomaticProposalService(
     audit_service=audit_service,
     enabled=settings.auto_proposal_enabled,
     allowed_stations=settings.auto_proposal_stations,
+    proposal_notifier=_enqueue_manager_proposal_notification,
 )
 report_narrator = (
     HttpReportNarrator(
@@ -625,22 +704,22 @@ def get_station(station_id: str) -> dict:
 def get_station_current(station_id: str) -> dict:
     try:
         station = station_service.get_station(station_id)
-        return {**station, "timestamp": datetime.now(timezone.utc).isoformat()}
+        return {**station, "timestamp": datetime.now(UTC).isoformat()}
     except Exception:
         fallback = station_service._fallback_stations()
         st = next((s for s in fallback if s["station_id"] == station_id), fallback[0])
-        return {**st, "timestamp": datetime.now(timezone.utc).isoformat()}
+        return {**st, "timestamp": datetime.now(UTC).isoformat()}
 
 
 
 @app.get("/api/v1/stations/{station_id}/history")
 def get_station_history(station_id: str, hours: int = Query(default=24, ge=1, le=72)) -> dict:
-    return {**station_service.get_history(station_id, hours), "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {**station_service.get_history(station_id, hours), "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.post("/api/v1/stations/compare")
 def compare_stations(body: CompareStationsRequest) -> dict:
-    return {**station_service.compare_stations(body.station_ids), "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {**station_service.compare_stations(body.station_ids), "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.post("/api/v1/internal/ingestion/measurements", status_code=202)
@@ -681,7 +760,7 @@ def evaluate_ingested_measurement(
 
 @app.get("/api/v1/alerts")
 def get_alerts(status: str | None = Query(default=None), station_id: str | None = Query(default=None)) -> dict:
-    return {"items": alert_engine.list_alerts(status=status, station_id=station_id), "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"items": alert_engine.list_alerts(status=status, station_id=station_id), "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.post("/api/v1/alerts/{alert_id}/resolve")
@@ -703,7 +782,7 @@ weather_service = WeatherService()
 
 @app.get("/api/v1/weather/current")
 def get_current_weather() -> dict:
-    return {**weather_service.current_weather(), "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {**weather_service.current_weather(), "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.get("/api/v1/spatial/heatmap")
@@ -729,7 +808,7 @@ def get_station_forecast(
 
     try:
         forecast = trend_forecast(history, min(3, hours), metric=metric)
-        return {"station_id": station_id, **forecast, "timestamp": datetime.now(timezone.utc).isoformat()}
+        return {"station_id": station_id, **forecast, "timestamp": datetime.now(UTC).isoformat()}
     except Exception:
         return prophet_service.forecast(station_id, history, hours=hours, metric=metric)
 
@@ -779,7 +858,7 @@ async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
             "intent": "get_current_environment",
             "time_context": {"type": "live", "is_forecast": False, "label": "Hiện tại"},
             "data_mode": "live",
-            "evidence": [{"source": "sensor", "station_id": st_id, "metric": "pm25", "value": pm25, "timestamp": datetime.now(timezone.utc).isoformat()}],
+            "evidence": [{"source": "sensor", "station_id": st_id, "metric": "pm25", "value": pm25, "timestamp": datetime.now(UTC).isoformat()}],
             "map_actions": [
                 {"type": "clear_ai_layer"},
                 {"type": "highlight_sensor", "sensor_id": st_id, "severity": "normal", "lat": st.get("latitude", 20.995), "lng": st.get("longitude", 105.95)},
