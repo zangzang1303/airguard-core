@@ -13,6 +13,8 @@ The AI-002 release gate covers:
 - source mapping for environmental facts from the same request;
 - AQI-first current-station responses that enumerate PM2.5, CO₂, noise and temperature from the same fresh snapshot;
 - transparent handling of backend outage, empty history, stale, offline, invalid and invalid arguments;
+- rejection of missing freshness, timezone-less environmental timestamps, stale weather and stale forecast;
+- simulator/fixture transparency for current, history, compare, weather, forecast and alert answers;
 - clarification for missing station context;
 - refusal of prompt injection, medical diagnosis, emergency claims, device control and HITL bypass;
 - trace request id, tool status/latency, final outcome and PII/secret redaction.

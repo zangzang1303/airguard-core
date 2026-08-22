@@ -4,13 +4,13 @@ import json
 import logging
 import os
 import signal
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
 from threading import Event
+from typing import Literal
 
 import paho.mqtt.client as mqtt
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("airguard.device_simulator")
@@ -31,6 +31,7 @@ def load_processed_keys() -> set[str]:
 
 
 processed_keys = load_processed_keys()
+device_state = "ECO_MODE"
 
 
 def save_processed_keys() -> None:
@@ -45,10 +46,12 @@ class DeviceCommand(BaseModel):
 
     command_id: str = Field(min_length=1, max_length=100)
     device_id: str = Field(min_length=1, max_length=50)
-    action: str = Field(min_length=3, max_length=100)
+    action: Literal["ventilation_boost", "air_purifier_on", "eco_mode"]
     approval_id: str = Field(min_length=1, max_length=100)
     idempotency_key: str = Field(min_length=1, max_length=200)
     timestamp: datetime
+    duration_minutes: int | None = Field(default=None, ge=5, le=180)
+    intensity_percent: int | None = Field(default=None, ge=1, le=100)
 
     @field_validator("timestamp")
     @classmethod
@@ -57,14 +60,22 @@ class DeviceCommand(BaseModel):
             raise ValueError("timestamp must include timezone")
         return value
 
+    @model_validator(mode="after")
+    def timed_action_has_parameters(self) -> DeviceCommand:
+        if self.action in {"ventilation_boost", "air_purifier_on"}:
+            if self.duration_minutes is None or self.intensity_percent is None:
+                raise ValueError("timed device action requires duration_minutes and intensity_percent")
+        return self
+
 
 def publish_status(client: mqtt.Client, command_id: str, status: str, reason: str | None = None) -> None:
     payload = {
         "command_id": command_id,
         "device_id": DEVICE_ID,
         "status": status,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "is_simulated": True,
+        "device_state": device_state,
     }
     if reason:
         payload["reason"] = reason
@@ -84,6 +95,7 @@ def build_client() -> mqtt.Client:
             logger.error("device mqtt connect failed reason=%s", reason_code)
 
     def on_message(client, userdata, message):
+        global device_state
         command_id = "unknown"
         try:
             raw = json.loads(message.payload.decode("utf-8"))
@@ -95,6 +107,12 @@ def build_client() -> mqtt.Client:
             if command.idempotency_key in processed_keys:
                 publish_status(client, command.command_id, "duplicate", "idempotency_key_already_processed")
                 return
+            if command.action == "ventilation_boost":
+                device_state = "RUNNING_BOOST"
+            elif command.action == "air_purifier_on":
+                device_state = "AIR_PURIFIER_ON"
+            else:
+                device_state = "ECO_MODE"
             processed_keys.add(command.idempotency_key)
             save_processed_keys()
             publish_status(client, command.command_id, "succeeded", "simulated_ack_after_server_approval")

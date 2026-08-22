@@ -147,6 +147,13 @@ class ProposalEvidence(StrictModel):
     source: str | None = None
     rule_version: str | None = Field(default=None, min_length=1, max_length=100)
     severity: str | None = Field(default=None, min_length=1, max_length=50)
+    alert_type: str | None = Field(default=None, min_length=1, max_length=80)
+    ventilation_eligible: bool | None = None
+    ventilation_policy_version: str | None = Field(default=None, min_length=1, max_length=100)
+    qualified_duration_seconds: int | None = Field(default=None, ge=0)
+    qualification_window_start: AwareDatetime | None = None
+    qualification_window_end: AwareDatetime | None = None
+    triggered_metrics: list[str] = Field(default_factory=list, max_length=3)
 
     @field_validator("station_id")
     @classmethod
@@ -163,6 +170,8 @@ class WarningProposalInput(StrictModel):
     policy_version: str = Field(..., min_length=3, max_length=80)
     evidence: list[ProposalEvidence] = Field(..., min_length=1, max_length=10)
     expires_at: AwareDatetime | None = None
+    duration_minutes: int | None = Field(default=None, ge=5, le=180)
+    intensity_percent: int | None = Field(default=None, ge=1, le=100)
 
     @model_validator(mode="after")
     def evidence_has_station_context(self) -> WarningProposalInput:
@@ -170,6 +179,11 @@ class WarningProposalInput(StrictModel):
             raise ValueError("warning proposal target requires station_id")
         if self.target.station_id and not any(item.station_id == self.target.station_id for item in self.evidence):
             raise ValueError("proposal evidence must include the target station_id")
+        if self.action in {"ventilation_boost", "air_purifier_on"}:
+            if self.duration_minutes is None:
+                raise ValueError("timed device actions require duration_minutes")
+            if self.intensity_percent is None:
+                raise ValueError("timed device actions require intensity_percent")
         return self
 
 
@@ -185,7 +199,7 @@ class StationMeasurement(BackendOutputModel):
     level: str | None = None
     is_stale: bool
     updated_at: AwareDatetime
-    source: str = Field(..., min_length=1, max_length=100)
+    source: Literal["simulator"]
 
     @field_validator("station_id")
     @classmethod
@@ -197,7 +211,7 @@ class HistoryPoint(BackendOutputModel):
     station_id: str
     measured_at: AwareDatetime
     pm25: float = Field(..., ge=0)
-    source: str = Field(..., min_length=1, max_length=100)
+    source: Literal["simulator"]
 
     @field_validator("station_id")
     @classmethod
@@ -267,6 +281,7 @@ class ForecastPoint(BackendOutputModel):
 
 class Pm25Forecast(BackendOutputModel):
     station_id: str
+    is_stale: bool
     items: list[ForecastPoint]
 
     @field_validator("station_id")
@@ -319,6 +334,16 @@ class ActiveAlert(BackendOutputModel):
     description: str | None = None
     unit: str | None = Field(default=None, max_length=20)
     recommendation: str | None = Field(default=None, max_length=500)
+    ventilation_eligible: bool | None = None
+    ventilation_reason_code: str | None = Field(default=None, max_length=100)
+    ventilation_policy_version: str | None = Field(default=None, max_length=100)
+    qualified_duration_seconds: int | None = Field(default=None, ge=0)
+    qualification_window_start: AwareDatetime | None = None
+    qualification_window_end: AwareDatetime | None = None
+    triggered_metrics: list[str] = Field(default_factory=list, max_length=3)
+    recommended_action: str | None = Field(default=None, max_length=100)
+    recommended_duration_minutes: int | None = Field(default=None, ge=5, le=180)
+    recommended_intensity_percent: int | None = Field(default=None, ge=1, le=100)
 
     @field_validator("station_id")
     @classmethod

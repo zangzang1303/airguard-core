@@ -19,7 +19,7 @@ class RoadGraphRouter:
         "N_SAPPHIRE_TOWER": {"name": "Tháp Sapphire S2.01", "lat": 20.9975, "lng": 105.9430},
         "N_SAPPHIRE_GATE": {"name": "Cổng nội khu Sapphire", "lat": 20.9960, "lng": 105.9448},
         "N_DAI_DUONG_JCT": {"name": "Ngã tư Đại Dương - San Hô", "lat": 20.9945, "lng": 105.9465},
-        
+
         # San Hô Riverwalk
         "N_SAN_HO_SOUTH": {"name": "Đầu công viên San Hô Nam", "lat": 20.9935, "lng": 105.9405},
         "N_SAN_HO_MID": {"name": "Công viên San Hô Trung tâm", "lat": 20.9978, "lng": 105.9420},
@@ -401,11 +401,11 @@ class RoadGraphRouter:
 
         # 1. Approach path from user origin to Lake Entry
         approach = cls.find_path_dijkstra(start_node, "N_LAKE_WEST_ENTRY", station_pm25_map)
-        
+
         final_coords: list[list[float]] = [[user_lat, user_lng]]
         if approach["coords"]:
             final_coords.extend(approach["coords"])
-        
+
         approach_dist_m = snap_dist_m + approach["distance_m"]
 
         # 2. Number of lake loops to meet target_km

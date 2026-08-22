@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from math import sqrt
 from typing import Any
-
 
 MIN_HISTORY_POINTS = 3
 MODEL_NAME = "damped_linear_trend_v1"
 FORECAST_SOURCE = "simulator_history_damped_linear_v1"
 
 
-class InsufficientForecastHistory(ValueError):
+class InsufficientForecastHistory(ValueError):  # noqa: N818 - public API compatibility
     """Raised when a forecast would have to invent a trend."""
 
 
@@ -44,7 +43,7 @@ def trend_forecast(
     damped_hourly_change = capped_hourly_change * 0.65
     residual_spread = _residual_spread(x_values, y_values, slope_per_minute, intercept)
     confidence = _confidence(len(points), residual_spread, current_value)
-    generated_at = generated_at or datetime.now(timezone.utc)
+    generated_at = generated_at or datetime.now(UTC)
 
     items = []
     for hour in range(1, hours + 1):
@@ -94,7 +93,7 @@ def _normalise_history(history: Sequence[Mapping[str, Any]], metric: str) -> lis
             measured_at = datetime.fromisoformat(measured_at.replace("Z", "+00:00"))
         if measured_at.tzinfo is None:
             continue
-        points.append((measured_at.astimezone(timezone.utc), float(value)))
+        points.append((measured_at.astimezone(UTC), float(value)))
     return sorted(points, key=lambda point: point[0])
 
 

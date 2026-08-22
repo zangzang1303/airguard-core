@@ -10,6 +10,11 @@ import {
   AdminUser,
   AdminAuditEntry,
   UserMutationResult,
+  Report,
+  ReportExport,
+  ReportExportFormat,
+  ReportGenerateRequest,
+  ReportType,
   SpatialHeatmapResponse,
   SpatialHeatmapPoint,
 } from "../types";
@@ -276,6 +281,8 @@ export async function apiFetch<T>(
 
 function mapProposal(request: Record<string, any>): Proposal {
   const rawEvidence = request.evidence ?? {};
+  const rawControl =
+    rawEvidence.control && typeof rawEvidence.control === "object" ? rawEvidence.control : {};
   const evidenceItems = Array.isArray(rawEvidence.items) ? rawEvidence.items : [];
   const currentEvidence = evidenceItems.find((item: Record<string, any>) => item.source_tool === "get_current_pm25") ?? {};
   const alertEvidence = evidenceItems.find((item: Record<string, any>) => item.source_tool === "get_active_alerts") ?? {};
@@ -292,126 +299,292 @@ function mapProposal(request: Record<string, any>): Proposal {
   };
   const actionLabels: Record<string, string> = {
     notify_station_area_users: "Gửi cảnh báo đến người dân trong khu vực",
+    ventilation_boost: "Tăng cường thông gió",
+    air_purifier_on: "Bật hệ thống lọc không khí",
+    eco_mode: "Đưa thiết bị về chế độ tiết kiệm",
   };
+  const deviceId = request.device_id ?? rawControl.device_id ?? null;
+  const proposedAction = request.proposed_action ?? rawControl.action;
+  const rawDispatchStatus = request.dispatch_status ?? request.command_intent?.status;
+  const dispatchStatus: Proposal["dispatch_status"] =
+    rawDispatchStatus === "queued"
+      ? "queued"
+      : rawDispatchStatus === "pending" || rawDispatchStatus === "published"
+        ? "pending"
+        : rawDispatchStatus === "succeeded" || rawDispatchStatus === "acknowledged"
+          ? "succeeded"
+          : rawDispatchStatus === "failed" || rawDispatchStatus === "rejected"
+            ? "failed"
+            : rawDispatchStatus === "not_configured"
+              ? "not_configured"
+              : "unknown";
   return {
     proposal_id: request.request_id,
     station_id: request.station_id,
+    request_type: request.request_type,
+    device_id: deviceId,
+    proposed_action: proposedAction,
+    duration_minutes:
+      request.duration_minutes ?? request.command_intent?.duration_minutes ?? rawControl.duration_minutes ?? null,
     severity: evidence.severity ?? "unknown",
-    target: request.device_id ?? request.station_id ?? "Không xác định",
-    action: actionLabels[request.proposed_action] ?? request.proposed_action,
+    target: deviceId ?? request.station_id ?? "Không xác định",
+    action: actionLabels[proposedAction] ?? proposedAction,
     rationale: request.reason ?? "Backend không cung cấp lý do.",
     status: request.status,
     created_at: request.created_at,
     created_by: request.created_by,
     evidence,
     version: request.version ?? 1,
-    dispatch_status: request.command_intent?.status ?? "unknown",
+    reviewed_by: request.reviewed_by,
+    reviewed_at: request.reviewed_at,
+    review_note: request.review_note,
+    dispatch_status: dispatchStatus,
+  };
+}
+
+async function downloadApiFile(endpoint: string): Promise<ReportExport> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, { credentials: "include" });
+  if (!response.ok) {
+    let errorBody: Record<string, any> | null = null;
+    try {
+      errorBody = await response.json();
+    } catch {
+      // The shared API error envelope may be unavailable for proxy-level failures.
+    }
+    const error: any = new Error(errorBody?.message || `API Error ${response.status}: ${response.statusText}`);
+    error.status = response.status;
+    error.code = errorBody?.code;
+    error.details = errorBody?.details;
+    throw error;
+  }
+
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const quotedFilename = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  const filename = encodedFilename
+    ? decodeURIComponent(encodedFilename)
+    : quotedFilename || "airguard-report";
+  return {
+    blob: await response.blob(),
+    filename,
+    media_type: response.headers.get("Content-Type") ?? "application/octet-stream",
   };
 }
 
 export function normalizeSpatialHeatmapResponse(raw: any): SpatialHeatmapResponse {
+  const contractError = (message: string): never => {
+    throw new Error(`Spatial Heatmap API response contract failure: ${message}`);
+  };
+  const requireObject = (value: any, field: string): Record<string, any> => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      contractError(`'${field}' must be an object.`);
+    }
+    return value;
+  };
+  const requireString = (value: any, field: string): string => {
+    if (typeof value !== "string" || !value.trim()) {
+      contractError(`'${field}' must be a non-empty string.`);
+    }
+    return value.trim();
+  };
+  const requireFinite = (value: any, field: string): number => {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      contractError(`'${field}' must be a finite number.`);
+    }
+    return value;
+  };
+  const requireInteger = (value: any, field: string): number => {
+    const parsed = requireFinite(value, field);
+    if (!Number.isInteger(parsed)) {
+      contractError(`'${field}' must be an integer.`);
+    }
+    return parsed;
+  };
+  const requireTimestamp = (value: any, field: string): string => {
+    const timestamp = requireString(value, field);
+    if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(timestamp) || Number.isNaN(Date.parse(timestamp))) {
+      contractError(`'${field}' must be a timezone-aware ISO-8601 timestamp.`);
+    }
+    return timestamp;
+  };
+  const requireStringArray = (value: any, field: string): string[] => {
+    if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || !item.trim())) {
+      contractError(`'${field}' must be an array of non-empty strings.`);
+    }
+    return value.map((item) => item.trim());
+  };
+
   if (!raw || typeof raw !== "object") {
-    throw new Error("Spatial Heatmap API response contract failure: response object is missing.");
+    contractError("response object is missing.");
   }
 
-  if (typeof raw.metric !== "string" || !raw.metric.trim()) {
-    throw new Error("Spatial Heatmap API response contract failure: missing or invalid 'metric'.");
+  const allowedMetrics = new Set(["aqi", "pm25", "co2", "noise_db", "temperature"]);
+  if (typeof raw.metric !== "string" || !allowedMetrics.has(raw.metric)) {
+    contractError("'metric' is unsupported.");
+  }
+  const unit = requireString(raw.unit, "unit");
+  const forecastHour = requireInteger(raw.forecast_hour, "forecast_hour");
+  if (forecastHour < 0 || forecastHour > 24) {
+    contractError("'forecast_hour' must be between 0 and 24.");
   }
 
-  const forecastHour =
-    typeof raw.forecast_hour === "number" &&
-      Number.isFinite(raw.forecast_hour) &&
-      raw.forecast_hour >= 0
-      ? raw.forecast_hour
-      : 0;
+  if (raw.source !== "spatial_idw_dispersion_model") {
+    contractError("'source' must be 'spatial_idw_dispersion_model'.");
+  }
+  const modelVersion = requireString(raw.model_version, "model_version");
+  const generatedAt = requireTimestamp(raw.generated_at, "generated_at");
+  const timestamp = requireTimestamp(raw.timestamp, "timestamp");
+  const disclaimer = requireString(raw.disclaimer, "disclaimer");
 
-  if (!Array.isArray(raw.grid_points)) {
-    throw new Error("Spatial Heatmap API response contract failure: 'grid_points' must be an array.");
+  const windSpeed = requireFinite(raw.wind_speed_ms, "wind_speed_ms");
+  const windDirection = requireInteger(raw.wind_direction_deg, "wind_direction_deg");
+  if (windSpeed < 0 || windSpeed > 60) {
+    contractError("'wind_speed_ms' must be between 0 and 60.");
+  }
+  if (windDirection < 0 || windDirection >= 360) {
+    contractError("'wind_direction_deg' must be between 0 and 359.");
   }
 
-  if (typeof raw.source !== "string" || !raw.source.trim()) {
-    throw new Error("Spatial Heatmap API response contract failure: missing or empty 'source'.");
+  const rawModel = requireObject(raw.model, "model");
+  const model = {
+    name: requireString(rawModel.name, "model.name"),
+    version: requireString(rawModel.version, "model.version"),
+    grid_rows: requireInteger(rawModel.grid_rows, "model.grid_rows"),
+    grid_columns: requireInteger(rawModel.grid_columns, "model.grid_columns"),
+    power: requireFinite(rawModel.power, "model.power"),
+    minimum_stations: requireInteger(rawModel.minimum_stations, "model.minimum_stations"),
+  };
+  if (
+    model.version !== modelVersion ||
+    model.grid_rows < 1 ||
+    model.grid_columns < 1 ||
+    model.power <= 0 ||
+    model.minimum_stations < 3
+  ) {
+    contractError("'model' metadata is inconsistent or outside supported bounds.");
   }
 
-  const timestampRaw = raw.generated_at ?? raw.timestamp;
-  if (typeof timestampRaw !== "string" || !timestampRaw.trim()) {
-    throw new Error("Spatial Heatmap API response contract failure: missing 'generated_at' / 'timestamp'.");
+  const rawExtent = requireObject(raw.extent, "extent");
+  const extent = {
+    south: requireFinite(rawExtent.south, "extent.south"),
+    west: requireFinite(rawExtent.west, "extent.west"),
+    north: requireFinite(rawExtent.north, "extent.north"),
+    east: requireFinite(rawExtent.east, "extent.east"),
+  };
+  if (
+    extent.south < -90 ||
+    extent.north > 90 ||
+    extent.west < -180 ||
+    extent.east > 180 ||
+    extent.south >= extent.north ||
+    extent.west >= extent.east
+  ) {
+    contractError("'extent' bounds are invalid or unordered.");
   }
-  const dateObj = new Date(timestampRaw);
-  if (Number.isNaN(dateObj.getTime())) {
-    throw new Error("Spatial Heatmap API response contract failure: invalid date string in timestamp.");
-  }
-  const generated_at = dateObj.toISOString();
 
-  let wind_speed_ms: number | undefined;
-  if (raw.wind_speed_ms !== undefined && raw.wind_speed_ms !== null) {
-    if (typeof raw.wind_speed_ms !== "number" || !Number.isFinite(raw.wind_speed_ms) || raw.wind_speed_ms < 0) {
-      throw new Error("Spatial Heatmap API response contract failure: 'wind_speed_ms' must be a non-negative finite number.");
+  const rawWeather = requireObject(raw.weather, "weather");
+  const weather = {
+    wind_speed_ms: requireFinite(rawWeather.wind_speed_ms, "weather.wind_speed_ms"),
+    wind_direction_deg: requireInteger(rawWeather.wind_direction_deg, "weather.wind_direction_deg"),
+    source: requireString(rawWeather.source, "weather.source"),
+    observed_at: requireTimestamp(rawWeather.observed_at, "weather.observed_at"),
+    is_fallback: rawWeather.is_fallback,
+    is_stale: rawWeather.is_stale,
+    assumptions: requireStringArray(rawWeather.assumptions, "weather.assumptions"),
+  };
+  if (
+    typeof weather.is_fallback !== "boolean" ||
+    weather.is_stale !== false ||
+    weather.wind_speed_ms !== windSpeed ||
+    weather.wind_direction_deg !== windDirection
+  ) {
+    contractError("'weather' must be fresh and consistent with top-level wind fields.");
+  }
+
+  const rawQuality = requireObject(raw.data_quality, "data_quality");
+  const stationsRequired = requireInteger(rawQuality.stations_required, "data_quality.stations_required");
+  const stationsUsed = requireStringArray(rawQuality.stations_used, "data_quality.stations_used");
+  const exclusionReasonsRaw = requireObject(rawQuality.exclusion_reasons, "data_quality.exclusion_reasons");
+  const exclusionReasons: Record<string, string[]> = {};
+  for (const [stationId, reasons] of Object.entries(exclusionReasonsRaw)) {
+    exclusionReasons[stationId] = requireStringArray(reasons, `data_quality.exclusion_reasons.${stationId}`);
+  }
+  const dataQuality = {
+    status: rawQuality.status,
+    stations_required: stationsRequired,
+    stations_used: stationsUsed,
+    stations_excluded: requireStringArray(rawQuality.stations_excluded, "data_quality.stations_excluded"),
+    exclusion_reasons: exclusionReasons,
+    station_sources: requireStringArray(rawQuality.station_sources, "data_quality.station_sources"),
+    forecast_sources: requireStringArray(rawQuality.forecast_sources, "data_quality.forecast_sources"),
+  };
+  if (dataQuality.status !== "valid" || stationsRequired < 3 || stationsUsed.length < stationsRequired) {
+    contractError("'data_quality' does not prove sufficient valid station coverage.");
+  }
+
+  if (!Array.isArray(raw.station_inputs) || raw.station_inputs.length < stationsRequired) {
+    contractError("'station_inputs' must include every station required for interpolation.");
+  }
+  const stationInputs = raw.station_inputs.map((item: any, index: number) => {
+    const station = requireObject(item, `station_inputs.${index}`);
+    const forecastSource = station.forecast_source;
+    if (forecastSource !== null && (typeof forecastSource !== "string" || !forecastSource.trim())) {
+      contractError(`'station_inputs.${index}.forecast_source' must be null or a non-empty string.`);
     }
-    wind_speed_ms = raw.wind_speed_ms;
-  }
+    return {
+      station_id: requireString(station.station_id, `station_inputs.${index}.station_id`),
+      lat: requireFinite(station.lat, `station_inputs.${index}.lat`),
+      lon: requireFinite(station.lon, `station_inputs.${index}.lon`),
+      value: requireFinite(station.value, `station_inputs.${index}.value`),
+      source: requireString(station.source, `station_inputs.${index}.source`),
+      observed_at: requireTimestamp(station.observed_at, `station_inputs.${index}.observed_at`),
+      forecast_source: forecastSource === null ? null : forecastSource.trim(),
+    };
+  });
 
-  let wind_direction_deg: number | undefined;
-  if (raw.wind_direction_deg !== undefined && raw.wind_direction_deg !== null) {
-    if (typeof raw.wind_direction_deg !== "number" || !Number.isFinite(raw.wind_direction_deg)) {
-      throw new Error("Spatial Heatmap API response contract failure: 'wind_direction_deg' must be a finite number.");
+  if (!Array.isArray(raw.grid_points) || raw.grid_points.length < 1) {
+    contractError("'grid_points' must be a non-empty array.");
+  }
+  const allowedLevels = new Set([
+    "good",
+    "moderate",
+    "unhealthy_sensitive",
+    "unhealthy",
+    "very_unhealthy",
+    "hazardous",
+  ]);
+  const gridPoints: SpatialHeatmapPoint[] = raw.grid_points.map((item: any, index: number) => {
+    const point = requireObject(item, `grid_points.${index}`);
+    const lat = requireFinite(point.lat, `grid_points.${index}.lat`);
+    const lon = requireFinite(point.lon, `grid_points.${index}.lon`);
+    const value = requireFinite(point.value, `grid_points.${index}.value`);
+    const intensity = requireFinite(point.intensity, `grid_points.${index}.intensity`);
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180 || intensity < 0 || intensity > 1) {
+      contractError(`'grid_points.${index}' coordinates or intensity are outside supported bounds.`);
     }
-    let deg = raw.wind_direction_deg % 360;
-    if (deg < 0) deg += 360;
-    wind_direction_deg = deg;
-  }
-
-  let model_version: string | undefined;
-  if (typeof raw.model_version === "string" && raw.model_version.trim()) {
-    model_version = raw.model_version.trim();
-  }
-
-  let disclaimer: string | undefined;
-  if (typeof raw.disclaimer === "string" && raw.disclaimer.trim()) {
-    disclaimer = raw.disclaimer.trim();
-  }
-
-  const validGridPoints: SpatialHeatmapPoint[] = [];
-  for (const p of raw.grid_points) {
-    if (
-      p &&
-      typeof p.lat === "number" &&
-      Number.isFinite(p.lat) &&
-      p.lat >= -90 &&
-      p.lat <= 90 &&
-      typeof p.lon === "number" &&
-      Number.isFinite(p.lon) &&
-      p.lon >= -180 &&
-      p.lon <= 180 &&
-      typeof p.value === "number" &&
-      Number.isFinite(p.value)
-    ) {
-      const rawIntensity =
-        typeof p.intensity === "number" && Number.isFinite(p.intensity)
-          ? p.intensity
-          : Math.min(1.0, Math.max(0.0, p.value / 250.0));
-      const clampedIntensity = Math.min(1.0, Math.max(0.0, rawIntensity));
-      validGridPoints.push({
-        lat: p.lat,
-        lon: p.lon,
-        value: p.value,
-        intensity: clampedIntensity,
-        level: typeof p.level === "string" ? p.level : undefined,
-      });
+    if (typeof point.level !== "string" || !allowedLevels.has(point.level)) {
+      contractError(`'grid_points.${index}.level' is unsupported.`);
     }
-  }
+    return { lat, lon, value, intensity, level: point.level } as SpatialHeatmapPoint;
+  });
 
   return {
     metric: raw.metric,
+    unit,
     forecast_hour: forecastHour,
-    generated_at,
-    timestamp: generated_at,
+    generated_at: generatedAt,
+    timestamp,
     source: raw.source,
-    wind_speed_ms,
-    wind_direction_deg,
-    model_version,
+    wind_speed_ms: windSpeed,
+    wind_direction_deg: windDirection,
+    model_version: modelVersion,
+    model,
+    extent,
+    weather,
+    data_quality: dataQuality,
+    station_inputs: stationInputs,
     disclaimer,
-    grid_points: validGridPoints,
+    grid_points: gridPoints,
   };
 }
 
@@ -557,12 +730,49 @@ export const api = {
     return mapProposal(data);
   },
 
+  quickApproveProposal: async (
+    proposalId: string,
+    version: number,
+    note: string,
+    idempotencyKey: string,
+    _actor?: DemoApiActor,
+  ): Promise<Proposal> => {
+    const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/quick-approve`, {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ version, note }),
+    });
+    return mapProposal(data);
+  },
+
   rejectProposal: async (proposalId: string, version: number, note: string, _actor?: DemoApiActor): Promise<Proposal> => {
     const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/reject`, {
       method: "POST",
       body: JSON.stringify({ version, note }),
     });
     return mapProposal(data);
+  },
+
+  getReports: async (type: ReportType): Promise<Report[]> => {
+    const data = await apiFetch<{ items: Report[] }>(`/api/v1/reports?type=${encodeURIComponent(type)}`);
+    return data.items;
+  },
+
+  getReport: async (reportId: string): Promise<Report> => {
+    return apiFetch<Report>(`/api/v1/reports/${encodeURIComponent(reportId)}`);
+  },
+
+  generateReport: async (input: ReportGenerateRequest): Promise<Report> => {
+    return apiFetch<Report>("/api/v1/reports/generate", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  exportReport: async (reportId: string, format: ReportExportFormat): Promise<ReportExport> => {
+    return downloadApiFile(
+      `/api/v1/reports/${encodeURIComponent(reportId)}/export?format=${encodeURIComponent(format)}`,
+    );
   },
 
   getAuditLogs: async (_actor?: DemoApiActor): Promise<AuditLogEntry[]> => {

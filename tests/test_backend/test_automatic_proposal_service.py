@@ -19,6 +19,7 @@ class FakeApprovalService:
     def __init__(self, exists: bool = False, pending: bool = False) -> None:
         self.exists = exists
         self.pending = pending
+        self.created: list[dict] = []
 
     def has_request_for_alert(self, **_kwargs) -> bool:
         return self.exists
@@ -28,6 +29,10 @@ class FakeApprovalService:
 
     def expire_pending_requests(self, **_kwargs) -> int:
         return 0
+
+    def create_request(self, **kwargs) -> dict:
+        self.created.append(kwargs)
+        return {"request_id": "eco-proposal-001", "status": "pending"}
 
 
 class FakeAuditService:
@@ -39,13 +44,25 @@ class FakeAuditService:
         return {"audit_id": 1}
 
 
+class FakeNotifier:
+    def __init__(self, *, failure: Exception | None = None) -> None:
+        self.failure = failure
+        self.calls: list[dict] = []
+
+    def __call__(self, **kwargs) -> None:
+        self.calls.append(kwargs)
+        if self.failure:
+            raise self.failure
+
+
 def alert(**overrides):
     result = {
         "alert_id": "alert-001",
         "station_id": "S02",
-        "alert_type": "aqi_threshold",
+        "alert_type": "pm25_threshold",
         "status": "active",
         "created_at": datetime(2026, 8, 15, tzinfo=UTC),
+        "ventilation_eligible": True,
     }
     result.update(overrides)
     return result
@@ -58,6 +75,8 @@ def test_auto_proposal_requires_new_active_environmental_alert() -> None:
 
     assert service.should_analyze(alert()) is True
     assert service.should_analyze(alert(alert_type="sensor_offline")) is False
+    assert service.should_analyze(alert(alert_type="aqi_threshold")) is False
+    assert service.should_analyze(alert(ventilation_eligible=False)) is False
     assert service.should_analyze(alert(status="resolved")) is False
     assert service.should_analyze(None) is False
 
@@ -92,8 +111,13 @@ def test_auto_proposal_uses_live_llm_before_creating_pending_proposal() -> None:
         {"proposal_id": "proposal-001", "trace": {"final_outcome": "proposal_pending"}},
     ])
     audit = FakeAuditService()
+    notifier = FakeNotifier()
     service = AutomaticProposalService(
-        agent_service=agent, approval_service=FakeApprovalService(), audit_service=audit, enabled=True
+        agent_service=agent,
+        approval_service=FakeApprovalService(),
+        audit_service=audit,
+        enabled=True,
+        proposal_notifier=notifier,
     )
 
     service.analyze_and_propose(alert=alert(), correlation_id="corr-001")
@@ -104,6 +128,14 @@ def test_auto_proposal_uses_live_llm_before_creating_pending_proposal() -> None:
     assert "warning proposal" in agent.calls[1]["message"]
     assert audit.records[-1]["action"] == "agent.auto_proposal.create"
     assert audit.records[-1]["details"]["proposal_id"] == "proposal-001"
+    assert notifier.calls == [
+        {
+            "proposal_id": "proposal-001",
+            "station_id": "S02",
+            "proposed_action": "ventilation_boost",
+            "correlation_id": "corr-001",
+        }
+    ]
 
 
 def test_auto_proposal_does_not_create_when_live_llm_is_unavailable() -> None:
@@ -118,3 +150,59 @@ def test_auto_proposal_does_not_create_when_live_llm_is_unavailable() -> None:
     assert len(agent.calls) == 1
     assert audit.records[-1]["action"] == "agent.auto_proposal.skipped"
     assert audit.records[-1]["outcome"] == "skipped"
+
+
+def test_safe_recovery_creates_pending_eco_proposal_without_agent_or_dispatch() -> None:
+    approvals = FakeApprovalService()
+    agent = FakeAgentService([])
+    notifier = FakeNotifier()
+    service = AutomaticProposalService(
+        agent_service=agent,
+        approval_service=approvals,
+        audit_service=FakeAuditService(),
+        enabled=True,
+        proposal_notifier=notifier,
+    )
+    recovery = alert(
+        alert_id="eco-recovery:intent-1",
+        alert_type="ventilation_recovery",
+        ventilation_eligible=False,
+        ventilation_recovery_eligible=True,
+        device_id="FILTER-01",
+        ventilation_evidence={
+            "source_command_intent_id": "intent-1",
+            "policy_version": "ventilation-recovery-v1",
+        },
+    )
+
+    assert service.should_analyze(recovery) is True
+    service.analyze_and_propose(alert=recovery, correlation_id="corr-recovery")
+
+    assert agent.calls == []
+    assert approvals.created[0]["proposed_action"] == "eco_mode"
+    assert approvals.created[0]["idempotency_key"] == "eco-recovery:intent-1:v1"
+    assert notifier.calls[0]["proposed_action"] == "eco_mode"
+
+
+def test_notification_failure_is_audited_without_losing_persisted_proposal() -> None:
+    agent = FakeAgentService(
+        [
+            {"trace": {"generation_mode": "live_llm", "final_outcome": "answered"}},
+            {"proposal_id": "proposal-notify-001", "trace": {"final_outcome": "proposal_pending"}},
+        ]
+    )
+    audit = FakeAuditService()
+    notifier = FakeNotifier(failure=ConnectionError("notification broker unavailable"))
+    service = AutomaticProposalService(
+        agent_service=agent,
+        approval_service=FakeApprovalService(),
+        audit_service=audit,
+        enabled=True,
+        proposal_notifier=notifier,
+    )
+
+    service.analyze_and_propose(alert=alert(), correlation_id="corr-notify-failure")
+
+    assert notifier.calls[0]["proposal_id"] == "proposal-notify-001"
+    assert audit.records[-1]["action"] == "proposal.notification.failure"
+    assert audit.records[-1]["outcome"] == "failure"

@@ -48,7 +48,9 @@ def build_graph(tool_client: Any | None = None):
 
 async def create_proposal_node(state: AgentState, *, tool_client: Any) -> dict[str, Any]:
     route = state["route"]
-    station_id = route.get("tool_arguments", [{}])[0].get("station_id")
+    tool_arguments = route.get("tool_arguments") or []
+    first_arguments = tool_arguments[0] if tool_arguments and isinstance(tool_arguments[0], dict) else {}
+    station_id = first_arguments.get("station_id")
     result = await run_proposal_workflow(
         station_id=station_id or "",
         user_id=state.get("user_id") or "",

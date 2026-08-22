@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -9,11 +9,11 @@ from uuid import uuid4
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
 
-from app.services.audit_service import AuditService
-from app.services.auth_crypto import hash_password, hash_token, normalize_email
-from app.services.auth_service import AuthService
-from app.services.database import ServiceError
-from app.services.email_service import AuthEmailService
+from app.services.audit_service import AuditService  # noqa: E402
+from app.services.auth_crypto import hash_password  # noqa: E402
+from app.services.auth_service import AuthService  # noqa: E402
+from app.services.database import ServiceError  # noqa: E402
+from app.services.email_service import AuthEmailService  # noqa: E402
 
 
 class FakeCursor:
@@ -66,11 +66,11 @@ class FakeCursor:
                 "role": role,
                 "full_name": full_name,
                 "sensitivity_group": sens,
-                "email_verified_at": datetime.now(timezone.utc) if "NOW(), TRUE" in q else None,
+                "email_verified_at": datetime.now(UTC) if "NOW(), TRUE" in q else None,
                 "is_active": True,
                 "failed_login_count": 0,
                 "locked_until": None,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
             }
             self.db.users[user_id] = user_record
             self._last_result.append(user_record)
@@ -82,7 +82,7 @@ class FakeCursor:
                 "user_id": user_id,
                 "token_hash": token_hash_val,
                 "email_normalized": email_norm,
-                "expires_at": datetime.now(timezone.utc) + timedelta(seconds=ttl),
+                "expires_at": datetime.now(UTC) + timedelta(seconds=ttl),
                 "used_at": None,
             }
 
@@ -95,18 +95,18 @@ class FakeCursor:
             tid = params[0]
             for t in self.db.verification_tokens.values():
                 if t["token_id"] == tid:
-                    t["used_at"] = datetime.now(timezone.utc)
+                    t["used_at"] = datetime.now(UTC)
 
         elif "UPDATE email_verification_tokens SET used_at = NOW() WHERE user_id = %s AND used_at IS NULL" in q:
             uid = params[0]
             for t in self.db.verification_tokens.values():
                 if t["user_id"] == uid and t["used_at"] is None:
-                    t["used_at"] = datetime.now(timezone.utc)
+                    t["used_at"] = datetime.now(UTC)
 
         elif "UPDATE users SET email_verified_at = NOW() WHERE user_id = %s" in q:
             uid = params[0]
             if uid in self.db.users:
-                self.db.users[uid]["email_verified_at"] = datetime.now(timezone.utc)
+                self.db.users[uid]["email_verified_at"] = datetime.now(UTC)
                 self._last_result.append(self.db.users[uid])
 
         elif "SELECT user_id, email_verified_at, is_active FROM users WHERE email_normalized = %s" in q:
@@ -135,7 +135,7 @@ class FakeCursor:
             if "locked_until" in q:
                 count, lockout_sec, uid = params
                 self.db.users[uid]["failed_login_count"] = count
-                self.db.users[uid]["locked_until"] = datetime.now(timezone.utc) + timedelta(seconds=lockout_sec)
+                self.db.users[uid]["locked_until"] = datetime.now(UTC) + timedelta(seconds=lockout_sec)
             else:
                 count, uid = params
                 self.db.users[uid]["failed_login_count"] = count
@@ -146,9 +146,9 @@ class FakeCursor:
                 "session_id": session_id,
                 "user_id": user_id,
                 "session_token_hash": s_hash,
-                "created_at": datetime.now(timezone.utc),
-                "last_seen_at": datetime.now(timezone.utc),
-                "expires_at": datetime.now(timezone.utc) + timedelta(seconds=ttl),
+                "created_at": datetime.now(UTC),
+                "last_seen_at": datetime.now(UTC),
+                "expires_at": datetime.now(UTC) + timedelta(seconds=ttl),
                 "revoked_at": None,
             }
 
@@ -175,12 +175,12 @@ class FakeCursor:
             sid = params[0]
             for s in self.db.sessions.values():
                 if s["session_id"] == sid:
-                    s["last_seen_at"] = datetime.now(timezone.utc)
+                    s["last_seen_at"] = datetime.now(UTC)
 
         elif "UPDATE user_sessions SET revoked_at = NOW() WHERE session_token_hash = %s AND revoked_at IS NULL" in q:
             s_hash = params[0]
             if s_hash in self.db.sessions and self.db.sessions[s_hash]["revoked_at"] is None:
-                self.db.sessions[s_hash]["revoked_at"] = datetime.now(timezone.utc)
+                self.db.sessions[s_hash]["revoked_at"] = datetime.now(UTC)
                 self._last_result.append({
                     "session_id": self.db.sessions[s_hash]["session_id"],
                     "user_id": self.db.sessions[s_hash]["user_id"],
@@ -190,7 +190,7 @@ class FakeCursor:
             uid = params[0]
             for s in self.db.sessions.values():
                 if s["user_id"] == uid and s["revoked_at"] is None:
-                    s["revoked_at"] = datetime.now(timezone.utc)
+                    s["revoked_at"] = datetime.now(UTC)
 
         elif "INSERT INTO password_reset_tokens" in q:
             token_id, user_id, token_hash_val, ttl = params
@@ -198,7 +198,7 @@ class FakeCursor:
                 "token_id": token_id,
                 "user_id": user_id,
                 "token_hash": token_hash_val,
-                "expires_at": datetime.now(timezone.utc) + timedelta(seconds=ttl),
+                "expires_at": datetime.now(UTC) + timedelta(seconds=ttl),
                 "used_at": None,
             }
 
@@ -211,13 +211,13 @@ class FakeCursor:
             tid = params[0]
             for t in self.db.reset_tokens.values():
                 if t["token_id"] == tid:
-                    t["used_at"] = datetime.now(timezone.utc)
+                    t["used_at"] = datetime.now(UTC)
 
         elif "UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = %s AND used_at IS NULL" in q:
             uid = params[0]
             for t in self.db.reset_tokens.values():
                 if t["user_id"] == uid and t["used_at"] is None:
-                    t["used_at"] = datetime.now(timezone.utc)
+                    t["used_at"] = datetime.now(UTC)
 
         elif "SELECT email, is_active FROM users WHERE user_id = %s" in q:
             uid = params[0]
@@ -237,7 +237,7 @@ class FakeCursor:
         elif "INSERT INTO audit_logs" in q:
             self._last_result.append({
                 "audit_id": 1,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
             })
 
     def fetchone(self) -> dict[str, Any] | None:
@@ -363,11 +363,11 @@ def test_login_rate_limiting_and_account_lockout() -> None:
         "role": "manager",
         "full_name": "Quản lý Demo",
         "sensitivity_group": "normal",
-        "email_verified_at": datetime.now(timezone.utc),
+        "email_verified_at": datetime.now(UTC),
         "is_active": True,
         "failed_login_count": 0,
         "locked_until": None,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
     }
 
     # 4 failed attempts
@@ -404,11 +404,11 @@ def test_forgot_and_reset_password_revokes_all_prior_sessions() -> None:
         "role": "resident",
         "full_name": "Cư Dân",
         "sensitivity_group": "normal",
-        "email_verified_at": datetime.now(timezone.utc),
+        "email_verified_at": datetime.now(UTC),
         "is_active": True,
         "failed_login_count": 0,
         "locked_until": None,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
     }
 
     # Create an active session

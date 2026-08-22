@@ -50,10 +50,10 @@ VALUES
     ('SEED-S05-03', 'S05', NOW(), 35.9, 590, 54.0, 30.8, 64, 2.4, 140, 0, 'simulator', 'valid')
 ON CONFLICT (message_id) DO NOTHING;
 
--- Seed initial alert
-INSERT INTO alerts (alert_id, station_id, alert_type, severity, title, description, observed_value, threshold_value, unit, recommendation, status, rule_version)
+-- Seed initial alert. Unit and recommendation are enriched by the backend rule registry.
+INSERT INTO alerts (alert_id, station_id, alert_type, severity, title, description, observed_value, threshold_value, status, rule_version)
 VALUES
-    ('ALT-001', 'S03', 'pm25_threshold', 'warning', 'PM2.5 vượt ngưỡng khuyến nghị', 'Nồng độ PM2.5 tại Ven Hồ Ngọc Trai đạt 66.1 µg/m³ vượt ngưỡng 50 µg/m³', 66.1, 50.0, 'µg/m³', 'Theo dõi diễn biến chất lượng không khí và cân nhắc kích hoạt hệ thống lọc khí.', 'active', 'pm25-threshold-v1')
+    ('00000000-0000-0000-0000-00000000a001', 'S03', 'pm25_threshold', 'warning', 'PM2.5 vượt ngưỡng khuyến nghị', 'Nồng độ PM2.5 tại Ven Hồ Ngọc Trai đạt 66.1 µg/m³ vượt ngưỡng 50 µg/m³', 66.1, 50.0, 'active', 'pm25-threshold-v1')
 ON CONFLICT (alert_id) DO NOTHING;
 
 INSERT INTO users (

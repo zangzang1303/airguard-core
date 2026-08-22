@@ -30,7 +30,10 @@ AI Agent tools must call backend HTTP APIs only. They must not read PostgreSQL, 
 - Environmental timestamps must include a timezone. Current measurements require an explicit
   `is_stale` value; weather context carries explicit `is_stale` and `is_fallback` flags. History points must be ordered
   by `measured_at`. Forecast points require a backend-provided source and either an absolute
-  `forecast_at` or an hour offset. Active-alert source metadata must come from the backend payload.
+  `forecast_at` or an hour offset, and the forecast envelope requires explicit `is_stale` freshness.
+  Active-alert source metadata must come from the backend payload.
+- Current PM2.5 may be `null` for a station with no usable measurement; the Agent treats that as
+  insufficient data. Measurement and history sources in this simulator MVP must be `simulator`.
 
 ## Proposal Mapping
 

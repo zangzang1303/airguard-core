@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 
@@ -15,7 +15,7 @@ class TemporalResolver:
 
     @classmethod
     def resolve(cls, query: str, base_time: datetime | None = None) -> dict[str, Any]:
-        now = base_time or datetime.now(timezone.utc)
+        now = base_time or datetime.now(UTC)
         vn_now = now.astimezone(cls.VN_TZ)
         current_vn_hour = vn_now.hour
 

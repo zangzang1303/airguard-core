@@ -93,16 +93,131 @@ class PostgresStore:
 
     def persist_device_status(self, payload: DeviceStatusPayload) -> bool:
         with self._connect() as conn:
-            with conn.cursor() as cur:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """
-                    UPDATE devices
-                    SET status = %s, last_seen_at = %s, is_simulated = TRUE
-                    WHERE device_id = %s
+                    SELECT command_intent_id, approval_request_id, status,
+                           acknowledged_at, ack_status, device_state, dispatch_error
+                    FROM device_command_intents
+                    WHERE command_id = %s AND device_id = %s
+                    LIMIT 1
                     """,
-                    (payload.status, payload.timestamp, payload.device_id),
+                    (payload.command_id, payload.device_id),
                 )
-                return cur.rowcount == 1
+                dispatch = cur.fetchone()
+                approval_request_id = str(dispatch["approval_request_id"]) if dispatch else None
+                command_intent_id = str(dispatch["command_intent_id"]) if dispatch else None
+                if dispatch:
+                    acknowledged_at = dispatch.get("acknowledged_at")
+                    is_newer = acknowledged_at is None or payload.timestamp >= acknowledged_at
+                    preserves_success = dispatch.get("status") == "succeeded" and payload.status != "succeeded"
+                    should_apply = is_newer and not preserves_success
+                    if should_apply:
+                        effective_status = payload.status
+                        effective_acknowledged_at = payload.timestamp
+                        effective_ack_status = payload.status
+                        effective_device_state = payload.device_state or dispatch.get("device_state")
+                        effective_error = (
+                            payload.reason
+                            if payload.status in {"failed", "rejected"}
+                            else dispatch.get("dispatch_error")
+                        )
+                        cur.execute(
+                            """
+                            UPDATE devices
+                            SET status = %s, last_seen_at = %s, is_simulated = TRUE
+                            WHERE device_id = %s
+                              AND (last_seen_at IS NULL OR %s >= last_seen_at)
+                            """,
+                            (
+                                payload.device_state or payload.status,
+                                payload.timestamp,
+                                payload.device_id,
+                                payload.timestamp,
+                            ),
+                        )
+                    else:
+                        effective_status = dispatch["status"]
+                        effective_acknowledged_at = acknowledged_at
+                        effective_ack_status = dispatch.get("ack_status")
+                        effective_device_state = dispatch.get("device_state")
+                        effective_error = dispatch.get("dispatch_error")
+                    cur.execute(
+                        """
+                        UPDATE device_command_intents
+                        SET status = %s, acknowledged_at = %s, ack_status = %s,
+                            device_state = %s, dispatch_error = %s
+                        WHERE command_intent_id = %s
+                        """,
+                        (
+                            effective_status,
+                            effective_acknowledged_at,
+                            effective_ack_status,
+                            effective_device_state,
+                            effective_error,
+                            command_intent_id,
+                        ),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT device_id FROM devices WHERE device_id = %s",
+                        (payload.device_id,),
+                    )
+                    if cur.fetchone() is None:
+                        return False
+
+                cur.execute(
+                    """
+                    INSERT INTO device_status_events (
+                        command_id, command_intent_id, device_id, status,
+                        device_state, reason, observed_at, is_simulated
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (device_id, command_id, status) DO NOTHING
+                    """,
+                    (
+                        payload.command_id,
+                        command_intent_id,
+                        payload.device_id,
+                        payload.status,
+                        payload.device_state,
+                        payload.reason,
+                        payload.timestamp,
+                        payload.is_simulated,
+                    ),
+                )
+
+                action = "device_command.ack" if approval_request_id else "device_command.ack.unmatched"
+                cur.execute(
+                    """
+                    INSERT INTO audit_logs (
+                        actor_type, actor_id, actor_role, action, entity_type,
+                        entity_id, outcome, correlation_id, details
+                    )
+                    VALUES ('device', %s, 'simulator', %s, %s, %s, %s, %s, %s::jsonb)
+                    """,
+                    (
+                        payload.device_id,
+                        action,
+                        "approval_request" if approval_request_id else "device",
+                        approval_request_id or payload.device_id,
+                        "success" if payload.status in {"succeeded", "duplicate"} else "failure",
+                        payload.command_id,
+                        json.dumps(
+                            {
+                                "command_id": payload.command_id,
+                                "device_id": payload.device_id,
+                                "ack_status": payload.status,
+                                "device_state": payload.device_state,
+                                "reason": payload.reason,
+                                "is_simulated": payload.is_simulated,
+                                "observed_at": payload.timestamp.isoformat(),
+                            },
+                            ensure_ascii=True,
+                        ),
+                    ),
+                )
+                return True
 
     def record_rejection(
         self,

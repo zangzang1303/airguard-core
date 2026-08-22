@@ -107,6 +107,8 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
         )
     if intent == Intent.FORECAST:
         forecast = data_items[0]
+        if forecast.get("is_stale") is not False:
+            return False
         if forecast.get("freshness") not in (None, "fresh", "valid"):
             return False
         items = data_items[0].get("items", [])
@@ -148,6 +150,7 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
             and bool(weather.get("source"))
             and bool(forecast.get("items"))
             and forecast.get("station_id") == current.get("station_id")
+            and forecast.get("is_stale") is False
             and forecast.get("freshness") in (None, "fresh", "valid")
             and isinstance(alerts.get("items"), list)
             and profile.get("group") in {"normal", "sensitive", "outdoor_sport"}
@@ -241,7 +244,7 @@ def _compose_weather(data_items: list[Mapping[str, Any]]) -> str:
     )
     return (
         f"Bối cảnh thời tiết tại {data['area_id']} lúc {data['observed_at']}: {values}. "
-        f"Nguồn: {data['source']}.{fallback_notice}"
+        f"Nguồn: {data['source']}.{fallback_notice} {SIMULATOR_NOTICE}"
     )
 
 
@@ -267,7 +270,8 @@ def _compose_forecast(data_items: list[Mapping[str, Any]]) -> str:
     limitation = f" Giới hạn: {'; '.join(assessment.limitations)}." if assessment.limitations else ""
     return (
         f"Dự báo PM2.5 cho {data['station_id']} (không phải quan sát hiện tại): {'; '.join(points)}. "
-        f"Metadata: {', '.join(metadata)}. Xu hướng: {assessment.trend}.{limitation}"
+        f"Metadata: {', '.join(metadata)}. Xu hướng: {assessment.trend}. "
+        f"{SIMULATOR_NOTICE}{limitation}"
     )
 
 
@@ -282,7 +286,7 @@ def _compose_alerts(data_items: list[Mapping[str, Any]]) -> str:
         f"khuyến nghị {item.get('recommendation') or 'theo dõi theo quy trình vận hành'}, tạo lúc {item['created_at']}"
         for item in items
     )
-    return f"Cảnh báo active từ backend: {alerts}."
+    return f"Cảnh báo active từ backend: {alerts}. {SIMULATOR_NOTICE}"
 
 
 def _format_alert_value(value: Any, unit: Any) -> str:

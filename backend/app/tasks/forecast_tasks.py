@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from ..celery_app import celery_app
-from ..services.forecast_service import InsufficientForecastHistory, trend_forecast
+from ..services.forecast_service import trend_forecast
 from .task_support import RETRY_TASK_OPTIONS, run_idempotent
+
 
 @celery_app.task(name="airguard.forecast.run", **RETRY_TASK_OPTIONS)
 def run_forecast_job(

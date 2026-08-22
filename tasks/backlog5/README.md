@@ -40,3 +40,11 @@
 - [ ] Ban quản lý có thể kích hoạt hệ thống thông gió tòa nhà chỉ với 1 click xác nhận khi có đợt spike ô nhiễm.
 - [ ] Báo cáo tổng kết chất lượng môi trường được sinh tự động, có phân tích chuyên sâu của AI.
 - [ ] Tất cả tính năng nâng cao đã được update lên Live URL thành công.
+
+## 4. Cập nhật Person B — 22/08/2026
+
+- **B5-AUTO-01:** implementation và test backend/Agent/IoT hoàn tất; full-stack Manager quick-approve đạt API 107 ms, ACK quan sát 129 ms, DB approve-to-ACK 72.120 ms và device state `RUNNING_BOOST`.
+- **B5-REP-01:** daily/weekly persistence, API, Celery Beat, grounded narrative fallback và Markdown/HTML/PDF export đã hoàn tất; daily report/export Markdown và weekly task qua RabbitMQ/Redis đã smoke-test trên full stack.
+- Contract và quyết định an toàn nằm tại `specs/api-contracts.md`, `specs/domain-model.md` và ADR 0011; không có auto-approve hay direct Agent-to-MQTT path.
+- Proposal pending tự động enqueue notification idempotent cho Manager/Admin; local SMTP-disabled trả `not_configured` minh bạch, không ảnh hưởng HITL.
+- Quality gate tích hợp: `289 passed`, Ruff toàn bộ `backend/app/services`, `backend/app/tasks`, `tests/test_backend` pass và frontend production build pass.
