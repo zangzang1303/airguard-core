@@ -82,7 +82,7 @@ export const TodaySummarySheet: React.FC<TodaySummarySheetProps> = ({
       <section className="today-grounded-section" aria-labelledby="today-recommendations-title">
         <div className="today-section-heading">
           <Database size={16} aria-hidden="true" />
-          <h4 id="today-recommendations-title">Khuyến nghị từ Rule Engine</h4>
+          <h4 id="today-recommendations-title">Khuyến nghị cần lưu ý</h4>
         </div>
         {summary.recommendations.length === 0 ? (
           <div className="today-no-recommendation">
