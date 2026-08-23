@@ -873,6 +873,15 @@ export const api = {
     return await apiFetch<{ demo_mode: boolean; google_auth_enabled: boolean }>("/api/v1/auth/config");
   },
 
+  getDemoStationOverrides: async (): Promise<{ demo_mode: boolean; overrides: Record<string, unknown> }> =>
+    apiFetch("/api/v1/demo/station-overrides"),
+
+  setDemoStationOverride: async (stationId: string, values: { pm25: number; co2: number; noise_db: number; temperature: number }): Promise<any> =>
+    apiFetch(`/api/v1/demo/stations/${stationId}/override`, { method: "PUT", body: JSON.stringify(values) }),
+
+  clearDemoStationOverride: async (stationId: string): Promise<any> =>
+    apiFetch(`/api/v1/demo/stations/${stationId}/override`, { method: "DELETE" }),
+
   demoLogin: async (persona: "resident" | "sensitive" | "outdoor_sport" | "manager" | "admin"): Promise<{ user: any; csrf_token: string; message: string }> => {
     const res = await apiFetch<{ user: any; csrf_token: string; message: string }>("/api/v1/auth/demo-login", {
       method: "POST",

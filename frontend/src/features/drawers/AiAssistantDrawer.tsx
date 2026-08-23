@@ -25,6 +25,7 @@ import { api } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { Proposal, AgentResponse } from "../../types";
 import { mapActionController, MapAction } from "../map/MapActionController";
+import { DemoStationControl } from "./DemoStationControl";
 
 interface AiAssistantDrawerProps {
   initialPrompt?: string;
@@ -249,6 +250,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </button>
         ))}
       </div>
+
+      <DemoStationControl />
 
       {/* Message Chat Flow */}
       <div className="ai-chat-messages-container" style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
