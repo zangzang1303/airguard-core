@@ -290,6 +290,7 @@ const SuperAppMain: React.FC<{
         <StationPoiDrawer
           station={activeStation}
           poi={selectedPoi}
+          activeEnvironmentalLayer={layerConfig.activeEnvironmentalLayer}
           onClose={() => {
             setActiveDrawer(null);
             setSelectedStationId(null);

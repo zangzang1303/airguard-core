@@ -1526,6 +1526,13 @@ body, html {
   background: #ffffff;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.env-metric-item.active {
+  border-color: var(--primary, #0ea5e9);
+  background: #f8fafc;
+  box-shadow: 0 0 0 1.5px var(--primary, #0ea5e9);
 }
 
 .metric-icon-wrap {
@@ -1537,10 +1544,12 @@ body, html {
   justify-content: center;
 }
 
+.metric-icon-wrap.aqi { background: #dcfce7; color: #16a34a; }
 .metric-icon-wrap.pm25 { background: #ffedd5; color: #ea580c; }
 .metric-icon-wrap.co2 { background: #cffafe; color: #0891b2; }
 .metric-icon-wrap.noise { background: #ede9fe; color: #7c3aed; }
 .metric-icon-wrap.temp { background: #fce7f3; color: #db2777; }
+.metric-icon-wrap.humidity { background: #e0f2fe; color: #0284c7; }
 
 .metric-info {
   display: flex;
