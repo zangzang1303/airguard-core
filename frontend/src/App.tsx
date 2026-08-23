@@ -565,6 +565,19 @@ const AppContent: React.FC = () => {
     );
   }
 
+  const publicAuthScreens = new Set([
+    "login",
+    "register",
+    "verify-email",
+    "forgot-password",
+    "reset-password",
+    "admin-coming-soon",
+  ]);
+
+  if (!isAuthenticated && !publicAuthScreens.has(currentScreen)) {
+    return <Login />;
+  }
+
   // Auth Screen Routing
   if (currentScreen === "login") {
     return <Login />;

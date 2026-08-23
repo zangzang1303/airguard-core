@@ -80,7 +80,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>("dashboard");
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>("login");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
@@ -157,6 +157,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const data = await api.getMe();
         if (mounted && data.user) {
           applyUser(data.user);
+          setCurrentScreen("dashboard");
         }
       } catch {
         if (mounted) {
