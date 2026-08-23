@@ -20,8 +20,13 @@ enable scheduled daily/weekly reports, start the async profile, which includes R
 Celery worker and Celery Beat:
 
 ```powershell
+$env:CELERY_TASK_ALWAYS_EAGER="false"
 docker compose --profile async-jobs up -d --build
+Remove-Item Env:CELERY_TASK_ALWAYS_EAGER
 ```
+
+The explicit override is required because the core profile defaults to eager execution so it can
+run without RabbitMQ. Verify `celery-worker`, `celery-beat`, `rabbitmq` and `redis` are running.
 
 The public demo topology runs the same one-shot migration gate before starting the backend:
 

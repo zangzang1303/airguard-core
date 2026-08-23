@@ -49,6 +49,11 @@ class Settings:
     google_client_id: str | None
     google_client_secret: str | None
     google_redirect_uri: str | None
+    weather_api_base_url: str | None
+    weather_timeout_seconds: float
+    weather_latitude: float
+    weather_longitude: float
+    weather_max_age_seconds: int
 
     @classmethod
     def load(cls) -> Settings:
@@ -156,6 +161,15 @@ class Settings:
         google_client_id = os.getenv("GOOGLE_CLIENT_ID")
         google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
         google_redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/google/callback")
+        weather_api_base_url = os.getenv("WEATHER_API_BASE_URL", "").strip() or None
+        weather_timeout_seconds = float(os.getenv("WEATHER_TIMEOUT_SECONDS", "3"))
+        weather_latitude = float(os.getenv("WEATHER_LATITUDE", "20.993"))
+        weather_longitude = float(os.getenv("WEATHER_LONGITUDE", "105.944"))
+        weather_max_age_seconds = int(os.getenv("WEATHER_MAX_AGE_SECONDS", "3600"))
+        if weather_timeout_seconds <= 0 or weather_max_age_seconds <= 0:
+            raise ValueError("Weather timeout and max age must be positive")
+        if not -90 <= weather_latitude <= 90 or not -180 <= weather_longitude <= 180:
+            raise ValueError("Weather coordinates are invalid")
 
         return cls(
             database_url=os.getenv("DATABASE_URL"),
@@ -200,4 +214,9 @@ class Settings:
             google_client_id=google_client_id.strip() if google_client_id and google_client_id.strip() else None,
             google_client_secret=google_client_secret.strip() if google_client_secret and google_client_secret.strip() else None,
             google_redirect_uri=google_redirect_uri.strip() if google_redirect_uri and google_redirect_uri.strip() else None,
+            weather_api_base_url=weather_api_base_url,
+            weather_timeout_seconds=weather_timeout_seconds,
+            weather_latitude=weather_latitude,
+            weather_longitude=weather_longitude,
+            weather_max_age_seconds=weather_max_age_seconds,
         )

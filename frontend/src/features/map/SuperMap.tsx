@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { Station } from "../../types";
 import { MapLayerConfig, PlacePOI } from "../../types/superApp";
@@ -11,8 +11,9 @@ import { SubZoneLabels } from "./SubZoneLabels";
 import { AqiLegend } from "./AqiLegend";
 import { HeatmapLayer } from "../stations/HeatmapLayer";
 import { TimelineSlider } from "../stations/TimelineSlider";
+import { MapLocationControls } from "./MapLocationControls";
 import { mapActionController } from "./MapActionController";
-import { useDraggableFloatingPanel, useFloatingPanelContext } from "../floating";
+import { Crosshair, X } from "lucide-react";
 
 interface SuperMapProps {
   stations: Station[];
@@ -22,10 +23,22 @@ interface SuperMapProps {
   layerConfig: MapLayerConfig;
   flyToTarget: [number, number] | null;
   forecastHour?: number;
+  userCoords?: [number, number];
+  userLocationAccuracy?: number | null;
+  userLocationName?: string;
+  userLocationSource?: "gps" | "search" | "manual_click" | "default";
+  isLocating?: boolean;
+  isPickingOnMap?: boolean;
   onForecastHourChange?: (hours: number) => void;
   onSelectStation: (stationId: string) => void;
   onSelectPoi: (poi: PlacePOI) => void;
   onOpenNearMe: () => void;
+  onLocateGps?: () => void;
+  onTogglePickOnMap?: () => void;
+  onCancelPicking?: () => void;
+  onMapClickLocation?: (coords: [number, number]) => void;
+  onUserLocationChange?: (coords: [number, number], source: "manual_click") => void;
+  onResetDefaultLocation?: () => void;
 }
 
 // Controller component to bind Leaflet map to MapActionController & FloatingPanelProvider
@@ -99,6 +112,21 @@ const DraggableTimelineDock: React.FC<{
   );
 };
 
+// Click handler for picking location on map
+const MapClickHandler: React.FC<{
+  isPickingOnMap: boolean;
+  onMapClickLocation?: (coords: [number, number]) => void;
+}> = ({ isPickingOnMap, onMapClickLocation }) => {
+  useMapEvents({
+    click(e) {
+      if (isPickingOnMap && onMapClickLocation) {
+        onMapClickLocation([e.latlng.lat, e.latlng.lng]);
+      }
+    },
+  });
+  return null;
+};
+
 export const SuperMap: React.FC<SuperMapProps> = ({
   stations,
   selectedStationId,
@@ -107,26 +135,65 @@ export const SuperMap: React.FC<SuperMapProps> = ({
   layerConfig,
   flyToTarget,
   forecastHour = 0,
+  userCoords,
+  userLocationAccuracy,
+  userLocationName,
+  userLocationSource = "default",
+  isLocating = false,
+  isPickingOnMap = false,
   onForecastHourChange,
   onSelectStation,
   onSelectPoi,
   onOpenNearMe,
+  onLocateGps,
+  onTogglePickOnMap,
+  onCancelPicking,
+  onMapClickLocation,
+  onUserLocationChange,
+  onResetDefaultLocation,
 }) => {
   const viewMode = layerConfig.viewMode ?? (layerConfig.showHeatmap ? "heatmap" : "markers");
 
   return (
-    <div className="map-wrapper" style={{ width: "100%", height: "100%", position: "relative" }}>
+    <div className={`super-map-wrapper ${isPickingOnMap ? "is-picking-mode" : ""}`}>
+      {/* Picking on Map Prompt Floating Banner */}
+      {isPickingOnMap && (
+        <div className="map-picking-banner" role="status" aria-live="polite">
+          <div className="picking-banner-content">
+            <Crosshair size={18} className="picking-banner-icon spin-slow" />
+            <div className="picking-banner-text">
+              <strong>Chế độ chọn vị trí</strong>
+              <span>Chạm hoặc click vào điểm bất kỳ trên bản đồ để ghim vị trí của bạn</span>
+            </div>
+          </div>
+          {onCancelPicking && (
+            <button
+              type="button"
+              className="picking-cancel-btn"
+              onClick={onCancelPicking}
+              aria-label="Hủy chọn vị trí"
+            >
+              <X size={15} aria-hidden="true" />
+              <span>Hủy</span>
+            </button>
+          )}
+        </div>
+      )}
+
       <MapContainer
-        center={MAP_CENTER_OCEAN_PARK}
-        zoom={14}
-        minZoom={12}
+        center={userCoords || MAP_CENTER_OCEAN_PARK}
+        zoom={15}
+        minZoom={13}
         maxZoom={18}
         zoomControl={false}
         attributionControl={false}
         style={{ width: "100%", height: "100%" }}
       >
         <MapActionBinder />
-        <MapCameraController flyToTarget={flyToTarget} />
+        <MapClickHandler
+          isPickingOnMap={isPickingOnMap}
+          onMapClickLocation={onMapClickLocation}
+        />
 
         {/* Base Map Tiles — CartoDB Voyager Clean High-Contrast */}
         <TileLayer
@@ -167,8 +234,26 @@ export const SuperMap: React.FC<SuperMapProps> = ({
         />
 
         {/* Resident Location Pin ("You") */}
-        <UserLocationMarker onClick={onOpenNearMe} />
+        <UserLocationMarker
+          onClick={onOpenNearMe}
+          userCoords={userCoords}
+          accuracyMeters={userLocationAccuracy}
+          locationName={userLocationName}
+          source={userLocationSource}
+          onLocationChange={onUserLocationChange}
+        />
       </MapContainer>
+
+      {/* Floating Map Location Controls (GPS Locate + Pick on Map + Reset) */}
+      {onLocateGps && onTogglePickOnMap && (
+        <MapLocationControls
+          isLocating={isLocating}
+          isPickingOnMap={isPickingOnMap}
+          onLocateGps={onLocateGps}
+          onTogglePickOnMap={onTogglePickOnMap}
+          onResetDefaultLocation={onResetDefaultLocation}
+        />
+      )}
 
       {/* Accessible Map Legend Overlay (Bottom Right — Only in markers view mode when heatmap is NOT active) */}
       {viewMode === "markers" && !layerConfig.showHeatmap && (

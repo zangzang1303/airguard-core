@@ -32,6 +32,30 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   (isLocal ? "http://localhost:8000" : "https://airguard-core.onrender.com");
 
+const API_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const upstreamSignal = init.signal;
+  const forwardAbort = () => controller.abort(upstreamSignal?.reason);
+
+  if (upstreamSignal) {
+    if (upstreamSignal.aborted) {
+      forwardAbort();
+    } else {
+      upstreamSignal.addEventListener("abort", forwardAbort, { once: true });
+    }
+  }
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+    upstreamSignal?.removeEventListener("abort", forwardAbort);
+  }
+}
+
 const demoNow = new Date();
 const hoursAgo = (h: number) =>
   new Date(demoNow.getTime() - h * 3600 * 1000).toISOString();
@@ -219,7 +243,7 @@ export async function fetchCsrfToken(): Promise<string> {
     return fromCookie;
   }
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/auth/csrf`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/api/v1/auth/csrf`, {
       credentials: "include",
     });
     if (res.ok) {
@@ -253,7 +277,7 @@ export async function apiFetch<T>(
   }
 
   try {
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
       ...options,
       credentials: "include",
       headers,
@@ -344,7 +368,7 @@ function mapProposal(request: Record<string, any>): Proposal {
 }
 
 async function downloadApiFile(endpoint: string): Promise<ReportExport> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, { credentials: "include" });
+  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { credentials: "include" });
   if (!response.ok) {
     let errorBody: Record<string, any> | null = null;
     try {
@@ -612,7 +636,7 @@ export const api = {
   getStationForecast: async (
     stationId: string,
     metric: ForecastData["metric"] = "pm25",
-    hours = 24,
+    hours = 3,
     model: "prophet" | "baseline" = "prophet",
   ): Promise<ForecastData> => {
     try {
@@ -940,12 +964,8 @@ export const api = {
 
   // ---- Quản lý người dùng ----
   getAdminUsers: async (): Promise<AdminUser[]> => {
-    try {
-      const data = await apiFetch<any>("/api/v1/users");
-      return data.items || data;
-    } catch {
-      return DEMO_ADMIN_USERS;
-    }
+    const data = await apiFetch<any>("/api/v1/users");
+    return data.items || data;
   },
 };
 
@@ -965,104 +985,4 @@ export const sendAgentChat = async (message: string, userId = "USR-002"): Promis
   const res = await api.sendAgentMessage(message, null, userId);
   return { response: res.reply };
 };
-
-export const FALLBACK_STATIONS: Station[] = [
-  {
-    station_id: "S01",
-    station_name: "Trục Đa Tốn phía Tây Bắc",
-    location_type: "northwest_road",
-    latitude: 21.0008,
-    longitude: 105.9428,
-    pm25: 42.5,
-    aqi: 118,
-    aqi_category: "Kém (nhạy cảm)",
-    co2: 650,
-    noise_db: 57,
-    temperature: 31.1,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S02",
-    station_name: "Khu căn hộ Sapphire",
-    location_type: "high_rise_residential",
-    latitude: 20.9975,
-    longitude: 105.9430,
-    pm25: 55.2,
-    aqi: 151,
-    aqi_category: "Xấu",
-    co2: 720,
-    noise_db: 65,
-    temperature: 31.8,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S03",
-    station_name: "Ven Hồ Ngọc Trai",
-    location_type: "lakeside_residential",
-    latitude: 20.9953,
-    longitude: 105.9500,
-    pm25: 66.1,
-    aqi: 158,
-    aqi_category: "Xấu",
-    co2: 780,
-    noise_db: 71,
-    temperature: 32.4,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S04",
-    station_name: "Khuôn viên VinUni",
-    location_type: "university_campus",
-    latitude: 20.9898,
-    longitude: 105.9467,
-    pm25: 28.4,
-    aqi: 85,
-    aqi_category: "Trung bình",
-    co2: 540,
-    noise_db: 49,
-    temperature: 30.2,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    station_id: "S05",
-    station_name: "Khu Hải Âu phía Đông Nam",
-    location_type: "southeast_residential",
-    latitude: 20.9910,
-    longitude: 105.9560,
-    pm25: 35.9,
-    aqi: 102,
-    aqi_category: "Kém (nhạy cảm)",
-    co2: 590,
-    noise_db: 54,
-    temperature: 30.8,
-    status: "online",
-    is_stale: false,
-    updated_at: new Date().toISOString(),
-  },
-];
-
-export const FALLBACK_ALERTS: Alert[] = [
-  {
-    alert_id: "ALT-001",
-    station_id: "S03",
-    alert_type: "pm25_threshold",
-    severity: "warning",
-    title: "PM2.5 vượt ngưỡng khuyến nghị",
-    message: "Nồng độ PM2.5 tại Ven Hồ Ngọc Trai đạt 66.1 µg/m³ vượt ngưỡng 50 µg/m³",
-    observed_value: 66.1,
-    threshold: 50.0,
-    unit: "µg/m³",
-    recommendation: "Hạn chế hoạt động thể thao ngoài trời tại khu vực ven hồ trong khung giờ cao điểm.",
-    status: "active",
-    created_at: new Date().toISOString(),
-  },
-];
 

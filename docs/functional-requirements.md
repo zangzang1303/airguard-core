@@ -414,9 +414,10 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 ### FR-ADM-02 — Danh sách người dùng
 
 - Manager/Admin có thể đọc danh sách user từ `/api/v1/users`.
-- Các thao tác đổi role/status trong module quản trị hiện có local demo adapter; chưa được dùng làm bằng chứng backend mutation.
-- Nếu backend lỗi và UI dùng `DEMO_ADMIN_USERS`, giao diện phải được xem là fallback/demo, không phải dữ liệu tài khoản thật.
-- **Trạng thái:** đọc E2E; mutation Demo UI.
+- Admin có thể đổi role/status qua `PATCH /api/v1/users/{id}`; request yêu cầu CSRF, lý do và audit trong cùng transaction.
+- Backend chặn tự thay đổi tài khoản Admin, bảo vệ Admin active cuối cùng và revoke session khi vô hiệu hóa.
+- UI fail closed khi API lỗi; không trả `DEMO_ADMIN_USERS` như dữ liệu thật.
+- **Trạng thái:** đọc và mutation role/status E2E; invitation chưa triển khai.
 
 ### FR-ADM-03 — Khu vực, trạm và thiết bị nâng cao
 
@@ -437,7 +438,7 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 
 ### FR-OPS-02 — Async jobs
 
-- `docker compose --profile async-jobs up -d --build` bật RabbitMQ, Redis, Celery worker/beat theo cấu hình.
+- Đặt `CELERY_TASK_ALWAYS_EAGER=false` rồi chạy `docker compose --profile async-jobs up -d --build` để bật RabbitMQ, Redis, Celery worker/beat theo cấu hình.
 - Không bật profile thì demo có thể dùng eager/in-memory; UI phải không giả worker đang chạy.
 - Scheduled reports phải idempotent.
 - **Trạng thái:** phụ thuộc profile.

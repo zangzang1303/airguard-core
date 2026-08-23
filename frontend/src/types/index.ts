@@ -31,6 +31,7 @@ export interface AdminAuditEntry {
 export interface UserMutationResult {
   success: boolean;
   message?: string;
+  user?: AdminUser;
   audit_entry: AdminAuditEntry;
 }
 

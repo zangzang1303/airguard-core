@@ -7,15 +7,18 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
+
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
 
 from fastapi.testclient import TestClient
 
+import app.main as main_module
 from app.main import app
 from app.services.alert_engine import AlertEngine
 from app.services.audit_service import AuditService
-from app.services.database import Database
+from app.services.database import Database, ServiceError
 from app.services.live_telemetry_engine import LiveTelemetryEngine
 from app.services.spatial_registry import SpatialRegistry
 from app.services.station_service import StationService
@@ -87,20 +90,20 @@ def test_live_engine_and_spatial_registry_have_canonical_names():
         assert SpatialRegistry.STATIONS[st_id]["name"] == expected["station_name"]
 
 
-def test_station_service_fallback_returns_canonical_names():
+def test_station_service_does_not_fallback_when_database_is_unavailable():
     db = Database(None)
     station_service = StationService(db, stale_after_seconds=300)
-    stations = station_service.list_stations(allow_fallback=True)
 
-    station_dict = {s["station_id"]: s for s in stations}
-    for st_id, expected in CANONICAL_STATIONS.items():
-        assert st_id in station_dict
-        assert station_dict[st_id]["station_name"] == expected["station_name"]
-        assert "?" not in station_dict[st_id]["station_name"]
-        assert "\ufffd" not in station_dict[st_id]["station_name"]
+    with pytest.raises(ServiceError) as exc_info:
+        station_service.list_stations(allow_fallback=True)
+
+    assert exc_info.value.code == "station_data_unavailable"
+    assert exc_info.value.status_code == 503
 
 
-def test_api_stations_returns_canonical_vietnamese_names():
+def test_api_stations_returns_canonical_vietnamese_names(monkeypatch):
+    grounded_test_rows = LiveTelemetryEngine().get_current_stations()
+    monkeypatch.setattr(main_module.station_service, "list_stations", lambda: grounded_test_rows)
     client = TestClient(app)
     response = client.get("/api/v1/stations")
     assert response.status_code == 200

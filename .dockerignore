@@ -9,9 +9,7 @@ __pycache__
 .ruff_cache
 docs/
 presentation/
-eval/
 *.md
 !requirements.txt
 .dockerignore
 Dockerfile
-docker-compose.yml
