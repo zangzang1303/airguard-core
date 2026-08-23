@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { ImageOverlay } from "react-leaflet";
+import { ImageOverlay, Pane } from "react-leaflet";
 import { api } from "../../api/client";
 import { SpatialHeatmapResponse } from "../../types";
 import { EnvironmentalLayerType, MapViewMode } from "../../types/superApp";
@@ -119,12 +119,16 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
     <>
       {/* 1. Leaflet Native Image Overlay (100% Zoom-Invariant & Hardware Accelerated) */}
       {overlayDataUrl && (
-        <ImageOverlay
-          url={overlayDataUrl}
-          bounds={DISPERSION_BOUNDS}
-          opacity={0.78}
-          zIndex={350}
-        />
+        <Pane
+          name="environmental-dispersion"
+          style={{ zIndex: 350, pointerEvents: "none" }}
+        >
+          <ImageOverlay
+            url={overlayDataUrl}
+            bounds={DISPERSION_BOUNDS}
+            opacity={0.78}
+          />
+        </Pane>
       )}
 
       {/* 2. Unified Metric Overlay Panel */}
