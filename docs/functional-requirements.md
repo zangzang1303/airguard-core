@@ -42,7 +42,7 @@ AirGuard AI thu thập dữ liệu từ 5 trạm mô phỏng `S01`–`S05`, truy
 | Xem dashboard, bản đồ, trạm, lịch sử, forecast | Có | Có | Có | Dữ liệu đọc từ API. |
 | Xem cảnh báo | Có | Có | Có | Chỉ backend tạo severity, threshold và recommendation. |
 | Hỏi AI Agent và nhận khuyến nghị | Có | Có | Có | Agent chỉ dùng backend tools. |
-| Xem/chọn hồ sơ nhóm sức khỏe trên giao diện | Demo UI | Demo UI | Demo UI | Backend chỉ lưu nhóm hợp lệ khi đăng ký; chưa có API cập nhật profile sau đăng nhập. |
+| Xem/chọn hồ sơ nhóm sức khỏe trên giao diện | Có | Có | Có | Chỉ có ba policy `normal`, `sensitive`, `outdoor_sport`; lưu qua session + CSRF, có audit. |
 | Xem hàng đợi proposal | Không | Có | Có | Backend kiểm tra session/role. |
 | Approve, quick-approve, reject proposal | Không | Có | Có | Bắt buộc CSRF, version và audit; quick-approve cần idempotency key. |
 | Xem audit log | Không | Có | Có | Chỉ đọc. |
@@ -118,10 +118,11 @@ AirGuard AI thu thập dữ liệu từ 5 trạm mô phỏng `S01`–`S05`, truy
 ### FR-AUTH-06 — Hồ sơ sức khỏe và sở thích trên giao diện
 
 - Backend chấp nhận ba nhóm dùng cho Agent: `normal`, `sensitive`, `outdoor_sport`.
-- Nhóm được lưu bền vững khi đăng ký và được Agent đọc lại qua backend profile tool.
-- Drawer hồ sơ cho phép chọn nhóm/sở thích/cài đặt thông báo trong phiên giao diện, nhưng hiện chưa có API cập nhật profile sau đăng nhập.
-- Các lựa chọn mở rộng như `respiratory`, `elderly`, `child` trong drawer là UX demo; không được tuyên bố là profile backend đã lưu hoặc policy Agent độc lập.
-- **Trạng thái:** đăng ký/profile read E2E; chỉnh sửa sau đăng nhập là Demo UI.
+- Nhóm được lưu bền vững khi đăng ký **hoặc** qua `PATCH /api/v1/auth/profile`; endpoint yêu cầu session và CSRF, chỉ sửa hồ sơ của chính người dùng và ghi audit `auth.profile_updated`.
+- Drawer hồ sơ và trang Profile chỉ hiển thị ba nhóm này. Không thu thập/chứa chẩn đoán, bệnh lý, tuổi hoặc dữ liệu sức khỏe chi tiết.
+- Với người dùng đã đăng nhập, `POST /api/v1/agent/chat` dùng `user_id` từ session thay vì giá trị client gửi lên; Agent đọc profile backend của cùng request.
+- Demo có ba resident account: `resident` (normal), `sensitive`, `outdoor_sport`; dùng qua nút **Dùng thử** ở màn hình đăng nhập. Manager/Admin vẫn phục vụ test HITL/RBAC.
+- **Trạng thái:** E2E.
 
 ## 5.2. Sensor simulator, MQTT và data quality
 

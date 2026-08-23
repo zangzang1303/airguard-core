@@ -446,6 +446,8 @@ INSERT INTO users (
 VALUES
     ('00000000-0000-0000-0000-000000000001', 'manager@airguard.local', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'manager', 'Demo Facility Manager', 'normal', NOW(), TRUE),
     ('00000000-0000-0000-0000-000000000101', 'resident@vinuni.edu.vn', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'resident', 'Tran Minh Anh', 'normal', NOW(), TRUE),
+    ('00000000-0000-0000-0000-000000000104', 'sensitive.demo@airguard.local', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'resident', 'Cu Dan Nhay Cam Demo', 'sensitive', NOW(), TRUE),
+    ('00000000-0000-0000-0000-000000000105', 'outdoor.demo@airguard.local', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'resident', 'Cu Dan Ngoai Troi Demo', 'outdoor_sport', NOW(), TRUE),
     ('00000000-0000-0000-0000-000000000102', 'manager@vinuni.edu.vn', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'manager', 'Nguyen Van A', 'sensitive', NOW(), TRUE),
     ('00000000-0000-0000-0000-000000000103', 'admin@vinuni.edu.vn', '$argon2id$v=19$m=65536,t=2,p=2$o1LOm0vKYt+Zmy/2Mstm5Q$1Zh9dXZQZ2nYr5vOR+fRMJx3MZOcCquNT/uMXUAikSk', 'admin', 'Le Thi D', 'normal', NOW(), TRUE)
 ON CONFLICT (user_id) DO UPDATE SET

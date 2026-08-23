@@ -181,7 +181,7 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleDemoRole = async (persona: "resident" | "manager") => {
+  const handleDemoRole = async (persona: "resident" | "sensitive" | "outdoor_sport" | "manager") => {
     setError(null);
     clearAuthMessage();
     setDemoSubmitting(persona);
@@ -380,6 +380,38 @@ export const Login: React.FC = () => {
                   </div>
 
                   <div className="demo-persona-card">
+                    <div className="demo-persona-card__icon demo-persona-card__icon--resident">
+                      <UserIcon />
+                    </div>
+                    <div className="demo-persona-card__content">
+                      <div className="demo-persona-card__header">
+                        <span className="demo-persona-card__name">Nhóm nhạy cảm</span>
+                        <span className="demo-persona-badge demo-persona-badge--resident">Sensitive</span>
+                      </div>
+                      <p className="demo-persona-card__desc">Kiểm thử cảnh báo sớm và khuyến nghị thận trọng.</p>
+                    </div>
+                    <button type="button" className="demo-try-action-btn" onClick={() => handleDemoRole("sensitive")} disabled={isAnySubmitting}>
+                      {demoSubmitting === "sensitive" ? "..." : "Dùng thử"}
+                    </button>
+                  </div>
+
+                  <div className="demo-persona-card">
+                    <div className="demo-persona-card__icon demo-persona-card__icon--resident">
+                      <UserIcon />
+                    </div>
+                    <div className="demo-persona-card__content">
+                      <div className="demo-persona-card__header">
+                        <span className="demo-persona-card__name">Hoạt động ngoài trời</span>
+                        <span className="demo-persona-badge demo-persona-badge--resident">Outdoor</span>
+                      </div>
+                      <p className="demo-persona-card__desc">Kiểm thử thời điểm và khu vực vận động phù hợp.</p>
+                    </div>
+                    <button type="button" className="demo-try-action-btn" onClick={() => handleDemoRole("outdoor_sport")} disabled={isAnySubmitting}>
+                      {demoSubmitting === "outdoor_sport" ? "..." : "Dùng thử"}
+                    </button>
+                  </div>
+
+                  <div className="demo-persona-card">
                     <div className="demo-persona-card__icon demo-persona-card__icon--manager">
                       <ShieldCheckIcon />
                     </div>
@@ -463,7 +495,39 @@ export const Login: React.FC = () => {
                   </button>
                 </div>
 
-                {/* 2. Manager Card */}
+                <div className="demo-persona-card">
+                  <div className="demo-persona-card__icon demo-persona-card__icon--resident">
+                    <UserIcon />
+                  </div>
+                  <div className="demo-persona-card__content">
+                    <div className="demo-persona-card__header">
+                      <span className="demo-persona-card__name">Nhóm nhạy cảm</span>
+                      <span className="demo-persona-badge demo-persona-badge--resident">Sensitive</span>
+                    </div>
+                    <p className="demo-persona-card__desc">Kiểm thử cảnh báo sớm và khuyến nghị thận trọng.</p>
+                  </div>
+                  <button type="button" className="demo-try-action-btn" onClick={() => handleDemoRole("sensitive")} disabled={isAnySubmitting}>
+                    {demoSubmitting === "sensitive" ? "Đang vào..." : "Dùng thử"}
+                  </button>
+                </div>
+
+                <div className="demo-persona-card">
+                  <div className="demo-persona-card__icon demo-persona-card__icon--resident">
+                    <UserIcon />
+                  </div>
+                  <div className="demo-persona-card__content">
+                    <div className="demo-persona-card__header">
+                      <span className="demo-persona-card__name">Hoạt động ngoài trời</span>
+                      <span className="demo-persona-badge demo-persona-badge--resident">Outdoor</span>
+                    </div>
+                    <p className="demo-persona-card__desc">Kiểm thử thời điểm và khu vực vận động phù hợp.</p>
+                  </div>
+                  <button type="button" className="demo-try-action-btn" onClick={() => handleDemoRole("outdoor_sport")} disabled={isAnySubmitting}>
+                    {demoSubmitting === "outdoor_sport" ? "Đang vào..." : "Dùng thử"}
+                  </button>
+                </div>
+
+                {/* 4. Manager Card */}
                 <div className="demo-persona-card">
                   <div className="demo-persona-card__icon demo-persona-card__icon--manager">
                     <ShieldCheckIcon />

@@ -55,7 +55,7 @@ interface AuthContextType {
   demoMode: boolean;
   googleAuthEnabled: boolean;
   login: (email: string, password: string) => Promise<AuthResult>;
-  demoLogin: (persona: "resident" | "manager" | "admin") => Promise<AuthResult>;
+  demoLogin: (persona: "resident" | "sensitive" | "outdoor_sport" | "manager" | "admin") => Promise<AuthResult>;
   logout: () => Promise<void>;
   registerResident: (input: RegisterResidentInput) => Promise<AuthResult>;
   verifyEmail: (token: string) => Promise<AuthResult>;
@@ -67,6 +67,7 @@ interface AuthContextType {
   role: UserRole;
   userGroup: UserGroup;
   setUserGroup: (group: UserGroup) => void;
+  updateProfile: (input: { fullName?: string; userGroup?: UserGroup }) => Promise<AuthResult>;
   userName: string;
   setUserName: (name: string) => void;
   userEmail: string;
@@ -194,7 +195,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const demoLogin = async (persona: "resident" | "manager" | "admin"): Promise<AuthResult> => {
+  const demoLogin = async (persona: "resident" | "sensitive" | "outdoor_sport" | "manager" | "admin"): Promise<AuthResult> => {
     try {
       await api.demoLogin(persona);
       const meData = await api.getMe();
@@ -248,6 +249,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         success: false,
         message: formatAuthError(err),
       };
+    }
+  };
+
+  const updateProfile = async (input: { fullName?: string; userGroup?: UserGroup }): Promise<AuthResult> => {
+    try {
+      const payload: { full_name?: string; sensitivity_group?: UserGroup } = {};
+      if (input.fullName !== undefined) payload.full_name = input.fullName;
+      if (input.userGroup !== undefined) payload.sensitivity_group = input.userGroup;
+      const data = await api.updateProfile(payload);
+      if (data.user) {
+        applyUser(data.user);
+        return { success: true, message: "Đã lưu hồ sơ cá nhân hóa." };
+      }
+      return { success: false, message: "Không thể lưu hồ sơ." };
+    } catch (err: any) {
+      return { success: false, message: formatAuthError(err) };
     }
   };
 
@@ -333,6 +350,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         role,
         userGroup,
         setUserGroup,
+        updateProfile,
         userName,
         setUserName,
         userEmail,

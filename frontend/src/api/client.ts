@@ -823,6 +823,16 @@ export const api = {
     return await apiFetch<{ user: any }>("/api/v1/auth/me");
   },
 
+  updateProfile: async (input: {
+    full_name?: string;
+    sensitivity_group?: "normal" | "sensitive" | "outdoor_sport";
+  }): Promise<{ user: any }> => {
+    return await apiFetch<{ user: any }>("/api/v1/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
   logout: async (): Promise<{ success: boolean; message: string }> => {
     const res = await apiFetch<{ success: boolean; message: string }>("/api/v1/auth/logout", {
       method: "POST",
@@ -863,7 +873,7 @@ export const api = {
     return await apiFetch<{ demo_mode: boolean; google_auth_enabled: boolean }>("/api/v1/auth/config");
   },
 
-  demoLogin: async (persona: "resident" | "manager" | "admin"): Promise<{ user: any; csrf_token: string; message: string }> => {
+  demoLogin: async (persona: "resident" | "sensitive" | "outdoor_sport" | "manager" | "admin"): Promise<{ user: any; csrf_token: string; message: string }> => {
     const res = await apiFetch<{ user: any; csrf_token: string; message: string }>("/api/v1/auth/demo-login", {
       method: "POST",
       body: JSON.stringify({ persona }),

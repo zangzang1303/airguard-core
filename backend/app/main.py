@@ -16,6 +16,7 @@ from .core import Settings
 from .dependencies.auth import (
     get_auth_service,
     get_current_user,
+    get_optional_user,
     require_manager,
     set_auth_service,
 )
@@ -129,8 +130,21 @@ class RegisterRequest(BaseModel):
     sensitivity_group: str | None = Field(default="normal", examples=["normal", "sensitive", "outdoor_sport"])
 
 
+class ProfileUpdateRequest(BaseModel):
+    """Self-service profile fields supported by the MVP.
+
+    A group is a recommendation policy selector, not a diagnosis or medical record.
+    """
+
+    full_name: str | None = Field(default=None, min_length=1, max_length=150)
+    sensitivity_group: Literal["normal", "sensitive", "outdoor_sport"] | None = None
+
+
 class DemoLoginRequest(BaseModel):
-    persona: Literal["resident", "manager", "admin"] = Field(..., examples=["resident", "manager", "admin"])
+    persona: Literal["resident", "sensitive", "outdoor_sport", "manager", "admin"] = Field(
+        ...,
+        examples=["resident", "sensitive", "outdoor_sport", "manager", "admin"],
+    )
 
 
 class LoginRequest(BaseModel):
@@ -649,6 +663,24 @@ def auth_me(current_user: dict = Depends(get_current_user)) -> dict:
     return {"user": current_user}
 
 
+@app.patch("/api/v1/auth/profile")
+def auth_update_profile(
+    request: Request,
+    body: ProfileUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+    auth_svc: AuthService = Depends(get_auth_service),
+) -> dict:
+    validate_csrf(request)
+    return {
+        "user": auth_svc.update_profile(
+            user_id=str(current_user["user_id"]),
+            full_name=body.full_name,
+            sensitivity_group=body.sensitivity_group,
+            correlation_id=_request_id(request),
+        )
+    }
+
+
 @app.post("/api/v1/auth/logout")
 def auth_logout(
     request: Request,
@@ -832,8 +864,15 @@ def get_user_profile(user_id: str) -> UserProfileResponse:
 
 
 @app.post("/api/v1/agent/chat")
-async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
+async def agent_chat(
+    request: Request,
+    body: AgentChatRequest,
+    current_user: dict | None = Depends(get_optional_user),
+) -> dict:
     req_id = _request_id(request)
+    # An authenticated browser cannot impersonate another profile by editing the
+    # client payload. Public Demo Day visitors retain the explicit demo profile.
+    effective_user_id = str(current_user.get("user_id") or body.user_id) if current_user else body.user_id
     try:
         conversation = conversational_agent.classify(
             body.message,
@@ -844,7 +883,7 @@ async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
             try:
                 agent_result = await agent_service.chat(
                     message=body.message,
-                    user_id=body.user_id,
+                    user_id=effective_user_id,
                     station_id=body.station_id,
                     request_id=req_id,
                 )
@@ -860,14 +899,14 @@ async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
 
         user_group = "normal"
         try:
-            profile = user_service.get_profile(body.user_id)
+            profile = user_service.get_profile(effective_user_id)
             user_group = profile.get("sensitivity_group", "normal")
         except Exception:
             pass
 
         return geospatial_agent.process_query(
             message=body.message,
-            user_id=body.user_id,
+            user_id=effective_user_id,
             station_id=body.station_id,
             map_context=body.map_context,
             request_id=req_id,

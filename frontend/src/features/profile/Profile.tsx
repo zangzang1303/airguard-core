@@ -12,20 +12,28 @@ const groupOptions: Array<{ value: UserGroup; title: string; description: string
 ];
 
 export const Profile: React.FC = () => {
-  const { userName, setUserName, userEmail, organization, role, userGroup, setUserGroup } = useAuth();
+  const { userName, userEmail, organization, role, userGroup, updateProfile } = useAuth();
   const [formName, setFormName] = useState(userName);
   const [formGroup, setFormGroup] = useState<UserGroup>(userGroup);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setFormName(userName);
     setFormGroup(userGroup);
   }, [userGroup, userName]);
 
-  const handleSave = (event: React.FormEvent) => {
+  const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
-    setUserName(formName.trim());
-    setUserGroup(formGroup);
+    setSaveError(null);
+    setSaving(true);
+    const result = await updateProfile({ fullName: formName.trim(), userGroup: formGroup });
+    setSaving(false);
+    if (!result.success) {
+      setSaveError(result.message || "Không thể lưu hồ sơ.");
+      return;
+    }
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2500);
   };
@@ -50,6 +58,7 @@ export const Profile: React.FC = () => {
           Đã lưu thay đổi hồ sơ.
         </div>
       )}
+      {saveError && <div className="alert-box alert-error" role="alert">{saveError}</div>}
 
       <form className="profile-layout" onSubmit={handleSave}>
         <section className="profile-card profile-account-card">
@@ -148,7 +157,7 @@ export const Profile: React.FC = () => {
 
         <div className="profile-actions">
           <Button type="button" variant="outline" onClick={resetForm}>Hủy thay đổi</Button>
-          <Button type="submit" variant="primary" disabled={!formName.trim()}>
+          <Button type="submit" variant="primary" disabled={!formName.trim() || saving}>
             <Save size={17} aria-hidden="true" />
             Lưu thay đổi
           </Button>

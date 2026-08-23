@@ -47,7 +47,8 @@ export interface PlacePOI {
 }
 
 export interface HealthProfile {
-  sensitivityGroup: "normal" | "sensitive" | "respiratory" | "elderly" | "child" | "outdoor_sport";
+  /** Recommendation policy selector; this is not a medical diagnosis. */
+  sensitivityGroup: "normal" | "sensitive" | "outdoor_sport";
   fullName: string;
   interests: string[];
   alertPushEnabled: boolean;
