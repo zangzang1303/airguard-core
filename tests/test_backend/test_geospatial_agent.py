@@ -16,11 +16,22 @@ def test_greeting_does_not_fall_through_to_environmental_recommendation():
     )
 
     assert result["intent"] == "greeting"
-    assert result["answer"]["summary"].startswith("Xin chào")
+    assert "Mình đây" in result["answer"]["summary"]
     assert result["evidence"] == []
     assert result["map_actions"] == []
     assert result["used_tools"] == []
     assert "time_context" not in result
+
+
+def test_unknown_chat_does_not_fall_through_to_environmental_recommendation():
+    agent = GeospatialAgentService()
+
+    result = agent.process_query("ừm... abcxyz")
+
+    assert result["intent"] == "clarification"
+    assert result["evidence"] == []
+    assert result["map_actions"] == []
+    assert "AQI hiện tại" in result["response"]
 
 
 def test_temporal_resolver_patterns():

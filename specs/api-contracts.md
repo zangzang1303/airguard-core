@@ -174,14 +174,14 @@ profile. Markdown, HTML and PDF exports render the same stored record; they neve
 
 ## Agent response
 The canonical backend `POST /api/v1/agent/chat` accepts
-`{ "message": string, "user_id": string, "station_id"?: "S01".."S05" }`. `user_id` is passed
+`{ "message": string, "user_id": string, "station_id"?: "S01".."S05", "map_context"?: object }`. `user_id` is passed
 to the Agent only as an argument for backend profile lookup; it is not written to Agent trace.
 The current frontend identity is demo-only and does not replace production backend authentication.
 `station_id` is optional dashboard context and is validated before routing. The internal Agent
 service uses the same payload. The root Agent keeps the legacy `POST /api/v1/chat` alias during
 migration; its `user_id` remains optional for non-personalized requests.
 
-The response contains `answer`, `used_tools`, `sources`, `request_id`, `trace`, and optional
+The response contains `answer`, `intent`, `used_tools`, `sources`, `request_id`, `trace`, and optional
 `proposal_id`, `recommendation_policy_version`, and `impact_policy_version`. The impact intent
 uses a fresh station snapshot and rates operational environmental impact with AQI as the primary
 index; PM2.5, CO₂, noise and temperature are supporting evidence only. It is not a medical
@@ -191,6 +191,13 @@ outcome; it must not contain the raw prompt, user id, secret, token or backend c
 Facts must map to sources from the same request. Tool failure or absent/stale/invalid/offline data
 returns a transparent insufficient-data answer and no environmental source. The additive
 `response` field is a deprecated alias of `answer` for the original template client.
+
+Basic social messages are intercepted before telemetry access. Their response adds
+`conversation_kind`, has empty `used_tools`, `sources`/`evidence` and `map_actions`, and omits
+current/forecast time context. A configured LLM may rewrite only the locked social fallback; output
+that introduces environmental observations, station values/status, safety claims, health advice,
+device commands or approval decisions is rejected. Unknown messages return `clarification` instead
+of falling through to a default environmental recommendation.
 
 Recommendation intent requires current PM2.5, weather, forecast, active alerts and a backend user
 profile from the same request. The client must not submit a trusted `user_group`; the Agent uses

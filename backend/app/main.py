@@ -20,12 +20,13 @@ from .dependencies.auth import (
     set_auth_service,
 )
 from .schemas.measurements import MeasurementIngestionRequest
-from .services.agent_service import AgentService
+from .services.agent_service import AgentService, AgentServiceError
 from .services.alert_engine import AlertEngine
 from .services.approval_service import ApprovalService, configure_default_service
 from .services.audit_service import AuditService
 from .services.auth_service import AuthService
 from .services.automatic_proposal_service import AutomaticProposalService
+from .services.conversational_agent_service import conversational_agent
 from .services.csrf_service import (
     CSRF_COOKIE_NAME,
     generate_csrf_token,
@@ -834,6 +835,29 @@ def get_user_profile(user_id: str) -> UserProfileResponse:
 async def agent_chat(request: Request, body: AgentChatRequest) -> dict:
     req_id = _request_id(request)
     try:
+        conversation = conversational_agent.classify(
+            body.message,
+            station_id=body.station_id,
+            map_context=body.map_context,
+        )
+        if conversation.intent in {"greeting", "social"}:
+            try:
+                agent_result = await agent_service.chat(
+                    message=body.message,
+                    user_id=body.user_id,
+                    station_id=body.station_id,
+                    request_id=req_id,
+                )
+                return conversational_agent.response_from_agent(
+                    conversation,
+                    agent_result,
+                    request_id=req_id,
+                )
+            except AgentServiceError:
+                return conversational_agent.deterministic_response(conversation, request_id=req_id)
+        if conversation.intent == "clarification":
+            return conversational_agent.deterministic_response(conversation, request_id=req_id)
+
         user_group = "normal"
         try:
             profile = user_service.get_profile(body.user_id)

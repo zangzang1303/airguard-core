@@ -16,7 +16,7 @@ AirGuard AI là MVP giám sát chất lượng môi trường tại Vinhomes Oce
 | Dự báo 1–3 giờ | Damped linear trend từ tối thiểu 3 điểm fresh; hỗ trợ AQI, PM2.5, CO₂, tiếng ồn, nhiệt độ |
 | Cảnh báo | Rule Engine deterministic cho 5 chỉ số và sensor offline |
 | Khuyến nghị | Rule-owned recommendation trong alert; Agent recommendation theo profile và evidence cùng request |
-| AI Agent | LangGraph/tool calling; grounded answer, có thể thêm giải thích bằng OpenAI nếu có key |
+| AI Agent | Conversation gate + LangGraph/tool calling; xã giao có kiểm soát, grounded answer và deterministic fallback khi không có provider key |
 | HITL | Proposal bắt đầu `pending`; chỉ Manager approve/reject; có audit và device simulator |
 | Notification | SMTP thật khi cấu hình `NOTIFICATION_PROVIDER=smtp`; mặc định `disabled` |
 | Prophet/LSTM | Chưa triển khai |
@@ -267,12 +267,13 @@ Tool registry:
 
 Luồng trả lời:
 
-1. Router deterministic xác định intent và arguments allow-listed.
-2. Agent gọi backend tools.
-3. Quality gate loại dữ liệu missing/stale/offline/invalid.
-4. Response composer tạo câu trả lời grounded.
-5. Nếu có provider key, LLM chỉ thêm một câu giải thích giới hạn, không thay số liệu; `auto` ưu tiên Gemini.
-6. Trace ghi `generation_mode=live_llm` hoặc `deterministic_grounded`.
+1. Conversation gate tách xã giao, câu mơ hồ và yêu cầu nghiệp vụ trước khi đọc telemetry.
+2. Xã giao được LLM viết lại trong phạm vi AirGuard nếu provider hợp lệ; output vi phạm policy bị loại và dùng câu mẫu deterministic.
+3. Câu không rõ trả clarification; không mặc định thành khuyến nghị môi trường.
+4. Với yêu cầu nghiệp vụ, router deterministic xác định intent và arguments allow-listed rồi gọi backend tools.
+5. Quality gate loại dữ liệu missing/stale/offline/invalid; response composer tạo câu trả lời grounded.
+6. LLM không được thay số liệu, ngưỡng, cảnh báo, recommendation policy hoặc quyết định HITL.
+7. Trace ghi `generation_mode=live_llm` hoặc `deterministic_grounded`; xã giao có thêm `conversation_kind`.
 
 ## Sample queries
 

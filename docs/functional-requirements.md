@@ -273,6 +273,24 @@ AirGuard AI thu thập dữ liệu từ 5 trạm mô phỏng `S01`–`S05`, truy
 - Trace ghi generation mode nhưng không lưu raw prompt/user ID/secret.
 - **Trạng thái:** deterministic E2E; live LLM phụ thuộc cấu hình.
 
+### FR-AI-08 — Giao tiếp cơ bản bám hệ thống
+
+- Conversation gate phải chạy trước geospatial/telemetry flow và phân loại tối thiểu: `greeting`,
+  acknowledgement, wellbeing, capability, farewell, domain và clarification.
+- Các câu như `ê`, `alo`, `xin chào`, `cảm ơn`, `bạn khỏe không?`, `bạn làm được gì?` và
+  `tạm biệt` được trả lời ngắn gọn trong vai trò AirGuard; không gọi tool, không evidence, không
+  map action và không gắn nhãn current/forecast.
+- Nếu provider hợp lệ, LLM chỉ được viết lại câu xã giao đã khóa. Output có số liệu/trạm/trạng thái
+  môi trường, đánh giá an toàn, lời khuyên sức khỏe, lệnh thiết bị hoặc quyết định phê duyệt phải bị
+  loại và thay bằng deterministic response.
+- Câu không nhận diện được phải trả `clarification` cùng các nhóm câu hỏi AirGuard hỗ trợ; không
+  được mặc định thành địa điểm tốt nhất, AQI hiện tại hoặc recommendation.
+- Câu có tiền tố xã giao nhưng chứa yêu cầu nghiệp vụ, ví dụ `Xin chào, AQI tại VinUni thế nào?`,
+  vẫn phải vào domain flow và tuân thủ grounding/tool gate đầy đủ.
+- Response xã giao có `intent`, `conversation_kind`, `used_tools=[]`, `evidence=[]`,
+  `map_actions=[]` và trace `generation_mode`.
+- **Trạng thái:** E2E với deterministic fallback; live LLM phụ thuộc cấu hình provider.
+
 ## 5.6. Alert và recommendation
 
 ### FR-AL-01 — Tạo alert đa chỉ số
@@ -507,7 +525,7 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 | Auth/RBAC | `/auth/*`, session, CSRF | AU-01..AU-04 |
 | Trạm/dashboard/history | `/stations*` | D-01..D-08 |
 | Forecast/heatmap | `/stations/{id}/forecast`, `/spatial/heatmap` | F-01..F-05, SP-01..SP-03 |
-| Agent/route/profile | `/agent/chat`, Agent tools, geospatial service | G-01..G-11 |
+| Agent/route/profile/conversation | `/agent/chat`, conversation gate, Agent tools, geospatial service | G-01..G-16 |
 | Alert | `/alerts` | A-01..A-03 |
 | Proposal/HITL/device | `/approvals*`, `/devices*`, dispatcher | H-01..H-07 |
 | Audit | `/audit-logs` | H-06 |
