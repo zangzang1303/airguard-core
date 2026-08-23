@@ -18,12 +18,43 @@ export interface MapAction {
   [key: string]: any;
 }
 
+export type OverlayChangeListener = (hasOverlay: boolean) => void;
+
 export class MapActionController {
   private map: L.Map | null = null;
   private aiOverlayLayer: L.FeatureGroup | null = null;
+  private listeners: Set<OverlayChangeListener> = new Set();
 
   constructor() {
     this.aiOverlayLayer = L.featureGroup();
+  }
+
+  public subscribe(listener: OverlayChangeListener): () => void {
+    this.listeners.add(listener);
+    try {
+      listener(this.hasAIOverlay());
+    } catch (err) {
+      console.error("[MapActionController] Error calling initial listener:", err);
+    }
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  public hasAIOverlay(): boolean {
+    if (!this.aiOverlayLayer) return false;
+    return this.aiOverlayLayer.getLayers().length > 0;
+  }
+
+  private notify() {
+    const active = this.hasAIOverlay();
+    this.listeners.forEach((listener) => {
+      try {
+        listener(active);
+      } catch (err) {
+        console.error("[MapActionController] Error in listener:", err);
+      }
+    });
   }
 
   public setMap(map: L.Map | null) {
@@ -34,6 +65,7 @@ export class MapActionController {
     if (this.map && this.aiOverlayLayer) {
       this.aiOverlayLayer.addTo(this.map);
     }
+    this.notify();
   }
 
   public getOverlayLayer(): L.FeatureGroup | null {
@@ -44,6 +76,7 @@ export class MapActionController {
     if (this.aiOverlayLayer) {
       this.aiOverlayLayer.clearLayers();
     }
+    this.notify();
   }
 
   public executeAll(actions: MapAction[] | undefined | null) {
@@ -52,14 +85,20 @@ export class MapActionController {
 
     for (const action of actions) {
       try {
-        this.execute(action);
+        this.executeInternal(action);
       } catch (err) {
         console.warn("[MapActionController] Error executing action:", action, err);
       }
     }
+    this.notify();
   }
 
   public execute(action: MapAction) {
+    this.executeInternal(action);
+    this.notify();
+  }
+
+  private executeInternal(action: MapAction) {
     if (!this.map || !this.aiOverlayLayer) return;
 
     switch (action.type) {

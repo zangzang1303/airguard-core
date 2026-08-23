@@ -82,6 +82,24 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+  // Clean up AI overlay whenever the AI chat drawer is closed / unmounted
+  useEffect(() => {
+    return () => {
+      mapActionController.clearAIOverlay();
+    };
+  }, []);
+
+  // Listen for Escape key to close the drawer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   useEffect(() => {
     if (initialPrompt && initialPromptSentRef.current !== initialPrompt) {
       initialPromptSentRef.current = initialPrompt;
@@ -92,6 +110,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const handleSend = async (textToSend?: string) => {
     const query = (textToSend || inputVal).trim();
     if (!query || isTyping) return;
+
+    // Immediately clear previous AI overlay before processing the new prompt
+    mapActionController.clearAIOverlay();
 
     const userMsgId = `msg-u-${Date.now()}`;
     const userMsg: ChatMessage = {
@@ -269,7 +290,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
 
                       <button
                         className="ai-route-cta-btn"
-                        onClick={() => mapActionController.executeAll(msg.map_actions)}
+                        onClick={() => {
+                          mapActionController.clearAIOverlay();
+                          mapActionController.executeAll(msg.map_actions);
+                        }}
                       >
                         <Zap size={15} /> Nhấp nháy & Xem lộ trình trên bản đồ
                       </button>
@@ -294,7 +318,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       <button
                         className="ai-route-cta-btn"
                         style={{ background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)" }}
-                        onClick={() => mapActionController.executeAll(msg.map_actions)}
+                        onClick={() => {
+                          mapActionController.clearAIOverlay();
+                          mapActionController.executeAll(msg.map_actions);
+                        }}
                       >
                         <MapPin size={15} /> Xem các địa điểm thể thao trong nhà trên bản đồ
                       </button>
@@ -311,7 +338,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 {msg.map_actions && msg.map_actions.length > 0 && msg.intent !== "recommend_running_route" && (
                   <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
                     <button
-                      onClick={() => mapActionController.executeAll(msg.map_actions)}
+                      onClick={() => {
+                        mapActionController.clearAIOverlay();
+                        mapActionController.executeAll(msg.map_actions);
+                      }}
                       style={{
                         display: "flex",
                         alignItems: "center",

@@ -14,9 +14,10 @@ Start the full local stack:
 docker compose up --build
 ```
 
-`db-migrate` applies the additive authentication and Auto Ventilation/Report migrations before the
-backend starts. Existing named volumes are preserved. To enable scheduled daily/weekly reports,
-start the async profile, which includes RabbitMQ, Redis, Celery worker and Celery Beat:
+`db-migrate` applies the additive authentication, Auto Ventilation/Report and UTF-8 Vietnamese
+station/alert repair migrations before the backend starts. Existing named volumes are preserved. To
+enable scheduled daily/weekly reports, start the async profile, which includes RabbitMQ, Redis,
+Celery worker and Celery Beat:
 
 ```powershell
 docker compose --profile async-jobs up -d --build
@@ -113,3 +114,36 @@ Get-Content -Raw backend/db/migrations/20260821_002_auto_ventilation_reports.sql
 The migration is additive and safe to re-run. It adds proposal control/review metadata, durable
 device-command ACK events and persisted environmental reports; it does not approve or dispatch any
 proposal.
+
+### Repair Vietnamese station and alert text
+
+Compose applies this migration through `db-migrate`. For an existing database, apply it explicitly
+once (it is safe to re-run) to replace legacy mojibake or `?` characters in station metadata and
+alert copy:
+
+```powershell
+Get-Content -Raw backend/db/migrations/20260823_003_fix_vietnamese_station_names_and_alerts.sql |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U airguard -d airguard
+```
+
+Verify the repair through the backend API after restarting the stack:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/api/v1/stations
+Invoke-RestMethod "http://localhost:8000/api/v1/alerts?status=active"
+```
+
+### Repair Vietnamese demo user display names
+
+Compose applies this migration through `db-migrate`. For an existing database volume, apply it explicitly once (it is idempotent, safe to re-run and does not create new users) to restore corrupted UTF-8 names for the three demo accounts:
+
+```powershell
+Get-Content -Raw backend/db/migrations/20260823_004_fix_vietnamese_demo_user_names.sql |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U airguard -d airguard
+```
+
+Verify that the demo user names are properly restored:
+
+```powershell
+docker compose exec -T postgres psql -U airguard -d airguard -c "SELECT email, full_name FROM users WHERE LOWER(BTRIM(email)) IN ('manager@vinuni.edu.vn', 'admin@vinuni.edu.vn', 'resident@vinuni.edu.vn') ORDER BY email;"
+```

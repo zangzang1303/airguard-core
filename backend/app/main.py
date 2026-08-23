@@ -415,13 +415,22 @@ def bootstrap_database():
             with conn.cursor() as cur:
                 cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'stations')")
                 exists = cur.fetchone()[0]
+                db_dir = Path(__file__).resolve().parent.parent / "db"
                 if not exists:
-                    schema_path = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
-                    seed_path = Path(__file__).resolve().parent.parent / "db" / "seed.sql"
+                    schema_path = db_dir / "schema.sql"
+                    seed_path = db_dir / "seed.sql"
                     if schema_path.exists():
                         cur.execute(schema_path.read_text(encoding="utf-8"))
                     if seed_path.exists():
                         cur.execute(seed_path.read_text(encoding="utf-8"))
+
+                migrations_dir = db_dir / "migrations"
+                if migrations_dir.exists():
+                    for migration_file in sorted(migrations_dir.glob("*.sql")):
+                        try:
+                            cur.execute(migration_file.read_text(encoding="utf-8"))
+                        except Exception as mig_exc:
+                            print(f"Migration {migration_file.name} notice: {mig_exc}")
     except Exception as exc:
         print(f"Database bootstrap notice: {exc}")
 
