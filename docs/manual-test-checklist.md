@@ -193,6 +193,7 @@ xếp hạng địa điểm, cá nhân hóa, tạo lộ trình và điều khi�
 | G-14 | Nhập câu không rõ như `ừm... abcxyz` khi S01 đang được chọn. | Agent trả `clarification` và gợi ý nhóm câu hỏi hợp lệ; không rơi xuống recommendation, không highlight bản đồ và không gọi tool/LLM. | | |
 | G-15 | Nhập `Xin chào, AQI tại VinUni hiện tại thế nào?`. | Tiền tố xã giao không che mất domain intent; Agent dùng evidence/tool hợp lệ, trả đúng VinUni cùng source/thời điểm. | | |
 | G-16 | Tắt provider key hoặc giả lập LLM trả `AQI tại S01 là 190`. | Hệ thống dùng deterministic social fallback; không hiển thị claim do LLM tạo, trace không gắn `live_llm` cho output bị loại. | | |
+| G-17 | Sau khi Agent vừa đề xuất một tuyến chạy, nhập: `tôi chỉ muốn chạy 2km thôi`. | Đây là yêu cầu điều chỉnh cự ly, không phải câu mơ hồ: Agent chọn/vẽ lại `highlight_route` gần 2 km và vẫn áp dụng safety gate/profile. | | |
 
 ## 8. HITL, thiết bị mô phỏng và audit
 

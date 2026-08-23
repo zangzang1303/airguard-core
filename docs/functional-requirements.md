@@ -250,6 +250,7 @@ AirGuard AI thu thập dữ liệu từ 5 trạm mô phỏng `S01`–`S05`, truy
 - **Xử lý:** lấy dữ liệu hiện tại/forecast; chấm điểm route theo AQI, PM2.5, temperature, noise, distance và profile; tạo đường theo network/fallback đã khai báo.
 - **Kết quả:** route ID, tên, tọa độ, cự ly, score, AQI/PM2.5, thời điểm dữ liệu, tuyến chính và có thể có tuyến dự phòng; frontend vẽ `highlight_route`.
 - **Quy định:** route phải bắt đầu gần vị trí yêu cầu và cự ly gần mục tiêu; không được cắt qua vùng không hợp lệ theo routing policy.
+- **Điều chỉnh hội thoại:** sau khi đã xem route, câu có mục tiêu cự ly như `tôi chỉ muốn chạy 2km thôi` được hiểu là yêu cầu tạo lại route theo 2 km; không trả `clarification`.
 - **Ngoại lệ:** khi dữ liệu liên quan stale/offline hoặc route evidence thiếu, không tạo lộ trình “an toàn” giả.
 - **Trạng thái:** E2E.
 

@@ -190,8 +190,20 @@ class GeospatialAgentService:
                 candidate_routes, user_group=user_group, user_location=user_loc
             )
 
+            # Prefer an existing mapped circuit when it already matches the requested
+            # short distance. A 2 km request must not be expanded into a multi-km
+            # lake loop simply because the dynamic router's nearest full loop is long.
+            distance_matched_route = None
+            if target_distance_km is not None:
+                nearest_by_distance = min(
+                    ranked_routes,
+                    key=lambda route: (abs(float(route["distance_km"]) - target_distance_km), -float(route["score"])),
+                )
+                if abs(float(nearest_by_distance["distance_km"]) - target_distance_km) <= 0.35:
+                    distance_matched_route = nearest_by_distance
+
             # Safety Gate: If even the best route in the area exceeds safe thresholds, pivot to indoor venues!
-            best_base_circuit = ranked_routes[0]
+            best_base_circuit = distance_matched_route or ranked_routes[0]
             safety_eval = environmental_scoring.check_outdoor_exercise_safety(
                 {
                     "aqi": best_base_circuit["aqi"],
@@ -207,6 +219,13 @@ class GeospatialAgentService:
                     time_ctx=time_ctx,
                     request_id=request_id,
                 )
+
+            if distance_matched_route is not None:
+                ordered_routes = [
+                    distance_matched_route,
+                    *(route for route in ranked_routes if route["id"] != distance_matched_route["id"]),
+                ]
+                return self._handle_running_route_intent(ordered_routes, time_ctx, request_id)
 
             # If user specified a starting location or target distance, generate dynamic personalized route!
             if user_loc or target_distance_km:
