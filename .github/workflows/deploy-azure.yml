@@ -1,0 +1,72 @@
+name: Deploy Azure demo
+
+on:
+  push:
+    branches: [Canh]
+  workflow_dispatch:
+
+concurrency:
+  group: airguard-azure-demo
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: azure-demo
+      url: https://airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com
+    env:
+      AZURE_HOST: airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com
+      AZURE_USER: azureuser
+      EXPECTED_HOST_FINGERPRINT: SHA256:wEFnhVWz/ol8InOzQfId7SADiMmJBQP6dBPWut1PCHY
+      PUBLIC_READY_URL: https://airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com/backend/ready
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate public Compose configuration
+        env:
+          POSTGRES_PASSWORD: compose-validation-only
+          DEMO_DOMAIN: airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com
+        run: docker compose -f docker-compose.public-demo.yml config --quiet
+
+      - name: Configure restricted SSH identity
+        env:
+          DEPLOY_KEY: ${{ secrets.AZURE_DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/airguard_deploy"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/airguard_deploy"
+
+          ssh-keyscan -t ed25519 -H "$AZURE_HOST" > "$HOME/.ssh/known_hosts.pending"
+          actual_fingerprint="$(ssh-keygen -lf "$HOME/.ssh/known_hosts.pending" -E sha256 | awk '{print $2}')"
+          test "$actual_fingerprint" = "$EXPECTED_HOST_FINGERPRINT"
+          mv "$HOME/.ssh/known_hosts.pending" "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Create verified Git deployment bundle
+        run: |
+          git branch --force airguard-deploy "$GITHUB_SHA"
+          git bundle create "$RUNNER_TEMP/airguard.bundle" refs/heads/airguard-deploy
+          git bundle verify "$RUNNER_TEMP/airguard.bundle"
+
+      - name: Deploy through restricted forced command
+        run: |
+          cat "$RUNNER_TEMP/airguard.bundle" | \
+            ssh \
+              -o BatchMode=yes \
+              -o IdentitiesOnly=yes \
+              -i "$HOME/.ssh/airguard_deploy" \
+              "$AZURE_USER@$AZURE_HOST" \
+              "deploy $GITHUB_SHA"
+
+      - name: Verify public readiness
+        run: curl --fail --silent --show-error --retry 6 --retry-delay 5 --retry-all-errors --max-time 10 "$PUBLIC_READY_URL"
