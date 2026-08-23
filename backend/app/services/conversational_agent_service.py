@@ -5,7 +5,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any, Literal
 
-ConversationIntent = Literal["domain", "greeting", "social", "clarification"]
+ConversationIntent = Literal["domain", "greeting", "social", "clarification", "out_of_scope"]
 
 
 @dataclass(frozen=True)
@@ -81,6 +81,10 @@ class ConversationalAgentService:
         "tieng on",
         "nhiet do",
         "thoi tiet",
+        "mua",
+        "bao",
+        "do am",
+        "nang",
         "gio",
         "tram",
         "sensor",
@@ -131,6 +135,31 @@ class ConversationalAgentService:
         "cung duong",
         "tuyen duong",
         "doan duong",
+    )
+    _OUT_OF_SCOPE_SIGNALS = (
+        "thuoc",
+        "uong thuoc",
+        "kham benh",
+        "bac si",
+        "chua benh",
+        "dau dau",
+        "sot",
+        "gia nha",
+        "gia can ho",
+        "mua chung cu",
+        "thue nha",
+        "bat dong san",
+        "quan an",
+        "an gi ngon",
+        "quan pho",
+        "quan nhau",
+        "nha hang",
+        "quan cafe",
+        "tac duong",
+        "ket xe",
+        "un tac",
+        "viet code",
+        "python",
     )
     _UNSAFE_SOCIAL_PATTERNS = (
         r"\bS0[1-5]\b",
@@ -189,6 +218,17 @@ class ConversationalAgentService:
                 fallback_response=(
                     "Mình có thể hỗ trợ xem AQI và các chỉ số môi trường, so sánh khu vực, "
                     "xem dự báo ngắn hạn, cảnh báo và đề xuất cung đường chạy bộ dựa trên dữ liệu AirGuard."
+                ),
+            )
+
+        if any(s in plain for s in cls._OUT_OF_SCOPE_SIGNALS):
+            return ConversationDecision(
+                intent="out_of_scope",
+                kind="out_of_scope",
+                fallback_response=(
+                    "Yêu cầu này nằm ngoài phạm vi quan trắc của hệ thống AirGuard AI. "
+                    "AirGuard là hệ thống chuyên về giám sát chất lượng không khí (AQI, PM2.5, CO₂), "
+                    "cảnh báo môi trường và gợi ý lộ trình vận động ngoài trời tại Ocean Park 1."
                 ),
             )
 
