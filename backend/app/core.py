@@ -54,7 +54,10 @@ class Settings:
     def load(cls) -> Settings:
         raw_origins = os.getenv(
             "CORS_ORIGINS",
-            "http://localhost:5173,http://127.0.0.1:5173",
+            (
+                "https://airguard-app.vercel.app,"
+                "http://localhost:5173,http://127.0.0.1:5173"
+            ),
         )
         stale_after_seconds = int(os.getenv("STALE_AFTER_SECONDS", "300"))
         if stale_after_seconds <= 0:

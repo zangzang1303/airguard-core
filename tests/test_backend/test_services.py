@@ -38,6 +38,15 @@ def test_settings_enable_automatic_agent_proposals_by_default() -> None:
             os.environ["AUTO_PROPOSAL_ENABLED"] = previous
 
 
+def test_settings_allow_production_frontend_origin_by_default() -> None:
+    previous = os.environ.pop("CORS_ORIGINS", None)
+    try:
+        assert "https://airguard-app.vercel.app" in Settings.load().cors_origins
+    finally:
+        if previous is not None:
+            os.environ["CORS_ORIGINS"] = previous
+
+
 def test_settings_loads_one_hour_pending_proposal_ttl_by_default() -> None:
     previous = os.environ.pop("PROPOSAL_PENDING_TTL_SECONDS", None)
     try:
