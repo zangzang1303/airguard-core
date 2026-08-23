@@ -194,6 +194,7 @@ xếp hạng địa điểm, cá nhân hóa, tạo lộ trình và điều khi�
 | G-15 | Nhập `Xin chào, AQI tại VinUni hiện tại thế nào?`. | Tiền tố xã giao không che mất domain intent; Agent dùng evidence/tool hợp lệ, trả đúng VinUni cùng source/thời điểm. | | |
 | G-16 | Tắt provider key hoặc giả lập LLM trả `AQI tại S01 là 190`. | Hệ thống dùng deterministic social fallback; không hiển thị claim do LLM tạo, trace không gắn `live_llm` cho output bị loại. | | |
 | G-17 | Sau khi Agent vừa đề xuất một tuyến chạy, nhập: `tôi chỉ muốn chạy 2km thôi`. | Đây là yêu cầu điều chỉnh cự ly, không phải câu mơ hồ: Agent chọn/vẽ lại `highlight_route` gần 2 km và vẫn áp dụng safety gate/profile. | | |
+| G-18 | Tại một vị trí đã có trên bản đồ, nhập: `tôi chỉ muốn chạy 3km thôi`. | Agent trả `recommend_personalized_running_route`; evidence có `target_km=3`, `calculated_km` gần 3 km, `planning_method=environment_weighted_graph_round_trip`, polyline bắt đầu/kết thúc tại vị trí người dùng. Không được trả vòng hồ 8 km hoặc route catalog không liên quan. | | |
 
 ## 8. HITL, thiết bị mô phỏng và audit
 

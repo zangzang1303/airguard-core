@@ -190,20 +190,10 @@ class GeospatialAgentService:
                 candidate_routes, user_group=user_group, user_location=user_loc
             )
 
-            # Prefer an existing mapped circuit when it already matches the requested
-            # short distance. A 2 km request must not be expanded into a multi-km
-            # lake loop simply because the dynamic router's nearest full loop is long.
-            distance_matched_route = None
-            if target_distance_km is not None:
-                nearest_by_distance = min(
-                    ranked_routes,
-                    key=lambda route: (abs(float(route["distance_km"]) - target_distance_km), -float(route["score"])),
-                )
-                if abs(float(nearest_by_distance["distance_km"]) - target_distance_km) <= 0.35:
-                    distance_matched_route = nearest_by_distance
-
-            # Safety Gate: If even the best route in the area exceeds safe thresholds, pivot to indoor venues!
-            best_base_circuit = distance_matched_route or ranked_routes[0]
+            # The route catalog supplies environmental coverage, but requested
+            # distances are planned dynamically below rather than matched to a
+            # pre-written circuit.
+            best_base_circuit = ranked_routes[0]
             safety_eval = environmental_scoring.check_outdoor_exercise_safety(
                 {
                     "aqi": best_base_circuit["aqi"],
@@ -220,23 +210,21 @@ class GeospatialAgentService:
                     request_id=request_id,
                 )
 
-            if distance_matched_route is not None:
-                ordered_routes = [
-                    distance_matched_route,
-                    *(route for route in ranked_routes if route["id"] != distance_matched_route["id"]),
-                ]
-                return self._handle_running_route_intent(ordered_routes, time_ctx, request_id)
-
             # If user specified a starting location or target distance, generate dynamic personalized route!
             if user_loc or target_distance_km:
                 user_lat = user_loc[0] if user_loc else best_base_circuit["start_point"]["lat"]
                 user_lng = user_loc[1] if user_loc else best_base_circuit["start_point"]["lng"]
+                station_pm25_map = {
+                    station: float(values["pm25"])
+                    for station, values in station_data_map.items()
+                }
 
                 personalized_route = spatial_registry.generate_personalized_route(
                     user_lat=user_lat,
                     user_lng=user_lng,
                     target_km=target_distance_km,
                     base_circuit_id=best_base_circuit["id"],
+                    station_pm25_map=station_pm25_map,
                 )
 
                 personalized_route.update(
@@ -919,7 +907,10 @@ class GeospatialAgentService:
 
         dist_km = personalized_route["distance_km"]
         target_req = personalized_route.get("target_requested_km")
-        target_str = f"đáp ứng mục tiêu {target_req} km" if target_req else f"tổng cự ly {dist_km} km"
+        if target_req:
+            target_str = f"mục tiêu {target_req} km, cự ly ước tính {dist_km} km"
+        else:
+            target_str = f"tổng cự ly {dist_km} km"
 
         summary = (
             f"{mode_prefix}Đã thiết lập **Lộ trình cá nhân hóa xuất phát từ vị trí của bạn** "
@@ -927,7 +918,7 @@ class GeospatialAgentService:
         )
 
         details = (
-            f"• **Lộ trình cá nhân hóa:** Xuất phát từ Vị trí của bạn → {personalized_route['circuit_entry_point']['name']} → {personalized_route['name']} ({dist_km} km, {personalized_route.get('laps', 1)} vòng).\n"
+            f"• **Lộ trình cá nhân hóa:** Xuất phát từ Vị trí của bạn → {personalized_route['circuit_entry_point']['name']} → {personalized_route['name']} ({dist_km} km).\n"
             f"• **Chất lượng môi trường:** AQI {personalized_route['aqi']} (PM2.5: {personalized_route['pm25']} µg/m³), Nhiệt độ: {personalized_route['temperature']}°C, Độ ồn: {personalized_route['noise_db']} dB.\n"
             f"• **Đặc điểm đường chạy:** {personalized_route['surface']}. {personalized_route['traffic_conflict']}.\n"
             f"• **Điểm nổi bật:** {personalized_route['highlights']}"

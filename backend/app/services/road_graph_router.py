@@ -350,7 +350,7 @@ class RoadGraphRouter:
             else:
                 path_coords.extend(chunk)
 
-        return {"coords": path_coords, "distance_m": total_dist_m}
+        return {"coords": path_coords, "distance_m": total_dist_m, "cost": dist[end_node]}
 
     @classmethod
     def generate_lake_promenade_loop(cls) -> list[list[float]]:
@@ -381,6 +381,97 @@ class RoadGraphRouter:
         return coords
 
     @classmethod
+    def _truncate_polyline(cls, coords: list[list[float]], max_distance_m: float) -> list[list[float]]:
+        """Keep the first part of a graph path, interpolating its final edge."""
+        if not coords or max_distance_m <= 0:
+            return coords[:1]
+
+        result = [coords[0]]
+        covered_m = 0.0
+        for point in coords[1:]:
+            previous = result[-1]
+            edge_m = cls.calculate_distance_m(previous[0], previous[1], point[0], point[1])
+            if covered_m + edge_m <= max_distance_m:
+                result.append(point)
+                covered_m += edge_m
+                continue
+            if edge_m > 0:
+                fraction = (max_distance_m - covered_m) / edge_m
+                result.append([
+                    round(previous[0] + (point[0] - previous[0]) * fraction, 6),
+                    round(previous[1] + (point[1] - previous[1]) * fraction, 6),
+                ])
+            break
+        return result
+
+    @classmethod
+    def generate_target_distance_round_trip(
+        cls,
+        user_lat: float,
+        user_lng: float,
+        target_km: float,
+        station_pm25_map: dict[str, float] | None = None,
+    ) -> dict[str, Any]:
+        """Plan an environment-weighted graph round trip for a requested distance."""
+        start_node, snap_dist_m = cls.find_nearest_node(user_lat, user_lng)
+        requested_m = max(500.0, target_km * 1000.0)
+        graph_target_m = max(0.0, requested_m / 2.0 - snap_dist_m)
+        candidates: list[dict[str, Any]] = []
+        for node_id in cls.NODES:
+            if node_id == start_node:
+                continue
+            path = cls.find_path_dijkstra(start_node, node_id, station_pm25_map)
+            if path["coords"] and path["distance_m"] > 0:
+                candidates.append({"node_id": node_id, **path})
+        if not candidates:
+            raise ValueError("No connected pedestrian path is available from the current location")
+
+        reachable = [candidate for candidate in candidates if candidate["distance_m"] >= graph_target_m]
+        selected = min(
+            reachable or candidates,
+            key=lambda candidate: (
+                candidate["distance_m"] - graph_target_m if reachable else abs(candidate["distance_m"] - graph_target_m),
+                candidate["cost"],
+            ),
+        )
+        outbound_graph = cls._truncate_polyline(selected["coords"], graph_target_m)
+        start_coord = [round(user_lat, 6), round(user_lng, 6)]
+        node = cls.NODES[start_node]
+        outbound_coords = [start_coord]
+        node_coord = [node["lat"], node["lng"]]
+        if cls.calculate_distance_m(*start_coord, *node_coord) > 1.0:
+            outbound_coords.append(node_coord)
+        if outbound_graph:
+            outbound_coords.extend(outbound_graph[1:])
+
+        coordinates = outbound_coords + list(reversed(outbound_coords[:-1]))
+        actual_km = round(cls.calculate_polyline_distance_m(coordinates) / 1000.0, 1)
+        tolerance_km = max(0.1, target_km * 0.1)
+        node_name = cls.NODES[start_node]["name"]
+        turn_name = cls.NODES[selected["node_id"]]["name"]
+        return {
+            "id": f"dynamic_roundtrip_{int(target_km * 10)}_{start_node.lower()}",
+            "name": f"Lộ trình khứ hồi động {actual_km} km",
+            "short_name": f"Route động {actual_km} km",
+            "distance_km": actual_km,
+            "target_requested_km": target_km,
+            "distance_tolerance_km": round(tolerance_km, 1),
+            "distance_constraint_satisfied": abs(actual_km - target_km) <= tolerance_km,
+            "planning_method": "environment_weighted_graph_round_trip",
+            "sensor_id": "S03",
+            "surface": "Đường đi bộ trên mạng lưới đường nội khu đã khai báo",
+            "traffic_conflict": "Tuyến khứ hồi theo các đoạn đường dành cho người đi bộ trong đồ thị demo",
+            "lighting_rating": "Cần quan sát điều kiện chiếu sáng thực tế trước khi chạy tối",
+            "highlights": f"Từ vị trí hiện tại qua {node_name}, quay đầu trước {turn_name} để bám mục tiêu cự ly.",
+            "start_point": {"name": "Vị trí của bạn", "lat": user_lat, "lng": user_lng},
+            "circuit_entry_point": {"name": f"Nút mạng gần nhất: {node_name}", "lat": node["lat"], "lng": node["lng"]},
+            "coordinates": coordinates,
+            "laps": 0,
+            "points_count": len(coordinates),
+            "snap_distance_m": round(snap_dist_m),
+        }
+
+    @classmethod
     def generate_smart_running_route(
         cls,
         user_lat: float,
@@ -395,6 +486,14 @@ class RoadGraphRouter:
         3. Loops along the exact water's edge footpath of Hồ Ngọc Trai without crossing water.
         4. Matches user requested distance (target_km) precisely.
         """
+        if target_km is not None and target_km > 0.5:
+            return cls.generate_target_distance_round_trip(
+                user_lat=user_lat,
+                user_lng=user_lng,
+                target_km=target_km,
+                station_pm25_map=station_pm25_map,
+            )
+
         start_node, snap_dist_m = cls.find_nearest_node(user_lat, user_lng)
         lake_loop_coords = cls.generate_lake_promenade_loop()
         lake_loop_dist_m = cls.calculate_polyline_distance_m(lake_loop_coords)
