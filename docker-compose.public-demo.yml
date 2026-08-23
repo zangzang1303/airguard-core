@@ -15,11 +15,32 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
       - ./backend/db/seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+      - ./backend/db/migrations:/migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airguard -d airguard"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  db-migrate:
+    image: postgres:16
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the server environment}
+    volumes:
+      - ./backend/db/migrations:/migrations:ro
+    command:
+      - sh
+      - -c
+      - >-
+        psql -v ON_ERROR_STOP=1 -h postgres -U airguard -d airguard
+        -f /migrations/20260820_001_auth_foundation.sql
+        -f /migrations/20260821_002_auto_ventilation_reports.sql
+        -f /migrations/20260823_003_fix_vietnamese_station_names_and_alerts.sql
+        -f /migrations/20260823_004_fix_vietnamese_demo_user_names.sql
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mqtt:
     image: eclipse-mosquitto:2
@@ -55,8 +76,8 @@ services:
     volumes:
       - ./data:/app/data:ro
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
 
   agent:
     build:

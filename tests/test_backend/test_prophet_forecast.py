@@ -40,6 +40,8 @@ def test_prophet_forecast_24h_horizons(sample_history):
 
     assert "trend_summary" in res
     assert len(res["trend_summary"]) > 20
+    assert "thích hợp cho hoạt động ngoài trời" not in res["trend_summary"]
+    assert "dữ liệu simulator" in res["trend_summary"]
 
 
 def test_prophet_forecast_multi_metrics(sample_history):
