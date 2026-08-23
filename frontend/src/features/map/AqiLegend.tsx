@@ -209,11 +209,12 @@ export const SimulationDisclaimer: React.FC<{ text?: string }> = ({
 export const AqiLegend: React.FC<{
   showStationStatus?: boolean;
   metric?: string;
-}> = ({ showStationStatus = true, metric = "aqi" }) => {
+  headerProps?: any;
+}> = ({ showStationStatus = true, metric = "aqi", headerProps }) => {
   const scale = getMetricScale(metric);
   return (
     <div className="aqi-legend-card">
-      <div className="aqi-legend-header">Chú giải {scale.label} & Trạng thái trạm</div>
+      <div className="aqi-legend-header" {...headerProps}>Chú giải {scale.label} & Trạng thái trạm</div>
       <MetricColorScale metric={metric} />
       {showStationStatus && <StationStatusLegend />}
       <SimulationDisclaimer />

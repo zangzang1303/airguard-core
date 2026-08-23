@@ -130,6 +130,14 @@
   border: 1px solid #fecaca;
 }
 
+.auth-notice--warning {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  display: flex;
+  align-items: flex-start;
+}
+
 /* Google OAuth Button */
 .auth-google-btn {
   display: flex;
@@ -274,6 +282,51 @@
   height: 40px;
   font-weight: 700;
   border-radius: 10px;
+  transition: all 0.15s ease;
+}
+
+.auth-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+  box-shadow: none;
+}
+
+.auth-submit:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.auth-submit:focus-visible {
+  outline: 3px solid rgba(25, 168, 123, 0.45);
+  outline-offset: 2px;
+}
+
+.auth-terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #475569;
+  line-height: 1.4;
+  user-select: none;
+  margin: 4px 0;
+}
+
+.auth-terms input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  accent-color: #19A87B;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.auth-terms input[type="checkbox"]:focus-visible {
+  outline: 2px solid #19A87B;
+  outline-offset: 2px;
 }
 
 /* Bottom Links */
@@ -828,3 +881,150 @@
     font-size: 0.62rem;
   }
 }
+
+/* ==========================================================================
+   6-Digit OTP Verification Box System
+   ========================================================================== */
+.otp-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 14px 0 18px;
+  width: 100%;
+}
+
+.otp-inputs-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+  margin: 10px 0 8px;
+}
+
+.otp-digit-input {
+  width: 48px;
+  height: 56px;
+  font-size: 1.45rem;
+  font-weight: 700;
+  text-align: center;
+  color: #0f172a;
+  background: #f8fafc;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
+  outline: none;
+  transition: all 0.15s ease-in-out;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.otp-digit-input:focus {
+  border-color: #10b981;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+  transform: translateY(-1px);
+}
+
+.otp-digit-input--filled {
+  border-color: #94a3b8;
+  background: #ffffff;
+}
+
+.otp-digit-input--error {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+}
+
+.otp-hint-text {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 4px 0 0;
+  text-align: center;
+}
+
+.verify-instruction-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.verify-instruction-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
+}
+
+.verify-instruction-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #14532d;
+  margin: 0 0 4px;
+}
+
+.verify-instruction-desc {
+  font-size: 0.82rem;
+  color: #166534;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.verify-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+  width: 100%;
+}
+
+.verify-resend-btn {
+  width: 100%;
+  height: 42px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #059669;
+}
+
+.verify-back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #64748b;
+  text-decoration: none;
+  margin-top: 8px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.verify-back-link:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+@media (max-width: 420px) {
+  .otp-inputs-row {
+    gap: 6px;
+  }
+  .otp-digit-input {
+    width: 40px;
+    height: 48px;
+    font-size: 1.25rem;
+    border-radius: 10px;
+  }
+}
+

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import os
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 from uuid import uuid4
+
+os.environ["ENABLE_TEST_OUTBOX"] = "true"
+os.environ["APP_ENV"] = "test"
 
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
@@ -14,6 +19,7 @@ from app.services.auth_crypto import hash_password  # noqa: E402
 from app.services.auth_service import AuthService  # noqa: E402
 from app.services.database import ServiceError  # noqa: E402
 from app.services.email_service import AuthEmailService  # noqa: E402
+from app.services.resend_email_provider import EmailDeliveryResult, ResendEmailProvider  # noqa: E402
 
 
 class FakeCursor:
@@ -105,7 +111,7 @@ class FakeCursor:
                 if t["user_id"] == uid and t["used_at"] is None:
                     t["used_at"] = datetime.now(UTC)
 
-        elif "UPDATE users SET email_verified_at = NOW() WHERE user_id = %s" in q:
+        elif "UPDATE users SET email_verified_at = NOW()" in q:
             uid = params[0]
             if uid in self.db.users:
                 self.db.users[uid]["email_verified_at"] = datetime.now(UTC)
@@ -297,7 +303,7 @@ def create_test_auth_service() -> tuple[AuthService, FakeDatabase, AuthEmailServ
         audit,
         email_service,
         session_ttl_seconds=604800,
-        verification_token_ttl_seconds=86400,
+        verification_token_ttl_seconds=600,
         reset_token_ttl_seconds=3600,
         rate_limit_max_attempts=5,
         rate_limit_lockout_seconds=900,
@@ -360,6 +366,35 @@ def test_register_flow_and_verification() -> None:
         raise AssertionError("Revoked session should be rejected")
     except ServiceError as exc:
         assert exc.code == "unauthenticated"
+
+
+def test_resend_email_failure_does_not_rollback_user() -> None:
+    """When Resend email dispatch fails, user and token creation must not be rolled back."""
+    mock_provider = ResendEmailProvider(
+        provider_name="resend",
+        api_key="re_test",
+        from_email="no-reply@mail.example.com",
+    )
+    db = FakeDatabase()
+    email_service = AuthEmailService(provider=mock_provider)
+    audit = AuditService(db)  # type: ignore[arg-type]
+    service = AuthService(db, audit, email_service)  # type: ignore[arg-type]
+
+    with patch("resend.Emails.send", side_effect=Exception("500 Internal Server Error")):
+        reg = service.register(
+            email="resilience.test@vinuni.edu.vn",
+            password="SecurePassword2026!",
+            full_name="Nguyễn Văn Bền Vững",
+        )
+
+        assert reg["user_id"] in db.users
+        assert reg["email_delivery_status"] == "failed"
+        assert len(db.verification_tokens) == 1
+
+        # Token is still valid for manual / subsequent verification
+        token_hash = list(db.verification_tokens.keys())[0]
+        assert db.verification_tokens[token_hash]["used_at"] is None
+
 
 
 def test_login_rate_limiting_and_account_lockout() -> None:

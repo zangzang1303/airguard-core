@@ -17,6 +17,7 @@ import {
   ReportType,
   SpatialHeatmapResponse,
   SpatialHeatmapPoint,
+  EmailDeliveryStatus,
 } from "../types";
 
 export interface DemoApiActor {
@@ -798,7 +799,14 @@ export const api = {
     password: string;
     full_name?: string;
     sensitivity_group?: string;
-  }): Promise<{ user_id: string; email: string; role: string; full_name: string; message: string }> => {
+  }): Promise<{
+    user_id: string;
+    email: string;
+    role: string;
+    full_name: string;
+    message: string;
+    email_delivery_status?: EmailDeliveryStatus;
+  }> => {
     return await apiFetch("/api/v1/auth/register", {
       method: "POST",
       body: JSON.stringify(input),
@@ -848,15 +856,31 @@ export const api = {
     });
   },
 
-  resendVerification: async (email: string): Promise<{ success: boolean; message: string }> => {
-    return await apiFetch<{ success: boolean; message: string }>("/api/v1/auth/resend-verification", {
+  resendVerification: async (email: string): Promise<{
+    success: boolean;
+    message: string;
+    email_delivery_status?: EmailDeliveryStatus;
+  }> => {
+    return await apiFetch<{
+      success: boolean;
+      message: string;
+      email_delivery_status?: EmailDeliveryStatus;
+    }>("/api/v1/auth/resend-verification", {
       method: "POST",
       body: JSON.stringify({ email }),
     });
   },
 
-  forgotPassword: async (email: string): Promise<{ success: boolean; message: string }> => {
-    return await apiFetch<{ success: boolean; message: string }>("/api/v1/auth/forgot-password", {
+  forgotPassword: async (email: string): Promise<{
+    success: boolean;
+    message: string;
+    email_delivery_status?: EmailDeliveryStatus;
+  }> => {
+    return await apiFetch<{
+      success: boolean;
+      message: string;
+      email_delivery_status?: EmailDeliveryStatus;
+    }>("/api/v1/auth/forgot-password", {
       method: "POST",
       body: JSON.stringify({ email }),
     });

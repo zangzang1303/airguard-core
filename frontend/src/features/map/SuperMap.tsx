@@ -12,6 +12,7 @@ import { AqiLegend } from "./AqiLegend";
 import { HeatmapLayer } from "../stations/HeatmapLayer";
 import { TimelineSlider } from "../stations/TimelineSlider";
 import { mapActionController } from "./MapActionController";
+import { useDraggableFloatingPanel, useFloatingPanelContext } from "../floating";
 
 interface SuperMapProps {
   stations: Station[];
@@ -27,15 +28,20 @@ interface SuperMapProps {
   onOpenNearMe: () => void;
 }
 
-// Controller component to bind Leaflet map to MapActionController
+// Controller component to bind Leaflet map to MapActionController & FloatingPanelProvider
 const MapActionBinder: React.FC = () => {
   const map = useMap();
+  const { registerMap } = useFloatingPanelContext();
+
   useEffect(() => {
     mapActionController.setMap(map);
+    registerMap(map);
     return () => {
       mapActionController.setMap(null);
+      registerMap(null);
     };
-  }, [map]);
+  }, [map, registerMap]);
+
   return null;
 };
 
@@ -48,8 +54,8 @@ const MapCameraController: React.FC<{
   useEffect(() => {
     if (flyToTarget) {
       map.flyTo(flyToTarget, 16, {
-        duration: 1.4,
-        easeLinearity: 0.25,
+        animate: true,
+        duration: 1.2,
       });
     }
   }, [flyToTarget, map]);
@@ -57,13 +63,40 @@ const MapCameraController: React.FC<{
   return null;
 };
 
-// Initial bounds setter
-const InitialBoundsSetter: React.FC = () => {
-  const map = useMap();
-  useEffect(() => {
-    map.fitBounds(OCEAN_PARK_1_BOUNDARY, { padding: [30, 30], maxZoom: 15 });
-  }, [map]);
-  return null;
+const DraggableLegendOverlay: React.FC<{ metric?: any }> = ({ metric }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "map-legend",
+    group: "widget",
+  });
+
+  return (
+    <div {...containerProps} className="map-legend-overlay">
+      <AqiLegend showStationStatus={true} metric={metric} headerProps={handleProps} />
+    </div>
+  );
+};
+
+const DraggableTimelineDock: React.FC<{
+  forecastHour: number;
+  onForecastHourChange: (hours: number) => void;
+}> = ({ forecastHour, onForecastHourChange }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "timeline",
+    group: "widget",
+  });
+
+  return (
+    <div {...containerProps} className="map-timeline-floating-dock">
+      <div className="no-drag" data-no-drag="true" style={{ width: "100%" }}>
+        <TimelineSlider
+          value={forecastHour}
+          onChange={onForecastHourChange}
+          label="Thanh trượt dự báo lan truyền"
+          titleProps={handleProps}
+        />
+      </div>
+    </div>
+  );
 };
 
 export const SuperMap: React.FC<SuperMapProps> = ({
@@ -82,45 +115,48 @@ export const SuperMap: React.FC<SuperMapProps> = ({
   const viewMode = layerConfig.viewMode ?? (layerConfig.showHeatmap ? "heatmap" : "markers");
 
   return (
-    <div className="super-map-wrapper">
+    <div className="map-wrapper" style={{ width: "100%", height: "100%", position: "relative" }}>
       <MapContainer
         center={MAP_CENTER_OCEAN_PARK}
-        zoom={15}
-        minZoom={13}
+        zoom={14}
+        minZoom={12}
         maxZoom={18}
         zoomControl={false}
-        className="full-viewport-map"
+        attributionControl={false}
+        style={{ width: "100%", height: "100%" }}
       >
-        <InitialBoundsSetter />
-        <MapCameraController flyToTarget={flyToTarget} />
         <MapActionBinder />
+        <MapCameraController flyToTarget={flyToTarget} />
 
-        {/* Clean, high-clarity street basemap layer */}
+        {/* Base Map Tiles — CartoDB Voyager Clean High-Contrast */}
         <TileLayer
-          attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          maxZoom={20}
         />
 
-        {/* Spatial Dispersion Heatmap Canvas Overlay with dynamic forecastHour */}
+        {/* Spatial Dispersion Heatmap Canvas Layer */}
         <HeatmapLayer
           activeLayer={layerConfig.activeEnvironmentalLayer}
+          forecastHour={forecastHour}
+          viewMode={viewMode}
           showHeatmap={layerConfig.showHeatmap}
           showMetadata={layerConfig.showDispersionInfo}
-          viewMode={viewMode}
-          forecastHour={forecastHour}
         />
 
-        {/* Vinhomes Ocean Park 1 Polygon Boundary */}
-        <OceanParkBoundary showBoundary={layerConfig.showBoundary} />
+        {/* Ocean Park 1 Boundary Polygon */}
+        <OceanParkBoundary
+          showBoundary={layerConfig.showBoundary}
+        />
 
-        {/* Places & Subdivision Labels */}
+        {/* Sub-zone Neighborhood Text Labels */}
         <SubZoneLabels
-          onSelectPoi={onSelectPoi}
           showPlaces={layerConfig.showPlaces}
           selectedPoiId={selectedPoi?.id || null}
+          onSelectPoi={onSelectPoi}
         />
 
-        {/* Sensor badges always show the grounded current station snapshot with active metric. */}
+        {/* Sensor Markers (Only visible in markers mode or when explicitly shown) */}
         <SensorMarkers
           stations={stations}
           selectedStationId={selectedStationId}
@@ -136,20 +172,15 @@ export const SuperMap: React.FC<SuperMapProps> = ({
 
       {/* Accessible Map Legend Overlay (Bottom Right — Only in markers view mode when heatmap is NOT active) */}
       {viewMode === "markers" && !layerConfig.showHeatmap && (
-        <div className="map-legend-overlay">
-          <AqiLegend showStationStatus={true} metric={layerConfig.activeEnvironmentalLayer} />
-        </div>
+        <DraggableLegendOverlay metric={layerConfig.activeEnvironmentalLayer} />
       )}
 
       {/* Floating Map Forecast Timeline Control Dock (Bottom Center) */}
       {onForecastHourChange && viewMode === "heatmap" && (
-        <div className="map-timeline-floating-dock">
-          <TimelineSlider
-            value={forecastHour}
-            onChange={onForecastHourChange}
-            label="Thanh trượt dự báo lan truyền"
-          />
-        </div>
+        <DraggableTimelineDock
+          forecastHour={forecastHour}
+          onForecastHourChange={onForecastHourChange}
+        />
       )}
     </div>
   );

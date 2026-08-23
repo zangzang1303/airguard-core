@@ -5074,3 +5074,32 @@ body, html {
   transform: translateY(-1px);
 }
 
+/* ==========================================================================
+   FLOATING PANEL DRAGGABLE TITLE HEADER STYLES
+   ========================================================================== */
+
+[data-floating-handle="true"],
+.draggable-title-handle {
+  cursor: grab !important;
+  touch-action: none !important;
+  user-select: none !important;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+[data-floating-handle="true"]:hover,
+.draggable-title-handle:hover {
+  opacity: 0.92;
+}
+
+[data-floating-handle="true"]:active,
+.draggable-title-handle:active {
+  cursor: grabbing !important;
+}
+
+[data-floating-handle="true"]:focus-visible,
+.draggable-title-handle:focus-visible {
+  outline: 2px solid var(--primary, #0ea5e9);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+

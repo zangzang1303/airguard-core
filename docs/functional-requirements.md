@@ -107,7 +107,7 @@ AirGuard AI thu thập dữ liệu từ 5 trạm mô phỏng `S01`–`S05`, truy
 - Token chỉ dùng một lần, có thời hạn và chỉ lưu bản băm.
 - Reset mật khẩu phải vô hiệu các session cũ.
 - Không tiết lộ email có tồn tại hay không qua phản hồi quên mật khẩu.
-- **Trạng thái:** E2E ở backend; gửi email phụ thuộc SMTP.
+- **Trạng thái:** E2E ở backend; gửi email qua Resend Email API.
 
 ### FR-AUTH-05 — Google OAuth
 
@@ -400,8 +400,8 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 - Mỗi proposal chỉ enqueue tối đa một notification cho mỗi Manager/Admin hợp lệ.
 - Notification failure không thay đổi trạng thái `pending` và không bypass HITL.
 - `NOTIFICATION_PROVIDER=disabled` phải ghi `not_configured`, không tuyên bố đã gửi email.
-- SMTP chỉ gửi thật khi host/credential/recipient hợp lệ; log không chứa địa chỉ/body.
-- **Trạng thái:** queue/status E2E; gửi email phụ thuộc SMTP.
+- Resend API chỉ gửi thật khi API key/sender/recipient hợp lệ; log không chứa địa chỉ/body.
+- **Trạng thái:** queue/status E2E; gửi email qua Resend Email API (`resend==2.36.0`).
 
 ## 5.9. Admin surfaces
 
@@ -533,7 +533,7 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 | Proposal/HITL/device | `/approvals*`, `/devices*`, dispatcher | H-01..H-07 |
 | Audit | `/audit-logs` | H-06 |
 | Report | `/reports*` | R-01..R-05 |
-| Notification | notification jobs/SMTP | NT-01..NT-03 |
+| Notification | notification jobs/Resend | NT-01..NT-03 |
 | MQTT/pipeline | simulator, broker, consumer, PostgreSQL | P-01..P-06 |
 | Deployment | Compose/health/readiness | DP-01..DP-04 |
 

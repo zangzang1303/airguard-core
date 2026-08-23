@@ -25,6 +25,7 @@ import { api } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { Proposal, AgentResponse } from "../../types";
 import { mapActionController, MapAction } from "../map/MapActionController";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface AiAssistantDrawerProps {
   initialPrompt?: string;
@@ -87,6 +88,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   mapContext,
 }) => {
   const { role, userId, navigateTo, setPendingApprovalsCount, selectedStationId } = useAuth();
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "ai-chat",
+    group: "drawer",
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "msg-welcome",
@@ -207,19 +212,19 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   };
 
   return (
-    <aside className="contextual-drawer right-drawer ai-chat-drawer" style={{ width: "min(440px, 100vw)" }}>
+    <aside {...containerProps} className="contextual-drawer right-drawer ai-chat-drawer" style={{ width: "min(440px, 100vw)", ...containerProps.style }}>
       {/* Header */}
       <div className="drawer-header-bar ai-header">
-        <div className="ai-header-brand">
+        <div className="ai-header-brand" {...handleProps}>
           <div className="ai-sparkle-badge" style={{ background: "linear-gradient(135deg, #10b981, #06b6d4)", color: "#fff", boxShadow: "0 4px 12px rgba(16, 185, 129, 0.4)" }}>
             <Sparkles size={18} />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <h2 className="drawer-main-title">AirGuard Geospatial AI</h2>
             <span className="drawer-sub-meta">Tương tác thực & vẽ lộ trình trực tiếp trên bản đồ</span>
           </div>
         </div>
-        <button className="drawer-close-btn" onClick={onClose} aria-label="Đóng">
+        <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng">
           <X size={18} />
         </button>
       </div>

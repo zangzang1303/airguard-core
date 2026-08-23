@@ -5,6 +5,7 @@ import { api } from "../../api/client";
 import { DataQualityBadge } from "../../components/common/DataQualityBadge";
 import { ForecastData, ForecastHorizon, Station } from "../../types";
 import { TimelineSlider } from "../stations/TimelineSlider";
+import { useDraggableFloatingPanel } from "../floating";
 
 type MetricKey = ForecastData["metric"];
 
@@ -31,8 +32,12 @@ function getHorizonHour(item: ForecastHorizon, index: number): number | null {
 
 function getCurrentValue(station: Station, metric: MetricKey): number | null {
   if (station.status !== "online" || station.is_stale) return null;
-  const value = station[metric];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  if (metric === "aqi") return station.aqi ?? null;
+  if (metric === "pm25") return station.pm25 ?? null;
+  if (metric === "co2") return station.co2 ?? null;
+  if (metric === "noise_db") return station.noise_db ?? null;
+  if (metric === "temperature") return station.temperature ?? null;
+  return null;
 }
 
 function formatConfidence(value: number | string | undefined): string {
@@ -47,7 +52,12 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
   onBack,
   onClose,
 }) => {
-  const [metric, setMetric] = useState<MetricKey>("pm25");
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "station-forecast",
+    group: "drawer",
+  });
+
+  const [metric, setMetric] = useState<MetricKey>("aqi");
   const [forecastHour, setForecastHour] = useState(0);
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,35 +68,36 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
 
   useEffect(() => {
     let active = true;
-    setForecast(null);
-    setForecastHour(0);
-    setError(null);
 
     if (!hasUsableCurrentData) {
-      setLoading(false);
-      setError("Trạm đang stale, offline hoặc dữ liệu không hợp lệ nên không được dùng cho dự báo.");
-      return () => { active = false; };
+      setForecast(null);
+      setError("Trạm đang offline hoặc dữ liệu cũ. Không thể tính dự báo grounded.");
+      return () => {
+        active = false;
+      };
     }
 
     setLoading(true);
-    api.getStationForecast(station.station_id, metric)
-      .then((response) => {
+    setError(null);
+
+    api
+      .getStationForecast(station.station_id, metric, 3)
+      .then((data) => {
         if (!active) return;
-        setForecast(response);
-        const firstHour = response.forecasts
-          .map(getHorizonHour)
-          .find((hour): hour is number => hour !== null);
-        setForecastHour(firstHour ?? 0);
+        setForecast(data);
       })
-      .catch(() => {
+      .catch((err) => {
         if (!active) return;
-        setError("Backend chưa trả được dữ liệu dự báo cho trạm và chỉ số đã chọn.");
+        setForecast(null);
+        setError(err instanceof Error ? err.message : "Không thể tải dự báo ngắn hạn.");
       })
       .finally(() => {
         if (active) setLoading(false);
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [hasUsableCurrentData, metric, reloadToken, station.station_id]);
 
   const targetForecast = useMemo(
@@ -101,9 +112,9 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
   const displayedValue = forecastHour === 0 ? currentValue : forecastValue;
 
   return (
-    <aside className="contextual-drawer right-drawer station-forecast-drawer" aria-label={`Dự báo trạm ${station.station_name}`}>
+    <aside {...containerProps} className="contextual-drawer right-drawer station-forecast-drawer" aria-label={`Dự báo trạm ${station.station_name}`}>
       <div className="drawer-header-bar">
-        <div className="drawer-title-group">
+        <div className="drawer-title-group" {...handleProps}>
           <span className="badge-tag">Dự báo ngắn hạn</span>
           <h2 className="drawer-main-title">{station.station_name}</h2>
           <div className="drawer-sub-meta">
@@ -111,7 +122,7 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
             <span>{station.station_id} · dữ liệu backend</span>
           </div>
         </div>
-        <button className="drawer-close-btn" onClick={onClose} aria-label="Đóng dự báo trạm">
+        <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng dự báo trạm">
           <X size={18} />
         </button>
       </div>

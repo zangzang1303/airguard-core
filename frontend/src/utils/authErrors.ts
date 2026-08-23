@@ -127,3 +127,21 @@ function mapErrorByPatterns(raw: string): string {
   }
   return "Đã có lỗi xảy ra. Vui lòng thử lại.";
 }
+
+export function isEmailNotVerifiedError(err: any): boolean {
+  if (!err) return false;
+  if (typeof err === "string") {
+    const lower = err.toLowerCase();
+    return lower.includes("email_not_verified") || lower.includes("chưa xác minh") || lower.includes("unverified");
+  }
+  const code = (err.code || "").toLowerCase();
+  const msg = (err.message || "").toLowerCase();
+  return (
+    code === "email_not_verified" ||
+    code === "unverified" ||
+    msg.includes("email_not_verified") ||
+    msg.includes("chưa xác minh") ||
+    msg.includes("unverified")
+  );
+}
+

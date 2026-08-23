@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, Send, MapPin, AlertCircle, Camera, CheckCircle2 } from "lucide-react";
 import { CommunityReport } from "../../types/superApp";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface CommunityReportModalProps {
   onClose: () => void;
@@ -11,6 +12,11 @@ export const CommunityReportModal: React.FC<CommunityReportModalProps> = ({
   onClose,
   onSubmitReport,
 }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "community-report",
+    group: "modal",
+  });
+
   const [category, setCategory] = useState<CommunityReport["category"]>("dust");
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("Gần cụm Sapphire 2, Vinhomes Ocean Park 1");
@@ -46,13 +52,13 @@ export const CommunityReportModal: React.FC<CommunityReportModalProps> = ({
 
   return (
     <div className="modal-backdrop-overlay" onClick={onClose}>
-      <div className="modal-card-dialog report-modal" onClick={(e) => e.stopPropagation()}>
+      <div {...containerProps} className="modal-card-dialog report-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header-row">
-          <div className="modal-title-wrap">
+          <div className="modal-title-wrap" {...handleProps}>
             <AlertCircle size={18} className="modal-alert-icon" />
             <h3 className="modal-title">Phản ánh vấn đề Môi trường</h3>
           </div>
-          <button className="modal-close-btn" onClick={onClose} aria-label="Đóng">
+          <button className="no-drag modal-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng">
             <X size={18} />
           </button>
         </div>

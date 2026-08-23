@@ -35,6 +35,7 @@ import { AlertsFlyout } from "./features/drawers/AlertsFlyout";
 import { HealthProfileDrawer } from "./features/drawers/HealthProfileDrawer";
 import { CommunityReportModal } from "./features/drawers/CommunityReportModal";
 import { ManagerApprovalDrawer } from "./features/drawers/ManagerApprovalDrawer";
+import { FloatingPanelProvider } from "./features/floating";
 import { Station, Alert, Proposal } from "./types";
 import {
   ActiveDrawerType,
@@ -226,11 +227,12 @@ const SuperAppMain: React.FC<{
   }
 
   return (
-    <div
-      className={`map-super-app-root${isManager ? " is-manager" : ""}`}
-      style={{ width: "100vw", height: "100dvh", position: "relative", overflow: "hidden", margin: 0, padding: 0 }}
-    >
-      {/* 1. LEAFLET MAP (100% Viewport Height & Width) */}
+    <FloatingPanelProvider boundarySelector=".map-super-app-root">
+      <div
+        className={`map-super-app-root${isManager ? " is-manager" : ""}`}
+        style={{ width: "100vw", height: "100dvh", position: "relative", overflow: "hidden", margin: 0, padding: 0 }}
+      >
+        {/* 1. LEAFLET MAP (100% Viewport Height & Width) */}
       <SuperMap
         stations={stations}
         selectedStationId={selectedStationId}
@@ -440,6 +442,7 @@ const SuperAppMain: React.FC<{
         </div>
       )}
     </div>
+    </FloatingPanelProvider>
   );
 };
 

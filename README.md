@@ -382,8 +382,9 @@ Sao chép `.env.example` thành `.env`; không commit file `.env`. Stack demo c�
 | `VENTILATION_MAX_GAP_SECONDS` | Không | Gap tối đa trong chuỗi hợp lệ; mặc định 60 giây. |
 | `REPORT_TIMEZONE` | Không | Múi giờ kỳ báo cáo và Celery Beat; mặc định `Asia/Ho_Chi_Minh`. |
 | `REPORT_NARRATIVE_ENDPOINT` | Không | Endpoint LLM nội bộ tùy chọn; để trống dùng narrative deterministic grounded. |
-| `NOTIFICATION_PROVIDER` | Không | Mặc định `disabled`; đặt `smtp` chỉ khi đã cấu hình SMTP. |
-| `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD` | Chỉ khi dùng SMTP | Secret local; không in ra log, screenshot hoặc commit. |
+| `NOTIFICATION_PROVIDER` | Không | Mặc định `disabled`; đặt `resend` khi đã cấu hình Resend API key & sender. |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Chỉ khi dùng Resend | Secret local; không in ra log, screenshot hoặc commit. |
+| `RESEND_FROM_NAME`, `RESEND_REPLY_TO`, `RESEND_TIMEOUT_SECONDS` | Không | Cấu hình mở rộng cho Resend email dispatch; mặc định timeout 10 giây. |
 | `CELERY_TASK_ALWAYS_EAGER` | Không | `true` trong demo; async worker thật dùng profile `async-jobs`. |
 
 Xem đầy đủ tại [.env.example](.env.example).

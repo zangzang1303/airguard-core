@@ -52,9 +52,15 @@ def generate_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def generate_otp(length: int = 6) -> str:
+    """Generate a cryptographically secure numeric OTP of given length."""
+    return "".join(secrets.choice("0123456789") for _ in range(length))
+
+
 def hash_token(token: str) -> str:
     """Compute the SHA-256 hash of a raw token for safe database persistence."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest().lower()
+
 
 
 def normalize_email(email: str) -> str:

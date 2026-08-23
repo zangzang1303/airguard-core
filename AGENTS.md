@@ -1,4 +1,4 @@
-﻿# AirGuard AI - Agent Handoff Guide
+# AirGuard AI - Agent Handoff Guide
 
 > Doc file nay truoc khi phan tich, sua code, chay service, thay doi contract hoac tao pull request. Day la handoff pack cho mot agent/may moi; no mo ta muc tieu, ranh gioi, hien trang can xac minh va quy trinh tiep tuc cong viec an toan.
 
@@ -41,7 +41,7 @@ FastAPI tool endpoints -> AI Agent (LangGraph/tool calling)
 AI Agent -> warning proposal -> manager HITL -> audit -> optional device dispatcher/simulator
 
 Weather provider/fallback -> weather context -> forecast + Agent
-Alert/approval worker -> SMTP (neu duoc cau hinh) + device simulator
+Alert/approval worker -> Resend Email API (neu duoc cau hinh) + device simulator
 ```
 
 ### Bien gioi ownership
@@ -175,7 +175,7 @@ Khong sua ADR da accepted de doi lich su; tao ADR moi de supersede no.
 - Authentication/RBAC provider production va danh sach manager demo.
 - Device command scope: co demo device simulator hay chi demo HITL/audit.
 - Co nang forecast baseline len Prophet/LSTM hay khong; Prophet/LSTM hien chua duoc implement.
-- SMTP provider production; UI hien dung demo identity va notification mac dinh tat.
+- Email notification provider: Resend Email API (official Python SDK `resend==2.36.0`). UI dung demo identity va notification mac dinh disabled khi chua co key.
 
 Danh sach song: [planning/dependencies.md](planning/dependencies.md), [planning/risks.md](planning/risks.md).
 
