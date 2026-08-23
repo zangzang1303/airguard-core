@@ -25,7 +25,7 @@ class SpatialRegistry:
         "S02": {
             "id": "S02",
             "station_id": "S02",
-            "name": "Khu Căn hộ Sapphire",
+            "name": "Khu căn hộ Sapphire",
             "area_id": "area_sapphire",
             "latitude": 20.9975,
             "longitude": 105.9430,

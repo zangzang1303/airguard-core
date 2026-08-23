@@ -420,11 +420,11 @@ WHERE status = 'generating';
 -- ==========================================
 INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description, source, status, active)
 VALUES
-    ('S01', 'Truc Da Ton phia Tay Bac', 'northwest_road', 21.0008, 105.9428, 'Diem mo phong tren truc Da Ton, phu khu vuc cua ngo Tay Bac Ocean Park 1', 'simulator', 'online', TRUE),
-    ('S02', 'Khu can ho Sapphire', 'high_rise_residential', 20.9975, 105.9430, 'Diem mo phong trong cum can ho phia Tay Bac, dai dien khu dan cu mat do cao', 'simulator', 'online', TRUE),
-    ('S03', 'Ven Ho Ngoc Trai', 'lakeside_residential', 20.9953, 105.9500, 'Diem mo phong ven Ho Ngoc Trai va khu Ngoc Trai, dai dien khong gian ven ho trung tam', 'simulator', 'online', TRUE),
-    ('S04', 'Khuon vien VinUni', 'university_campus', 20.9898, 105.9467, 'Diem mo phong trong khuon vien VinUni o phia Tay Nam pham vi quan sat', 'simulator', 'online', TRUE),
-    ('S05', 'Khu Hai Au phia Dong Nam', 'southeast_residential', 20.9910, 105.9560, 'Diem mo phong tai khu Hai Au, phu vung dan cu phia Dong Nam Ocean Park 1', 'simulator', 'online', TRUE)
+    ('S01', 'Trục Đa Tốn phía Tây Bắc', 'northwest_road', 21.0008, 105.9428, 'Điểm mô phỏng trên trục Đa Tốn, phủ khu vực cửa ngõ Tây Bắc Ocean Park 1', 'simulator', 'online', TRUE),
+    ('S02', 'Khu căn hộ Sapphire', 'high_rise_residential', 20.9975, 105.9430, 'Điểm mô phỏng trong cụm căn hộ phía Tây Bắc, đại diện khu dân cư mật độ cao', 'simulator', 'online', TRUE),
+    ('S03', 'Ven Hồ Ngọc Trai', 'lakeside_residential', 20.9953, 105.9500, 'Điểm mô phỏng ven Hồ Ngọc Trai và khu Ngọc Trai, đại diện không gian ven hồ trung tâm', 'simulator', 'online', TRUE),
+    ('S04', 'Khuôn viên VinUni', 'university_campus', 20.9898, 105.9467, 'Điểm mô phỏng trong khuôn viên VinUni ở phía Tây Nam phạm vi quan sát', 'simulator', 'online', TRUE),
+    ('S05', 'Khu Hải Âu phía Đông Nam', 'southeast_residential', 20.9910, 105.9560, 'Điểm mô phỏng tại khu Hải Âu, phủ vùng dân cư phía Đông Nam Ocean Park 1', 'simulator', 'online', TRUE)
 ON CONFLICT (station_id) DO UPDATE SET
     station_name = EXCLUDED.station_name,
     location_type = EXCLUDED.location_type,

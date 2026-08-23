@@ -73,6 +73,9 @@ const screenMetadata: Record<ScreenType, { label: string }> = {
   "reset-password": {
     label: "Đặt lại mật khẩu",
   },
+  "admin-coming-soon": {
+    label: "Quản trị viên (Sắp ra mắt)",
+  },
 };
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {

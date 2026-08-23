@@ -1,11 +1,11 @@
 -- Demo-only reference data. This script is idempotent and must run after schema.sql.
 INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description, active)
 VALUES
-    ('S01', 'Trục Đa Tốn phía Tây Bắc', 'northwest_road', 21.0008, 105.9428, 'Điểm mô phỏng trên trục Đa Tốn, phụ khu vực cửa ngõ Tây Bắc Ocean Park 1', TRUE),
+    ('S01', 'Trục Đa Tốn phía Tây Bắc', 'northwest_road', 21.0008, 105.9428, 'Điểm mô phỏng trên trục Đa Tốn, phủ khu vực cửa ngõ Tây Bắc Ocean Park 1', TRUE),
     ('S02', 'Khu căn hộ Sapphire', 'high_rise_residential', 20.9975, 105.9430, 'Điểm mô phỏng trong cụm căn hộ phía Tây Bắc, đại diện khu dân cư mật độ cao', TRUE),
     ('S03', 'Ven Hồ Ngọc Trai', 'lakeside_residential', 20.9953, 105.9500, 'Điểm mô phỏng ven Hồ Ngọc Trai và khu Ngọc Trai, đại diện không gian ven hồ trung tâm', TRUE),
     ('S04', 'Khuôn viên VinUni', 'university_campus', 20.9898, 105.9467, 'Điểm mô phỏng trong khuôn viên VinUni ở phía Tây Nam phạm vi quan sát', TRUE),
-    ('S05', 'Khu Hải Âu phía Đông Nam', 'southeast_residential', 20.9910, 105.9560, 'Điểm mô phỏng tại khu Hải Âu, phụ vùng dân cư phía Đông Nam Ocean Park 1', TRUE)
+    ('S05', 'Khu Hải Âu phía Đông Nam', 'southeast_residential', 20.9910, 105.9560, 'Điểm mô phỏng tại khu Hải Âu, phủ vùng dân cư phía Đông Nam Ocean Park 1', TRUE)
 ON CONFLICT (station_id) DO UPDATE SET
     station_name = EXCLUDED.station_name,
     location_type = EXCLUDED.location_type,

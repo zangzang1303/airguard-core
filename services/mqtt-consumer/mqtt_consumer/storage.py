@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import logging
@@ -26,7 +26,9 @@ class PostgresStore:
         self.database_url = database_url
 
     def _connect(self):
-        return psycopg2.connect(self.database_url)
+        conn = psycopg2.connect(self.database_url)
+        conn.set_client_encoding("UTF8")
+        return conn
 
     def persist_measurement(self, payload: MeasurementPayload) -> PersistResult:
         with self._connect() as conn:

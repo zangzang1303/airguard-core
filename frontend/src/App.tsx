@@ -5,6 +5,7 @@ import { Register } from "./features/auth/Register";
 import { VerifyEmail } from "./features/auth/VerifyEmail";
 import { ForgotPassword } from "./features/auth/ForgotPassword";
 import { ResetPassword } from "./features/auth/ResetPassword";
+import { AdminComingSoon } from "./features/auth/AdminComingSoon";
 import { StationDetail } from "./features/stations/StationDetail";
 import { AlertList } from "./features/alerts/AlertList";
 import { ApprovalQueue } from "./features/approvals/ApprovalQueue";
@@ -17,6 +18,8 @@ import { AdminDashboard } from "./features/admin/AdminDashboard";
 import { ReportViewer } from "./features/admin/ReportViewer";
 
 import { SuperMap } from "./features/map/SuperMap";
+import { mapActionController } from "./features/map/MapActionController";
+import { useAiOverlayActive } from "./features/map/useAiOverlayActive";
 import { TopFloatingBar } from "./features/navigation/TopFloatingBar";
 import { BottomActionDock } from "./features/navigation/BottomActionDock";
 import { ManagerStationStatusBar } from "./features/navigation/ManagerStationStatusBar";
@@ -150,6 +153,11 @@ const SuperAppMain: React.FC<{
     setActiveDrawer("ai-chat");
   };
 
+  const handleCloseAiDrawer = useCallback(() => {
+    mapActionController.clearAIOverlay();
+    setActiveDrawer(null);
+  }, []);
+
   const handleApproveProposal = async (proposalId: string, version: number) => {
     await approveProposal(proposalId, version);
     await refreshData();
@@ -159,6 +167,12 @@ const SuperAppMain: React.FC<{
     await rejectProposal(proposalId, version, note);
     await refreshData();
   };
+
+  // AI Overlay state lifted to App level
+  const hasAIOverlay = useAiOverlayActive();
+  const handleClearAIOverlay = useCallback(() => {
+    mapActionController.clearAIOverlay();
+  }, []);
 
   const handleCommunityReportSubmit = (report: Partial<CommunityReport>) => {
     console.log("Community Report Submitted:", report);
@@ -235,6 +249,8 @@ const SuperAppMain: React.FC<{
         connectionStatus={connectionStatus}
         lastUpdated={lastUpdated}
         refreshData={refreshData}
+        hasAIOverlay={hasAIOverlay}
+        onClearAIOverlay={handleClearAIOverlay}
         onSelectCoordinates={handleFlyTo}
         onSelectStation={handleSelectStation}
         onSelectPoi={handleSelectPoi}
@@ -315,7 +331,7 @@ const SuperAppMain: React.FC<{
       {activeDrawer === "ai-chat" && (
         <AiAssistantDrawer
           initialPrompt={aiInitialPrompt}
-          onClose={() => setActiveDrawer(null)}
+          onClose={handleCloseAiDrawer}
           mapContext={{
             selected_sensor: selectedStationId,
             selected_location: selectedPoi?.name || selectedPoi?.id,
@@ -563,6 +579,9 @@ const AppContent: React.FC = () => {
   }
   if (currentScreen === "reset-password") {
     return <ResetPassword />;
+  }
+  if (currentScreen === "admin-coming-soon") {
+    return <AdminComingSoon />;
   }
 
   // Admin / Special view overlay on map
