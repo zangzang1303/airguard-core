@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
 from typing import Any
 
 from .conversational_agent_service import conversational_agent
 from .environmental_scoring import environmental_scoring
-from .live_telemetry_engine import live_engine
 from .prophet_forecast_service import prophet_service
 from .spatial_registry import spatial_registry
 from .temporal_resolver import temporal_resolver
+from .database import ServiceError
 
 
 class GeospatialAgentService:
@@ -20,6 +19,12 @@ class GeospatialAgentService:
     with declarative Leaflet map actions.
     """
 
+    def __init__(self, telemetry_engine: Any | None = None) -> None:
+        # The production singleton has no telemetry engine. Tests and explicitly
+        # labelled demo tooling may inject one, but production requests must pass
+        # PostgreSQL-backed snapshots from StationService.
+        self.telemetry_engine = telemetry_engine
+
     def process_query(
         self,
         message: str,
@@ -29,6 +34,8 @@ class GeospatialAgentService:
         request_id: str = "geo-req-001",
         user_role: str = "resident",
         user_group: str = "normal",
+        station_snapshots: dict[str, dict[str, Any]] | None = None,
+        station_histories: dict[str, list[dict[str, Any]]] | None = None,
     ) -> dict[str, Any]:
         map_context = map_context or {}
         q = message.lower().strip()
@@ -68,52 +75,92 @@ class GeospatialAgentService:
         elif any(w in q for w in ["ăn uống", "cafe", "cà phê", "ngoài trời", "ngồi"]):
             activity = "dining_outdoor"
 
-        # 4. Fetch Base Data for Stations (Live or Forecast)
-        station_data_map = {}
-        history_map = live_engine.get_all_histories(hours=48)
-
-        for s_id in ["S01", "S02", "S03", "S04", "S05"]:
-            hist = history_map.get(s_id, [])
-            if not is_forecast:
-                # Realtime live snapshot
-                current_st = live_engine.get_latest(s_id)
-                station_data_map[s_id] = {
-                    "station_id": s_id,
-                    "pm25": current_st.get("pm25", 35.0),
-                    "aqi": current_st.get("aqi", 95),
-                    "co2": current_st.get("co2", 650.0),
-                    "noise_db": current_st.get("noise_db", 55.0),
-                    "temperature": current_st.get("temperature", 31.0),
-                    "timestamp": current_st.get("measured_at", datetime.now(UTC).isoformat()),
+        # 4. Use only request-scoped, system-of-record station inputs. The
+        # in-memory engine is available solely through explicit test/demo injection.
+        if station_snapshots is None:
+            if self.telemetry_engine is None:
+                raise ServiceError(
+                    "geospatial_station_data_unavailable",
+                    "Grounded station snapshots are required for geospatial analysis",
+                    503,
+                )
+            if hasattr(self.telemetry_engine, "get_latest"):
+                station_snapshots = {
+                    station_id: self.telemetry_engine.get_latest(station_id)
+                    for station_id in ["S01", "S02", "S03", "S04", "S05"]
                 }
             else:
-                # Prophet ML Multi-Step Forecast
-                fc_res = prophet_service.forecast(s_id, hist, hours=max(1, forecast_hour), metric="pm25")
-                horizons = fc_res.get("horizons", [])
-                target_horizon = horizons[-1] if horizons else {}
-                predicted_pm25 = target_horizon.get("predicted_value", 35.0)
+                station_snapshots = {
+                    station["station_id"]: station
+                    for station in self.telemetry_engine.get_current_stations()
+                }
+        if station_histories is None:
+            station_histories = (
+                self.telemetry_engine.get_all_histories(hours=48)
+                if self.telemetry_engine is not None
+                else {}
+            )
 
-                # Derived forecast metrics
+        station_data_map = {}
+        for s_id in ["S01", "S02", "S03", "S04", "S05"]:
+            current_st = station_snapshots.get(s_id)
+            if not self._usable_station_snapshot(current_st):
+                continue
+            if not is_forecast:
+                station_data_map[s_id] = {
+                    "station_id": s_id,
+                    "pm25": current_st["pm25"],
+                    "aqi": current_st["aqi"],
+                    "co2": current_st["co2"],
+                    "noise_db": current_st["noise_db"],
+                    "temperature": current_st["temperature"],
+                    "timestamp": current_st.get("measured_at") or current_st["updated_at"],
+                    "source": current_st["source"],
+                }
+            else:
+                history = station_histories.get(s_id, [])
+                if len(history) < 3:
+                    continue
+                try:
+                    metric_points = {
+                        metric: self._forecast_point(s_id, history, forecast_hour, metric)
+                        for metric in ("pm25", "co2", "noise_db", "temperature")
+                    }
+                except (KeyError, TypeError, ValueError, ServiceError):
+                    continue
+
                 from .air_quality import pm25_aqi
-                predicted_aqi = pm25_aqi(predicted_pm25)
 
+                pm25_point = metric_points["pm25"]
+                predicted_pm25 = pm25_point["predicted_value"]
                 station_data_map[s_id] = {
                     "station_id": s_id,
                     "pm25": predicted_pm25,
-                    "aqi": predicted_aqi,
-                    "co2": 620.0,
-                    "noise_db": 54.0 if forecast_hour >= 20 else 60.0,
-                    "temperature": 29.5 if forecast_hour >= 18 else 32.5,
-                    "timestamp": target_horizon.get("timestamp", datetime.now(UTC).isoformat()),
-                    "lower_bound": target_horizon.get("lower_bound", predicted_pm25 * 0.85),
-                    "upper_bound": target_horizon.get("upper_bound", predicted_pm25 * 1.15),
+                    "aqi": pm25_aqi(predicted_pm25),
+                    "co2": metric_points["co2"]["predicted_value"],
+                    "noise_db": metric_points["noise_db"]["predicted_value"],
+                    "temperature": metric_points["temperature"]["predicted_value"],
+                    "timestamp": pm25_point["timestamp"],
+                    "source": pm25_point["source"],
+                    "lower_bound": pm25_point["lower_bound"],
+                    "upper_bound": pm25_point["upper_bound"],
                 }
+
+        if len(station_data_map) < 3:
+            raise ServiceError(
+                "insufficient_geospatial_station_data",
+                "At least three fresh grounded stations are required for geospatial analysis",
+                503,
+                {"available_station_ids": sorted(station_data_map)},
+            )
 
         # 5. Populate All Candidate POIs with associated Station data
         candidate_pois = []
         for p in spatial_registry.list_pois():
             associated_st_id = p["sensor_id"]
-            env = station_data_map.get(associated_st_id, station_data_map["S03"])
+            env = station_data_map.get(associated_st_id)
+            if env is None:
+                continue
             cand = {
                 **p,
                 "pm25": env["pm25"],
@@ -160,10 +207,6 @@ class GeospatialAgentService:
         ):
             return self._handle_comparison_intent(q, ranked_pois, time_ctx, request_id)
 
-        # Intent B: Worst Location / Most Polluted Area
-        if any(w in q for w in ["ô nhiễm nhất", "kém nhất", "xấu nhất", "cao nhất", "nguy hiểm nhất", "tệ nhất"]):
-            return self._handle_worst_location_intent(ranked_pois, time_ctx, request_id)
-
         # Intent 0: Running Route Recommendation (Personalized or General)
         is_route_query = (
             any(w in q for w in ["đoạn đường", "cung đường", "tuyến đường", "lộ trình", "đường chạy", "chạy bộ ở đâu", "tuyến chạy", "chạy ở đâu", "tuyến nào", "đường nào", "chạy bộ"])
@@ -174,7 +217,9 @@ class GeospatialAgentService:
             candidate_routes = []
             for r in spatial_registry.list_routes():
                 associated_st_id = r["sensor_id"]
-                env = station_data_map.get(associated_st_id, station_data_map["S03"])
+                env = station_data_map.get(associated_st_id)
+                if env is None:
+                    continue
                 cand_r = {
                     **r,
                     "pm25": env["pm25"],
@@ -985,6 +1030,47 @@ class GeospatialAgentService:
             "evidence": evidence,
             "map_actions": map_actions,
             "request_id": request_id,
+        }
+
+
+    @staticmethod
+    def _usable_station_snapshot(snapshot: dict[str, Any] | None) -> bool:
+        if not snapshot:
+            return False
+        observed_at = snapshot.get("measured_at") or snapshot.get("updated_at")
+        required_metrics = ("pm25", "aqi", "co2", "noise_db", "temperature")
+        return bool(
+            snapshot.get("status") == "online"
+            and snapshot.get("freshness") == "fresh"
+            and not snapshot.get("is_stale")
+            and snapshot.get("source")
+            and observed_at
+            and all(snapshot.get(metric) is not None for metric in required_metrics)
+        )
+
+    @staticmethod
+    def _forecast_point(
+        station_id: str,
+        history: list[dict[str, Any]],
+        forecast_hour: int,
+        metric: str,
+    ) -> dict[str, Any]:
+        result = prophet_service.forecast(
+            station_id,
+            history,
+            hours=max(1, forecast_hour),
+            metric=metric,
+        )
+        horizons = result.get("horizons")
+        if not isinstance(horizons, list) or not horizons:
+            raise ValueError("forecast result has no horizons")
+        point = horizons[-1]
+        required = ("predicted_value", "timestamp", "lower_bound", "upper_bound")
+        if not isinstance(point, dict) or any(point.get(field) is None for field in required):
+            raise ValueError("forecast point is incomplete")
+        return {
+            **point,
+            "source": point.get("source") or result.get("source") or result.get("model"),
         }
 
 

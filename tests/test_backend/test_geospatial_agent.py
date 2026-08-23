@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import pytest
+
+from backend.app.services.database import ServiceError
 from backend.app.services.environmental_scoring import EnvironmentalScoringEngine
 from backend.app.services.geospatial_agent_service import GeospatialAgentService
 from backend.app.services.live_telemetry_engine import live_engine
 from backend.app.services.temporal_resolver import TemporalResolver
 
 
+def demo_agent() -> GeospatialAgentService:
+    return GeospatialAgentService(telemetry_engine=live_engine)
+
+
 def test_greeting_does_not_fall_through_to_environmental_recommendation():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
 
     result = agent.process_query(
         "Xin chào!",
@@ -24,7 +31,7 @@ def test_greeting_does_not_fall_through_to_environmental_recommendation():
 
 
 def test_unknown_chat_does_not_fall_through_to_environmental_recommendation():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
 
     result = agent.process_query("ừm... abcxyz")
 
@@ -79,7 +86,7 @@ def test_dynamic_ranking_not_hardcoded():
     Changing the underlying station telemetry flips the AI Agent's recommendation and map actions,
     proving zero hardcoding of favorite locations.
     """
-    agent = GeospatialAgentService()
+    agent = demo_agent()
 
     # Scenario A: S04 (VinUni) is cleanest (PM2.5 = 10), S03 (Hồ Ngọc Trai) is dirty (PM2.5 = 90)
     for s_id in ["S01", "S02", "S03", "S04", "S05"]:
@@ -106,7 +113,7 @@ def test_dynamic_ranking_not_hardcoded():
 
 
 def test_follow_up_map_context_retention():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     # User had clicked Hồ Ngọc Trai on the map and asks a follow-up: "Tối nay thì sao?"
     res = agent.process_query(
         message="Tối nay thì sao?",
@@ -119,7 +126,7 @@ def test_follow_up_map_context_retention():
 
 
 def test_worst_location_intent():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     # Set S01 to highest pollution
     live_engine.update_station("S01", {"pm25": 115.0, "aqi": 195, "co2": 1200.0, "noise_db": 82.0, "temperature": 34.0})
     for s in ["S02", "S03", "S04", "S05"]:
@@ -134,7 +141,7 @@ def test_worst_location_intent():
 
 
 def test_comparison_intent():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     res = agent.process_query("Sapphire và Hồ Ngọc Trai chỗ nào tốt hơn?")
     assert res["intent"] == "compare_locations"
     assert "Sapphire" in res["answer"]["summary"] and "Hồ Ngọc Trai" in res["answer"]["summary"]
@@ -145,7 +152,7 @@ def test_comparison_intent():
 
 
 def test_recommend_running_route_intent():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     # Scenario: Ask for running routes tonight
     res = agent.process_query("Tôi muốn tìm đoạn đường phù hợp để chạy bộ nhất tối nay")
     assert res["intent"] == "recommend_running_route"
@@ -167,7 +174,7 @@ def test_recommend_running_route_intent():
 
 
 def test_personalized_route_from_user_location_and_target_distance():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     # Scenario: User is at Sapphire and wants to run 5km
     map_context = {
         "user_location": {"lat": 20.9975, "lng": 105.9430},
@@ -189,7 +196,7 @@ def test_personalized_route_from_user_location_and_target_distance():
 
 
 def test_running_distance_follow_up_adjusts_route_instead_of_clarifying():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     for s_id in ["S01", "S02", "S03", "S04", "S05"]:
         live_engine.update_station(
             s_id,
@@ -209,7 +216,7 @@ def test_running_distance_follow_up_adjusts_route_instead_of_clarifying():
 
 
 def test_dynamic_route_planner_honors_three_km_target_without_lake_loop_expansion():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     for s_id in ["S01", "S02", "S03", "S04", "S05"]:
         live_engine.update_station(
             s_id,
@@ -228,8 +235,36 @@ def test_dynamic_route_planner_honors_three_km_target_without_lake_loop_expansio
     assert route["laps"] == 0
 
 
-def test_indoor_pivot_when_air_is_hazardous():
+def test_domain_query_fails_closed_without_grounded_station_snapshots():
     agent = GeospatialAgentService()
+
+    with pytest.raises(ServiceError) as exc_info:
+        agent.process_query("Tôi nên chạy bộ ở đâu bây giờ?")
+
+    assert exc_info.value.code == "geospatial_station_data_unavailable"
+    assert exc_info.value.status_code == 503
+
+
+def test_uc03_least_polluted_three_km_query_is_routed_as_personalized_route():
+    agent = demo_agent()
+    for station_id in ["S01", "S02", "S03", "S04", "S05"]:
+        live_engine.update_station(
+            station_id,
+            {"pm25": 18.0, "aqi": 45, "co2": 500.0, "noise_db": 48.0, "temperature": 26.0},
+        )
+
+    result = agent.process_query(
+        "Tôi muốn chạy 3km, tìm tuyến đường ít ô nhiễm nhất",
+        map_context={"user_location": {"lat": 20.9975, "lng": 105.9430}},
+    )
+
+    assert result["intent"] == "recommend_personalized_running_route"
+    assert result["personalized_route"]["target_requested_km"] == 3.0
+    assert any(action["type"] == "highlight_route" for action in result["map_actions"])
+
+
+def test_indoor_pivot_when_air_is_hazardous():
+    agent = demo_agent()
     # Scenario: Severe air pollution (AQI = 185, PM2.5 = 110 ug/m3)
     for s_id in ["S01", "S02", "S03", "S04", "S05"]:
         live_engine.update_station(s_id, {"pm25": 110.0, "aqi": 185, "co2": 1100.0, "noise_db": 75.0, "temperature": 32.0})

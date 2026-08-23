@@ -181,6 +181,51 @@ def test_weather_has_explicit_freshness() -> None:
     assert weather["observed_at"]
 
 
+def test_weather_uses_valid_open_meteo_current_payload() -> None:
+    import httpx
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["wind_speed_unit"] == "ms"
+        assert request.url.params["timezone"] == "UTC"
+        return httpx.Response(
+            200,
+            json={
+                "current": {
+                    "time": "2026-08-23T06:00:00Z",
+                    "temperature_2m": 30.2,
+                    "relative_humidity_2m": 70,
+                    "precipitation": 0.1,
+                    "wind_speed_10m": 2.8,
+                    "wind_direction_10m": 120,
+                }
+            },
+        )
+
+    weather = WeatherService(
+        "https://api.open-meteo.com/v1/forecast",
+        max_age_seconds=10**9,
+        transport=httpx.MockTransport(handler),
+    ).current_weather()
+
+    assert weather["source"] == "open_meteo_forecast_api"
+    assert weather["is_fallback"] is False
+    assert weather["wind_speed_ms"] == 2.8
+    assert weather["wind_direction_deg"] == 120
+
+
+def test_weather_provider_failure_is_labelled_fallback() -> None:
+    import httpx
+
+    weather = WeatherService(
+        "https://api.open-meteo.com/v1/forecast",
+        transport=httpx.MockTransport(lambda _request: httpx.Response(503)),
+    ).current_weather()
+
+    assert weather["source"] == "simulator_fallback_weather"
+    assert weather["is_fallback"] is True
+    assert weather["fallback_reason"] == "provider_unavailable_or_invalid"
+
+
 def test_alert_source_is_derived_from_rule_version() -> None:
     alert = AlertEngine._with_source({"rule_version": "pm25-threshold-v1"})
 

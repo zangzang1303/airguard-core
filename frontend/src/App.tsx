@@ -50,8 +50,6 @@ import {
   fetchProposals,
   approveProposal,
   rejectProposal,
-  FALLBACK_STATIONS,
-  FALLBACK_ALERTS,
 } from "./api/client";
 import { RefreshCw, TriangleAlert, ArrowLeft, CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
 import "./theme.css";
@@ -688,12 +686,11 @@ const AppContent: React.FC = () => {
     try {
       const [stationRes, alertRes] = await Promise.all([
         fetchStations(),
-        fetchAlerts().catch(() => FALLBACK_ALERTS),
+        fetchAlerts(),
       ]);
 
-      const validStations = Array.isArray(stationRes) && stationRes.length > 0 ? stationRes : FALLBACK_STATIONS;
-      setStations(validStations);
-      setAlerts(Array.isArray(alertRes) && alertRes.length > 0 ? alertRes : FALLBACK_ALERTS);
+      setStations(Array.isArray(stationRes) ? stationRes : []);
+      setAlerts(Array.isArray(alertRes) ? alertRes : []);
       setLoadError(null);
       setConnectionStatus("connected");
       setLastUpdated(new Date());
@@ -705,20 +702,29 @@ const AppContent: React.FC = () => {
             setProposals(propRes.items);
           }
           setProposalLoadError(null);
-        } catch {
-          setProposalLoadError(null);
+        } catch (error) {
+          setProposals([]);
+          setProposalLoadError(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải hàng đợi phê duyệt. Vui lòng thử lại.",
+          );
         }
       } else {
         setProposals([]);
         setProposalLoadError(null);
       }
     } catch (error) {
-      console.warn("Backend connection delayed, using fallback simulation stations:", error);
-      setStations(FALLBACK_STATIONS);
-      setAlerts(FALLBACK_ALERTS);
-      setConnectionStatus("connected");
-      setLoadError(null);
-      setLastUpdated(new Date());
+      console.warn("Backend environmental data is unavailable:", error);
+      setStations([]);
+      setAlerts([]);
+      setProposals([]);
+      setConnectionStatus("disconnected");
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Không thể tải dữ liệu môi trường từ backend. Vui lòng thử lại.",
+      );
     } finally {
       setLoading(false);
     }

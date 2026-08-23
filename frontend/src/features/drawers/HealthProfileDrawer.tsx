@@ -34,14 +34,6 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
     { id: "bbq", label: "Nướng BBQ dã ngoại" },
   ];
 
-  const toggleInterest = (actId: string) => {
-    const exists = formData.interests.includes(actId);
-    const newInterests = exists
-      ? formData.interests.filter((i) => i !== actId)
-      : [...formData.interests, actId];
-    setFormData({ ...formData, interests: newInterests });
-  };
-
   const handleSave = async () => {
     setSaveError(null);
     setSaving(true);
@@ -51,7 +43,7 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
       setSaveError(result.message || "Không thể lưu nhóm sức khỏe.");
       return;
     }
-    onUpdateProfile(formData);
+    onUpdateProfile({ ...profile, sensitivityGroup: formData.sensitivityGroup });
     setSavedSuccess(true);
     setTimeout(() => {
       setSavedSuccess(false);
@@ -109,7 +101,7 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
 
         {/* Sensitivity Group Selection */}
         <div className="form-section-group">
-          <label className="section-form-label">Nhóm sức khỏe của bạn:</label>
+          <label className="section-form-label">Nhóm khuyến nghị môi trường:</label>
           <div className="sensitivity-options-list">
             {SENSITIVITY_GROUPS.map((grp) => (
               <div
@@ -131,6 +123,7 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
         {/* Interests & Activities */}
         <div className="form-section-group">
           <label className="section-form-label">Hoạt động ngoài trời bạn quan tâm:</label>
+          <p className="exposure-note">Chưa có API lưu sở thích; các lựa chọn này chỉ được hiển thị để mô tả tính năng dự kiến.</p>
           <div className="interests-pills-wrap">
             {ACTIVITIES.map((act) => {
               const isSelected = formData.interests.includes(act.id);
@@ -139,7 +132,8 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
                   key={act.id}
                   type="button"
                   className={`interest-chip-btn ${isSelected ? "selected" : ""}`}
-                  onClick={() => toggleInterest(act.id)}
+                  disabled
+                  title="Chưa có API lưu sở thích"
                 >
                   {act.label}
                 </button>
@@ -151,13 +145,14 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
         {/* Notification Settings */}
         <div className="form-section-group">
           <label className="section-form-label">Cài đặt thông báo môi trường:</label>
+          <p className="exposure-note">Chưa có API lưu tùy chọn notification; thay đổi tại đây đã được khóa để tránh báo lưu giả.</p>
           <div className="settings-toggle-list">
             <label className="setting-toggle-row">
               <span>Nhận cảnh báo khẩn do backend phát hành</span>
               <input
                 type="checkbox"
                 checked={formData.alertPushEnabled}
-                onChange={(e) => setFormData({ ...formData, alertPushEnabled: e.target.checked })}
+                disabled
               />
             </label>
             <label className="setting-toggle-row">
@@ -165,7 +160,7 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
               <input
                 type="checkbox"
                 checked={formData.dailyDigestEnabled}
-                onChange={(e) => setFormData({ ...formData, dailyDigestEnabled: e.target.checked })}
+                disabled
               />
             </label>
           </div>

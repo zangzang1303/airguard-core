@@ -360,19 +360,13 @@ def test_fewer_than_three_usable_stations_returns_structured_error() -> None:
     assert error.details["stations_required"] == 3
 
 
-def test_real_station_service_strict_mode_does_not_replace_stale_rows(
-    monkeypatch,
-) -> None:
+def test_real_station_service_strict_mode_does_not_replace_stale_rows() -> None:
     stale_at = datetime.now(UTC) - timedelta(minutes=30)
     station_service = StationService(
         StaticRowsDatabase(make_database_station_rows(observed_at=stale_at)),  # type: ignore[arg-type]
         stale_after_seconds=300,
     )
 
-    def fail_if_fallback_is_called() -> list[dict[str, Any]]:
-        raise AssertionError("Spatial strict mode must not call simulator fallback")
-
-    monkeypatch.setattr(station_service, "_fallback_stations", fail_if_fallback_is_called)
     service = SpatialDispersionService(
         station_service,
         weather_provider=FakeWeatherProvider(),
@@ -395,42 +389,12 @@ def test_real_station_service_strict_mode_does_not_replace_stale_rows(
     ]
 
 
-def test_real_station_service_strict_mode_does_not_replace_empty_database(
-    monkeypatch,
-) -> None:
+def test_real_station_service_strict_mode_does_not_replace_empty_database() -> None:
     station_service = StationService(
         StaticRowsDatabase([]),  # type: ignore[arg-type]
         stale_after_seconds=300,
     )
 
-    def fail_if_fallback_is_called() -> list[dict[str, Any]]:
-        raise AssertionError("Spatial strict mode must not call simulator fallback")
-
-    monkeypatch.setattr(station_service, "_fallback_stations", fail_if_fallback_is_called)
-    service = SpatialDispersionService(
-        station_service,
-        weather_provider=FakeWeatherProvider(),
-        forecast_provider=FakeForecastProvider(),
-    )
-
-    with pytest.raises(ServiceError) as exc_info:
-        service.calculate_heatmap("aqi", 0)
-
-    assert exc_info.value.code == "insufficient_spatial_data"
-    assert exc_info.value.details is not None
-    assert exc_info.value.details["stations_usable"] == 0
-    assert exc_info.value.details["stations_excluded"] == []
-
-
-def test_real_station_service_strict_mode_fails_closed_when_database_is_unavailable(
-    monkeypatch,
-) -> None:
-    station_service = StationService(Database(None), stale_after_seconds=300)
-
-    def fail_if_fallback_is_called() -> list[dict[str, Any]]:
-        raise AssertionError("Spatial strict mode must not call simulator fallback")
-
-    monkeypatch.setattr(station_service, "_fallback_stations", fail_if_fallback_is_called)
     service = SpatialDispersionService(
         station_service,
         weather_provider=FakeWeatherProvider(),
@@ -445,14 +409,31 @@ def test_real_station_service_strict_mode_fails_closed_when_database_is_unavaila
     assert exc_info.value.details == {"upstream_code": "station_data_unavailable"}
 
 
-def test_station_list_default_keeps_existing_simulator_fallback_compatibility(
-    monkeypatch,
-) -> None:
+def test_real_station_service_strict_mode_fails_closed_when_database_is_unavailable() -> None:
     station_service = StationService(Database(None), stale_after_seconds=300)
-    expected = make_stations()
-    monkeypatch.setattr(station_service, "_fallback_stations", lambda: expected)
 
-    assert station_service.list_stations() == expected
+    service = SpatialDispersionService(
+        station_service,
+        weather_provider=FakeWeatherProvider(),
+        forecast_provider=FakeForecastProvider(),
+    )
+
+    with pytest.raises(ServiceError) as exc_info:
+        service.calculate_heatmap("aqi", 0)
+
+    assert exc_info.value.code == "spatial_station_data_unavailable"
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.details == {"upstream_code": "station_data_unavailable"}
+
+
+def test_station_list_fails_closed_when_database_is_unavailable() -> None:
+    station_service = StationService(Database(None), stale_after_seconds=300)
+
+    with pytest.raises(ServiceError) as exc_info:
+        station_service.list_stations()
+
+    assert exc_info.value.code == "station_data_unavailable"
+    assert exc_info.value.status_code == 503
 
 
 @pytest.mark.parametrize("metric", ["aqi", "pm25", "co2", "noise_db", "temperature"])
