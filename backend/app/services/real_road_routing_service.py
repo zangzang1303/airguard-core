@@ -100,10 +100,21 @@ class RealRoadRoutingService:
         user_lng: float,
         target_km: float | None = None,
         prefer_circuit_id: str | None = None,
+        station_pm25_map: dict[str, float] | None = None,
     ) -> dict[str, Any]:
         """
         Generates 100% genuine road-network running route from user coordinate to nearest clean circuit.
         """
+        if target_km is not None and target_km > 0.5:
+            from .road_graph_router import road_graph_router
+
+            return road_graph_router.generate_target_distance_round_trip(
+                user_lat=user_lat,
+                user_lng=user_lng,
+                target_km=target_km,
+                station_pm25_map=station_pm25_map,
+            )
+
         # Determine best entry point on Hồ Ngọc Trai or campus
         lake_entry = (20.9938, 105.9485)  # Quảng trường Cá Voi
 

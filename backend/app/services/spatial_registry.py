@@ -368,6 +368,7 @@ class SpatialRegistry:
         user_lng: float,
         target_km: float | None = None,
         base_circuit_id: str | None = None,
+        station_pm25_map: dict[str, float] | None = None,
     ) -> dict[str, Any]:
         """
         Dynamically generates a 100% genuine OpenStreetMap road-network running path
@@ -380,6 +381,7 @@ class SpatialRegistry:
             user_lng=user_lng,
             target_km=target_km,
             prefer_circuit_id=base_circuit_id,
+            station_pm25_map=station_pm25_map,
         )
 
     @classmethod

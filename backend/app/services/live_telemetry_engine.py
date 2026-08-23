@@ -91,6 +91,7 @@ class LiveTelemetryEngine:
 
     def __init__(self) -> None:
         self._history: dict[str, list[dict[str, Any]]] = {s["station_id"]: [] for s in self.STATION_DEFINITIONS}
+        self._demo_overrides: dict[str, dict[str, float]] = {}
         self._bootstrap_history()
 
     def _bootstrap_history(self) -> None:
@@ -160,6 +161,14 @@ class LiveTelemetryEngine:
         for s in self.STATION_DEFINITIONS:
             st_id = s["station_id"]
             m = self._calculate_measurement_at(s, now)
+            override = self._demo_overrides.get(st_id)
+            if override:
+                m.update(override)
+                m["aqi"] = pm25_aqi(float(m["pm25"]))
+                m["aqi_category"] = aqi_category(m["aqi"])
+                m["level"] = pm25_level(float(m["pm25"]))
+                m["demo_override"] = True
+                m["demo_override_note"] = "Demo operator override; automatic simulator remains running."
             self._history[st_id].append(m)
             if len(self._history[st_id]) > 200:
                 self._history[st_id] = self._history[st_id][-200:]
@@ -217,6 +226,30 @@ class LiveTelemetryEngine:
         curr = self.get_latest(station_id)
         updated = {**curr, **overrides, "station_id": station_id, "measured_at": now.isoformat(), "timestamp": now.isoformat()}
         self._history[station_id].append(updated)
+
+    def set_demo_override(self, station_id: str, values: dict[str, float]) -> dict[str, Any]:
+        if station_id not in self._history:
+            raise KeyError(station_id)
+        self._demo_overrides[station_id] = dict(values)
+        self.tick()
+        return self.get_latest(station_id)
+
+    def clear_demo_override(self, station_id: str) -> None:
+        self._demo_overrides.pop(station_id, None)
+        self.tick()
+
+    def get_demo_overrides(self) -> dict[str, dict[str, float]]:
+        return {station_id: dict(values) for station_id, values in self._demo_overrides.items()}
+
+    def apply_demo_override(self, station: dict[str, Any]) -> dict[str, Any]:
+        override = self._demo_overrides.get(str(station.get("station_id")))
+        if not override:
+            return station
+        updated = {**station, **override, "demo_override": True, "demo_override_note": "Demo operator override; automatic simulator remains running."}
+        updated["aqi"] = pm25_aqi(float(updated["pm25"]))
+        updated["aqi_category"] = aqi_category(updated["aqi"])
+        updated["level"] = pm25_level(float(updated["pm25"]))
+        return updated
 
 
 # Global singleton

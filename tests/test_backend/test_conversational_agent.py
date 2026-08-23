@@ -45,6 +45,12 @@ def test_contextual_follow_up_remains_a_domain_query():
     assert decision.intent == "domain"
 
 
+def test_running_distance_follow_up_is_a_domain_route_request():
+    decision = ConversationalAgentService.classify("Tôi chỉ muốn chạy 2km thôi")
+
+    assert decision.intent == "domain"
+
+
 def test_unknown_message_requests_clarification_without_environmental_facts():
     decision = ConversationalAgentService.classify("ừm... abcxyz")
     response = ConversationalAgentService.deterministic_response(decision, request_id="req-clarify")

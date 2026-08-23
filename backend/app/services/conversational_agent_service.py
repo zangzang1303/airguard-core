@@ -122,6 +122,16 @@ class ConversationalAgentService:
         "co tot",
         "co nen",
     )
+    _DISTANCE_TARGET_RE = re.compile(r"\b\d+(?:\.\d+)?\s*(?:km|cay|kilo(?:met)?)\b")
+    _RUNNING_DISTANCE_CUES = (
+        "chay",
+        "di bo",
+        "tap",
+        "lo trinh",
+        "cung duong",
+        "tuyen duong",
+        "doan duong",
+    )
     _UNSAFE_SOCIAL_PATTERNS = (
         r"\bS0[1-5]\b",
         r"\b\d+(?:[.,]\d+)?\s*(?:µg/m³|ug/m3|ppm|db|°c)\b",
@@ -278,6 +288,13 @@ class ConversationalAgentService:
             map_context
             and any(map_context.get(key) for key in ("selected_sensor", "selected_location", "user_location"))
         )
+        # A distance-only follow-up after a route suggestion is still a route request.
+        # For example: "tôi chỉ muốn chạy 2km thôi" must adjust the route, not
+        # fall through to the generic clarification response.
+        if cls._DISTANCE_TARGET_RE.search(plain) and (
+            any(cue in plain for cue in cls._RUNNING_DISTANCE_CUES) or has_context
+        ):
+            return True
         return has_context and any(signal in plain for signal in cls._CONTEXT_FOLLOW_UPS)
 
     @classmethod

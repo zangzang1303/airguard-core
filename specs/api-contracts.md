@@ -22,6 +22,9 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/stations` | S01-S05 latest state from PostgreSQL | 200 | 503 |
 | GET `/stations/{id}` | station latest state | 200 | 404/503 |
 | GET `/stations/{id}/current` | latest valid fresh measurement | 200 | 404/503 |
+| GET `/demo/station-overrides` | active demo-only station overrides; manager/admin session required | 200 | 401/403 |
+| PUT `/demo/stations/{id}/override` | set demo-only PM2.5, CO₂, noise and temperature values; manager/admin session required | 200 | 401/403/404/422 |
+| DELETE `/demo/stations/{id}/override` | remove a demo override and return to automatic simulation; manager/admin session required | 200 | 401/403 |
 | GET `/stations/{id}/history?hours=1..72` | ordered valid history | 200 | 404/422/503 |
 | POST `/stations/compare` | compare current fresh values for 1..5 stations | 200 | 404/422/503 |
 | POST `/internal/ingestion/measurements` | internal validated measurement ingestion | 202 | 404/422/503 |

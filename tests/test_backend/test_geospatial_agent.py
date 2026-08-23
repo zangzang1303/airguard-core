@@ -188,6 +188,46 @@ def test_personalized_route_from_user_location_and_target_distance():
     assert abs(first_coord[1] - 105.9430) < 0.001
 
 
+def test_running_distance_follow_up_adjusts_route_instead_of_clarifying():
+    agent = GeospatialAgentService()
+    for s_id in ["S01", "S02", "S03", "S04", "S05"]:
+        live_engine.update_station(
+            s_id,
+            {"pm25": 18.0, "aqi": 45, "co2": 500.0, "noise_db": 48.0, "temperature": 26.0},
+        )
+
+    res = agent.process_query(
+        "Tôi chỉ muốn chạy 2km thôi",
+        map_context={"user_location": {"lat": 20.9975, "lng": 105.9430}},
+    )
+
+    assert res["intent"] == "recommend_personalized_running_route"
+    route_action = next(action for action in res["map_actions"] if action["type"] == "highlight_route")
+    assert route_action["distance_km"] == 2.0
+    assert res["personalized_route"]["planning_method"] == "environment_weighted_graph_round_trip"
+    assert any(action["type"] == "highlight_route" for action in res["map_actions"])
+
+
+def test_dynamic_route_planner_honors_three_km_target_without_lake_loop_expansion():
+    agent = GeospatialAgentService()
+    for s_id in ["S01", "S02", "S03", "S04", "S05"]:
+        live_engine.update_station(
+            s_id,
+            {"pm25": 18.0, "aqi": 45, "co2": 500.0, "noise_db": 48.0, "temperature": 26.0},
+        )
+
+    res = agent.process_query(
+        "Tôi chỉ muốn chạy 3km thôi",
+        map_context={"user_location": {"lat": 20.9975, "lng": 105.9430}},
+    )
+
+    route = res["personalized_route"]
+    assert route["target_requested_km"] == 3.0
+    assert route["distance_km"] == 3.0
+    assert route["distance_constraint_satisfied"] is True
+    assert route["laps"] == 0
+
+
 def test_indoor_pivot_when_air_is_hazardous():
     agent = GeospatialAgentService()
     # Scenario: Severe air pollution (AQI = 185, PM2.5 = 110 ug/m3)
