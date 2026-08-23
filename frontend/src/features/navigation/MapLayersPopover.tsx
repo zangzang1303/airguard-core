@@ -1,5 +1,5 @@
 import React from "react";
-import { Check, Layers, Eye, Wind, Activity, Thermometer, Volume2, Droplets, MapPin, Radio, X } from "lucide-react";
+import { Check, Layers, Eye, Wind, Activity, Thermometer, Volume2, Droplets, MapPin, Radio, X, Cloud } from "lucide-react";
 import { MapLayerConfig, EnvironmentalLayerType, MapViewMode } from "../../types/superApp";
 
 interface MapLayersPopoverProps {
