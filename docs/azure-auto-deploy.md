@@ -2,7 +2,9 @@
 
 Pushes to the `Canh` branch trigger `.github/workflows/deploy-azure.yml`.
 The workflow validates the public Compose file, verifies the Azure VM ED25519 host fingerprint,
-and connects with the repository secret `AZURE_DEPLOY_SSH_KEY`.
+and connects with the repository secret `AZURE_DEPLOY_SSH_KEY`. The deploy job runs only in
+`zangzang1303/airguard-core`, where the project owner can administer Actions secrets; the copy in
+the private team repository is intentionally skipped.
 
 The deploy key is intentionally restricted in the VM `authorized_keys` entry:
 
@@ -21,6 +23,14 @@ Normal release flow:
 git add <files>
 git commit -m "feat: describe the change"
 git push origin Canh
+```
+
+On the configured Windows workstation, `origin` has two push URLs so this single push updates both
+the private team repository and the deployment mirror. A new workstation must add the same routing:
+
+```powershell
+git remote set-url --push origin https://github.com/AI20K-Build-Phase-Cohort-3/P-074.git
+git remote set-url --add --push origin https://github.com/zangzang1303/airguard-core.git
 ```
 
 Do not commit `.env`, private keys or tokens. Environment changes remain a separate manual action
