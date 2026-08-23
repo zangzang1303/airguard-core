@@ -53,7 +53,7 @@ import {
   FALLBACK_STATIONS,
   FALLBACK_ALERTS,
 } from "./api/client";
-import { RefreshCw, TriangleAlert, ArrowLeft } from "lucide-react";
+import { RefreshCw, TriangleAlert, ArrowLeft, CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
 import "./theme.css";
 import "./styles.css";
 
@@ -107,6 +107,7 @@ const SuperAppMain: React.FC<{
   });
 
   // User Health Profile State
+  // User Health Profile State
   const [healthProfile, setHealthProfile] = useState<HealthProfile>({
     sensitivityGroup: "normal",
     fullName: "Cư dân Ocean Park 1",
@@ -114,6 +115,166 @@ const SuperAppMain: React.FC<{
     alertPushEnabled: true,
     dailyDigestEnabled: true,
   });
+
+  // User Geolocation & Positioning State
+  const [userLocation, setUserLocation] = useState<[number, number]>(() => {
+    try {
+      const saved = localStorage.getItem("airguard_user_location");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 2 && !isNaN(parsed[0]) && !isNaN(parsed[1])) {
+          return parsed as [number, number];
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return USER_DEFAULT_LOCATION;
+  });
+
+  const [userLocationName, setUserLocationName] = useState<string>(() => {
+    return localStorage.getItem("airguard_user_location_name") || "Vị trí của bạn (Ocean Park 1)";
+  });
+
+  const [userLocationSource, setUserLocationSource] = useState<"gps" | "search" | "manual_click" | "default">(() => {
+    return (localStorage.getItem("airguard_user_location_source") as any) || "default";
+  });
+
+  const [userLocationAccuracy, setUserLocationAccuracy] = useState<number | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [isPickingOnMap, setIsPickingOnMap] = useState<boolean>(false);
+  const [locationNotice, setLocationNotice] = useState<{
+    type: "success" | "error" | "info";
+    message: string;
+  } | null>(null);
+
+  // Auto-dismiss location notice
+  useEffect(() => {
+    if (locationNotice) {
+      const timer = setTimeout(() => {
+        setLocationNotice(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [locationNotice]);
+
+  const handleSetUserLocation = useCallback(
+    (
+      coords: [number, number],
+      name: string,
+      source: "gps" | "search" | "manual_click" | "default",
+      accuracy: number | null = null
+    ) => {
+      setUserLocation(coords);
+      setUserLocationName(name);
+      setUserLocationSource(source);
+      setUserLocationAccuracy(accuracy);
+      setFlyToTarget(coords);
+
+      try {
+        localStorage.setItem("airguard_user_location", JSON.stringify(coords));
+        localStorage.setItem("airguard_user_location_name", name);
+        localStorage.setItem("airguard_user_location_source", source);
+      } catch (e) {
+        console.warn("Could not persist user location:", e);
+      }
+
+      if (source === "gps") {
+        setLocationNotice({
+          type: "success",
+          message: `🎯 Đã định vị thành công vị trí GPS của bạn (độ chính xác ~${Math.round(accuracy || 50)}m)`,
+        });
+      } else if (source === "manual_click") {
+        setLocationNotice({
+          type: "success",
+          message: `📍 Đã cập nhật vị trí của bạn tại toạ độ (${coords[0].toFixed(4)}, ${coords[1].toFixed(4)})`,
+        });
+      } else if (source === "search") {
+        setLocationNotice({
+          type: "success",
+          message: `📍 Đã đặt vị trí của bạn tại: ${name}`,
+        });
+      }
+    },
+    []
+  );
+
+  const handleLocateGps = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationNotice({
+        type: "error",
+        message: "Trình duyệt của bạn không hỗ trợ định vị GPS. Vui lòng nhập địa điểm hoặc chọn trực tiếp trên bản đồ.",
+      });
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationNotice({
+      type: "info",
+      message: "Đang dò tìm tín hiệu GPS vệ tinh của thiết bị...",
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setIsLocating(false);
+        const { latitude, longitude, accuracy } = position.coords;
+        handleSetUserLocation(
+          [latitude, longitude],
+          "Vị trí GPS hiện tại của bạn",
+          "gps",
+          accuracy
+        );
+      },
+      (error) => {
+        setIsLocating(false);
+        let errorMsg = "Không thể lấy vị trí GPS.";
+        if (error.code === error.PERMISSION_DENIED) {
+          errorMsg = "Quyền truy cập vị trí GPS bị từ chối. Bạn có thể nhập địa chỉ vào ô tìm kiếm hoặc bấm nút 'Chọn điểm trên map'.";
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          errorMsg = "Tín hiệu GPS không khả dụng. Bạn có thể nhập vị trí hoặc chấm chọn trên bản đồ.";
+        } else if (error.code === error.TIMEOUT) {
+          errorMsg = "Quá thời gian lấy toạ độ GPS. Vui lòng thử lại hoặc chọn vị trí trên bản đồ.";
+        }
+        setLocationNotice({
+          type: "error",
+          message: errorMsg,
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      }
+    );
+  }, [handleSetUserLocation]);
+
+  const handleStartPickingOnMap = useCallback(() => {
+    setIsPickingOnMap(true);
+    setLocationNotice({
+      type: "info",
+      message: "Chế độ chọn vị trí đang bật: Chạm vào điểm bất kỳ trên bản đồ để ghim vị trí.",
+    });
+  }, []);
+
+  const handleCancelPickingOnMap = useCallback(() => {
+    setIsPickingOnMap(false);
+  }, []);
+
+  const handleMapClickLocation = useCallback(
+    (coords: [number, number]) => {
+      setIsPickingOnMap(false);
+      handleSetUserLocation(
+        coords,
+        `Điểm đã chọn (${coords[0].toFixed(4)}, ${coords[1].toFixed(4)})`,
+        "manual_click"
+      );
+    },
+    [handleSetUserLocation]
+  );
+
+  const handleResetDefaultLocation = useCallback(() => {
+    handleSetUserLocation(USER_DEFAULT_LOCATION, "Trung tâm Vinhomes Ocean Park 1", "default");
+  }, [handleSetUserLocation]);
 
   // Handlers for User Interactions
   const handleSelectStation = (stId: string) => {
@@ -230,6 +391,24 @@ const SuperAppMain: React.FC<{
       className={`map-super-app-root${isManager ? " is-manager" : ""}`}
       style={{ width: "100vw", height: "100dvh", position: "relative", overflow: "hidden", margin: 0, padding: 0 }}
     >
+      {/* Location Status Toast Banner */}
+      {locationNotice && (
+        <div className={`map-location-toast ${locationNotice.type}`} role="alert">
+          {locationNotice.type === "success" && <CheckCircle2 size={16} className="toast-icon" />}
+          {locationNotice.type === "error" && <AlertTriangle size={16} className="toast-icon" />}
+          {locationNotice.type === "info" && <Info size={16} className="toast-icon" />}
+          <span className="toast-message">{locationNotice.message}</span>
+          <button
+            type="button"
+            className="toast-close-btn"
+            onClick={() => setLocationNotice(null)}
+            aria-label="Đóng thông báo"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* 1. LEAFLET MAP (100% Viewport Height & Width) */}
       <SuperMap
         stations={stations}
@@ -239,10 +418,28 @@ const SuperAppMain: React.FC<{
         layerConfig={layerConfig}
         flyToTarget={flyToTarget}
         forecastHour={forecastHour}
+        userCoords={userLocation}
+        userLocationAccuracy={userLocationAccuracy}
+        userLocationName={userLocationName}
+        userLocationSource={userLocationSource}
+        isLocating={isLocating}
+        isPickingOnMap={isPickingOnMap}
         onForecastHourChange={setForecastHour}
         onSelectStation={handleSelectStation}
         onSelectPoi={handleSelectPoi}
         onOpenNearMe={() => setActiveDrawer("near-me")}
+        onLocateGps={handleLocateGps}
+        onTogglePickOnMap={() => (isPickingOnMap ? handleCancelPickingOnMap() : handleStartPickingOnMap())}
+        onCancelPicking={handleCancelPickingOnMap}
+        onMapClickLocation={handleMapClickLocation}
+        onUserLocationChange={(coords, src) =>
+          handleSetUserLocation(
+            coords,
+            `Điểm đã kéo thả (${coords[0].toFixed(4)}, ${coords[1].toFixed(4)})`,
+            src
+          )
+        }
+        onResetDefaultLocation={handleResetDefaultLocation}
       />
 
       {/* 2. TOP FLOATING HEADER */}
@@ -265,6 +462,9 @@ const SuperAppMain: React.FC<{
         onOpenManagerDrawer={() => setActiveDrawer("manager-approval")}
         onOpenAudit={() => setActiveDrawer("audit")}
         onAskAiWithQuery={handleAskAiWithQuery}
+        onSetUserLocation={handleSetUserLocation}
+        onLocateGps={handleLocateGps}
+        onStartPickOnMap={handleStartPickingOnMap}
       />
 
       {isManager && <ManagerStationStatusBar stations={stations} alerts={alerts} />}
@@ -343,15 +543,24 @@ const SuperAppMain: React.FC<{
             selected_sensor: selectedStationId,
             selected_location: selectedPoi?.name || selectedPoi?.id,
             active_layer: layerConfig.activeEnvironmentalLayer,
-            user_location: USER_DEFAULT_LOCATION,
+            user_location: userLocation,
           }}
         />
       )}
 
       {activeDrawer === "near-me" && (
         <NearMePanel
+          userLocation={userLocation}
+          userLocationName={userLocationName}
+          userLocationSource={userLocationSource}
+          userLocationAccuracy={userLocationAccuracy}
+          stations={stations}
+          isLocating={isLocating}
           onClose={() => setActiveDrawer(null)}
           onOpenAiChat={handleOpenAiChat}
+          onLocateGps={handleLocateGps}
+          onStartPickOnMap={handleStartPickingOnMap}
+          onSelectStation={handleSelectStation}
         />
       )}
 

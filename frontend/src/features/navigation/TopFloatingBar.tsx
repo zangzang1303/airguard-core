@@ -23,6 +23,13 @@ interface TopFloatingBarProps {
   onOpenManagerDrawer: () => void;
   onOpenAudit?: () => void;
   onAskAiWithQuery: (query: string) => void;
+  onSetUserLocation?: (
+    coords: [number, number],
+    name: string,
+    source: "search" | "manual_click" | "gps"
+  ) => void;
+  onLocateGps?: () => void;
+  onStartPickOnMap?: () => void;
 }
 
 export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
@@ -44,6 +51,9 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   onOpenManagerDrawer,
   onOpenAudit,
   onAskAiWithQuery,
+  onSetUserLocation,
+  onLocateGps,
+  onStartPickOnMap,
 }) => {
   return (
     <header className="top-floating-bar-header">
@@ -159,6 +169,9 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
         onSelectStation={onSelectStation}
         onSelectPoi={onSelectPoi}
         onAskAiWithQuery={onAskAiWithQuery}
+        onSetUserLocation={onSetUserLocation}
+        onLocateGps={onLocateGps}
+        onStartPickOnMap={onStartPickOnMap}
       />
 
       {/* Right Quick Action Utility Icons */}
