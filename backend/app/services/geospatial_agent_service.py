@@ -32,6 +32,42 @@ class GeospatialAgentService:
         map_context = map_context or {}
         q = message.lower().strip()
 
+        # Greetings are direct conversational responses. Handle them before
+        # resolving telemetry or map context so a selected station cannot turn
+        # a simple hello into an environmental recommendation.
+        normalized_greeting = re.sub(r"[^\w\s]", "", q, flags=re.UNICODE)
+        normalized_greeting = re.sub(r"\s+", " ", normalized_greeting).strip()
+        if normalized_greeting in {
+            "hi",
+            "hello",
+            "hey",
+            "alo",
+            "xin chào",
+            "xin chao",
+            "chào",
+            "chao",
+            "chào bạn",
+            "chao ban",
+            "chào airguard",
+            "chao airguard",
+            "xin chào airguard",
+            "xin chao airguard",
+        }:
+            summary = "Xin chào! Mình là AirGuard Geospatial AI."
+            details = (
+                "Bạn có thể hỏi mình về chất lượng không khí, khu vực ô nhiễm, "
+                "so sánh địa điểm hoặc tìm cung đường chạy bộ phù hợp."
+            )
+            return {
+                "answer": {"summary": summary, "details": details},
+                "response": f"{summary}\n\n{details}",
+                "intent": "greeting",
+                "evidence": [],
+                "map_actions": [],
+                "used_tools": [],
+                "request_id": request_id,
+            }
+
         # 1. Resolve Time Context (Live vs Forecast)
         time_ctx = temporal_resolver.resolve(q)
         is_forecast = time_ctx["is_forecast"]
