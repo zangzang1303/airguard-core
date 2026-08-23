@@ -386,7 +386,31 @@ class SpatialRegistry:
 
     @classmethod
     def find_poi_by_name(cls, query: str) -> dict[str, Any] | None:
+        import re
         q = query.lower().strip()
+
+        # Check for explicit station IDs (S01 - S05)
+        station_match = re.search(r"\b(s0[1-5])\b", q)
+        if station_match:
+            s_id = station_match.group(1).upper()
+            for p in cls.POIS:
+                if p.get("sensor_id") == s_id:
+                    return p
+            st = cls.get_station(s_id)
+            if st:
+                return {
+                    "id": f"poi_{s_id.lower()}",
+                    "area_id": st["area_id"],
+                    "name": st["name"],
+                    "short_name": st["name"],
+                    "category": "traffic_gate",
+                    "latitude": st["latitude"],
+                    "longitude": st["longitude"],
+                    "sensor_id": s_id,
+                    "suitable_activities": ["general"],
+                    "description": f"Trạm quan trắc {st['name']}",
+                }
+
         name_map = {
             "ngọc trai": "poi_ngoc_trai_lake",
             "hồ ngọc trai": "poi_ngoc_trai_lake",

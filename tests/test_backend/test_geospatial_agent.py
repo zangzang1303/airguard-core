@@ -275,3 +275,40 @@ def test_indoor_pivot_when_air_is_hazardous():
     # Must suggest indoor venues (e.g. Bể bơi 4 mùa / VinUni Sports Complex)
     assert "Bể bơi" in res["response"] or "VinUni" in res["response"] or "Trong nhà" in res["response"]
     assert any(a["type"] == "add_annotation" and ("🏊" in a["title"] or "Trong nhà" in a["badge"]) for a in res["map_actions"])
+
+
+def test_rain_inquiry_explains_sensor_scope_and_gives_microclimate_fallback():
+    agent = GeospatialAgentService()
+    live_engine.update_station("S01", {"pm25": 1.0, "aqi": 4, "co2": 350.0, "noise_db": 30.0, "temperature": 25.0})
+
+    res = agent.process_query("Bây giờ ở san hô có mưa hay không")
+    assert res["intent"] == "unsupported_precipitation_weather"
+    assert "chưa trang bị cảm biến đo lượng mưa" in res["answer"]["summary"] or "ngoài phạm vi" in res["answer"]["summary"]
+    assert "San Hô" in res["response"]
+    assert "25.0°C" in res["response"] or "25°C" in res["response"]
+    assert any(a["type"] == "highlight_point" and "San Hô" in a.get("name", "") for a in res["map_actions"])
+
+
+def test_out_of_scope_medical_and_dining_questions_handled_transparently():
+    agent = GeospatialAgentService()
+
+    res_med = agent.process_query("Tôi bị đau đầu thì nên uống thuốc gì?")
+    assert res_med["intent"] == "out_of_scope"
+    assert "ngoài phạm vi" in res_med["answer"]["summary"]
+
+    res_dining = agent.process_query("Ở đây có quán phở nào ngon không?")
+    assert res_dining["intent"] == "out_of_scope"
+    assert "ngoài phạm vi" in res_dining["answer"]["summary"]
+
+
+def test_specific_noise_and_temp_questions():
+    agent = GeospatialAgentService()
+    live_engine.update_station("S01", {"pm25": 10.0, "aqi": 30, "co2": 450.0, "noise_db": 42.0, "temperature": 26.5})
+
+    res_noise = agent.process_query("Độ ồn ở công viên san hô thế nào?")
+    assert res_noise["intent"] == "get_noise_metric"
+    assert "42.0 dB" in res_noise["response"] or "42 dB" in res_noise["response"]
+
+    res_temp = agent.process_query("Nhiệt độ ở công viên san hô bao nhiêu độ?")
+    assert res_temp["intent"] == "get_temperature_metric"
+    assert "26.5°C" in res_temp["response"] or "26.5" in res_temp["response"]

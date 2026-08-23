@@ -190,16 +190,42 @@ class GeospatialAgentService:
         if not user_loc:
             if "sapphire" in q:
                 user_loc = (20.9975, 105.9430)
-            elif "san hô" in q:
+            elif "san hô" in q or "san ho" in q:
                 user_loc = (20.9935, 105.9405)
             elif "vinuni" in q:
                 user_loc = (20.9898, 105.9467)
-            elif "hải âu" in q or "ocean" in q:
+            elif "hải âu" in q or "hai au" in q or "ocean" in q:
                 user_loc = (20.9945, 105.9585)
-            elif "sao biển" in q:
+            elif "sao biển" in q or "sao bien" in q:
                 user_loc = (20.9985, 105.9525)
 
         # 6. Intent Determination & Dispatching
+
+        # Intent: Out-of-Scope Domains (Medical, Real estate, Dining, Traffic)
+        is_medical = any(w in q for w in ["uống thuốc", "thuốc gì", "bệnh gì", "bác sĩ", "chữa bệnh", "khám bệnh", "đau đầu", "sốt"])
+        is_real_estate = any(w in q for w in ["giá nhà", "giá căn hộ", "mua chung cư", "thuê nhà", "giá bán", "bất động sản", "mặt bằng"])
+        is_dining = any(w in q for w in ["quán ăn", "ăn gì ngon", "quán phở", "quán nhậu", "nhà hàng ngon", "quán cafe đẹp", "món ngon"])
+        is_traffic = any(w in q for w in ["tắc đường", "kẹt xe", "ùn tắc giao thông", "xe buýt số"])
+        if is_medical or is_real_estate or is_dining or is_traffic:
+            return self._handle_general_out_of_scope_intent(q, request_id)
+
+        # Intent: Weather / Rain / Precipitation (Out of measurement scope with microclimate fallback)
+        is_rain_inquiry = any(
+            w in q
+            for w in [
+                "mưa", "có mưa", "mưa không", "mưa rào", "lượng mưa", "mưa to", "mưa nhỏ",
+                "mưa hay không", "bão", "sấm sét", "ngập lụt", "dông", "tuyết", "mưa bão"
+            ]
+        )
+        if is_rain_inquiry:
+            explicit_poi = spatial_registry.find_poi_by_name(q)
+            target_poi = None
+            if explicit_poi:
+                target_poi = next((p for p in ranked_pois if p["id"] == explicit_poi["id"]), None)
+            elif map_context.get("selected_location") or map_context.get("selected_sensor") or station_id:
+                s_target = map_context.get("selected_sensor") or station_id
+                target_poi = next((p for p in ranked_pois if p["sensor_id"] == s_target or p["id"] == map_context.get("selected_location")), ranked_pois[0])
+            return self._handle_rain_or_precipitation_intent(q, target_poi, time_ctx, request_id)
 
         # Intent A: Compare Locations (e.g. "so sánh sapphire và hồ ngọc trai", "vinuni và hải âu")
         if any(w in q for w in ["so sánh", "so voi", "so với", "hơn không", "tốt hơn"]) or (
@@ -294,18 +320,10 @@ class GeospatialAgentService:
 
             return self._handle_running_route_intent(ranked_routes, time_ctx, request_id)
 
-        # Intent A: Compare Locations (e.g. "so sánh sapphire và hồ ngọc trai", "vinuni và hải âu")
-        if any(w in q for w in ["so sánh", "so voi", "so với", "hơn không", "tốt hơn"]) or (
-            " và " in q and any(w in q for w in ["chỗ nào", "đâu", "khu nào"])
-        ):
-            return self._handle_comparison_intent(q, ranked_pois, time_ctx, request_id)
+        # Intent C: Specific Metric Focus (Noise, Temp, PM2.5/CO2) or Single Location / Follow-up Inquiry
+        is_noise_inquiry = any(w in q for w in ["độ ồn", "tiếng ồn", "ồn không", "yên tĩnh", "ồn ào", "ồn thế nào"])
+        is_temp_inquiry = any(w in q for w in ["nhiệt độ", "nóng không", "mát không", "nhiệt độ bao nhiêu", "bao nhiêu độ"])
 
-        # Intent B: Worst Location / Most Polluted Area
-        if any(w in q for w in ["ô nhiễm nhất", "kém nhất", "xấu nhất", "cao nhất", "nguy hiểm nhất", "tệ nhất"]):
-            return self._handle_worst_location_intent(ranked_pois, time_ctx, request_id)
-
-        # Intent C: Contextual Follow-up or Specific Location Focus
-        # (e.g. User clicked a POI/Station and asked "tối nay thì sao?", "vinuni thế nào?", "hồ ngọc trai")
         explicit_poi = spatial_registry.find_poi_by_name(q)
         if explicit_poi or map_context.get("selected_location") or map_context.get("selected_sensor") or station_id:
             if explicit_poi:
@@ -321,12 +339,228 @@ class GeospatialAgentService:
             else:
                 target_poi = ranked_pois[0]
 
-            # If user asks a specific question about a location
-            if explicit_poi or is_forecast or any(w in q for w in ["thế nào", "sao", "chất lượng", "bao nhiêu", "có tốt"]):
+            if is_noise_inquiry:
+                return self._handle_specific_noise_intent(target_poi, time_ctx, request_id)
+            if is_temp_inquiry:
+                return self._handle_specific_temp_intent(target_poi, time_ctx, request_id)
+
+            # If user asks a specific question about a location or follow-up
+            if (
+                explicit_poi
+                or is_forecast
+                or map_context.get("selected_location")
+                or map_context.get("selected_sensor")
+                or any(w in q for w in ["thế nào", "sao", "chất lượng", "bao nhiêu", "có tốt", "chỗ này", "ở đây", "khu này", "nơi này", "vị trí này", "thì sao", "như nào"])
+            ):
                 return self._handle_single_location_intent(target_poi, time_ctx, request_id)
 
+        if is_noise_inquiry:
+            return self._handle_specific_noise_intent(ranked_pois[0], time_ctx, request_id)
+        if is_temp_inquiry:
+            return self._handle_specific_temp_intent(ranked_pois[0], time_ctx, request_id)
+
         # Intent D: Best Location / Outdoor Activity Recommendation (Default rich flow)
-        return self._handle_recommendation_intent(ranked_pois, activity, time_ctx, request_id, user_group)
+        return self._handle_recommendation_intent(
+            ranked_pois, activity, time_ctx, request_id, user_group, user_loc=user_loc
+        )
+
+    # -------------------------------------------------------------
+    # INTENT HANDLER: Weather / Rain / Precipitation (Out of Scope with Microclimate Context)
+    # -------------------------------------------------------------
+    def _handle_rain_or_precipitation_intent(
+        self,
+        q: str,
+        poi: dict[str, Any] | None,
+        time_ctx: dict[str, Any],
+        request_id: str,
+    ) -> dict[str, Any]:
+        time_label = time_ctx["label"]
+        location_name = poi["short_name"] if poi else "Vinhomes Ocean Park 1"
+
+        summary = (
+            f"Hệ thống AirGuard AI hiện tại **chưa trang bị cảm biến đo lượng mưa hoặc radar dự báo mưa thời gian thực** "
+            f"(nằm ngoài phạm vi quan trắc của mạng lưới cảm biến không khí & môi trường)."
+        )
+
+        if poi:
+            details = (
+                f"• **Thông số vi khí hậu ghi nhận tại {location_name}:** "
+                f"Nhiệt độ hiện tại: **{poi['temperature']}°C**, Độ ồn: **{poi['noise_db']} dB**, "
+                f"Chất lượng không khí AQI: **{poi['aqi']}** (PM2.5: {poi['pm25']} µg/m³ - Đánh giá: {poi['tier'].upper()}).\n"
+                f"• **Phạm vi hệ thống:** AirGuard tập trung giám sát các chỉ số chất lượng không khí (AQI, PM2.5, CO₂), nhiệt độ, độ ồn và cảnh báo ô nhiễm.\n"
+                f"• **Khuyến nghị:** Để biết chính xác tại {location_name} có mưa hay không hoặc theo dõi ảnh mây vệ tinh, bạn vui lòng tra cứu thêm tại ứng dụng thời tiết chuyên dụng (như AccuWeather hoặc Trung tâm Khí tượng Thủy văn)."
+            )
+            map_actions = [
+                {"type": "clear_ai_layer"},
+                {
+                    "type": "highlight_point",
+                    "target_id": poi["id"],
+                    "lat": poi["latitude"],
+                    "lng": poi["longitude"],
+                    "name": poi["short_name"],
+                    "style": "info",
+                },
+                {
+                    "type": "add_annotation",
+                    "target_id": poi["id"],
+                    "lat": poi["latitude"],
+                    "lng": poi["longitude"],
+                    "title": f"Thông tin tại {poi['short_name']}",
+                    "subtitle": f"{poi['temperature']}°C • AQI {poi['aqi']} (Không đo lượng mưa)",
+                    "badge": "Ngoài phạm vi đo mưa",
+                    "style": "info",
+                },
+                {
+                    "type": "fly_to",
+                    "lat": poi["latitude"],
+                    "lng": poi["longitude"],
+                    "zoom": 16,
+                },
+            ]
+        else:
+            details = (
+                "• **Phạm vi hệ thống:** Mạng lưới cảm biến AirGuard tại Ocean Park 1 chuyên quan trắc "
+                "chất lượng không khí (AQI, PM2.5, CO₂), nhiệt độ và độ ồn môi trường.\n"
+                "• **Khuyến nghị:** Để theo dõi mây radar và khả năng mưa chính xác, vui lòng tham khảo ứng dụng thời tiết chuyên dụng."
+            )
+            map_actions = [{"type": "clear_ai_layer"}]
+
+        return {
+            "answer": {"summary": summary, "details": details},
+            "response": f"{summary}\n\n{details}",
+            "intent": "unsupported_precipitation_weather",
+            "time_context": time_ctx,
+            "data_mode": time_ctx["type"],
+            "evidence": [
+                {"source": "system_capability", "scope": "air_quality_and_microclimate", "status": "unsupported_rain_sensor"}
+            ] + ([{"source": "sensor", "poi_id": poi["id"], "metric": "temperature", "value": poi["temperature"], "timestamp": poi["timestamp"]}] if poi else []),
+            "map_actions": map_actions,
+            "request_id": request_id,
+        }
+
+    # -------------------------------------------------------------
+    # INTENT HANDLER: General Out-of-Scope (Medical, Real Estate, Dining, Traffic)
+    # -------------------------------------------------------------
+    def _handle_general_out_of_scope_intent(
+        self,
+        q: str,
+        request_id: str,
+    ) -> dict[str, Any]:
+        summary = "Yêu cầu này nằm ngoài phạm vi hoạt động của hệ thống AirGuard AI."
+        details = (
+            "AirGuard AI là trợ lý thông minh chuyên về **giám sát chất lượng không khí (AQI, PM2.5, CO₂), cảnh báo ô nhiễm và gợi ý lộ trình vận động ngoài trời an toàn** tại Vinhomes Ocean Park 1.\n\n"
+            "👉 **Bạn có thể hỏi mình về:**\n"
+            "• Chất lượng không khí hiện tại hoặc dự báo 1-3h tới tại các phân khu (San Hô, Hồ Ngọc Trai, VinUni, Sapphire, Sao Biển...).\n"
+            "• So sánh độ trong lành giữa các địa điểm để chọn nơi vui chơi, đi dạo.\n"
+            "• Gợi ý cung đường chạy bộ / đạp xe tối nay với cự ly mong muốn."
+        )
+        return {
+            "answer": {"summary": summary, "details": details},
+            "response": f"{summary}\n\n{details}",
+            "intent": "out_of_scope",
+            "evidence": [],
+            "map_actions": [{"type": "clear_ai_layer"}],
+            "request_id": request_id,
+        }
+
+    # -------------------------------------------------------------
+    # INTENT HANDLER: Specific Noise Metric
+    # -------------------------------------------------------------
+    def _handle_specific_noise_intent(
+        self,
+        poi: dict[str, Any],
+        time_ctx: dict[str, Any],
+        request_id: str,
+    ) -> dict[str, Any]:
+        noise = poi["noise_db"]
+        level_str = "rất yên tĩnh" if noise < 55 else ("mức độ âm thanh vừa phải" if noise <= 70 else "khá ồn ào")
+        summary = f"Độ ồn hiện tại tại **{poi['short_name']}** là **{noise} dB** ({level_str})."
+        details = (
+            f"• **Đánh giá âm học:** Mức {noise} dB đạt chuẩn QCVN 26:2010/BTNMT, "
+            f"{'rất thích hợp cho các hoạt động thư giãn, đọc sách hoặc đi dạo' if noise <= 60 else 'phù hợp sinh hoạt thông thường'}.\n"
+            f"• **Các chỉ số kèm theo:** Nhiệt độ: {poi['temperature']}°C, AQI: {poi['aqi']} (PM2.5: {poi['pm25']} µg/m³)."
+        )
+        map_actions = [
+            {"type": "clear_ai_layer"},
+            {
+                "type": "highlight_point",
+                "target_id": poi["id"],
+                "lat": poi["latitude"],
+                "lng": poi["longitude"],
+                "name": poi["short_name"],
+                "style": "recommended" if noise <= 60 else "caution",
+            },
+            {
+                "type": "add_annotation",
+                "target_id": poi["id"],
+                "lat": poi["latitude"],
+                "lng": poi["longitude"],
+                "title": f"Độ ồn tại {poi['short_name']}",
+                "subtitle": f"{noise} dB • {level_str}",
+                "badge": f"{noise} dB",
+                "style": "recommended" if noise <= 60 else "caution",
+            },
+            {"type": "fly_to", "lat": poi["latitude"], "lng": poi["longitude"], "zoom": 16},
+        ]
+        return {
+            "answer": {"summary": summary, "details": details},
+            "response": f"{summary}\n\n{details}",
+            "intent": "get_noise_metric",
+            "time_context": time_ctx,
+            "data_mode": time_ctx["type"],
+            "evidence": [{"source": "sensor", "poi_id": poi["id"], "metric": "noise_db", "value": noise, "timestamp": poi["timestamp"]}],
+            "map_actions": map_actions,
+            "request_id": request_id,
+        }
+
+    # -------------------------------------------------------------
+    # INTENT HANDLER: Specific Temperature Metric
+    # -------------------------------------------------------------
+    def _handle_specific_temp_intent(
+        self,
+        poi: dict[str, Any],
+        time_ctx: dict[str, Any],
+        request_id: str,
+    ) -> dict[str, Any]:
+        temp = poi["temperature"]
+        temp_str = "mát mẻ, dễ chịu" if temp < 28 else ("khá ấm áp" if temp <= 33 else "nắng nóng")
+        summary = f"Nhiệt độ hiện tại tại **{poi['short_name']}** là **{temp}°C** ({temp_str})."
+        details = (
+            f"• **Vi khí hậu:** Nhiệt độ {temp}°C kết hợp không gian thoáng rộng quanh khu vực {poi['short_name']}.\n"
+            f"• **Chất lượng không khí:** AQI đạt {poi['aqi']} (PM2.5: {poi['pm25']} µg/m³), Độ ồn: {poi['noise_db']} dB."
+        )
+        map_actions = [
+            {"type": "clear_ai_layer"},
+            {
+                "type": "highlight_point",
+                "target_id": poi["id"],
+                "lat": poi["latitude"],
+                "lng": poi["longitude"],
+                "name": poi["short_name"],
+                "style": "recommended",
+            },
+            {
+                "type": "add_annotation",
+                "target_id": poi["id"],
+                "lat": poi["latitude"],
+                "lng": poi["longitude"],
+                "title": f"Nhiệt độ: {poi['short_name']}",
+                "subtitle": f"{temp}°C • AQI {poi['aqi']}",
+                "badge": f"{temp}°C",
+                "style": "recommended",
+            },
+            {"type": "fly_to", "lat": poi["latitude"], "lng": poi["longitude"], "zoom": 16},
+        ]
+        return {
+            "answer": {"summary": summary, "details": details},
+            "response": f"{summary}\n\n{details}",
+            "intent": "get_temperature_metric",
+            "time_context": time_ctx,
+            "data_mode": time_ctx["type"],
+            "evidence": [{"source": "sensor", "poi_id": poi["id"], "metric": "temperature", "value": temp, "timestamp": poi["timestamp"]}],
+            "map_actions": map_actions,
+            "request_id": request_id,
+        }
 
     # -------------------------------------------------------------
     # INTENT HANDLER 1: Outdoor Recommendation (e.g. Running, Cleanest)
@@ -338,8 +572,27 @@ class GeospatialAgentService:
         time_ctx: dict[str, Any],
         request_id: str,
         user_group: str,
+        user_loc: tuple[float, float] | None = None,
     ) -> dict[str, Any]:
         best = ranked_pois[0]
+
+        # Safety evaluation: If best outdoor location is hazardous, pivot to indoor venues
+        safety_eval = environmental_scoring.check_outdoor_exercise_safety(
+            {
+                "aqi": best["aqi"],
+                "pm25": best["pm25"],
+                "temperature": best["temperature"],
+            },
+            user_group=user_group,
+        )
+        if not safety_eval["safe"]:
+            return self._handle_indoor_pivot_intent(
+                safety_eval=safety_eval,
+                user_location=user_loc,
+                time_ctx=time_ctx,
+                request_id=request_id,
+            )
+
         alt = ranked_pois[1] if len(ranked_pois) > 1 else best
         worst = ranked_pois[-1]
 
@@ -460,7 +713,7 @@ class GeospatialAgentService:
         }
 
     # -------------------------------------------------------------
-    # INTENT HANDLER 2: Worst Location / Highest Pollution
+    # INTENT HANDLER 2: Find Worst / Most Polluted Location
     # -------------------------------------------------------------
     def _handle_worst_location_intent(
         self,
@@ -468,18 +721,20 @@ class GeospatialAgentService:
         time_ctx: dict[str, Any],
         request_id: str,
     ) -> dict[str, Any]:
-        # Worst is candidate with lowest environmental score (highest AQI/PM2.5)
+        # Worst is the last item in ascending ranked list (lowest score, highest pollution)
         worst = ranked_pois[-1]
+        time_label = time_ctx["label"]
+        mode_prefix = f"[{time_label.upper()}] " if time_ctx["is_forecast"] else ""
 
         summary = (
-            f"Khu vực **{worst['short_name']}** (gần trạm {worst['sensor_id']}) hiện có mức độ ô nhiễm không khí cao nhất "
-            f"với AQI ghi nhận là **{worst['aqi']}** (PM2.5: {worst['pm25']} µg/m³)."
+            f"{mode_prefix}Khu vực **{worst['short_name']}** (Trạm {worst['sensor_id']}) "
+            f"hiện đang có chất lượng không khí kém nhất với AQI **{worst['aqi']}** (PM2.5: {worst['pm25']} µg/m³)."
         )
 
         details = (
-            f"• **Chỉ số đo lường:** AQI {worst['aqi']}, PM2.5: {worst['pm25']} µg/m³, CO₂: {worst['co2']} ppm, Độ ồn: {worst['noise_db']} dB.\n"
-            f"• **Nguyên nhân tương quan:** Mật độ phương tiện giao thông qua lại cao kết hợp lưu thông gió chậm.\n"
-            f"• **Khuyến nghị an toàn:** Cư dân nhạy cảm nên đeo khẩu trang lọc bụi mịn N95 và hạn chế lưu lại lâu tại điểm này."
+            f"• **Thông số ô nhiễm:** Nồng độ PM2.5 là {worst['pm25']} µg/m³, Độ ồn: {worst['noise_db']} dB, "
+            f"Nhiệt độ: {worst['temperature']}°C.\n"
+            f"• **Khuyến cáo:** Tránh tập thể dục cường độ cao ngoài trời tại khu vực này. Người có bệnh lý hô hấp hoặc tim mạch nên hạn chế tiếp xúc lâu."
         )
 
         map_actions = [
@@ -487,28 +742,20 @@ class GeospatialAgentService:
             {
                 "type": "highlight_sensor",
                 "sensor_id": worst["sensor_id"],
-                "severity": "danger",
                 "lat": worst["latitude"],
                 "lng": worst["longitude"],
-            },
-            {
-                "type": "highlight_area",
-                "area_id": worst["id"],
-                "name": worst["short_name"],
-                "lat": worst["latitude"],
-                "lng": worst["longitude"],
-                "radius_m": 300,
-                "style": "danger",
+                "severity": "danger" if worst["aqi"] > 100 else "warning",
+                "aqi": worst["aqi"],
             },
             {
                 "type": "add_annotation",
-                "target_id": worst["id"],
+                "target_id": worst["sensor_id"],
                 "lat": worst["latitude"],
                 "lng": worst["longitude"],
-                "title": f"Cảnh báo: {worst['short_name']}",
-                "subtitle": f"AQI {worst['aqi']} • PM2.5 {worst['pm25']} µg/m³ (Cao nhất khu vực)",
-                "badge": "Ô nhiễm cao nhất",
-                "style": "danger",
+                "title": f"⚠️ Điểm ô nhiễm: {worst['short_name']}",
+                "subtitle": f"{time_label} • AQI {worst['aqi']} (PM2.5: {worst['pm25']} µg/m³)",
+                "badge": "Khu vực ô nhiễm nhất",
+                "style": "avoid",
             },
             {
                 "type": "fly_to",
@@ -533,7 +780,7 @@ class GeospatialAgentService:
         }
 
     # -------------------------------------------------------------
-    # INTENT HANDLER 3: Compare Two or More Locations
+    # INTENT HANDLER 3: Compare Two Locations
     # -------------------------------------------------------------
     def _handle_comparison_intent(
         self,
@@ -542,36 +789,52 @@ class GeospatialAgentService:
         time_ctx: dict[str, Any],
         request_id: str,
     ) -> dict[str, Any]:
-        matched = []
-        keywords = ["sapphire", "ngọc trai", "vinuni", "san hô", "hải âu", "vincom", "biển hồ", "nước mặn"]
-        for p in ranked_pois:
-            p_short = p["short_name"].lower()
-            p_name = p["name"].lower()
-            has_kw = any(kw in query and (kw in p_short or kw in p_name) for kw in keywords)
-            if has_kw or p_short in query or p_name in query or p["sensor_id"].lower() in query:
-                matched.append(p)
+        time_label = time_ctx["label"]
+        q_low = query.lower()
 
-        if len(matched) < 2:
-            matched = [ranked_pois[0], ranked_pois[-1]]
+        found = []
+        alias_map = [
+            ("sapphire", "poi_sapphire"),
+            ("ngọc trai", "poi_ngoc_trai_lake"),
+            ("hồ ngọc trai", "poi_ngoc_trai_lake"),
+            ("vinuni", "poi_vinuni"),
+            ("san hô", "poi_san_ho_park"),
+            ("san ho", "poi_san_ho_park"),
+            ("hải âu", "poi_hai_au"),
+            ("hai au", "poi_hai_au"),
+            ("biển hồ", "poi_salt_lake"),
+            ("vincom", "poi_vincom"),
+        ]
+        for alias, p_id in alias_map:
+            if alias in q_low:
+                poi_match = next((p for p in ranked_pois if p["id"] == p_id), None)
+                if poi_match and poi_match not in found:
+                    found.append(poi_match)
 
-        cand_a = matched[0]
-        cand_b = matched[1]
+        if len(found) >= 2:
+            cand_a, cand_b = found[0], found[1]
+        elif len(found) == 1:
+            cand_a = found[0]
+            cand_b = next((p for p in ranked_pois if p["id"] != cand_a["id"]), ranked_pois[-1])
+        else:
+            cand_a = ranked_pois[0]
+            cand_b = ranked_pois[1] if len(ranked_pois) > 1 else ranked_pois[0]
 
         winner = cand_a if cand_a["score"] >= cand_b["score"] else cand_b
-        loser = cand_b if winner == cand_a else cand_a
-
-        diff_aqi = abs(cand_a["aqi"] - cand_b["aqi"])
-        diff_pm25 = round(abs(cand_a["pm25"] - cand_b["pm25"]), 1)
+        loser = cand_b if winner["id"] == cand_a["id"] else cand_a
 
         summary = (
-            f"So sánh giữa **{cand_a['short_name']}** và **{cand_b['short_name']}**: "
-            f"Khu vực **{winner['short_name']}** có chất lượng môi trường tốt hơn rõ rệt (Điểm: {winner['score']} vs {loser['score']})."
+            f"So sánh giữa **{winner['short_name']}** và **{loser['short_name']}**: "
+            f"Khu vực **{winner['short_name']}** có môi trường tốt hơn với AQI **{winner['aqi']}** "
+            f"(Điểm đánh giá: {winner['score']}/100 so với {loser['score']}/100 của {loser['short_name']})."
         )
 
         details = (
-            f"• **{winner['short_name']} (Thắng thế):** AQI {winner['aqi']}, PM2.5 {winner['pm25']} µg/m³, Độ ồn {winner['noise_db']} dB.\n"
-            f"• **{loser['short_name']}:** AQI {loser['aqi']}, PM2.5 {loser['pm25']} µg/m³, Độ ồn {loser['noise_db']} dB.\n"
-            f"• **Chênh lệch chính:** {winner['short_name']} có nồng độ bụi PM2.5 thấp hơn {diff_pm25} µg/m³ và chỉ số AQI tốt hơn {diff_aqi} điểm."
+            f"• **{winner['short_name']} (Tốt hơn):** AQI {winner['aqi']}, PM2.5: {winner['pm25']} µg/m³, "
+            f"Nhiệt độ: {winner['temperature']}°C, Độ ồn: {winner['noise_db']} dB.\n"
+            f"• **{loser['short_name']}:** AQI {loser['aqi']}, PM2.5: {loser['pm25']} µg/m³, "
+            f"Nhiệt độ: {loser['temperature']}°C, Độ ồn: {loser['noise_db']} dB.\n"
+            f"• **Kết luận:** {winner['short_name']} có nồng độ bụi mịn thấp hơn {abs(round(winner['pm25'] - loser['pm25'], 1))} µg/m³, không gian thoáng đãng hơn."
         )
 
         map_actions = [
@@ -582,7 +845,7 @@ class GeospatialAgentService:
                 "name": winner["short_name"],
                 "lat": winner["latitude"],
                 "lng": winner["longitude"],
-                "radius_m": 220,
+                "radius_m": 250,
                 "style": "recommended",
                 "score": winner["score"],
             },
@@ -591,7 +854,7 @@ class GeospatialAgentService:
                 "target_id": winner["id"],
                 "lat": winner["latitude"],
                 "lng": winner["longitude"],
-                "title": f"Tốt hơn: {winner['short_name']}",
+                "title": f"🏆 Tốt hơn: {winner['short_name']}",
                 "subtitle": f"AQI {winner['aqi']} • PM2.5 {winner['pm25']} µg/m³ (Điểm {winner['score']})",
                 "badge": "Vượt trội hơn",
                 "style": "recommended",
@@ -704,7 +967,6 @@ class GeospatialAgentService:
             "map_actions": map_actions,
             "request_id": request_id,
         }
-
 
     # -------------------------------------------------------------
     # INTENT HANDLER 0: Running Route Recommendation (Polyline on Map)
@@ -823,7 +1085,6 @@ class GeospatialAgentService:
             "map_actions": map_actions,
             "request_id": request_id,
         }
-
 
     # -------------------------------------------------------------
     # INTENT HANDLER -1: Indoor Activity Pivot on Hazardous Weather/Air

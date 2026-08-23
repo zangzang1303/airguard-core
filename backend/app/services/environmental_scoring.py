@@ -194,13 +194,16 @@ class EnvironmentalScoringEngine:
         pm25_limit = 50.0 if user_group == "sensitive" else 75.0
 
         if aqi > aqi_limit or pm25 > pm25_limit:
+            reason = "unhealthy_for_sensitive_groups" if user_group == "sensitive" and aqi <= 150 else "severe_air_pollution"
+            group_desc = "cho người có bệnh lý hô hấp nhạy cảm" if user_group == "sensitive" else "cho vận động ngoài trời"
             return {
                 "safe": False,
-                "reason": "severe_air_pollution",
+                "reason": reason,
+                "user_group": user_group,
                 "aqi": aqi,
                 "pm25": pm25,
                 "warning": (
-                    f"Chỉ số AQI {int(aqi)} (PM2.5 {pm25} µg/m³) vượt ngưỡng an toàn cho vận động ngoài trời. "
+                    f"Chỉ số AQI {int(aqi)} (PM2.5 {pm25} µg/m³) vượt ngưỡng an toàn {group_desc}. "
                     "Khi chạy bộ hoặc tập cardio ngoài trời, lưu lượng thông khí phổi tăng gấp 5–10 lần, "
                     "khiến phế nang hấp thụ lượng lớn bụi mịn gây kích ứng phế quản."
                 ),

@@ -5,7 +5,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any, Literal
 
-ConversationIntent = Literal["domain", "greeting", "social", "clarification"]
+ConversationIntent = Literal["domain", "greeting", "social", "clarification", "out_of_scope"]
 
 
 @dataclass(frozen=True)
@@ -36,6 +36,10 @@ class ConversationalAgentService:
         "chao ban",
         "chao airguard",
         "xin chao airguard",
+        "chao airguard ai",
+        "xin chao airguard ai",
+        "hello airguard",
+        "hello airguard ai",
     }
     _THANKS_AND_ACKS = {
         "cam on",
@@ -63,8 +67,14 @@ class ConversationalAgentService:
         "ban la ai",
         "airguard la gi",
         "ban lam duoc gi",
+        "ban lam duoc nhung gi",
         "ban co the lam gi",
+        "ban co the lam duoc gi",
+        "ban co the lam duoc nhung gi",
         "ban giup duoc gi",
+        "ban giup gi",
+        "lam duoc gi",
+        "giup duoc gi",
         "chuc nang cua ban",
         "what can you do",
         "who are you",
@@ -74,6 +84,7 @@ class ConversationalAgentService:
         "pm2.5",
         "pm25",
         "co2",
+        "khong khi",
         "chat luong khong khi",
         "moi truong",
         "o nhiem",
@@ -81,12 +92,22 @@ class ConversationalAgentService:
         "tieng on",
         "nhiet do",
         "thoi tiet",
+        "mua",
+        "bao",
+        "do am",
+        "nang",
         "gio",
         "tram",
         "sensor",
         "canh bao",
         "du bao",
         "hien tai",
+        "toi nay",
+        "chieu nay",
+        "sang nay",
+        "cho nay",
+        "o day",
+        "khu nay",
         "chay bo",
         "di bo",
         "tap the thao",
@@ -131,6 +152,31 @@ class ConversationalAgentService:
         "cung duong",
         "tuyen duong",
         "doan duong",
+    )
+    _OUT_OF_SCOPE_SIGNALS = (
+        "thuoc",
+        "uong thuoc",
+        "kham benh",
+        "bac si",
+        "chua benh",
+        "dau dau",
+        "sot",
+        "gia nha",
+        "gia can ho",
+        "mua chung cu",
+        "thue nha",
+        "bat dong san",
+        "quan an",
+        "an gi ngon",
+        "quan pho",
+        "quan nhau",
+        "nha hang",
+        "quan cafe",
+        "tac duong",
+        "ket xe",
+        "un tac",
+        "viet code",
+        "python",
     )
     _UNSAFE_SOCIAL_PATTERNS = (
         r"\bS0[1-5]\b",
@@ -182,13 +228,24 @@ class ConversationalAgentService:
                     "Bạn muốn xem chất lượng môi trường ở đâu?"
                 ),
             )
-        if plain in cls._CAPABILITIES:
+        if plain in cls._CAPABILITIES or any(c in plain for c in cls._CAPABILITIES):
             return ConversationDecision(
                 intent="social",
                 kind="capabilities",
                 fallback_response=(
                     "Mình có thể hỗ trợ xem AQI và các chỉ số môi trường, so sánh khu vực, "
                     "xem dự báo ngắn hạn, cảnh báo và đề xuất cung đường chạy bộ dựa trên dữ liệu AirGuard."
+                ),
+            )
+
+        if any(s in plain for s in cls._OUT_OF_SCOPE_SIGNALS):
+            return ConversationDecision(
+                intent="out_of_scope",
+                kind="out_of_scope",
+                fallback_response=(
+                    "Yêu cầu này nằm ngoài phạm vi quan trắc của hệ thống AirGuard AI. "
+                    "AirGuard là hệ thống chuyên về giám sát chất lượng không khí (AQI, PM2.5, CO₂), "
+                    "cảnh báo môi trường và gợi ý lộ trình vận động ngoài trời tại Ocean Park 1."
                 ),
             )
 

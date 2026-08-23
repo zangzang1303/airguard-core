@@ -189,14 +189,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
 
-        const data = await api.getMe();
-        if (mounted && data.user) {
-          applyUser(data.user);
-          setCurrentScreen("dashboard");
+        // Default to login screen on initial load so users can choose login method / persona
+        if (mounted) {
+          setIsAuthenticated(false);
+          setCurrentScreen("login");
         }
       } catch {
         if (mounted) {
           setIsAuthenticated(false);
+          setCurrentScreen("login");
         }
       } finally {
         if (mounted) {
