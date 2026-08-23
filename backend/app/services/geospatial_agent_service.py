@@ -20,9 +20,6 @@ class GeospatialAgentService:
     """
 
     def __init__(self, telemetry_engine: Any | None = None) -> None:
-        # The production singleton has no telemetry engine. Tests and explicitly
-        # labelled demo tooling may inject one, but production requests must pass
-        # PostgreSQL-backed snapshots from StationService.
         self.telemetry_engine = telemetry_engine
 
     def process_query(
@@ -232,6 +229,15 @@ class GeospatialAgentService:
             " và " in q and any(w in q for w in ["chỗ nào", "đâu", "khu nào"])
         ):
             return self._handle_comparison_intent(q, ranked_pois, time_ctx, request_id)
+
+        # Intent B: Worst Location / Most Polluted Area
+        is_worst_inquiry = (
+            any(w in q for w in ["ô nhiễm nhất", "kém nhất", "xấu nhất", "nguy hiểm nhất", "tệ nhất"])
+            and not any(w in q for w in ["ít ô nhiễm", "sạch nhất", "tốt nhất", "chạy", "tuyến", "đường", "cung đường", "lộ trình"])
+            and target_distance_km is None
+        )
+        if is_worst_inquiry:
+            return self._handle_worst_location_intent(ranked_pois, time_ctx, request_id)
 
         # Intent 0: Running Route Recommendation (Personalized or General)
         is_route_query = (
@@ -560,6 +566,99 @@ class GeospatialAgentService:
             "evidence": [{"source": "sensor", "poi_id": poi["id"], "metric": "temperature", "value": temp, "timestamp": poi["timestamp"]}],
             "map_actions": map_actions,
             "request_id": request_id,
+        }
+
+    # -------------------------------------------------------------
+    # INTENT HANDLER: Worst Location / Most Polluted Area
+    # -------------------------------------------------------------
+    def _handle_worst_location_intent(
+        self,
+        ranked_pois: list[dict[str, Any]],
+        time_ctx: dict[str, Any],
+        request_id: str,
+    ) -> dict[str, Any]:
+        time_label = time_ctx["label"]
+        mode_prefix = f"[{time_label.upper()}] " if time_ctx["is_forecast"] else ""
+
+        # Find the POI with the highest AQI / lowest environmental quality
+        worst_poi = max(ranked_pois, key=lambda p: (float(p.get("aqi", 0)), float(p.get("pm25", 0))))
+        worst_sensor = worst_poi.get("sensor_id", "S01")
+
+        summary = (
+            f"{mode_prefix}Khu vực **{worst_poi['short_name']}** (Trạm {worst_sensor}) đang có chất lượng không khí ô nhiễm nhất "
+            f"với AQI **{worst_poi['aqi']}** (PM2.5: {worst_poi['pm25']} µg/m³)."
+        )
+
+        details = (
+            f"• **Địa điểm:** {worst_poi['name']}\n"
+            f"• **Thông số:** AQI {worst_poi['aqi']} (PM2.5: {worst_poi['pm25']} µg/m³), "
+            f"CO₂: {worst_poi.get('co2', 'N/A')} ppm, Độ ồn: {worst_poi.get('noise_db', 'N/A')} dB, Nhiệt độ: {worst_poi.get('temperature', 'N/A')}°C.\n"
+            f"• **Khuyến nghị:** Tránh các hoạt động thể chất gắng sức ngoài trời tại khu vực này trong khung giờ hiện tại."
+        )
+
+        map_actions = [
+            {"type": "clear_ai_layer"},
+            {
+                "type": "highlight_sensor",
+                "sensor_id": worst_sensor,
+                "lat": worst_poi["latitude"],
+                "lng": worst_poi["longitude"],
+                "severity": "danger",
+            },
+            {
+                "type": "highlight_area",
+                "area_id": worst_poi["id"],
+                "name": worst_poi["short_name"],
+                "lat": worst_poi["latitude"],
+                "lng": worst_poi["longitude"],
+                "radius_m": 300,
+                "style": "avoid",
+                "score": worst_poi["score"],
+            },
+            {
+                "type": "add_annotation",
+                "target_id": worst_poi["id"],
+                "lat": worst_poi["latitude"],
+                "lng": worst_poi["longitude"],
+                "title": f"⚠️ Điểm ô nhiễm nhất: {worst_poi['short_name']}",
+                "subtitle": f"{time_label} • AQI {worst_poi['aqi']} (PM2.5: {worst_poi['pm25']} µg/m³)",
+                "badge": "Chất lượng kém nhất",
+                "style": "danger",
+            },
+            {
+                "type": "fly_to",
+                "target_id": worst_poi["id"],
+                "lat": worst_poi["latitude"],
+                "lng": worst_poi["longitude"],
+                "zoom": 16,
+            },
+        ]
+
+        return {
+            "query_type": "find_worst_location",
+            "intent": "find_worst_location",
+            "request_id": request_id,
+            "data_mode": "forecast" if time_ctx["is_forecast"] else "live",
+            "time_context": time_ctx,
+            "target_station": worst_sensor,
+            "target_location": worst_poi["short_name"],
+            "answer": {
+                "summary": summary,
+                "details": details,
+            },
+            "response": f"{summary}\n\n{details}",
+            "evidence": [
+                {
+                    "station_id": worst_sensor,
+                    "location_name": worst_poi["name"],
+                    "pm25": worst_poi["pm25"],
+                    "aqi": worst_poi["aqi"],
+                    "score": worst_poi["score"],
+                    "timestamp": worst_poi["timestamp"],
+                    "source": "simulator",
+                }
+            ],
+            "map_actions": map_actions,
         }
 
     # -------------------------------------------------------------

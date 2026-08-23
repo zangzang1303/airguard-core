@@ -278,7 +278,7 @@ def test_indoor_pivot_when_air_is_hazardous():
 
 
 def test_rain_inquiry_explains_sensor_scope_and_gives_microclimate_fallback():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     live_engine.update_station("S01", {"pm25": 1.0, "aqi": 4, "co2": 350.0, "noise_db": 30.0, "temperature": 25.0})
 
     res = agent.process_query("Bây giờ ở san hô có mưa hay không")
@@ -290,7 +290,7 @@ def test_rain_inquiry_explains_sensor_scope_and_gives_microclimate_fallback():
 
 
 def test_out_of_scope_medical_and_dining_questions_handled_transparently():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
 
     res_med = agent.process_query("Tôi bị đau đầu thì nên uống thuốc gì?")
     assert res_med["intent"] == "out_of_scope"
@@ -302,7 +302,7 @@ def test_out_of_scope_medical_and_dining_questions_handled_transparently():
 
 
 def test_specific_noise_and_temp_questions():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     live_engine.update_station("S01", {"pm25": 10.0, "aqi": 30, "co2": 450.0, "noise_db": 42.0, "temperature": 26.5})
 
     res_noise = agent.process_query("Độ ồn ở công viên san hô thế nào?")
