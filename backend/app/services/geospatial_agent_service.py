@@ -299,8 +299,14 @@ class GeospatialAgentService:
             if is_temp_inquiry:
                 return self._handle_specific_temp_intent(target_poi, time_ctx, request_id)
 
-            # If user asks a specific question about a location
-            if explicit_poi or is_forecast or any(w in q for w in ["thế nào", "sao", "chất lượng", "bao nhiêu", "có tốt"]):
+            # If user asks a specific question about a location or follow-up
+            if (
+                explicit_poi
+                or is_forecast
+                or map_context.get("selected_location")
+                or map_context.get("selected_sensor")
+                or any(w in q for w in ["thế nào", "sao", "chất lượng", "bao nhiêu", "có tốt", "chỗ này", "ở đây", "khu này", "nơi này", "vị trí này", "thì sao", "như nào"])
+            ):
                 return self._handle_single_location_intent(target_poi, time_ctx, request_id)
 
         if is_noise_inquiry:
@@ -309,7 +315,9 @@ class GeospatialAgentService:
             return self._handle_specific_temp_intent(ranked_pois[0], time_ctx, request_id)
 
         # Intent D: Best Location / Outdoor Activity Recommendation (Default rich flow)
-        return self._handle_recommendation_intent(ranked_pois, activity, time_ctx, request_id, user_group)
+        return self._handle_recommendation_intent(
+            ranked_pois, activity, time_ctx, request_id, user_group, user_loc=user_loc
+        )
 
     # -------------------------------------------------------------
     # INTENT HANDLER: Weather / Rain / Precipitation (Out of Scope with Microclimate Context)
@@ -519,8 +527,27 @@ class GeospatialAgentService:
         time_ctx: dict[str, Any],
         request_id: str,
         user_group: str,
+        user_loc: tuple[float, float] | None = None,
     ) -> dict[str, Any]:
         best = ranked_pois[0]
+
+        # Safety evaluation: If best outdoor location is hazardous, pivot to indoor venues
+        safety_eval = environmental_scoring.check_outdoor_exercise_safety(
+            {
+                "aqi": best["aqi"],
+                "pm25": best["pm25"],
+                "temperature": best["temperature"],
+            },
+            user_group=user_group,
+        )
+        if not safety_eval["safe"]:
+            return self._handle_indoor_pivot_intent(
+                safety_eval=safety_eval,
+                user_location=user_loc,
+                time_ctx=time_ctx,
+                request_id=request_id,
+            )
+
         alt = ranked_pois[1] if len(ranked_pois) > 1 else best
         worst = ranked_pois[-1]
 

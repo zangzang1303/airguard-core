@@ -36,6 +36,10 @@ class ConversationalAgentService:
         "chao ban",
         "chao airguard",
         "xin chao airguard",
+        "chao airguard ai",
+        "xin chao airguard ai",
+        "hello airguard",
+        "hello airguard ai",
     }
     _THANKS_AND_ACKS = {
         "cam on",
@@ -63,8 +67,14 @@ class ConversationalAgentService:
         "ban la ai",
         "airguard la gi",
         "ban lam duoc gi",
+        "ban lam duoc nhung gi",
         "ban co the lam gi",
+        "ban co the lam duoc gi",
+        "ban co the lam duoc nhung gi",
         "ban giup duoc gi",
+        "ban giup gi",
+        "lam duoc gi",
+        "giup duoc gi",
         "chuc nang cua ban",
         "what can you do",
         "who are you",
@@ -74,6 +84,7 @@ class ConversationalAgentService:
         "pm2.5",
         "pm25",
         "co2",
+        "khong khi",
         "chat luong khong khi",
         "moi truong",
         "o nhiem",
@@ -91,6 +102,12 @@ class ConversationalAgentService:
         "canh bao",
         "du bao",
         "hien tai",
+        "toi nay",
+        "chieu nay",
+        "sang nay",
+        "cho nay",
+        "o day",
+        "khu nay",
         "chay bo",
         "di bo",
         "tap the thao",
@@ -211,7 +228,7 @@ class ConversationalAgentService:
                     "Bạn muốn xem chất lượng môi trường ở đâu?"
                 ),
             )
-        if plain in cls._CAPABILITIES:
+        if plain in cls._CAPABILITIES or any(c in plain for c in cls._CAPABILITIES):
             return ConversationDecision(
                 intent="social",
                 kind="capabilities",
