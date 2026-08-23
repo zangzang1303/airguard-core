@@ -119,13 +119,14 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           selectedPoiId={selectedPoi?.id || null}
         />
 
-        {/* Sensor badges always show the grounded current station snapshot. */}
+        {/* Sensor badges always show the grounded current station snapshot with active metric. */}
         <SensorMarkers
           stations={stations}
           selectedStationId={selectedStationId}
           criticalStationIds={criticalStationIds}
           onSelectStation={onSelectStation}
           showSensors={layerConfig.showSensors && viewMode !== "heatmap"}
+          activeMetric={layerConfig.activeEnvironmentalLayer}
         />
 
         {/* Resident Location Pin ("You") */}
@@ -135,7 +136,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
       {/* Accessible Map Legend Overlay (Bottom Right — Only in markers view mode when heatmap is NOT active) */}
       {viewMode === "markers" && !layerConfig.showHeatmap && (
         <div className="map-legend-overlay">
-          <AqiLegend showStationStatus={true} />
+          <AqiLegend showStationStatus={true} metric={layerConfig.activeEnvironmentalLayer} />
         </div>
       )}
 

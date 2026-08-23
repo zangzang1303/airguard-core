@@ -290,6 +290,7 @@ const SuperAppMain: React.FC<{
         <StationPoiDrawer
           station={activeStation}
           poi={selectedPoi}
+          activeEnvironmentalLayer={layerConfig.activeEnvironmentalLayer}
           onClose={() => {
             setActiveDrawer(null);
             setSelectedStationId(null);
@@ -562,6 +563,19 @@ const AppContent: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  const publicAuthScreens = new Set([
+    "login",
+    "register",
+    "verify-email",
+    "forgot-password",
+    "reset-password",
+    "admin-coming-soon",
+  ]);
+
+  if (!isAuthenticated && !publicAuthScreens.has(currentScreen)) {
+    return <Login />;
   }
 
   // Auth Screen Routing

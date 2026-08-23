@@ -1,5 +1,5 @@
 import React from "react";
-import { Check, Layers, Eye, Wind, Activity, Thermometer, Volume2, Droplets, MapPin, Radio } from "lucide-react";
+import { Check, Layers, Eye, Wind, Activity, Thermometer, Volume2, Cloud, MapPin, Radio } from "lucide-react";
 import { MapLayerConfig, EnvironmentalLayerType, MapViewMode } from "../../types/superApp";
 
 interface MapLayersPopoverProps {
@@ -96,7 +96,7 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
             className={`layer-option-btn ${config.activeEnvironmentalLayer === "co2" ? "active" : ""}`}
             onClick={() => setEnvLayer("co2")}
           >
-            <Droplets size={15} />
+            <Cloud size={15} />
             <span>Khí CO₂</span>
             {config.activeEnvironmentalLayer === "co2" && <Check size={14} className="check-icon" />}
           </button>
