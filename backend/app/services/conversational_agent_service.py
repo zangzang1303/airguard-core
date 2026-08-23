@@ -121,11 +121,24 @@ class ConversationalAgentService:
         "dia diem",
         "sapphire",
         "ho ngoc trai",
+        "ngoc trai",
         "vinuni",
         "hai au",
         "san ho",
         "sao bien",
+        "an dao",
+        "dao ngoc trai",
+        "zenpark",
+        "ruby",
+        "zurich",
+        "pavilion",
+        "vincom",
+        "vinschool",
+        "vinmec",
+        "da ton",
+        "bien ho",
         "ocean park",
+        "ocean park 1",
         "proposal",
         "phe duyet",
         "manager",
@@ -341,6 +354,15 @@ class ConversationalAgentService:
             return True
         if any(signal in plain for signal in cls._DOMAIN_SIGNALS):
             return True
+        try:
+            from app.services.spatial_registry import spatial_registry
+            if spatial_registry.find_poi_by_name(plain):
+                return True
+            _, unrec = spatial_registry.extract_location_in_query(plain)
+            if unrec:
+                return True
+        except Exception:
+            pass
         has_context = bool(station_id) or bool(
             map_context
             and any(map_context.get(key) for key in ("selected_sensor", "selected_location", "user_location"))
