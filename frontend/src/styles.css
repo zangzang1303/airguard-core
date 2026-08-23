@@ -1202,6 +1202,12 @@ body, html {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Preserve horizontal centering while desktop bottom sheets enter from below. */
+@keyframes slide-up-centered {
+  from { opacity: 0; transform: translate(-50%, 24px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
 .popover-header {
   display: flex;
   align-items: center;
@@ -2255,7 +2261,7 @@ body, html {
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border-subtle);
   padding: 20px;
-  animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slide-up-centered 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sheet-header-row {
@@ -3780,6 +3786,7 @@ body, html {
     max-width: 100vw;
     border-radius: 20px 20px 0 0;
     transform: none;
+    animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .forecast-timeline-floating-card {
