@@ -101,6 +101,9 @@ const SuperAppMain: React.FC<{
     showHeatmap: true,
     showWindVectors: true,
     showCommunityReports: true,
+    showConnectionStatus: true,
+    showStationOverview: true,
+    showDispersionInfo: true,
   });
 
   // User Health Profile State
@@ -250,6 +253,7 @@ const SuperAppMain: React.FC<{
         connectionStatus={connectionStatus}
         lastUpdated={lastUpdated}
         refreshData={refreshData}
+        showConnectionStatus={layerConfig.showConnectionStatus}
         hasAIOverlay={hasAIOverlay}
         onClearAIOverlay={handleClearAIOverlay}
         onSelectCoordinates={handleFlyTo}

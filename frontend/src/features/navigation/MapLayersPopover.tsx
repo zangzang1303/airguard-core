@@ -1,5 +1,5 @@
 import React from "react";
-import { Check, Layers, Eye, Wind, Activity, Thermometer, Volume2, Droplets, MapPin, Radio, X, Cloud } from "lucide-react";
+import { Check, Layers, Eye, Wind, Activity, Thermometer, Volume2, Cloud, MapPin, Radio, Wifi, ChartNoAxesCombined, PanelTop } from "lucide-react";
 import { MapLayerConfig, EnvironmentalLayerType, MapViewMode } from "../../types/superApp";
 
 interface MapLayersPopoverProps {
@@ -159,6 +159,30 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
               <span>Địa danh & Phân khu</span>
             </div>
             <input type="checkbox" checked={config.showPlaces} readOnly />
+          </label>
+
+          <label className="toggle-item-row" onClick={() => toggleFeature("showConnectionStatus")}>
+            <div className="toggle-label-wrap">
+              <Wifi size={15} />
+              <span>Trạng thái kết nối</span>
+            </div>
+            <input type="checkbox" checked={config.showConnectionStatus} readOnly />
+          </label>
+
+          <label className="toggle-item-row" onClick={() => toggleFeature("showStationOverview")}>
+            <div className="toggle-label-wrap">
+              <ChartNoAxesCombined size={15} />
+              <span>Tổng quan trạng thái trạm</span>
+            </div>
+            <input type="checkbox" checked={config.showStationOverview} readOnly />
+          </label>
+
+          <label className="toggle-item-row" onClick={() => toggleFeature("showDispersionInfo")}>
+            <div className="toggle-label-wrap">
+              <PanelTop size={15} />
+              <span>Thông tin bản đồ lan truyền</span>
+            </div>
+            <input type="checkbox" checked={config.showDispersionInfo} readOnly />
           </label>
         </div>
       </div>

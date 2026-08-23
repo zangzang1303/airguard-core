@@ -32,6 +32,9 @@ export interface MapLayerConfig {
   showHeatmap: boolean;
   showWindVectors: boolean;
   showCommunityReports: boolean;
+  showConnectionStatus: boolean;
+  showStationOverview: boolean;
+  showDispersionInfo: boolean;
 }
 
 export interface PlacePOI {
