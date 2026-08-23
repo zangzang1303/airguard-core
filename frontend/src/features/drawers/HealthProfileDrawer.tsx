@@ -14,17 +14,16 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
   onUpdateProfile,
   onClose,
 }) => {
-  const { userName, userEmail, role, organization, logout } = useAuth();
+  const { userName, userEmail, role, organization, logout, updateProfile } = useAuth();
   const [formData, setFormData] = useState<HealthProfile>(profile);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const SENSITIVITY_GROUPS: { id: HealthProfile["sensitivityGroup"]; label: string; desc: string; emoji: string }[] = [
-    { id: "normal", label: "Cư dân thông thường (Normal)", desc: "Sức khỏe ổn định, không có tiền sử dị ứng thời tiết", emoji: "🏃" },
-    { id: "sensitive", label: "Nhóm nhạy cảm (Sensitive)", desc: "Ưu tiên nhận cảnh báo và giải thích thận trọng hơn", emoji: "🌿" },
-    { id: "respiratory", label: "Bệnh lý hô hấp (Respiratory)", desc: "Viêm xoang, hen suyễn, cần tránh ô nhiễm đột ngột", emoji: "🫁" },
-    { id: "outdoor_sport", label: "Vận động viên ngoài trời (Athlete)", desc: "Thường xuyên chạy bộ, đạp xe, bơi lội trong khu", emoji: "🚴" },
-    { id: "elderly", label: "Người cao tuổi (Elderly)", desc: "Cần khung giờ đi dạo dưỡng sinh an toàn, mát mẻ", emoji: "👴" },
-    { id: "child", label: "Gia đình có trẻ nhỏ (Children)", desc: "Ưu tiên cảnh báo an toàn cho bé chơi công viên", emoji: "👶" },
+    { id: "normal", label: "Cư dân thông thường", desc: "Khuyến nghị chung theo dữ liệu môi trường.", emoji: "🏃" },
+    { id: "sensitive", label: "Nhóm nhạy cảm", desc: "Ưu tiên cảnh báo sớm và khuyến nghị thận trọng.", emoji: "🌿" },
+    { id: "outdoor_sport", label: "Hoạt động ngoài trời", desc: "Ưu tiên thời điểm và khu vực vận động phù hợp.", emoji: "🚴" },
   ];
 
   const ACTIVITIES = [
@@ -43,7 +42,15 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
     setFormData({ ...formData, interests: newInterests });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setSaveError(null);
+    setSaving(true);
+    const result = await updateProfile({ userGroup: formData.sensitivityGroup });
+    setSaving(false);
+    if (!result.success) {
+      setSaveError(result.message || "Không thể lưu nhóm sức khỏe.");
+      return;
+    }
     onUpdateProfile(formData);
     setSavedSuccess(true);
     setTimeout(() => {
@@ -67,6 +74,7 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
       </div>
 
       <div className="drawer-scroll-body">
+        {saveError && <div className="drawer-inline-error" role="alert">{saveError}</div>}
         {/* User Account Card */}
         <div className="user-account-card" style={{ padding: "14px 16px", background: "linear-gradient(135deg, #1e293b, #0f172a)", color: "#fff", borderRadius: "12px", marginBottom: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -180,8 +188,8 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
           <button className="action-pill-btn secondary" onClick={onClose}>
             Hủy
           </button>
-          <button className="action-pill-btn primary" onClick={handleSave}>
-            {savedSuccess ? "Đã lưu!" : "Lưu hồ sơ"}
+          <button className="action-pill-btn primary" onClick={handleSave} disabled={saving}>
+            {saving ? "Đang lưu..." : savedSuccess ? "Đã lưu!" : "Lưu hồ sơ"}
           </button>
         </div>
       </div>

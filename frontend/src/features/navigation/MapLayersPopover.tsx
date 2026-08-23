@@ -11,6 +11,7 @@ interface MapLayersPopoverProps {
 export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
   config,
   onChangeConfig,
+  onClose,
 }) => {
   const setEnvLayer = (layer: EnvironmentalLayerType) => {
     onChangeConfig({ ...config, activeEnvironmentalLayer: layer });
@@ -37,6 +38,15 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
           <Layers size={16} className="title-icon" />
           <span>Lớp hiển thị bản đồ</span>
         </div>
+        <button
+          type="button"
+          className="map-layers-close-btn"
+          onClick={onClose}
+          aria-label="Đóng bảng lớp bản đồ"
+          title="Đóng"
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
       </div>
 
       {/* View Mode Toggle Section */}

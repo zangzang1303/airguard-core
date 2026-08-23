@@ -16,6 +16,9 @@ The AI-002 release gate covers:
 - rejection of missing freshness, timezone-less environmental timestamps, stale weather and stale forecast;
 - simulator/fixture transparency for current, history, compare, weather, forecast and alert answers;
 - clarification for missing station context;
+- bounded social conversation for greeting, acknowledgement, wellbeing, capability and farewell;
+- unknown short messages must clarify instead of falling through to environmental recommendation;
+- social responses must have no tools/sources/map actions, and unsafe LLM environmental claims must fall back deterministically;
 - refusal of prompt injection, medical diagnosis, emergency claims, device control and HITL bypass;
 - trace request id, tool status/latency, final outcome and PII/secret redaction.
 

@@ -128,6 +128,64 @@ class AuthService:
             "message": "Đăng ký tài khoản thành công. Vui lòng kiểm tra hộp thư để xác minh tài khoản trước khi đăng nhập.",
         }
 
+    def update_profile(
+        self,
+        *,
+        user_id: str,
+        full_name: str | None = None,
+        sensitivity_group: str | None = None,
+        correlation_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Update the current user's display name and recommendation policy group."""
+        cleaned_name = full_name.strip() if full_name is not None else None
+        if cleaned_name == "":
+            raise ServiceError("invalid_profile", "Họ và tên không được để trống.", 422)
+        if sensitivity_group is not None and sensitivity_group not in {"normal", "sensitive", "outdoor_sport"}:
+            raise ServiceError("invalid_sensitivity_group", "Nhóm người dùng không hợp lệ.", 422)
+        if cleaned_name is None and sensitivity_group is None:
+            raise ServiceError("empty_profile_update", "Chưa có thông tin hồ sơ để cập nhật.", 422)
+
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET full_name = COALESCE(%s, full_name),
+                        sensitivity_group = COALESCE(%s, sensitivity_group),
+                        updated_at = NOW()
+                    WHERE user_id = %s AND is_active = TRUE
+                    RETURNING user_id, email, role, full_name, sensitivity_group, is_active
+                    """,
+                    (cleaned_name, sensitivity_group, user_id),
+                )
+                user = cur.fetchone()
+                if not user:
+                    raise ServiceError("user_not_found", "Không tìm thấy tài khoản đang hoạt động.", 404)
+                user = dict(user)
+                self.audit.record(
+                    actor_type="user",
+                    actor_id=user_id,
+                    actor_role=user["role"],
+                    action="auth.profile_updated",
+                    entity_type="user",
+                    entity_id=user_id,
+                    correlation_id=correlation_id,
+                    details={
+                        "full_name_changed": cleaned_name is not None,
+                        "sensitivity_group": sensitivity_group,
+                    },
+                    conn=conn,
+                )
+
+        return {
+            "user_id": str(user["user_id"]),
+            "email": user["email"],
+            "role": user["role"],
+            "full_name": user["full_name"],
+            "sensitivity_group": user["sensitivity_group"],
+            "is_active": user["is_active"],
+        }
+
     def verify_email(self, *, raw_token: str, correlation_id: str | None = None) -> dict[str, Any]:
         """Verify an email address using single-use raw token."""
         if not raw_token or len(raw_token) < 16:
@@ -658,6 +716,8 @@ class AuthService:
 
         persona_map = {
             "resident": "resident@vinuni.edu.vn",
+            "sensitive": "sensitive.demo@airguard.local",
+            "outdoor_sport": "outdoor.demo@airguard.local",
             "manager": "manager@vinuni.edu.vn",
             "admin": "admin@vinuni.edu.vn",
         }
@@ -687,11 +747,26 @@ class AuthService:
                 if not user:
                     # If DB was not seeded yet, create demo user record with verified email
                     user_id = str(uuid4())
-                    role_map = {"resident": "resident", "manager": "manager", "admin": "admin"}
+                    role_map = {
+                        "resident": "resident",
+                        "sensitive": "resident",
+                        "outdoor_sport": "resident",
+                        "manager": "manager",
+                        "admin": "admin",
+                    }
                     name_map = {
+                        "sensitive": "Cư dân Nhạy cảm Demo",
+                        "outdoor_sport": "Cư dân Hoạt động ngoài trời Demo",
                         "resident": "Cư dân Demo",
                         "manager": "Quản lý Demo",
                         "admin": "Quản trị viên Demo",
+                    }
+                    group_map = {
+                        "resident": "normal",
+                        "sensitive": "sensitive",
+                        "outdoor_sport": "outdoor_sport",
+                        "manager": "normal",
+                        "admin": "normal",
                     }
                     cur.execute(
                         """
@@ -700,7 +775,7 @@ class AuthService:
                             sensitivity_group, email_verified_at, is_active,
                             failed_login_count, created_at, updated_at
                         )
-                        VALUES (%s, %s, %s, %s, %s, 'normal', NOW(), TRUE, 0, NOW(), NOW())
+                        VALUES (%s, %s, %s, %s, %s, %s, NOW(), TRUE, 0, NOW(), NOW())
                         RETURNING user_id, email, role, full_name, sensitivity_group, email_verified_at, is_active
                         """,
                         (
@@ -709,6 +784,7 @@ class AuthService:
                             hash_password("AirGuard@2026"),
                             role_map[normalized_persona],
                             name_map[normalized_persona],
+                            group_map[normalized_persona],
                         ),
                     )
                     user = dict(cur.fetchone())

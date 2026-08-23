@@ -190,7 +190,8 @@ class ProphetForecastService:
         summary = (
             f"Dự kiến {metric_name} có xu hướng {direction} trong {len(horizons)}h tới. "
             f"Đỉnh điểm đạt khoảng {max_val} vào lúc {max_hour_str} (giờ cao điểm giao thông). "
-            f"Thời điểm trong lành nhất vào khoảng {min_hour_str} ({min_val}), thích hợp cho hoạt động ngoài trời và thông gió tự nhiên."
+            f"Mốc dự báo thấp nhất vào khoảng {min_hour_str} ({min_val}). "
+            "Đây là dự báo baseline từ dữ liệu simulator; cần đối chiếu số đo hiện tại, cảnh báo và hồ sơ người dùng trước khi quyết định hoạt động ngoài trời."
         )
         return summary
 

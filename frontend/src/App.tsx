@@ -77,7 +77,7 @@ const SuperAppMain: React.FC<{
   connectionStatus,
   lastUpdated,
 }) => {
-  const { role } = useAuth();
+  const { role, userGroup } = useAuth();
   const isManager = role === "manager" || role === "admin";
 
   // Active Overlay & Drawer States
@@ -379,7 +379,7 @@ const SuperAppMain: React.FC<{
 
       {activeDrawer === "health-profile" && (
         <HealthProfileDrawer
-          profile={healthProfile}
+          profile={{ ...healthProfile, sensitivityGroup: userGroup }}
           onUpdateProfile={setHealthProfile}
           onClose={() => setActiveDrawer(null)}
         />

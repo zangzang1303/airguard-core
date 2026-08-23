@@ -1217,6 +1217,29 @@ body, html {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.map-layers-close-btn {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.map-layers-close-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.map-layers-close-btn:focus-visible {
+  outline: 3px solid rgba(2, 132, 199, 0.25);
+  outline-offset: 2px;
+}
+
 .header-title {
   display: flex;
   align-items: center;
@@ -4026,11 +4049,19 @@ body, html {
 }
 
 .timeline-slider-control {
+  --timeline-edge-space: 30px;
   position: relative;
-  padding: 0 9px;
+  padding: 0 var(--timeline-edge-space);
+}
+
+.timeline-slider-track-wrap {
+  position: relative;
+  height: 20px;
 }
 
 .timeline-slider-input {
+  position: relative;
+  z-index: 2;
   appearance: none;
   display: block;
   width: 100%;
@@ -4038,6 +4069,22 @@ body, html {
   margin: 0;
   background: transparent;
   cursor: grab;
+}
+
+.timeline-slider-ticks {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+}
+
+.timeline-slider-ticks span {
+  position: absolute;
+  top: 6px;
+  width: 1px;
+  height: 8px;
+  background: #38bdf8;
+  transform: translateX(-50%);
 }
 
 .timeline-slider-input:active {
@@ -4087,23 +4134,28 @@ body, html {
 }
 
 .timeline-slider-labels {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  margin: -1px -9px 0;
+  position: relative;
+  height: 24px;
+  margin-top: 1px;
 }
 
 .timeline-slider-mark {
+  position: absolute;
+  top: 0;
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
-  gap: 3px;
+  justify-content: center;
+  min-height: 24px;
   border: 0;
-  padding: 0;
+  padding: 2px 4px;
   background: transparent;
   color: #334155;
   cursor: pointer;
   font-size: 0.72rem;
   font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateX(-50%);
 }
 
 .timeline-slider-mark:hover:not(:disabled),
@@ -4113,20 +4165,6 @@ body, html {
 
 .timeline-slider-mark:disabled {
   cursor: not-allowed;
-}
-
-.timeline-slider-dot {
-  width: 8px;
-  height: 8px;
-  border: 2px solid #7dd3fc;
-  border-radius: 50%;
-  background: #ffffff;
-}
-
-.timeline-slider-mark.is-active .timeline-slider-dot {
-  border-color: #0284c7;
-  background: #0284c7;
-  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.14);
 }
 
 .timeline-slider-container {

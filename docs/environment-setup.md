@@ -23,6 +23,12 @@ Celery worker and Celery Beat:
 docker compose --profile async-jobs up -d --build
 ```
 
+The public demo topology runs the same one-shot migration gate before starting the backend:
+
+```powershell
+docker compose --env-file /path/to/airguard-demo.env -f docker-compose.public-demo.yml up -d --build
+```
+
 Beat uses `REPORT_TIMEZONE` (default `Asia/Ho_Chi_Minh`): daily at 00:10 and weekly at 00:20 on
 Monday. Scheduled/manual retries reuse the same persisted report range rather than creating a
 second record.

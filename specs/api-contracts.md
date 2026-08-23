@@ -32,6 +32,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
 | GET `/spatial/heatmap?metric=aqi|pm25|co2|noise_db|temperature&forecast_hour=0..24` | grounded wind-adjusted IDW grid from at least three fresh valid online stations | 200 | 422/503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
+| PATCH `/auth/profile` | authenticated user updates own display name and recommendation group | 200 | 401/403/422/404 |
 | POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
 | POST `/agent/jobs` | async agent job dispatch | 202 | 422/503 |
 | POST `/forecast/jobs` | async forecast job dispatch | 202 | 404/422/503 |
@@ -174,14 +175,15 @@ profile. Markdown, HTML and PDF exports render the same stored record; they neve
 
 ## Agent response
 The canonical backend `POST /api/v1/agent/chat` accepts
-`{ "message": string, "user_id": string, "station_id"?: "S01".."S05" }`. `user_id` is passed
-to the Agent only as an argument for backend profile lookup; it is not written to Agent trace.
+`{ "message": string, "user_id": string, "station_id"?: "S01".."S05", "map_context"?: object }`. For an anonymous
+Demo Day request, `user_id` is passed to the Agent only as an argument for backend profile lookup; it is not written to
+Agent trace. For an authenticated request, backend replaces this field with the session user ID before profile lookup.
 The current frontend identity is demo-only and does not replace production backend authentication.
 `station_id` is optional dashboard context and is validated before routing. The internal Agent
 service uses the same payload. The root Agent keeps the legacy `POST /api/v1/chat` alias during
 migration; its `user_id` remains optional for non-personalized requests.
 
-The response contains `answer`, `used_tools`, `sources`, `request_id`, `trace`, and optional
+The response contains `answer`, `intent`, `used_tools`, `sources`, `request_id`, `trace`, and optional
 `proposal_id`, `recommendation_policy_version`, and `impact_policy_version`. The impact intent
 uses a fresh station snapshot and rates operational environmental impact with AQI as the primary
 index; PM2.5, CO₂, noise and temperature are supporting evidence only. It is not a medical
@@ -192,10 +194,25 @@ Facts must map to sources from the same request. Tool failure or absent/stale/in
 returns a transparent insufficient-data answer and no environmental source. The additive
 `response` field is a deprecated alias of `answer` for the original template client.
 
+Basic social messages are intercepted before telemetry access. Their response adds
+`conversation_kind`, has empty `used_tools`, `sources`/`evidence` and `map_actions`, and omits
+current/forecast time context. A configured LLM may rewrite only the locked social fallback; output
+that introduces environmental observations, station values/status, safety claims, health advice,
+device commands or approval decisions is rejected. Unknown messages return `clarification` instead
+of falling through to a default environmental recommendation.
+
 Recommendation intent requires current PM2.5, weather, forecast, active alerts and a backend user
 profile from the same request. The client must not submit a trusted `user_group`; the Agent uses
 the result of `get_user_profile`. Missing profile or environmental evidence produces clarification
 or insufficient-data behavior rather than a generic personalized recommendation.
+
+## Authenticated profile update
+
+`PATCH /api/v1/auth/profile` requires a valid session and CSRF token. It accepts optional
+`full_name` (1–150 characters) and/or `sensitivity_group` (`normal`, `sensitive`, `outdoor_sport`), and returns
+`{ "user": { "user_id", "email", "role", "full_name", "sensitivity_group", "is_active" } }`.
+It updates only the authenticated account, produces `auth.profile_updated` audit metadata, and does not accept
+medical diagnoses, age, child/elderly flags, or notification preferences.
 
 Warning proposal creation requires an active backend alert, fresh online station data and non-empty
 evidence. The canonical Agent request maps to `ApprovalCreateRequest`:

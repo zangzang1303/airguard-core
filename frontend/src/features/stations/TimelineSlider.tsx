@@ -62,21 +62,31 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
       </div>
 
       <div className="timeline-slider-control">
-        <input
-          className="timeline-slider-input"
-          type="range"
-          min={0}
-          max={ALL_HORIZON_STEPS.length - 1}
-          step={1}
-          value={stepIndex}
-          disabled={isDisabled}
-          aria-label={label}
-          aria-valuetext={currentStep.hours === 0 ? "Dữ liệu hiện tại" : `Dự báo ${currentStep.label}`}
-          onChange={(event) => {
-            const nextStep = ALL_HORIZON_STEPS[Number(event.target.value)];
-            if (nextStep) onChange(nextStep.hours);
-          }}
-        />
+        <div className="timeline-slider-track-wrap">
+          <div className="timeline-slider-ticks" aria-hidden="true">
+            {ALL_HORIZON_STEPS.map((step, index) => (
+              <span
+                key={step.hours}
+                style={{ left: `${(index / (ALL_HORIZON_STEPS.length - 1)) * 100}%` }}
+              />
+            ))}
+          </div>
+          <input
+            className="timeline-slider-input"
+            type="range"
+            min={0}
+            max={ALL_HORIZON_STEPS.length - 1}
+            step={1}
+            value={stepIndex}
+            disabled={isDisabled}
+            aria-label={label}
+            aria-valuetext={currentStep.hours === 0 ? "Dữ liệu hiện tại" : `Dự báo ${currentStep.label}`}
+            onChange={(event) => {
+              const nextStep = ALL_HORIZON_STEPS[Number(event.target.value)];
+              if (nextStep) onChange(nextStep.hours);
+            }}
+          />
+        </div>
         <div className="timeline-slider-labels">
           {ALL_HORIZON_STEPS.map((step, index) => (
             <button
@@ -86,8 +96,9 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
               disabled={isDisabled}
               onClick={() => onChange(step.hours)}
               title={`Chuyển sang mốc ${step.label}`}
+              aria-pressed={index === stepIndex}
+              style={{ left: `${(index / (ALL_HORIZON_STEPS.length - 1)) * 100}%` }}
             >
-              <span className="timeline-slider-dot" />
               <span>{step.label}</span>
             </button>
           ))}

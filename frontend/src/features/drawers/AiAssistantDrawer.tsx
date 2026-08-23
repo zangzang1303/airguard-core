@@ -51,6 +51,28 @@ interface ChatMessage {
   showEvidence?: boolean;
 }
 
+const formatAgentRequestError = (error: any): string => {
+  if (error?.status === 422) {
+    return "Yêu cầu gửi tới AI chưa hợp lệ. Vui lòng thử lại hoặc đăng nhập để cá nhân hóa kết quả.";
+  }
+  if ([502, 503, 504].includes(error?.status)) {
+    return "Dịch vụ AI Agent đang tạm thời gián đoạn. Vui lòng thử lại sau ít phút.";
+  }
+  return "Không thể kết nối tới dịch vụ AI Agent hoặc xảy ra lỗi mạng. Vui lòng kiểm tra kết nối và thử lại.";
+};
+
+const renderInlineMarkdown = (text: string): React.ReactNode[] =>
+  text
+    .split(/(\*\*[^*\n]+\*\*)/g)
+    .filter(Boolean)
+    .map((part, index) =>
+      part.startsWith("**") && part.endsWith("**") ? (
+        <strong key={`bold-${index}`}>{part.slice(2, -2)}</strong>
+      ) : (
+        <React.Fragment key={`text-${index}`}>{part}</React.Fragment>
+      )
+    );
+
 const DEFAULT_QUESTIONS = [
   "🏃‍♂️ Tìm đoạn đường chạy bộ phù hợp nhất tối nay",
   "⚠️ Khu nào đang ô nhiễm nhất?",
@@ -163,7 +185,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const errorMsg: ChatMessage = {
         id: `msg-err-${Date.now()}`,
         sender: "ai",
-        text: "Không thể kết nối tới dịch vụ AI Agent hoặc xảy ra lỗi mạng. Vui lòng kiểm tra kết nối và thử lại.",
+        text: formatAgentRequestError(err),
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         isError: true,
         retryQuery: query,
@@ -312,7 +334,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                     </div>
                     <div className="ai-route-body">
                       <div style={{ fontSize: "13px", lineHeight: "1.55", color: "#334155", marginBottom: "12px", whiteSpace: "pre-line" }}>
-                        {msg.text}
+                        {renderInlineMarkdown(msg.text)}
                       </div>
 
                       <button
@@ -330,7 +352,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 ) : (
                   /* Standard rich text reply */
                   <div className="bubble-text" style={{ fontSize: "13.5px", lineHeight: "1.6", whiteSpace: "pre-line" }}>
-                    {typeof msg.text === "string" ? msg.text : (typeof msg.summary === "string" ? msg.summary : JSON.stringify(msg.text || ""))}
+                    {renderInlineMarkdown(
+                      typeof msg.text === "string"
+                        ? msg.text
+                        : typeof msg.summary === "string"
+                          ? msg.summary
+                          : JSON.stringify(msg.text || "")
+                    )}
                   </div>
                 )}
 

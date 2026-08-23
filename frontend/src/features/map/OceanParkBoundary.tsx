@@ -1,5 +1,5 @@
 import React from "react";
-import { Polygon, Tooltip } from "react-leaflet";
+import { Pane, Polygon } from "react-leaflet";
 import { OCEAN_PARK_1_BOUNDARY, MAP_OUTER_MASK } from "./poiData";
 
 interface OceanParkBoundaryProps {
@@ -10,7 +10,10 @@ export const OceanParkBoundary: React.FC<OceanParkBoundaryProps> = ({ showBounda
   if (!showBoundary) return null;
 
   return (
-    <>
+    <Pane
+      name="ocean-park-boundary"
+      style={{ zIndex: 360, pointerEvents: "none" }}
+    >
       {/* Outer Geographic Context Mask (soft muted overlay outside boundary) */}
       <Polygon
         positions={[MAP_OUTER_MASK, [...OCEAN_PARK_1_BOUNDARY].reverse()]}
@@ -35,6 +38,6 @@ export const OceanParkBoundary: React.FC<OceanParkBoundaryProps> = ({ showBounda
           interactive: false,
         }}
       />
-    </>
+    </Pane>
   );
 };
