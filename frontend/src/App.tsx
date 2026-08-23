@@ -35,6 +35,7 @@ import { AlertsFlyout } from "./features/drawers/AlertsFlyout";
 import { HealthProfileDrawer } from "./features/drawers/HealthProfileDrawer";
 import { CommunityReportModal } from "./features/drawers/CommunityReportModal";
 import { ManagerApprovalDrawer } from "./features/drawers/ManagerApprovalDrawer";
+import { FloatingPanelProvider } from "./features/floating";
 import { Station, Alert, Proposal } from "./types";
 import {
   ActiveDrawerType,
@@ -647,6 +648,7 @@ const SuperAppMain: React.FC<{
         </div>
       )}
     </div>
+    </FloatingPanelProvider>
   );
 };
 

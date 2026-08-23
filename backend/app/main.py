@@ -170,7 +170,7 @@ class LoginRequest(BaseModel):
 
 
 class VerifyEmailRequest(BaseModel):
-    token: str = Field(..., min_length=16, max_length=256)
+    token: str = Field(..., min_length=6, max_length=256, examples=["123456"])
 
 
 class ResendVerificationRequest(BaseModel):

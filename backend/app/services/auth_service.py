@@ -7,6 +7,7 @@ from uuid import uuid4
 from .audit_service import AuditService
 from .auth_crypto import (
     dummy_verify_password,
+    generate_otp,
     generate_token,
     hash_password,
     hash_token,
@@ -15,7 +16,39 @@ from .auth_crypto import (
     verify_password,
 )
 from .database import Database, ServiceError, dict_cursor
-from .email_service import AuthEmailService
+from .email_service import AuthEmailService, EmailDeliveryResult
+
+
+def _email_delivery_message(
+    result: EmailDeliveryResult,
+    *,
+    email_type: str,
+) -> str:
+    """Return a user-facing message that matches the actual delivery outcome."""
+    if result.status == "accepted":
+        if email_type == "verification":
+            return "Đăng ký tài khoản thành công. Yêu cầu gửi email đã được tiếp nhận, vui lòng kiểm tra hộp thư để xác minh tài khoản trước khi đăng nhập."
+        if email_type == "resend_verification":
+            return "Nếu email tồn tại trong hệ thống và chưa được xác minh, yêu cầu gửi liên kết xác minh đã được tiếp nhận."
+        if email_type == "password_reset":
+            return "Nếu địa chỉ email tồn tại và đã được kích hoạt, yêu cầu đặt lại mật khẩu đã được tiếp nhận. Vui lòng kiểm tra hộp thư trong ít phút."
+        return "Yêu cầu gửi email đã được tiếp nhận."
+    if result.status == "not_configured":
+        if email_type == "verification":
+            return "Đăng ký tài khoản thành công. Dịch vụ email chưa được cấu hình — vui lòng liên hệ quản trị viên để kích hoạt tài khoản thủ công."
+        if email_type == "resend_verification":
+            return "Yêu cầu gửi lại đã được tiếp nhận. Dịch vụ email chưa được cấu hình — vui lòng liên hệ quản trị viên."
+        if email_type == "password_reset":
+            return "Yêu cầu đặt lại mật khẩu đã được tiếp nhận. Dịch vụ email chưa được cấu hình — vui lòng liên hệ quản trị viên."
+        return "Dịch vụ email chưa được cấu hình."
+    # status == "failed"
+    if email_type == "verification":
+        return "Đăng ký tài khoản thành công. Chưa thể gửi email xác nhận — vui lòng thử gửi lại sau."
+    if email_type == "resend_verification":
+        return "Yêu cầu đã được tiếp nhận. Chưa thể gửi email xác nhận — vui lòng thử lại sau."
+    if email_type == "password_reset":
+        return "Yêu cầu đặt lại mật khẩu đã được tiếp nhận. Chưa thể gửi email hướng dẫn — vui lòng thử lại sau."
+    return "Yêu cầu đã được tiếp nhận nhưng chưa thể gửi email."
 
 
 class AuthService:
@@ -26,7 +59,7 @@ class AuthService:
         email_service: AuthEmailService,
         *,
         session_ttl_seconds: int = 604800,
-        verification_token_ttl_seconds: int = 86400,
+        verification_token_ttl_seconds: int = 600,
         reset_token_ttl_seconds: int = 3600,
         rate_limit_max_attempts: int = 5,
         rate_limit_lockout_seconds: int = 900,
@@ -70,8 +103,9 @@ class AuthService:
 
         pw_hash = hash_password(password)
         user_id = str(uuid4())
-        raw_token = generate_token()
+        raw_token = generate_otp(6)
         token_hash = hash_token(raw_token)
+        token_id = str(uuid4())
 
         with self.db.connection() as conn:
             with dict_cursor(conn) as cur:
@@ -100,7 +134,7 @@ class AuthService:
                     )
                     VALUES (%s, %s, %s, %s, NOW(), NOW() + (%s * INTERVAL '1 second'))
                     """,
-                    (str(uuid4()), user_id, token_hash, normalized, self.verification_token_ttl_seconds),
+                    (token_id, user_id, token_hash, normalized, self.verification_token_ttl_seconds),
                 )
 
                 self.audit.record(
@@ -115,8 +149,28 @@ class AuthService:
                     conn=conn,
                 )
 
-        # Dispatch verification email
-        self.email_service.send_verification_email(normalized, raw_token)
+        # Dispatch verification email via Resend with safe idempotency key
+        idempotency_key = f"auth-verification/{token_id}"
+        delivery = self.email_service.send_verification_email(
+            normalized,
+            raw_token,
+            idempotency_key=idempotency_key,
+        )
+        self.audit.record(
+            actor_type="user",
+            actor_id=user_id,
+            actor_role="resident",
+            action="email.delivery",
+            entity_type="user",
+            entity_id=user_id,
+            correlation_id=correlation_id,
+            details={
+                "email_type": "verification",
+                "delivery_status": delivery.status,
+                "provider": delivery.provider,
+                "reason_code": delivery.reason_code,
+            },
+        )
 
         return {
             "user_id": user["user_id"],
@@ -125,7 +179,8 @@ class AuthService:
             "full_name": user["full_name"],
             "sensitivity_group": user["sensitivity_group"],
             "email_verified": False,
-            "message": "Đăng ký tài khoản thành công. Vui lòng kiểm tra hộp thư để xác minh tài khoản trước khi đăng nhập.",
+            "email_delivery_status": delivery.status,
+            "message": _email_delivery_message(delivery, email_type="verification"),
         }
 
     def update_profile(
@@ -187,11 +242,12 @@ class AuthService:
         }
 
     def verify_email(self, *, raw_token: str, correlation_id: str | None = None) -> dict[str, Any]:
-        """Verify an email address using single-use raw token."""
-        if not raw_token or len(raw_token) < 16:
-            raise ServiceError("invalid_token", "Mã xác minh không hợp lệ.", 400)
+        """Verify an email address using single-use 6-digit OTP code."""
+        cleaned = (raw_token or "").strip()
+        if not cleaned or len(cleaned) < 6:
+            raise ServiceError("invalid_token", "Mã xác minh không hợp lệ. Vui lòng nhập đủ 6 chữ số.", 400)
 
-        token_hash = hash_token(raw_token)
+        token_hash = hash_token(cleaned)
 
         with self.db.connection() as conn:
             with dict_cursor(conn) as cur:
@@ -200,6 +256,8 @@ class AuthService:
                     SELECT token_id, user_id, email_normalized, expires_at, used_at
                     FROM email_verification_tokens
                     WHERE token_hash = %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
                     """,
                     (token_hash,),
                 )
@@ -207,7 +265,7 @@ class AuthService:
                 if not token_record or token_record["used_at"] is not None:
                     raise ServiceError(
                         "invalid_verification_token",
-                        "Mã xác minh không hợp lệ hoặc đã được sử dụng trước đó.",
+                        "Mã xác minh không chính xác hoặc đã được sử dụng.",
                         400,
                     )
 
@@ -215,7 +273,7 @@ class AuthService:
                 if token_record["expires_at"] < now:
                     raise ServiceError(
                         "verification_token_expired",
-                        "Mã xác minh đã hết hạn. Vui lòng yêu cầu gửi lại liên kết xác minh mới.",
+                        "Mã xác minh đã hết hạn. Vui lòng bấm 'Gửi lại mã xác minh'.",
                         400,
                     )
 
@@ -228,22 +286,19 @@ class AuthService:
                     """,
                     (token_record["token_id"],),
                 )
-
                 cur.execute(
                     """
                     UPDATE users
-                    SET email_verified_at = NOW()
+                    SET email_verified_at = NOW(),
+                        updated_at = NOW()
                     WHERE user_id = %s
-                    RETURNING user_id, email, role, full_name, email_verified_at
                     """,
                     (user_id,),
                 )
-                user = cur.fetchone()
 
                 self.audit.record(
                     actor_type="user",
                     actor_id=str(user_id),
-                    actor_role=user["role"] if user else "resident",
                     action="auth.email_verified",
                     entity_type="user",
                     entity_id=str(user_id),
@@ -289,9 +344,10 @@ class AuthService:
                     (user_id,),
                 )
 
-                raw_token = generate_token()
+                raw_token = generate_otp(6)
                 token_hash = hash_token(raw_token)
 
+                token_id = str(uuid4())
                 cur.execute(
                     """
                     INSERT INTO email_verification_tokens (
@@ -299,7 +355,7 @@ class AuthService:
                     )
                     VALUES (%s, %s, %s, %s, NOW(), NOW() + (%s * INTERVAL '1 second'))
                     """,
-                    (str(uuid4()), user_id, token_hash, normalized, self.verification_token_ttl_seconds),
+                    (token_id, user_id, token_hash, normalized, self.verification_token_ttl_seconds),
                 )
 
                 self.audit.record(
@@ -312,8 +368,31 @@ class AuthService:
                     conn=conn,
                 )
 
-        self.email_service.send_verification_email(normalized, raw_token)
-        return {"success": True, "message": generic_msg}
+        idempotency_key = f"auth-verification/{token_id}"
+        delivery = self.email_service.send_verification_email(
+            normalized,
+            raw_token,
+            idempotency_key=idempotency_key,
+        )
+        self.audit.record(
+            actor_type="user",
+            actor_id=str(user_id),
+            action="email.delivery",
+            entity_type="user",
+            entity_id=str(user_id),
+            correlation_id=correlation_id,
+            details={
+                "email_type": "verification",
+                "delivery_status": delivery.status,
+                "provider": delivery.provider,
+                "reason_code": delivery.reason_code,
+            },
+        )
+        return {
+            "success": True,
+            "email_delivery_status": delivery.status,
+            "message": _email_delivery_message(delivery, email_type="resend_verification"),
+        }
 
     def login(
         self,
@@ -582,6 +661,7 @@ class AuthService:
                 raw_token = generate_token()
                 token_hash = hash_token(raw_token)
 
+                token_id = str(uuid4())
                 cur.execute(
                     """
                     INSERT INTO password_reset_tokens (
@@ -589,7 +669,7 @@ class AuthService:
                     )
                     VALUES (%s, %s, %s, NOW(), NOW() + (%s * INTERVAL '1 second'))
                     """,
-                    (str(uuid4()), user_id, token_hash, self.reset_token_ttl_seconds),
+                    (token_id, user_id, token_hash, self.reset_token_ttl_seconds),
                 )
 
                 self.audit.record(
@@ -602,8 +682,31 @@ class AuthService:
                     conn=conn,
                 )
 
-        self.email_service.send_password_reset_email(normalized, raw_token)
-        return {"success": True, "message": generic_msg}
+        idempotency_key = f"auth-password-reset/{token_id}"
+        delivery = self.email_service.send_password_reset_email(
+            normalized,
+            raw_token,
+            idempotency_key=idempotency_key,
+        )
+        self.audit.record(
+            actor_type="user",
+            actor_id=str(user_id),
+            action="email.delivery",
+            entity_type="user",
+            entity_id=str(user_id),
+            correlation_id=correlation_id,
+            details={
+                "email_type": "password_reset",
+                "delivery_status": delivery.status,
+                "provider": delivery.provider,
+                "reason_code": delivery.reason_code,
+            },
+        )
+        return {
+            "success": True,
+            "email_delivery_status": delivery.status,
+            "message": _email_delivery_message(delivery, email_type="password_reset"),
+        }
 
     def reset_password(
         self,
@@ -697,7 +800,27 @@ class AuthService:
                     conn=conn,
                 )
 
-        self.email_service.send_password_changed_notification(user["email"])
+        # Send best-effort notification via Resend using stable token_id idempotency key
+        token_id = str(token_record["token_id"])
+        idempotency_key = f"auth-password-changed/{token_id}"
+        notif_delivery = self.email_service.send_password_changed_notification(
+            user["email"],
+            idempotency_key=idempotency_key,
+        )
+        self.audit.record(
+            actor_type="user",
+            actor_id=str(user_id),
+            action="email.delivery",
+            entity_type="user",
+            entity_id=str(user_id),
+            correlation_id=correlation_id,
+            details={
+                "email_type": "password_changed",
+                "delivery_status": notif_delivery.status,
+                "provider": notif_delivery.provider,
+                "reason_code": notif_delivery.reason_code,
+            },
+        )
         return {
             "success": True,
             "message": "Đặt lại mật khẩu thành công! Tất cả phiên đăng nhập cũ đã được hủy. Vui lòng đăng nhập với mật khẩu mới.",

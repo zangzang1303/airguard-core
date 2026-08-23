@@ -29,9 +29,16 @@ export const Register: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const canSubmit = termsAccepted && !submitting;
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+
+    if (!termsAccepted) {
+      setError("Bạn cần đồng ý với Điều khoản sử dụng.");
+      return;
+    }
     if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       setError("Vui lòng hoàn thành tất cả các trường bắt buộc.");
       return;
@@ -48,10 +55,6 @@ export const Register: React.FC = () => {
       setError("Mật khẩu xác nhận chưa khớp.");
       return;
     }
-    if (!termsAccepted) {
-      setError("Bạn cần đồng ý với Điều khoản sử dụng.");
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -64,6 +67,9 @@ export const Register: React.FC = () => {
       const result = await registerResident(input);
       if (!result.success) {
         setError(result.message ?? "Không thể tạo tài khoản.");
+      } else {
+        // Navigate directly to verify-email so the user sees the confirmation/verification step
+        navigateTo("verify-email");
       }
     } catch (err: any) {
       setError(err?.message ?? "Lỗi kết nối máy chủ.");
@@ -193,8 +199,9 @@ export const Register: React.FC = () => {
             </div>
           </div>
 
-          <label className="auth-terms">
+          <label className="auth-terms" htmlFor="register-terms">
             <input
+              id="register-terms"
               type="checkbox"
               checked={termsAccepted}
               onChange={(event) => setTermsAccepted(event.target.checked)}
@@ -202,7 +209,13 @@ export const Register: React.FC = () => {
             <span>Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật dữ liệu.</span>
           </label>
 
-          <Button type="submit" variant="primary" className="auth-submit" disabled={submitting}>
+          <Button
+            type="submit"
+            variant="primary"
+            className="auth-submit"
+            disabled={!canSubmit}
+            aria-busy={submitting}
+          >
             {submitting ? "Đang tạo tài khoản..." : "Tạo tài khoản"}
             {!submitting && <ArrowRight size={17} aria-hidden="true" />}
           </Button>
@@ -218,3 +231,4 @@ export const Register: React.FC = () => {
     </AuthLayout>
   );
 };
+

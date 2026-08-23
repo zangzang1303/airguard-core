@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { AlertTriangle, Clock3, Radio, ShieldAlert, Wifi, WifiOff } from "lucide-react";
-
 import { Alert, Station } from "../../types";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface ManagerStationStatusBarProps {
   stations: Station[];
@@ -9,6 +9,11 @@ interface ManagerStationStatusBarProps {
 }
 
 export const ManagerStationStatusBar: React.FC<ManagerStationStatusBarProps> = ({ stations, alerts }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "manager-status",
+    group: "widget",
+  });
+
   const counts = useMemo(() => {
     const activeAlerts = alerts.filter((alert) => alert.status === "active");
     const warningStations = new Set(
@@ -32,8 +37,15 @@ export const ManagerStationStatusBar: React.FC<ManagerStationStatusBarProps> = (
   }, [alerts, stations]);
 
   return (
-    <section className="manager-station-status-bar" aria-label="Tổng quan trạng thái trạm dành cho Ban Quản lý">
-      <span className="manager-status-title"><Radio size={14} aria-hidden="true" /> Giám sát trạm</span>
+    <section
+      {...containerProps}
+      className="manager-station-status-bar"
+      aria-label="Tổng quan trạng thái trạm dành cho Ban Quản lý"
+    >
+      <span className="manager-status-title" {...handleProps}>
+        <Radio size={14} aria-hidden="true" />
+        <span className="manager-status-text">Giám sát trạm</span>
+      </span>
       <span className="manager-status-item is-online"><Wifi size={14} aria-hidden="true" /><b>{counts.online}</b> Online</span>
       <span className="manager-status-item is-offline"><WifiOff size={14} aria-hidden="true" /><b>{counts.offline}</b> Offline</span>
       <span className="manager-status-item is-stale"><Clock3 size={14} aria-hidden="true" /><b>{counts.stale}</b> Stale</span>

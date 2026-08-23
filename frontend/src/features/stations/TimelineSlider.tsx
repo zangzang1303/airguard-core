@@ -22,6 +22,7 @@ export interface TimelineSliderProps {
   disabled?: boolean;
   className?: string;
   label?: string;
+  titleProps?: any;
 }
 
 function getStepIndex(hours: number): number {
@@ -43,6 +44,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
   disabled = false,
   className = "",
   label = "Thời gian dự báo",
+  titleProps,
 }) => {
   const stepIndex = getStepIndex(value);
   const currentStep = ALL_HORIZON_STEPS[stepIndex];
@@ -51,7 +53,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
   return (
     <div className={`timeline-slider-card ${className}`} role="group" aria-label="Thanh trượt mốc thời gian dự báo">
       <div className="timeline-slider-header">
-        <div className="timeline-slider-title">
+        <div className="timeline-slider-title" {...titleProps}>
           <Clock size={15} aria-hidden="true" />
           <span>{label}</span>
         </div>

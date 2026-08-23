@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../api/client";
-import { formatAuthError } from "../../utils/authErrors";
+import { formatAuthError, isEmailNotVerifiedError } from "../../utils/authErrors";
 import "./auth.css";
 
 // Icons
@@ -104,10 +104,7 @@ const ChevronDownIcon = ({ open }: { open: boolean }) => (
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    style={{
-      transition: "transform 0.2s ease",
-      transform: open ? "rotate(180deg)" : "rotate(0deg)",
-    }}
+    style={{ transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}
   >
     <polyline points="6 9 12 15 18 9" />
   </svg>
@@ -118,11 +115,14 @@ export const Login: React.FC = () => {
     login,
     demoLogin,
     setCurrentScreen,
+    navigateTo,
     authMessage,
     clearAuthMessage,
     demoMode,
     googleAuthEnabled,
+    setPendingEmailVerification,
   } = useAuth();
+
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -131,11 +131,13 @@ export const Login: React.FC = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [demoSubmitting, setDemoSubmitting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isUnverified, setIsUnverified] = useState(false);
   const [showMobileAccordion, setShowMobileAccordion] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsUnverified(false);
     clearAuthMessage();
 
     if (!email.trim() || !password) {
@@ -152,12 +154,26 @@ export const Login: React.FC = () => {
       const result = await login(email.trim(), password);
       if (!result.success) {
         setError(formatAuthError(result.message));
+        if (isEmailNotVerifiedError(result.message)) {
+          setIsUnverified(true);
+        }
       }
     } catch (err: any) {
       setError(formatAuthError(err));
+      if (isEmailNotVerifiedError(err)) {
+        setIsUnverified(true);
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleGoToVerifyEmail = () => {
+    setPendingEmailVerification({
+      email: email.trim(),
+      deliveryStatus: "unknown",
+    });
+    navigateTo("verify-email");
   };
 
   const handleGoogleLogin = () => {
@@ -230,8 +246,23 @@ export const Login: React.FC = () => {
           )}
 
           {error && (
-            <div className="auth-notice auth-notice--error" role="alert" aria-live="assertive">
+            <div
+              className="auth-notice auth-notice--error"
+              role="alert"
+              aria-live="assertive"
+              style={isUnverified ? { flexDirection: "column", alignItems: "flex-start", gap: "6px" } : undefined}
+            >
               <span>{error}</span>
+              {isUnverified && (
+                <button
+                  type="button"
+                  className="auth-link-btn"
+                  onClick={handleGoToVerifyEmail}
+                  style={{ color: "#0284c7", fontWeight: 700, textDecoration: "underline", marginTop: "2px" }}
+                >
+                  Gửi lại email xác minh →
+                </button>
+              )}
             </div>
           )}
 

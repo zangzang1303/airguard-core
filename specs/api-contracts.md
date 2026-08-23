@@ -149,12 +149,13 @@ failure. UI must not show `RUNNING_BOOST` until the acknowledged device state is
 
 Creating an automatic ventilation or recovery proposal enqueues at most one Manager notification
 per active Manager/Admin recipient, keyed by `(proposal_id, recipient_user_id)`. Notification is an
-optional side effect: unavailable recipients, disabled SMTP, broker enqueue failure or delivery
+optional side effect: unavailable recipients, disabled Resend provider, broker enqueue failure or delivery
 failure must be recorded transparently and must not approve, reject, delete or otherwise mutate the
 persisted `pending` proposal. Audit details identify the recipient by internal user id and must not
 contain the email address. Task results and worker logs must omit both recipient address and message
-body. A real email is sent only when `NOTIFICATION_PROVIDER=smtp` and valid SMTP settings are
-configured; otherwise the job completes with `delivery_status=not_configured`.
+body. A real email is sent only when `NOTIFICATION_PROVIDER=resend` and valid Resend API settings are
+configured (yielding `delivery_status=accepted` with message ID); otherwise the job completes with `delivery_status=not_configured`.
+
 
 ## Environmental report request and response
 

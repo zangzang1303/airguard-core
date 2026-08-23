@@ -20,6 +20,7 @@ import { Button } from "../../components/common/Button";
 import { IconButton } from "../../components/common/IconButton";
 import { useAuth } from "../../context/AuthContext";
 import { AuditLogEntry, Station } from "../../types";
+import { useDraggableFloatingPanel } from "../floating";
 import "./AuditLog.css";
 
 // Formatter cho thời gian Việt Nam
@@ -60,13 +61,16 @@ const formatActionLabel = (action: string): string => {
     UPDATE_USER_ROLE: "Cập nhật quyền",
     CREATE_USER: "Tạo người dùng mới",
     DISABLE_USER: "Vô hiệu tài khoản",
+    SET_STATION_OVERRIDE: "Ghi đè sensor",
+    CLEAR_STATION_OVERRIDE: "Gỡ ghi đè sensor",
   };
   return map[action] ?? action;
 };
 
 // Avatar viết tắt cho Actor
 const getActorInitials = (actor: string): string => {
-  if (actor.toLowerCase().includes("ai")) return "AI";
+  if (!actor) return "SY";
+  if (actor.toLowerCase().includes("system")) return "SY";
   if (actor.toLowerCase().includes("manager")) return "MGR";
   if (actor.toLowerCase().includes("admin")) return "ADM";
   const parts = actor.split("@")[0].split(/[._\s-]/);
@@ -81,6 +85,11 @@ interface AuditLogProps {
 
 export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) => {
   const { role, userId } = useAuth();
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "audit",
+    group: "modal",
+  });
+
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,65 +149,58 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
     setTimeRangeFilter("all");
   };
 
-  // Filtered Logs
+  // Filter computation
   const filteredLogs = useMemo(() => {
-    const now = Date.now();
-    const query = searchTerm.toLowerCase().trim();
-
     return logs.filter((log) => {
-      // 1. Text Search Query
-      if (query !== "") {
-        const matchesQuery =
-          log.actor.toLowerCase().includes(query) ||
-          log.action.toLowerCase().includes(query) ||
-          log.target.toLowerCase().includes(query) ||
-          log.correlation_id.toLowerCase().includes(query) ||
-          log.id.toLowerCase().includes(query) ||
-          (log.detail && log.detail.toLowerCase().includes(query));
-        if (!matchesQuery) return false;
+      // 1. Search text
+      if (searchTerm.trim() !== "") {
+        const term = searchTerm.toLowerCase();
+        const actorMatch = log.actor.toLowerCase().includes(term);
+        const actionMatch = log.action.toLowerCase().includes(term);
+        const targetMatch = log.target ? log.target.toLowerCase().includes(term) : false;
+        const detailsMatch = log.detail ? log.detail.toLowerCase().includes(term) : false;
+        const corrMatch = log.correlation_id ? log.correlation_id.toLowerCase().includes(term) : false;
+        if (!actorMatch && !actionMatch && !targetMatch && !detailsMatch && !corrMatch) {
+          return false;
+        }
       }
 
-      // 2. Actor Filter
-      if (actorFilter !== "all" && log.actor !== actorFilter) return false;
+      // 2. Actor filter
+      if (actorFilter !== "all" && log.actor !== actorFilter) {
+        return false;
+      }
 
-      // 3. Action Filter
-      if (actionFilter !== "all" && log.action !== actionFilter) return false;
+      // 3. Action filter
+      if (actionFilter !== "all" && log.action !== actionFilter) {
+        return false;
+      }
 
-      // 4. Station Filter
+      // 4. Station filter
       if (stationFilter !== "all") {
-        const matchesStation =
-          (log.target && log.target.includes(stationFilter)) ||
-          (log.detail && log.detail.includes(stationFilter));
-        if (!matchesStation) return false;
-      }
-
-      // 5. Outcome Filter
-      if (outcomeFilter !== "all") {
-        const outcomeLower = log.outcome.toLowerCase();
-        if (outcomeFilter === "success" && !["success", "approved", "succeeded"].includes(outcomeLower)) {
-          return false;
-        }
-        if (outcomeFilter === "failure" && !["failure", "failed", "rejected"].includes(outcomeLower)) {
-          return false;
-        }
-        if (outcomeFilter === "pending" && !["pending", "queued"].includes(outcomeLower)) {
+        const targetContains = log.target ? log.target.includes(stationFilter) : false;
+        const detailsContains = log.detail ? log.detail.includes(stationFilter) : false;
+        if (!targetContains && !detailsContains) {
           return false;
         }
       }
 
-      // 6. Time Range Filter
+      // 5. Outcome filter
+      if (outcomeFilter !== "all" && log.outcome !== outcomeFilter) {
+        return false;
+      }
+
+      // 6. Time range filter
       if (timeRangeFilter !== "all") {
         const logTime = new Date(log.time).getTime();
-        const diffHours = (now - logTime) / (1000 * 3600);
+        const now = Date.now();
+        const diffHours = (now - logTime) / (1000 * 60 * 60);
+
         if (timeRangeFilter === "today") {
           const todayStart = new Date();
           todayStart.setHours(0, 0, 0, 0);
           if (logTime < todayStart.getTime()) return false;
-        } else if (timeRangeFilter === "24h") {
-          if (diffHours > 24) return false;
-        } else if (timeRangeFilter === "7d") {
-          if (diffHours > 168) return false;
-        }
+        } else if (timeRangeFilter === "24h" && diffHours > 24) return false;
+        else if (timeRangeFilter === "7d" && diffHours > 168) return false;
       }
 
       return true;
@@ -223,11 +225,11 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
   }
 
   return (
-    <div className="audit-explorer-container">
+    <div {...containerProps} className="audit-explorer-container">
       {/* HEADER SECTION */}
       <div className="audit-explorer-header">
         <div className="audit-explorer-title-group">
-          <div className="audit-explorer-title-row">
+          <div className="audit-explorer-title-row" {...handleProps}>
             <div className="audit-explorer-title-icon">
               <FileCheck2 size={20} />
             </div>
@@ -246,7 +248,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
           </div>
         </div>
 
-        <div className="audit-header-actions">
+        <div className="audit-header-actions no-drag" data-no-drag="true">
           <Button
             variant="outline"
             size="sm"

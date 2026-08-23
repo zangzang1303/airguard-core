@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-import smtplib
 from datetime import UTC, datetime
-from email.message import EmailMessage
 
 import paho.mqtt.client as mqtt
 
@@ -18,6 +16,7 @@ from ..services.approval_service import (
 from ..services.audit_service import AuditService
 from ..services.database import Database
 from ..services.job_service import mark_job_failed, reserve_job
+from ..services.resend_email_provider import ResendEmailProvider
 from .task_support import RETRY_TASK_OPTIONS, TransientTaskError, run_idempotent
 
 
@@ -54,46 +53,41 @@ def send_notification_job(self, recipient: str, message: str, idempotency_key: s
     task_id = self.request.id
 
     def operation() -> dict:
-        provider = os.getenv("NOTIFICATION_PROVIDER", "disabled").lower()
-        if provider != "smtp":
+        provider = ResendEmailProvider()
+        subject = os.getenv("NOTIFICATION_SUBJECT", "AirGuard AI — Cảnh báo và đề xuất hành động")
+        result = provider.send(
+            recipient=recipient,
+            subject=subject,
+            text=message,
+            html=None,
+            email_type="proposal_notification",
+            idempotency_key=idempotency_key,
+        )
+        if result.retryable:
+            raise TransientTaskError(f"Resend delivery transient failure: {result.reason_code}")
+
+        if result.status == "accepted":
+            return {
+                "task_id": task_id,
+                "job_type": "notification",
+                "delivery_status": "accepted",
+                "provider": "resend",
+                "provider_message_id": result.provider_message_id,
+            }
+        if result.status == "not_configured":
             return {
                 "task_id": task_id,
                 "job_type": "notification",
                 "delivery_status": "not_configured",
-                "provider": provider,
-                "reason": "Set NOTIFICATION_PROVIDER=smtp and SMTP settings to dispatch a real notification.",
+                "provider": result.provider,
+                "reason": result.reason_code,
             }
-        host = os.getenv("SMTP_HOST")
-        sender = os.getenv("SMTP_FROM")
-        if not host or not sender or "@" not in recipient:
-            return {
-                "task_id": task_id,
-                "job_type": "notification",
-                "delivery_status": "failed_validation",
-                "provider": "smtp",
-                "reason": "SMTP_HOST, SMTP_FROM, and a valid recipient are required.",
-            }
-        email = EmailMessage()
-        email["Subject"] = os.getenv("NOTIFICATION_SUBJECT", "AirGuard AI notification")
-        email["From"] = sender
-        email["To"] = recipient
-        email.set_content(message)
-        try:
-            with smtplib.SMTP(host, int(os.getenv("SMTP_PORT", "587")), timeout=10) as client:
-                if os.getenv("SMTP_STARTTLS", "true").lower() in {"1", "true", "yes"}:
-                    client.starttls()
-                username = os.getenv("SMTP_USERNAME")
-                password = os.getenv("SMTP_PASSWORD")
-                if username and password:
-                    client.login(username, password)
-                client.send_message(email)
-        except (OSError, smtplib.SMTPException) as exc:
-            raise TransientTaskError(f"SMTP delivery failed: {exc.__class__.__name__}") from exc
         return {
             "task_id": task_id,
             "job_type": "notification",
-            "delivery_status": "delivered",
-            "provider": "smtp",
+            "delivery_status": "failed",
+            "provider": "resend",
+            "reason": result.reason_code,
         }
 
     return run_idempotent(task_id=task_id, idempotency_key=idempotency_key, operation=operation)

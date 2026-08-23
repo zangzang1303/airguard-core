@@ -14,6 +14,7 @@ import {
   Info
 } from "lucide-react";
 import { Proposal } from "../../types";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface ManagerApprovalDrawerProps {
   proposals: Proposal[];
@@ -31,10 +32,11 @@ const formatVnDateTime = (isoString?: string): string => {
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return isoString;
     return d.toLocaleString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
     });
   } catch {
     return isoString;
@@ -50,6 +52,11 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
   onClose,
   onOpenAudit,
 }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "manager-approval",
+    group: "drawer",
+  });
+
   const [rejectNote, setRejectNote] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [confirmingApproveProposal, setConfirmingApproveProposal] = useState<Proposal | null>(null);
@@ -107,10 +114,10 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
   const pendingProposals = proposals.filter((p) => p.status === "pending");
 
   return (
-    <aside className="contextual-drawer right-drawer manager-approval-drawer">
+    <aside {...containerProps} className="contextual-drawer right-drawer manager-approval-drawer">
       {/* Redesigned Clean Header */}
       <div className="drawer-header-bar manager-header">
-        <div className="drawer-title-group">
+        <div className="drawer-title-group" {...handleProps}>
           <span className="drawer-eyebrow-tag">HITL · QUẢN LÝ</span>
           <h2 className="drawer-main-title">Phê duyệt đề xuất</h2>
           <p className="drawer-sub-meta">Xem bằng chứng trước khi đưa ra quyết định.</p>
@@ -118,7 +125,8 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
         <div className="drawer-header-actions-group">
           {onOpenAudit && (
             <button
-              className="drawer-header-pill-btn"
+              className="no-drag drawer-header-pill-btn"
+              data-no-drag="true"
               onClick={onOpenAudit}
               title="Xem Nhật ký Kiểm toán (Audit Log)"
               aria-label="Xem Audit Log"
@@ -127,7 +135,7 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
               <span>Nhật ký</span>
             </button>
           )}
-          <button className="drawer-close-btn" onClick={onClose} aria-label="Đóng bảng phê duyệt">
+          <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng bảng phê duyệt">
             <X size={18} />
           </button>
         </div>

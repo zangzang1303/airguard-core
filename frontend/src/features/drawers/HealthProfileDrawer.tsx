@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { X, Check, LogOut, Mail, Building, ShieldCheck } from "lucide-react";
 import { HealthProfile } from "../../types/superApp";
 import { useAuth } from "../../context/AuthContext";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface HealthProfileDrawerProps {
   profile: HealthProfile;
@@ -15,6 +16,11 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
   onClose,
 }) => {
   const { userName, userEmail, role, organization, logout, updateProfile } = useAuth();
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "health-profile",
+    group: "drawer",
+  });
+
   const [formData, setFormData] = useState<HealthProfile>(profile);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -54,13 +60,13 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
   const roleLabel = role === "resident" ? "Cư dân" : role === "manager" ? "Manager BQL" : "Admin";
 
   return (
-    <aside className="contextual-drawer right-drawer health-profile-drawer">
+    <aside {...containerProps} className="contextual-drawer right-drawer health-profile-drawer">
       <div className="drawer-header-bar">
-        <div className="drawer-title-group">
+        <div className="drawer-title-group" {...handleProps}>
           <div className="badge-tag">Tài khoản & Cá nhân hóa</div>
           <h2 className="drawer-main-title">Hồ sơ người dùng</h2>
         </div>
-        <button className="drawer-close-btn" onClick={onClose} aria-label="Đóng hồ sơ">
+        <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng hồ sơ">
           <X size={18} />
         </button>
       </div>

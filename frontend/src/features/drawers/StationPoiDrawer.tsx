@@ -6,6 +6,7 @@ import { EnvironmentalLayerType, PlacePOI } from "../../types/superApp";
 import { DataQualityBadge } from "../../components/common/DataQualityBadge";
 import { formatVnDateTime } from "../../utils/datetime";
 import { formatMetricValue, getMetricPresentation } from "../../utils/metricPresentation";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface StationPoiDrawerProps {
   station: Station | null;
@@ -26,6 +27,11 @@ export const StationPoiDrawer: React.FC<StationPoiDrawerProps> = ({
   onOpenForecast,
   onAskAiAboutStation,
 }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "station-poi",
+    group: "drawer",
+  });
+
   const [latestHistoryPoint, setLatestHistoryPoint] = useState<HistoryPoint | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -95,17 +101,17 @@ export const StationPoiDrawer: React.FC<StationPoiDrawerProps> = ({
       : "Chưa có dữ liệu");
 
   return (
-    <aside className="contextual-drawer right-drawer station-poi-drawer">
+    <aside {...containerProps} className="contextual-drawer right-drawer station-poi-drawer">
       {/* Header */}
       <div className="drawer-header-bar">
-        <div className="drawer-title-group">
+        <div className="drawer-title-group" {...handleProps}>
           <h2 className="drawer-main-title">{title}</h2>
           <div className="drawer-sub-meta">
             <MapPin size={13} />
             <span>{subtitle}</span>
           </div>
         </div>
-        <button className="drawer-close-btn" onClick={onClose} aria-label="Đóng chi tiết trạm">
+        <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng chi tiết trạm">
           <X size={18} />
         </button>
       </div>

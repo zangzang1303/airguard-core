@@ -3,6 +3,7 @@ import { AlertTriangle, Bot, Calendar, CheckCircle2, Clock3, Database, RefreshCw
 
 import { Alert, Station } from "../../types";
 import { formatVnDateTime } from "../../utils/datetime";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface TodaySummarySheetProps {
   stations: Station[];
@@ -23,6 +24,11 @@ export const TodaySummarySheet: React.FC<TodaySummarySheetProps> = ({
   onOpenAiChat,
   onRetry,
 }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "today-summary",
+    group: "sheet",
+  });
+
   const summary = useMemo(() => {
     const fresh = stations.filter((station) => station.status === "online" && !station.is_stale);
     const stale = stations.filter((station) => station.status === "stale" || station.is_stale);
@@ -44,11 +50,11 @@ export const TodaySummarySheet: React.FC<TodaySummarySheetProps> = ({
   }, [alerts, stations]);
 
   return (
-    <div className="floating-bottom-sheet today-summary-sheet">
+    <div {...containerProps} className="floating-bottom-sheet today-summary-sheet">
       <div className="sheet-header-row">
-        <div className="sheet-title-group">
+        <div className="sheet-title-group" {...handleProps}>
           <Calendar size={18} className="sheet-pin-icon" aria-hidden="true" />
-          <div>
+          <div style={{ minWidth: 0 }}>
             <h3 className="sheet-title">Tổng quan môi trường hiện tại</h3>
             <span className="sheet-sub">
               {summary.latestUpdatedAt
@@ -57,7 +63,7 @@ export const TodaySummarySheet: React.FC<TodaySummarySheetProps> = ({
             </span>
           </div>
         </div>
-        <button className="sheet-close-btn" onClick={onClose} aria-label="Đóng tổng quan môi trường">
+        <button className="no-drag sheet-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng tổng quan môi trường">
           <X size={18} />
         </button>
       </div>

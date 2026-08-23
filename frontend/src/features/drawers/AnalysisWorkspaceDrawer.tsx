@@ -6,6 +6,7 @@ import { fetchStationHistory } from "../../api/client";
 import { HistoryPoint, Station } from "../../types";
 import { formatVnDateTime } from "../../utils/datetime";
 import { getAqiColorHex } from "../map/SensorMarkers";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface AnalysisWorkspaceDrawerProps {
   stationId: string;
@@ -35,6 +36,11 @@ export const AnalysisWorkspaceDrawer: React.FC<AnalysisWorkspaceDrawerProps> = (
   onClose,
   onSelectStationId,
 }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "analysis",
+    group: "drawer",
+  });
+
   const [activeTab, setActiveTab] = useState<AnalysisTab>("overview");
   const [selectedMetric, setSelectedMetric] = useState<HistoryMetric>("aqi");
   const [historyData, setHistoryData] = useState<HistoryPoint[]>([]);
@@ -90,12 +96,12 @@ export const AnalysisWorkspaceDrawer: React.FC<AnalysisWorkspaceDrawerProps> = (
   const renderValue = (value: number | null, unit: string) => value == null ? "—" : `${value}${unit ? ` ${unit}` : ""}`;
 
   return (
-    <aside className="contextual-drawer right-drawer wide-analysis-drawer">
+    <aside {...containerProps} className="contextual-drawer right-drawer wide-analysis-drawer">
       <div className="drawer-header-bar">
-        <div className="drawer-title-group">
+        <div className="drawer-title-group" {...handleProps}>
           <div className="badge-tag">Dữ liệu lịch sử từ backend</div>
           <h2 className="drawer-main-title">Phân tích 24 giờ</h2>
-          <div className="station-selector-pills" aria-label="Chọn trạm phân tích">
+          <div className="station-selector-pills no-drag" data-no-drag="true" aria-label="Chọn trạm phân tích">
             {stations.map((station) => (
               <button
                 type="button"
@@ -108,7 +114,7 @@ export const AnalysisWorkspaceDrawer: React.FC<AnalysisWorkspaceDrawerProps> = (
             ))}
           </div>
         </div>
-        <button className="drawer-close-btn" onClick={onClose} aria-label="Đóng phân tích 24 giờ">
+        <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng bảng phân tích">
           <X size={18} />
         </button>
       </div>

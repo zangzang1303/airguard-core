@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { ArrowLeft, CheckCircle2, Mail, Send, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Mail, Send, ShieldCheck } from "lucide-react";
 import { Button } from "../../components/common/Button";
 import { useAuth } from "../../context/AuthContext";
+import { EmailDeliveryStatus } from "../../types";
 import { AuthLayout } from "./AuthLayout";
 import "./auth.css";
 
@@ -11,11 +12,13 @@ export const ForgotPassword: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [emailDeliveryStatus, setEmailDeliveryStatus] = useState<EmailDeliveryStatus | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
+    setEmailDeliveryStatus(null);
     if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) {
       setError("Vui lòng nhập địa chỉ email hợp lệ.");
       return;
@@ -25,8 +28,9 @@ export const ForgotPassword: React.FC = () => {
       const res = await forgotPassword(email.trim());
       setSuccessMsg(
         res.message ||
-          "Nếu địa chỉ email tồn tại, liên kết đặt lại mật khẩu đã được gửi đến hộp thư của bạn."
+          "Nếu địa chỉ email tồn tại, yêu cầu đặt lại mật khẩu đã được tiếp nhận."
       );
+      setEmailDeliveryStatus(res.emailDeliveryStatus ?? "unknown");
     } catch (err: any) {
       setError(err?.message || "Không thể thực hiện yêu cầu.");
     } finally {
@@ -61,6 +65,14 @@ export const ForgotPassword: React.FC = () => {
           <div className="auth-notice auth-notice--success" role="status">
             <CheckCircle2 size={18} style={{ marginRight: "6px", verticalAlign: "middle" }} />
             {successMsg}
+          </div>
+        )}
+        {emailDeliveryStatus && emailDeliveryStatus !== "accepted" && (
+          <div className="auth-notice auth-notice--warning" role="alert">
+            <AlertTriangle size={15} style={{ marginRight: "6px", verticalAlign: "middle", flexShrink: 0 }} />
+            {emailDeliveryStatus === "not_configured"
+              ? "Dịch vụ email hiện chưa được cấu hình. Vui lòng liên hệ quản trị viên."
+              : "Chưa thể gửi email. Vui lòng thử lại sau vài phút."}
           </div>
         )}
         {error && (
