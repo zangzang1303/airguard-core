@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 
 const DEFAULT_VALUES = { pm25: 120, co2: 1600, noise_db: 88, temperature: 39 };
 
-export const DemoStationControl: React.FC = () => {
+export const DemoStationControl: React.FC<{ floating?: boolean }> = ({ floating = false }) => {
   const { role, selectedStationId } = useAuth();
   const [open, setOpen] = useState(false);
   const [stationId, setStationId] = useState(selectedStationId || "S03");
@@ -38,7 +38,7 @@ export const DemoStationControl: React.FC = () => {
     finally { setBusy(false); }
   };
 
-  return <section style={{ margin: "0 16px 8px", border: "1px solid #fed7aa", borderRadius: 12, background: "#fff7ed", padding: 10 }}>
+  return <section style={floating ? { position: "fixed", left: 20, bottom: 92, width: 330, zIndex: 1400, border: "1px solid #fed7aa", borderRadius: 16, background: "rgba(255, 247, 237, .96)", backdropFilter: "blur(12px)", padding: 12, boxShadow: "0 16px 38px rgba(154,52,18,.2)" } : { margin: "0 16px 8px", border: "1px solid #fed7aa", borderRadius: 12, background: "#fff7ed", padding: 10 }}>
     <button type="button" onClick={() => setOpen(!open)} style={{ border: 0, background: "transparent", width: "100%", display: "flex", justifyContent: "space-between", cursor: "pointer", color: "#9a3412", fontWeight: 800 }}>
       <span><FlaskConical size={15} style={{ verticalAlign: "-3px", marginRight: 6 }} />Điều khiển dữ liệu demo</span><span>{open ? "Ẩn" : "Mở"}</span>
     </button>
@@ -48,7 +48,7 @@ export const DemoStationControl: React.FC = () => {
         {["S01", "S02", "S03", "S04", "S05"].map((id) => <option key={id}>{id}</option>)}
       </select>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 7 }}>
-        {([ ["pm25", "PM2.5"], ["co2", "CO₂"], ["noise_db", "dB"], ["temperature", "°C"] ] as const).map(([key, label]) => <label key={key}>{label}<input type="number" value={values[key]} onChange={(e) => setValue(key, e.target.value)} style={{ width: "100%", boxSizing: "border-box", padding: 6, marginTop: 2, border: "1px solid #fdba74", borderRadius: 6 }} /></label>)}
+        {([ ["pm25", "PM2.5", 1, 300, "#ef4444"], ["co2", "CO₂", 350, 2500, "#8b5cf6"], ["noise_db", "dB", 30, 110, "#f59e0b"], ["temperature", "°C", 0, 50, "#ec4899"] ] as const).map(([key, label, min, max, color]) => <label key={key} style={{ fontWeight: 700 }}>{label} <span style={{ float: "right", color }}>{values[key]}</span><input type="range" min={min} max={max} value={values[key]} onChange={(e) => setValue(key, e.target.value)} style={{ width: "100%", accentColor: color, marginTop: 7 }} /></label>)}
       </div>
       <div style={{ display: "flex", gap: 6, marginTop: 8 }}><button disabled={busy || !allowed} onClick={apply} style={{ flex: 1, padding: 7, border: 0, borderRadius: 7, background: "#ea580c", color: "white", fontWeight: 700 }}>Áp dụng</button><button disabled={busy || !allowed || !active[stationId]} onClick={reset} style={{ flex: 1, padding: 7, border: "1px solid #fb923c", borderRadius: 7, background: "white", color: "#9a3412", fontWeight: 700 }}><RotateCcw size={13} /> Tự động</button></div>
       {active[stationId] && <div style={{ marginTop: 7, color: "#c2410c", fontWeight: 700 }}>● Override đang bật tại {stationId}</div>}

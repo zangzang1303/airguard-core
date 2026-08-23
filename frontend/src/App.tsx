@@ -28,6 +28,7 @@ import { StationPoiDrawer } from "./features/drawers/StationPoiDrawer";
 import { StationForecastDrawer } from "./features/drawers/StationForecastDrawer";
 import { AnalysisWorkspaceDrawer } from "./features/drawers/AnalysisWorkspaceDrawer";
 import { AiAssistantDrawer } from "./features/drawers/AiAssistantDrawer";
+import { DemoStationControl } from "./features/drawers/DemoStationControl";
 import { NearMePanel } from "./features/drawers/NearMePanel";
 import { TodaySummarySheet } from "./features/drawers/TodaySummarySheet";
 import { AlertsFlyout } from "./features/drawers/AlertsFlyout";
@@ -263,6 +264,7 @@ const SuperAppMain: React.FC<{
       />
 
       {isManager && <ManagerStationStatusBar stations={stations} alerts={alerts} />}
+      {isManager && <DemoStationControl floating />}
 
       {/* 3. MAP LAYERS POPOVER */}
       {isLayersOpen && (
