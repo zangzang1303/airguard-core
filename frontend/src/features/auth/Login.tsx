@@ -181,7 +181,7 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleDemoRole = async (persona: "resident" | "manager" | "admin") => {
+  const handleDemoRole = async (persona: "resident" | "manager") => {
     setError(null);
     clearAuthMessage();
     setDemoSubmitting(persona);
@@ -196,6 +196,12 @@ export const Login: React.FC = () => {
     } finally {
       setDemoSubmitting(null);
     }
+  };
+
+  const handleAdminComingSoon = () => {
+    setError(null);
+    clearAuthMessage();
+    setCurrentScreen("admin-coming-soon");
   };
 
   const isAnySubmitting = submitting || googleLoading || demoSubmitting !== null;
@@ -403,15 +409,16 @@ export const Login: React.FC = () => {
                         <span className="demo-persona-card__name">Quản trị viên</span>
                         <span className="demo-persona-badge demo-persona-badge--admin">Admin</span>
                       </div>
-                      <p className="demo-persona-card__desc">Quản lý hệ thống và giám sát phân quyền.</p>
+                      <p className="demo-persona-card__desc">Khu vực quản trị đang được phát triển.</p>
                     </div>
                     <button
                       type="button"
                       className="demo-try-action-btn"
-                      onClick={() => handleDemoRole("admin")}
+                      onClick={handleAdminComingSoon}
                       disabled={isAnySubmitting}
+                      aria-label="Xem thông tin tính năng Quản trị viên sắp ra mắt"
                     >
-                      {demoSubmitting === "admin" ? "..." : "Dùng thử"}
+                      Xem thông tin
                     </button>
                   </div>
                 </div>
@@ -489,16 +496,16 @@ export const Login: React.FC = () => {
                       <span className="demo-persona-card__name">Quản trị viên</span>
                       <span className="demo-persona-badge demo-persona-badge--admin">Admin</span>
                     </div>
-                    <p className="demo-persona-card__desc">Quản lý hệ thống và giám sát phân quyền.</p>
+                    <p className="demo-persona-card__desc">Khu vực quản trị đang được phát triển.</p>
                   </div>
                   <button
                     type="button"
                     className="demo-try-action-btn"
-                    onClick={() => handleDemoRole("admin")}
+                    onClick={handleAdminComingSoon}
                     disabled={isAnySubmitting}
-                    aria-label="Dùng thử vai trò Quản trị viên"
+                    aria-label="Xem thông tin tính năng Quản trị viên sắp ra mắt"
                   >
-                    {demoSubmitting === "admin" ? "Đang vào..." : "Dùng thử"}
+                    Xem thông tin
                   </button>
                 </div>
               </div>

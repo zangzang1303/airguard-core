@@ -28,12 +28,13 @@ Cảm biến CO2 > 1000 ppm HOẶC PM2.5 > 50 µg/m³ kéo dài > 15 phút
         [Backend Publish Command -> Device Simulator ghi nhận]
                                 │
                                 ▼
-  [Khi chỉ số giảm an toàn 20 phút -> Tự động đưa về Eco & Audit đóng chu trình]
+ [Khi chỉ số giảm an toàn 20 phút -> Tạo Eco Proposal Pending -> BQL duyệt -> Dispatch & Audit]
 ```
 
 ### 1.2. API & Database Schema
-* Bổ sung trường `device_id`, `action_type` (`ventilation_boost`, `air_purifier_on`, `eco_mode`), `duration_minutes` trong bảng `warning_proposals`.
+* Tiếp tục dùng `approval_requests` làm system of record và bổ sung tương thích các field `device_id`, canonical `proposed_action` (`ventilation_boost`, `air_purifier_on`, `eco_mode`), `duration_minutes`, `intensity_percent`; không tạo bảng proposal thứ hai.
 * Endpoint Duyệt nhanh 1 chạm: `POST /api/v1/approvals/{id}/quick-approve`.
+* Proposal mới được gửi vào notification job idempotent cho các tài khoản Manager/Admin đang hoạt động. SMTP là tùy chọn; chế độ local `disabled` ghi trạng thái `not_configured` minh bạch và không làm mất proposal.
 
 ---
 
@@ -60,6 +61,18 @@ Cảm biến CO2 > 1000 ppm HOẶC PM2.5 > 50 µg/m³ kéo dài > 15 phút
 
 ## 3. Tiêu chuẩn nghiệm thu
 
-- [ ] Khi simulator phát kịch bản `spike`, hệ thống tự động sinh Proposal thông gió mà không cần thao tác gõ lệnh thủ công.
-- [ ] BQL bấm Duyệt 1 chạm $\rightarrow$ Device Simulator nhận command trong $< 1$ giây $\rightarrow$ Trạng thái thiết bị đổi sang `RUNNING_BOOST`.
-- [ ] Báo cáo môi trường định kỳ được sinh tự động, số liệu thống kê khớp 100% với dữ liệu database, lời bình của AI khách quan, mạch lạc.
+- [x] Integration tests xác minh Rule Engine chỉ cho qua sau 15 phút liên tục và chặn stale/offline/invalid/gap; live Agent smoke trả `generation_mode=live_llm` với grounded source; orchestration test xác minh chỉ tạo đúng một proposal thông gió `pending`.
+- [x] BQL bấm Duyệt 1 chạm $\rightarrow$ Device Simulator nhận command trong $< 1$ giây $\rightarrow$ trạng thái đổi sang `RUNNING_BOOST`. Full-stack ngày 22/08/2026: API trả sau 107 ms, ACK quan sát sau 129 ms và timestamp DB ghi approve $\rightarrow$ ACK 72.120 ms; luồng dùng Manager session, CSRF, version và idempotency thật.
+- [x] Báo cáo daily/weekly được Celery Beat lập lịch, aggregation khớp fixture DB trong test, export Markdown/HTML/PDF dùng cùng record và LLM lỗi có deterministic grounded fallback.
+- [x] Proposal pending enqueue đúng một notification job cho mỗi Manager/Admin; audit không ghi email và lỗi notification không làm thay đổi trạng thái HITL.
+
+## 4. Trạng thái triển khai Person B — 22/08/2026
+
+- `approval_requests` vẫn là system of record; migration chỉ thêm field/lifecycle và không tạo bảng proposal thứ hai.
+- Backend tự map S03 sang `FILTER-01`; action allow-list là `ventilation_boost`, `air_purifier_on`, `eco_mode`.
+- `eco_mode` sau 20 phút an toàn chỉ được tạo ở trạng thái `pending`; không bypass Manager HITL theo ADR 0011.
+- ACK được correlate bằng stable `command_id`, lưu event/audit và không cho ACK unmatched/out-of-order đổi device truth.
+- MQTT dispatcher disconnect trước khi join network loop sau QoS publish; quick-approve không còn chờ thêm khoảng một giây trong eager-mode/full-stack local.
+- Report lưu type/range/timezone/status/statistics/evidence/narrative/mode/source; retry failed hoặc lease stale dùng cùng report record.
+- Test phạm vi nằm tại `test_auto_ventilation.py`, `test_quick_approval.py`, `test_report_generator.py`, `test_person_b_api_security.py` và IoT storage/device tests.
+- Quality gate tích hợp: `289 passed`; Ruff toàn bộ backend services/tasks/test_backend pass; frontend production build pass. Celery worker/Beat chạy non-root; weekly report task qua RabbitMQ/Redis và notification task đều `SUCCESS`.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,15 @@ class Settings:
     auto_proposal_enabled: bool
     proposal_pending_ttl_seconds: int
     auto_proposal_stations: tuple[str, ...]
+    ventilation_trigger_minutes: int
+    ventilation_recovery_minutes: int
+    ventilation_default_duration_minutes: int
+    ventilation_intensity_percent: int
+    ventilation_max_gap_seconds: int
+    report_timezone: str
+    report_narrative_endpoint: str | None
+    report_narrative_timeout_seconds: float
+    report_narrative_service_token: str | None
     session_ttl_seconds: int
     verification_token_ttl_seconds: int
     reset_token_ttl_seconds: int
@@ -44,7 +54,10 @@ class Settings:
     def load(cls) -> Settings:
         raw_origins = os.getenv(
             "CORS_ORIGINS",
-            "http://localhost:5173,http://127.0.0.1:5173",
+            (
+                "https://airguard-app.vercel.app,"
+                "http://localhost:5173,http://127.0.0.1:5173"
+            ),
         )
         stale_after_seconds = int(os.getenv("STALE_AFTER_SECONDS", "300"))
         if stale_after_seconds <= 0:
@@ -85,6 +98,33 @@ class Settings:
         invalid_stations = [station for station in auto_proposal_stations if station not in {"S01", "S02", "S03", "S04", "S05"}]
         if invalid_stations:
             raise ValueError(f"AUTO_PROPOSAL_STATIONS contains invalid station(s): {','.join(invalid_stations)}")
+
+        ventilation_trigger_minutes = int(os.getenv("VENTILATION_TRIGGER_MINUTES", "15"))
+        ventilation_recovery_minutes = int(os.getenv("VENTILATION_RECOVERY_MINUTES", "20"))
+        ventilation_default_duration_minutes = int(os.getenv("VENTILATION_DEFAULT_DURATION_MINUTES", "45"))
+        ventilation_intensity_percent = int(os.getenv("VENTILATION_INTENSITY_PERCENT", "80"))
+        ventilation_max_gap_seconds = int(os.getenv("VENTILATION_MAX_GAP_SECONDS", "60"))
+        if not 1 <= ventilation_trigger_minutes <= 120:
+            raise ValueError("VENTILATION_TRIGGER_MINUTES must be between 1 and 120")
+        if not 1 <= ventilation_recovery_minutes <= 180:
+            raise ValueError("VENTILATION_RECOVERY_MINUTES must be between 1 and 180")
+        if not 5 <= ventilation_default_duration_minutes <= 180:
+            raise ValueError("VENTILATION_DEFAULT_DURATION_MINUTES must be between 5 and 180")
+        if not 1 <= ventilation_intensity_percent <= 100:
+            raise ValueError("VENTILATION_INTENSITY_PERCENT must be between 1 and 100")
+        if not 1 <= ventilation_max_gap_seconds <= stale_after_seconds:
+            raise ValueError("VENTILATION_MAX_GAP_SECONDS must be positive and no greater than STALE_AFTER_SECONDS")
+
+        report_timezone = os.getenv("REPORT_TIMEZONE", "Asia/Ho_Chi_Minh").strip()
+        try:
+            ZoneInfo(report_timezone)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("REPORT_TIMEZONE must be a valid IANA timezone") from exc
+        report_narrative_endpoint = os.getenv("REPORT_NARRATIVE_ENDPOINT", "").strip() or None
+        report_narrative_timeout_seconds = float(os.getenv("REPORT_NARRATIVE_TIMEOUT_SECONDS", "5"))
+        if report_narrative_timeout_seconds <= 0:
+            raise ValueError("REPORT_NARRATIVE_TIMEOUT_SECONDS must be positive")
+        report_narrative_service_token = os.getenv("REPORT_NARRATIVE_SERVICE_TOKEN", "").strip() or None
 
         def _get_int(key: str, default: int) -> int:
             val = os.getenv(key)
@@ -139,6 +179,15 @@ class Settings:
             auto_proposal_enabled=auto_proposal_raw == "true",
             proposal_pending_ttl_seconds=proposal_pending_ttl_seconds,
             auto_proposal_stations=auto_proposal_stations,
+            ventilation_trigger_minutes=ventilation_trigger_minutes,
+            ventilation_recovery_minutes=ventilation_recovery_minutes,
+            ventilation_default_duration_minutes=ventilation_default_duration_minutes,
+            ventilation_intensity_percent=ventilation_intensity_percent,
+            ventilation_max_gap_seconds=ventilation_max_gap_seconds,
+            report_timezone=report_timezone,
+            report_narrative_endpoint=report_narrative_endpoint,
+            report_narrative_timeout_seconds=report_narrative_timeout_seconds,
+            report_narrative_service_token=report_narrative_service_token,
             session_ttl_seconds=session_ttl_seconds,
             verification_token_ttl_seconds=verification_token_ttl_seconds,
             reset_token_ttl_seconds=reset_token_ttl_seconds,

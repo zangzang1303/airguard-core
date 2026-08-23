@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -153,7 +153,7 @@ class AuthService:
                         400,
                     )
 
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 if token_record["expires_at"] < now:
                     raise ServiceError(
                         "verification_token_expired",
@@ -296,7 +296,7 @@ class AuthService:
                     )
                     raise ServiceError("invalid_credentials", "Email hoặc mật khẩu không chính xác.", 401)
 
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 if user.get("locked_until") and user["locked_until"] > now:
                     remaining_mins = max(1, int((user["locked_until"] - now).total_seconds() // 60))
                     raise ServiceError(
@@ -429,7 +429,7 @@ class AuthService:
                 if not record or record["revoked_at"] is not None:
                     raise ServiceError("unauthenticated", "Phiên làm việc không tồn tại hoặc đã kết thúc.", 401)
 
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 if record["expires_at"] < now:
                     raise ServiceError("session_expired", "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.", 401)
 
@@ -582,7 +582,7 @@ class AuthService:
                         400,
                     )
 
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 if token_record["expires_at"] < now:
                     raise ServiceError(
                         "reset_token_expired",
@@ -890,7 +890,7 @@ class AuthService:
                             "UPDATE users SET email_verified_at = NOW() WHERE user_id = %s",
                             (user["user_id"],),
                         )
-                        user["email_verified_at"] = datetime.now(timezone.utc)
+                        user["email_verified_at"] = datetime.now(UTC)
 
                 # Issue valid session
                 raw_session_token = generate_token()

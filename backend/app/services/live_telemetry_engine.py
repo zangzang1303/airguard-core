@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import math
-import random
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from .air_quality import pm25_aqi, aqi_category
+from .air_quality import aqi_category, pm25_aqi
 
 
 def pm25_level(pm25: float | None) -> str | None:
@@ -96,7 +95,7 @@ class LiveTelemetryEngine:
 
     def _bootstrap_history(self) -> None:
         """Seed rolling 72-hour realistic history for each station."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for s in self.STATION_DEFINITIONS:
             st_id = s["station_id"]
             history_list = []
@@ -157,7 +156,7 @@ class LiveTelemetryEngine:
 
     def tick(self) -> None:
         """Advance live sensor measurements."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for s in self.STATION_DEFINITIONS:
             st_id = s["station_id"]
             m = self._calculate_measurement_at(s, now)
@@ -167,7 +166,7 @@ class LiveTelemetryEngine:
 
     def get_current_stations(self) -> list[dict[str, Any]]:
         self.tick()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = []
         for s in self.STATION_DEFINITIONS:
             st_id = s["station_id"]
@@ -184,7 +183,7 @@ class LiveTelemetryEngine:
 
     def get_history(self, station_id: str, hours: int = 24) -> list[dict[str, Any]]:
         all_pts = self._history.get(station_id, [])
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff = now - timedelta(hours=hours)
         filtered = [p for p in all_pts if datetime.fromisoformat(p["measured_at"].replace("Z", "+00:00")) >= cutoff]
         return filtered if filtered else all_pts[-min(len(all_pts), hours * 2):]
@@ -207,14 +206,14 @@ class LiveTelemetryEngine:
     def get_latest(self, station_id: str) -> dict[str, Any]:
         if self._history.get(station_id):
             return self._history[station_id][-1]
-        return self._calculate_measurement_at(self.STATION_DEFINITIONS[0], datetime.now(timezone.utc))
+        return self._calculate_measurement_at(self.STATION_DEFINITIONS[0], datetime.now(UTC))
 
     def get_all_histories(self, hours: int = 48) -> dict[str, list[dict[str, Any]]]:
         return {s["station_id"]: self.get_history(s["station_id"], hours=hours) for s in self.STATION_DEFINITIONS}
 
     def update_station(self, station_id: str, overrides: dict[str, Any]) -> None:
         """Testing & simulation override helper."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         curr = self.get_latest(station_id)
         updated = {**curr, **overrides, "station_id": station_id, "measured_at": now.isoformat(), "timestamp": now.isoformat()}
         self._history[station_id].append(updated)

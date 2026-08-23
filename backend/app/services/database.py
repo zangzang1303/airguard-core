@@ -1,8 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Iterator
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
@@ -26,6 +27,7 @@ class Database:
             raise ServiceError("database_not_configured", "DATABASE_URL is not configured", 503)
         try:
             conn = psycopg2.connect(self.database_url)
+            conn.set_client_encoding("UTF8")
         except psycopg2.Error as exc:
             raise ServiceError("database_unavailable", "PostgreSQL is unavailable", 503) from exc
         try:

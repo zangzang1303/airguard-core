@@ -353,6 +353,18 @@ def test_user_profile_accepts_backend_user_group_field():
     assert profile.group == "sensitive"
 
     with pytest.raises(ValidationError):
+        StationMeasurement.model_validate(
+            {
+                "station_id": "S01",
+                "pm25": 22.4,
+                "status": "online",
+                "is_stale": False,
+                "updated_at": "2026-08-04T09:00:00+07:00",
+                "source": "official_monitor",
+            }
+        )
+
+    with pytest.raises(ValidationError):
         WeatherContext.model_validate(
             {
                 "area_id": "vinuni-ocean-park",
@@ -364,7 +376,19 @@ def test_user_profile_accepts_backend_user_group_field():
 
     with pytest.raises(ValidationError):
         Pm25Forecast.model_validate(
-            {"station_id": "S01", "items": [{"pm25": 25.0, "source": "fixture_forecast"}]}
+            {
+                "station_id": "S01",
+                "is_stale": False,
+                "items": [{"pm25": 25.0, "source": "fixture_forecast"}],
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        Pm25Forecast.model_validate(
+            {
+                "station_id": "S01",
+                "items": [{"hour": 1, "pm25": 25.0, "source": "fixture_forecast"}],
+            }
         )
 
 
@@ -499,6 +523,12 @@ async def test_create_proposal_maps_backend_payload_header_and_response_id():
             "evidence": {
                 "items": [
                     {
+                        "aqi": None,
+                        "aqi_category": None,
+                        "pm25": None,
+                        "co2": None,
+                        "noise_db": None,
+                        "temperature": None,
                         "source_tool": "get_current_pm25",
                         "evidence_id": None,
                         "station_id": "S02",
@@ -516,6 +546,12 @@ async def test_create_proposal_maps_backend_payload_header_and_response_id():
                         "severity": None,
                     },
                     {
+                        "aqi": None,
+                        "aqi_category": None,
+                        "pm25": None,
+                        "co2": None,
+                        "noise_db": None,
+                        "temperature": None,
                         "source_tool": "get_active_alerts",
                         "evidence_id": "alert-S02-001",
                         "station_id": "S02",

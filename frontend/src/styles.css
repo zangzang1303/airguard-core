@@ -304,20 +304,22 @@ body, html {
 .top-left-controls-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   align-items: flex-start;
   pointer-events: auto;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 /* Connection Status Badge Bar */
 .connection-status-badge-bar {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: var(--bg-card-glass);
   backdrop-filter: blur(12px);
-  padding: 6px 12px;
+  -webkit-backdrop-filter: blur(12px);
+  padding: 5px 12px;
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-subtle);
@@ -325,16 +327,42 @@ body, html {
   color: var(--text-main);
   user-select: none;
   white-space: nowrap;
+  max-width: 100%;
+  transition: all 0.2s ease;
 }
 
 .connection-status-badge-bar .status-indicator {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
+.connection-status-badge-bar .status-connected-icon,
+.connection-status-badge-bar .status-connected-text {
+  color: #10b981;
+}
+
+.connection-status-badge-bar .status-updating-icon,
+.connection-status-badge-bar .status-updating-text {
+  color: #3b82f6;
+}
+
+.connection-status-badge-bar .status-disconnected-icon,
+.connection-status-badge-bar .status-disconnected-text {
+  color: #ef4444;
+}
+
+.connection-status-badge-bar .status-text-full {
+  display: inline;
+}
+
+.connection-status-badge-bar .status-text-short {
+  display: none;
+}
+
 .connection-status-badge-bar .status-divider {
   color: var(--border-medium);
+  margin: 0 1px;
 }
 
 .connection-status-badge-bar .status-time {
@@ -348,34 +376,52 @@ body, html {
   cursor: pointer;
   color: var(--primary);
   padding: 2px 4px;
-  display: flex;
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   border-radius: 4px;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
 .connection-status-badge-bar .status-refresh-btn:hover {
   background: var(--primary-soft);
+  transform: scale(1.05);
+}
+
+.connection-status-badge-bar .status-refresh-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
 }
 
 /* Brand Badge */
 .top-brand-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
   background: var(--bg-card-glass);
   backdrop-filter: blur(12px);
-  padding: 8px 14px 8px 10px;
+  -webkit-backdrop-filter: blur(12px);
+  padding: 6px 14px 6px 8px;
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-md);
   border: 1px solid var(--border-subtle);
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   user-select: none;
+  max-width: 100%;
 }
 
 .top-brand-badge:hover {
   transform: translateY(-1px);
+  border-color: var(--primary);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.top-brand-badge:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .brand-logo-circle {
@@ -387,6 +433,7 @@ body, html {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .brand-text-block {
@@ -400,12 +447,14 @@ body, html {
   letter-spacing: -0.2px;
   color: var(--text-main);
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .brand-location {
   font-size: 11px;
   color: var(--primary);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 
@@ -1500,6 +1549,13 @@ body, html {
   background: #ffffff;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.env-metric-item.active {
+  border-color: var(--primary, #0ea5e9);
+  background: #f8fafc;
+  box-shadow: 0 0 0 1.5px var(--primary, #0ea5e9);
 }
 
 .metric-icon-wrap {
@@ -1511,10 +1567,12 @@ body, html {
   justify-content: center;
 }
 
+.metric-icon-wrap.aqi { background: #dcfce7; color: #16a34a; }
 .metric-icon-wrap.pm25 { background: #ffedd5; color: #ea580c; }
 .metric-icon-wrap.co2 { background: #cffafe; color: #0891b2; }
 .metric-icon-wrap.noise { background: #ede9fe; color: #7c3aed; }
 .metric-icon-wrap.temp { background: #fce7f3; color: #db2777; }
+.metric-icon-wrap.humidity { background: #e0f2fe; color: #0284c7; }
 
 .metric-info {
   display: flex;
@@ -3608,7 +3666,72 @@ body, html {
     top: 10px;
     left: 10px;
     right: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 10px;
+  }
+
+  .top-left-controls-group {
+    order: 1;
+    display: flex;
+    flex-direction: column;
     gap: 6px;
+    align-items: flex-start;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: calc(100% - 130px);
+  }
+
+  .top-actions-right {
+    order: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .search-omnibox-container {
+    order: 3;
+    width: 100%;
+    max-width: 100%;
+    flex: 1 1 100%;
+    margin-top: 2px;
+  }
+
+  .search-omnibox-bar {
+    height: 44px;
+    padding: 0 12px;
+  }
+
+  .top-brand-badge {
+    padding: 5px 12px 5px 6px;
+    gap: 8px;
+  }
+
+  .brand-logo-circle {
+    width: 30px;
+    height: 30px;
+  }
+
+  .brand-name {
+    font-size: 13px;
+  }
+
+  .brand-location {
+    font-size: 10px;
+  }
+
+  .connection-status-badge-bar {
+    padding: 4px 10px;
+    font-size: 0.73rem;
+    gap: 6px;
+  }
+
+  .top-ai-btn .btn-text,
+  .top-manager-btn .btn-text {
+    display: none;
   }
 
   .manager-station-status-bar {
@@ -3631,15 +3754,6 @@ body, html {
   .analysis-data-state { flex-wrap: wrap; }
   .analysis-data-state button { margin-left: 0; }
 
-  .top-brand-badge .brand-text-block {
-    display: none;
-  }
-
-  .top-ai-btn .btn-text,
-  .top-manager-btn .btn-text {
-    display: none;
-  }
-
   .bottom-action-dock-bar {
     bottom: 12px;
     width: calc(100vw - 20px);
@@ -3655,44 +3769,6 @@ body, html {
 
   .dock-label {
     font-size: 9px;
-  }
-
-  .contextual-drawer,
-  .contextual-drawer.wide-analysis-drawer {
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100vw;
-    height: 75vh;
-    border-radius: 20px 20px 0 0;
-    border-bottom: none;
-  }
-
-  .floating-bottom-sheet {
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100vw;
-    max-width: 100vw;
-    border-radius: 20px 20px 0 0;
-    transform: none;
-  }
-
-  .top-brand-badge .brand-text-block {
-    display: none;
-  }
-
-  .top-ai-btn .btn-text,
-  .top-manager-btn .btn-text {
-    display: none;
-  }
-
-  .bottom-action-dock-bar {
-    bottom: 12px;
-    width: calc(100vw - 20px);
-    justify-content: space-around;
-    padding: 6px 4px;
   }
 
   .map-timeline-floating-dock {
@@ -3702,19 +3778,9 @@ body, html {
 
   .spatial-heatmap-metadata-card,
   .map-super-app-root.is-manager .spatial-heatmap-metadata-card {
-    top: 108px;
+    top: 124px;
     left: 10px;
     width: min(340px, calc(100vw - 20px));
-  }
-
-  .dock-action-btn {
-    padding: 8px 6px;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .dock-label {
-    font-size: 9px;
   }
 
   .contextual-drawer,
@@ -3757,6 +3823,75 @@ body, html {
     left: 10px;
     right: 10px;
     width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .connection-status-badge-bar .status-text-full {
+    display: none;
+  }
+  .connection-status-badge-bar .status-text-short {
+    display: inline;
+  }
+  .connection-status-badge-bar .time-prefix {
+    display: none;
+  }
+  .ai-overlay-clear-floating-btn {
+    padding: 3px 10px;
+    font-size: 0.72rem;
+    min-height: 30px;
+  }
+  .top-left-controls-group {
+    max-width: calc(100% - 120px);
+  }
+  .top-icon-btn,
+  .top-ai-btn,
+  .top-manager-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 360px) {
+  .top-floating-bar-header {
+    left: 6px;
+    right: 6px;
+    top: 8px;
+    gap: 6px;
+  }
+  .top-brand-badge {
+    padding: 4px 8px 4px 5px;
+    gap: 6px;
+  }
+  .brand-logo-circle {
+    width: 26px;
+    height: 26px;
+  }
+  .brand-name {
+    font-size: 12px;
+  }
+  .brand-location {
+    display: none;
+  }
+  .connection-status-badge-bar {
+    padding: 3px 8px;
+    font-size: 0.7rem;
+    gap: 4px;
+  }
+  .ai-overlay-clear-floating-btn {
+    padding: 3px 8px;
+    font-size: 0.68rem;
+    min-height: 28px;
+    gap: 4px;
+  }
+  .top-left-controls-group {
+    max-width: calc(100% - 110px);
+  }
+  .top-icon-btn,
+  .top-ai-btn,
+  .top-manager-btn {
+    width: 36px;
+    height: 36px;
   }
 }
 
@@ -4174,8 +4309,33 @@ body, html {
 
 .report-header-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.report-action-btn,
+.report-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.report-action-btn:disabled,
+.report-refresh-btn:disabled,
+.report-export-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.report-export-select {
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.82rem;
 }
 
 .btn-disabled {
@@ -4215,6 +4375,12 @@ body, html {
   flex-wrap: wrap;
 }
 
+.report-simulator-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .report-tabs {
   display: flex;
   gap: 8px;
@@ -4246,6 +4412,13 @@ body, html {
   border: 1px solid #cbd5e1;
   font-size: 0.85rem;
   background: #ffffff;
+}
+
+.report-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .report-content-card {
@@ -4284,6 +4457,47 @@ body, html {
   border-radius: 20px;
 }
 
+.report-status-generating {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.report-status-completed {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.report-status-failed {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.report-loading-state,
+.report-empty-state {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #64748b;
+  text-align: center;
+}
+
+.report-error-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
 .report-document-header h3 {
   font-size: 1.25rem;
   font-weight: 800;
@@ -4296,6 +4510,34 @@ body, html {
   color: #64748b;
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.report-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.report-kpi-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.report-kpi-grid span {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.report-kpi-grid strong {
+  color: #0f172a;
+  font-size: 1.15rem;
 }
 
 .report-section-block {
@@ -4343,6 +4585,44 @@ body, html {
   padding-top: 14px;
   border-top: 1px dashed #e2e8f0;
   color: #64748b;
+}
+
+.report-effectiveness-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 0.82rem;
+}
+
+.report-narrative {
+  padding: 14px;
+  border-left: 3px solid #3b82f6;
+  border-radius: 0 8px 8px 0;
+  background: #f8fafc;
+  color: #334155;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .report-header-actions,
+  .report-filter-group {
+    width: 100%;
+  }
+
+  .report-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-content-card {
+    padding: 16px;
+  }
 }
 
 /* Quick Approval Action Card */
@@ -4560,6 +4840,48 @@ body, html {
   height: 8px;
   background: rgba(255, 255, 255, 0.8);
   box-shadow: 0 0 4px rgba(16, 185, 129, 0.8);
+}
+
+/* Proactive AI Overlay Clear Button (in Top Left Controls Group) */
+.ai-overlay-clear-floating-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-pill);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), 0 0 12px rgba(16, 185, 129, 0.25);
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  max-width: 100%;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ai-overlay-clear-floating-btn:hover {
+  background: rgba(15, 23, 42, 1);
+  border-color: rgba(16, 185, 129, 0.8);
+  color: #34d399;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 16px rgba(16, 185, 129, 0.45);
+}
+
+.ai-overlay-clear-floating-btn:active {
+  transform: translateY(0);
+}
+
+.ai-overlay-clear-floating-btn:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
 }
 
 /* Glassmorphic Floating HUD on Map */

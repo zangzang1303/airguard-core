@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { X, Activity, Wind, Droplets, Volume2, Thermometer, Sparkles, BarChart2, Clock, MapPin, Database } from "lucide-react";
+import { X, Activity, Wind, Droplets, Volume2, Thermometer, Cloud, Sparkles, BarChart2, Clock, MapPin, Database } from "lucide-react";
 import { api } from "../../api/client";
 import { HistoryPoint, Station } from "../../types";
-import { PlacePOI } from "../../types/superApp";
-import { getAqiColorHex, getAqiCategoryLabel } from "../map/SensorMarkers";
+import { EnvironmentalLayerType, PlacePOI } from "../../types/superApp";
 import { DataQualityBadge } from "../../components/common/DataQualityBadge";
 import { formatVnDateTime } from "../../utils/datetime";
+import { formatMetricValue, getMetricPresentation } from "../../utils/metricPresentation";
 
 interface StationPoiDrawerProps {
   station: Station | null;
   poi: PlacePOI | null;
+  activeEnvironmentalLayer?: EnvironmentalLayerType;
   onClose: () => void;
   onOpenAnalysis: (stationId: string) => void;
   onOpenForecast: (stationId: string) => void;
@@ -19,6 +20,7 @@ interface StationPoiDrawerProps {
 export const StationPoiDrawer: React.FC<StationPoiDrawerProps> = ({
   station,
   poi,
+  activeEnvironmentalLayer = "aqi",
   onClose,
   onOpenAnalysis,
   onOpenForecast,
@@ -53,17 +55,44 @@ export const StationPoiDrawer: React.FC<StationPoiDrawerProps> = ({
 
   const title = station ? station.station_name : poi?.name || "Chi tiết vị trí";
   const subtitle = station ? `Cảm biến ${station.station_id} · Ocean Park 1` : poi?.subdivision || "Vinhomes Ocean Park 1";
-  const hasUsableCurrentData = station?.status === "online" && !station.is_stale;
-  const aqiVal = hasUsableCurrentData ? station.aqi : null;
-  const pm25Val = hasUsableCurrentData ? station.pm25 : null;
-  const co2Val = hasUsableCurrentData ? station.co2 : null;
-  const noiseVal = hasUsableCurrentData ? station.noise_db : null;
-  const tempVal = hasUsableCurrentData ? station.temperature : null;
-  const humidityVal = hasUsableCurrentData ? latestHistoryPoint?.humidity ?? station.humidity ?? null : null;
+  const hasUsableCurrentData = Boolean(station && station.status === "online" && !station.is_stale);
+
+  const aqiVal = hasUsableCurrentData && station ? station.aqi ?? null : null;
+  const pm25Val = hasUsableCurrentData && station ? station.pm25 ?? null : null;
+  const co2Val = hasUsableCurrentData && station ? station.co2 ?? null : null;
+  const noiseVal = hasUsableCurrentData && station ? station.noise_db ?? null : null;
+  const tempVal = hasUsableCurrentData && station ? station.temperature ?? null : null;
+  const humidityVal = hasUsableCurrentData && station
+    ? (latestHistoryPoint?.humidity ?? station.humidity ?? null)
+    : null;
+
   const observedAt = station?.updated_at;
   const sourceLabel = latestHistoryPoint?.source ?? station?.source ?? "Không khả dụng";
-  const { label: categoryLabel } = getAqiCategoryLabel(aqiVal);
-  const colorHex = getAqiColorHex(aqiVal);
+
+  // Dynamic Hero presentation based on activeEnvironmentalLayer
+  const presentation = getMetricPresentation(activeEnvironmentalLayer);
+  const HeroIcon = presentation.icon;
+
+  const rawHeroVal = activeEnvironmentalLayer === "humidity"
+    ? humidityVal
+    : (hasUsableCurrentData && station ? presentation.extractValue(station) : null);
+
+  const heroDisplayVal = hasUsableCurrentData && rawHeroVal !== null
+    ? presentation.formatValue(rawHeroVal)
+    : "—";
+
+  const heroColor = !hasUsableCurrentData
+    ? (station?.is_stale || station?.status === "stale" ? "#f59e0b" : "#94a3b8")
+    : rawHeroVal !== null
+    ? presentation.getColor(rawHeroVal)
+    : "#94a3b8";
+
+  const heroLevel = rawHeroVal !== null ? presentation.getLevel(rawHeroVal) : null;
+  const heroCategoryLabel =
+    heroLevel?.label ||
+    (!hasUsableCurrentData
+      ? (station?.is_stale || station?.status === "stale" ? "Dữ liệu cũ" : "Không khả dụng")
+      : "Chưa có dữ liệu");
 
   return (
     <aside className="contextual-drawer right-drawer station-poi-drawer">
@@ -82,20 +111,22 @@ export const StationPoiDrawer: React.FC<StationPoiDrawerProps> = ({
       </div>
 
       <div className="drawer-scroll-body">
-        {/* Main AQI Hero Score Card */}
-        <div className="station-aqi-hero-card" style={{ "--hero-color": colorHex } as React.CSSProperties}>
+        {/* Main Environmental Hero Score Card (Dynamic according to activeEnvironmentalLayer) */}
+        <div className="station-aqi-hero-card" style={{ "--hero-color": heroColor } as React.CSSProperties}>
           <div className="hero-score-column">
-            <span className="hero-label">Chất lượng không khí (AQI)</span>
+            <span className="hero-label">{presentation.label}</span>
             <div className="hero-number-wrap">
-              <span className="hero-number">{aqiVal ?? "—"}</span>
-              <span className="hero-unit">AQI</span>
+              <span className="hero-number">{heroDisplayVal}</span>
+              {presentation.unit && heroDisplayVal !== "—" && (
+                <span className="hero-unit">{presentation.unit}</span>
+              )}
             </div>
-            <span className="hero-category-pill" style={{ backgroundColor: colorHex }}>
-              {categoryLabel}
+            <span className="hero-category-pill" style={{ backgroundColor: heroColor }}>
+              {heroCategoryLabel}
             </span>
           </div>
           <div className="hero-status-indicator">
-            <Activity size={32} className="indicator-icon" />
+            <HeroIcon size={32} className="indicator-icon" />
           </div>
         </div>
 
@@ -117,60 +148,78 @@ export const StationPoiDrawer: React.FC<StationPoiDrawerProps> = ({
           </div>
         )}
 
-        {/* 4 Environmental KPI Metric Grid */}
-        <div className="env-metrics-grid">
-          <div className="env-metric-item">
-            <div className="metric-icon-wrap pm25">
-              <Wind size={16} />
+        {/* Environmental KPI Metric Grid */}
+        {station && (
+          <div className="env-metrics-grid">
+            {/* AQI */}
+            <div className={`env-metric-item ${activeEnvironmentalLayer === "aqi" ? "active" : ""}`}>
+              <div className="metric-icon-wrap aqi">
+                <Activity size={16} />
+              </div>
+              <div className="metric-info">
+                <span className="metric-name">AQI</span>
+                <span className="metric-val">{formatMetricValue("aqi", aqiVal)} <small>AQI</small></span>
+              </div>
             </div>
-            <div className="metric-info">
-              <span className="metric-name">PM2.5</span>
-              <span className="metric-val">{pm25Val ?? "—"} <small>µg/m³</small></span>
-            </div>
-          </div>
 
-          <div className="env-metric-item">
-            <div className="metric-icon-wrap humidity">
-              <Droplets size={16} />
+            {/* PM2.5 */}
+            <div className={`env-metric-item ${activeEnvironmentalLayer === "pm25" ? "active" : ""}`}>
+              <div className="metric-icon-wrap pm25">
+                <Wind size={16} />
+              </div>
+              <div className="metric-info">
+                <span className="metric-name">PM2.5</span>
+                <span className="metric-val">{formatMetricValue("pm25", pm25Val)} <small>µg/m³</small></span>
+              </div>
             </div>
-            <div className="metric-info">
-              <span className="metric-name">Độ ẩm</span>
-              <span className="metric-val">
-                {historyLoading ? "Đang tải" : humidityVal ?? "—"} <small>{humidityVal != null ? "%" : ""}</small>
-              </span>
-            </div>
-          </div>
 
-          <div className="env-metric-item">
-            <div className="metric-icon-wrap co2">
-              <Droplets size={16} />
+            {/* Humidity */}
+            <div className={`env-metric-item ${activeEnvironmentalLayer === "humidity" ? "active" : ""}`}>
+              <div className="metric-icon-wrap humidity">
+                <Droplets size={16} />
+              </div>
+              <div className="metric-info">
+                <span className="metric-name">Độ ẩm</span>
+                <span className="metric-val">
+                  {historyLoading ? "Đang tải" : formatMetricValue("humidity", humidityVal)} <small>{humidityVal != null ? "%" : ""}</small>
+                </span>
+              </div>
             </div>
-            <div className="metric-info">
-              <span className="metric-name">Khí CO₂</span>
-              <span className="metric-val">{co2Val ?? "—"} <small>ppm</small></span>
-            </div>
-          </div>
 
-          <div className="env-metric-item">
-            <div className="metric-icon-wrap noise">
-              <Volume2 size={16} />
+            {/* CO2 */}
+            <div className={`env-metric-item ${activeEnvironmentalLayer === "co2" ? "active" : ""}`}>
+              <div className="metric-icon-wrap co2">
+                <Cloud size={16} />
+              </div>
+              <div className="metric-info">
+                <span className="metric-name">Khí CO₂</span>
+                <span className="metric-val">{formatMetricValue("co2", co2Val)} <small>ppm</small></span>
+              </div>
             </div>
-            <div className="metric-info">
-              <span className="metric-name">Độ ồn</span>
-              <span className="metric-val">{noiseVal ?? "—"} <small>dB</small></span>
-            </div>
-          </div>
 
-          <div className="env-metric-item">
-            <div className="metric-icon-wrap temp">
-              <Thermometer size={16} />
+            {/* Noise */}
+            <div className={`env-metric-item ${activeEnvironmentalLayer === "noise_db" ? "active" : ""}`}>
+              <div className="metric-icon-wrap noise">
+                <Volume2 size={16} />
+              </div>
+              <div className="metric-info">
+                <span className="metric-name">Độ ồn</span>
+                <span className="metric-val">{formatMetricValue("noise_db", noiseVal)} <small>dB</small></span>
+              </div>
             </div>
-            <div className="metric-info">
-              <span className="metric-name">Nhiệt độ</span>
-              <span className="metric-val">{tempVal ?? "—"} <small>°C</small></span>
+
+            {/* Temperature */}
+            <div className={`env-metric-item ${activeEnvironmentalLayer === "temperature" ? "active" : ""}`}>
+              <div className="metric-icon-wrap temp">
+                <Thermometer size={16} />
+              </div>
+              <div className="metric-info">
+                <span className="metric-name">Nhiệt độ</span>
+                <span className="metric-val">{formatMetricValue("temperature", tempVal)} <small>°C</small></span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* AirGuard Grounded Information Notice */}
         <div className="airguard-insight-box">
@@ -221,4 +270,3 @@ export const StationPoiDrawer: React.FC<StationPoiDrawerProps> = ({
     </aside>
   );
 };
-

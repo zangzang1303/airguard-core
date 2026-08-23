@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import secrets
+
 from fastapi import Request
+
 from .database import ServiceError
 
 CSRF_COOKIE_NAME = "airguard_csrf"

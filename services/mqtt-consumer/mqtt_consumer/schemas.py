@@ -57,6 +57,7 @@ class DeviceStatusPayload(BaseModel):
     status: Literal["succeeded", "rejected", "failed", "duplicate"]
     timestamp: datetime
     is_simulated: Literal[True]
+    device_state: Literal["RUNNING_BOOST", "AIR_PURIFIER_ON", "ECO_MODE"] | None = None
     reason: str | None = Field(default=None, max_length=200)
 
     @field_validator("timestamp")

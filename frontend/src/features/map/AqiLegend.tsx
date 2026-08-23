@@ -206,11 +206,15 @@ export const SimulationDisclaimer: React.FC<{ text?: string }> = ({
   text = "* Dữ liệu mô phỏng cho MVP · Không phải quan trắc chính thức.",
 }) => <div className="aqi-disclaimer-text">{text}</div>;
 
-export const AqiLegend: React.FC<{ showStationStatus?: boolean }> = ({ showStationStatus = true }) => {
+export const AqiLegend: React.FC<{
+  showStationStatus?: boolean;
+  metric?: string;
+}> = ({ showStationStatus = true, metric = "aqi" }) => {
+  const scale = getMetricScale(metric);
   return (
     <div className="aqi-legend-card">
-      <div className="aqi-legend-header">Chú giải AQI & Trạng thái trạm</div>
-      <AqiColorScale />
+      <div className="aqi-legend-header">Chú giải {scale.label} & Trạng thái trạm</div>
+      <MetricColorScale metric={metric} />
       {showStationStatus && <StationStatusLegend />}
       <SimulationDisclaimer />
     </div>

@@ -9,6 +9,7 @@ export type ScreenType =
   | "admin-regions"
   | "admin-devices"
   | "admin-settings"
+  | "admin-coming-soon"
   | "station-detail"
   | "agent"
   | "alerts"
@@ -79,7 +80,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>("dashboard");
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>("login");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
@@ -156,6 +157,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const data = await api.getMe();
         if (mounted && data.user) {
           applyUser(data.user);
+          setCurrentScreen("dashboard");
         }
       } catch {
         if (mounted) {
@@ -287,7 +289,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const navigateTo = (screen: ScreenType, params?: { stationId?: string }) => {
-    const publicScreens: ScreenType[] = ["login", "register", "verify-email", "forgot-password", "reset-password", "dashboard", "station-detail", "alerts"];
+    const publicScreens: ScreenType[] = [
+      "login",
+      "register",
+      "verify-email",
+      "forgot-password",
+      "reset-password",
+      "admin-coming-soon",
+      "dashboard",
+      "station-detail",
+      "alerts",
+    ];
     if (!isAuthenticated && !publicScreens.includes(screen)) {
       setCurrentScreen("login");
       return;

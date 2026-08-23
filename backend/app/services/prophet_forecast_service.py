@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from .air_quality import pm25_aqi, aqi_category
+from .air_quality import pm25_aqi
 
 
 class ProphetForecastService:
@@ -36,7 +36,7 @@ class ProphetForecastService:
         if metric not in self.METRIC_RANGES:
             metric = "pm25"
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # 1. Extract and sanitize historical series
         extracted = []

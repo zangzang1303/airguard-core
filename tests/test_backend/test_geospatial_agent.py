@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import pytest
-from datetime import datetime, timezone
-
-from backend.app.services.geospatial_agent_service import GeospatialAgentService
-from backend.app.services.temporal_resolver import TemporalResolver
 from backend.app.services.environmental_scoring import EnvironmentalScoringEngine
-from backend.app.services.spatial_registry import SpatialRegistry
+from backend.app.services.geospatial_agent_service import GeospatialAgentService
 from backend.app.services.live_telemetry_engine import live_engine
+from backend.app.services.temporal_resolver import TemporalResolver
 
 
 def test_temporal_resolver_patterns():
@@ -156,7 +152,7 @@ def test_personalized_route_from_user_location_and_target_distance():
     assert res["intent"] == "recommend_personalized_running_route"
     assert "5" in str(res["answer"]["summary"]) or "5" in str(res["response"])
     assert res["personalized_route"]["distance_km"] >= 4.0
-    
+
     # Must have highlight_route starting at user's coordinate
     route_action = next(a for a in res["map_actions"] if a["type"] == "highlight_route")
     first_coord = route_action["coordinates"][0]

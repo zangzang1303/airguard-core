@@ -1,11 +1,11 @@
 -- Demo-only reference data. This script is idempotent and must run after schema.sql.
 INSERT INTO stations (station_id, station_name, location_type, latitude, longitude, description, active)
 VALUES
-    ('S01', 'Trục Đa Tốn phía Tây Bắc', 'northwest_road', 21.0008, 105.9428, 'Điểm mô phỏng trên trục Đa Tốn, phụ khu vực cửa ngõ Tây Bắc Ocean Park 1', TRUE),
+    ('S01', 'Trục Đa Tốn phía Tây Bắc', 'northwest_road', 21.0008, 105.9428, 'Điểm mô phỏng trên trục Đa Tốn, phủ khu vực cửa ngõ Tây Bắc Ocean Park 1', TRUE),
     ('S02', 'Khu căn hộ Sapphire', 'high_rise_residential', 20.9975, 105.9430, 'Điểm mô phỏng trong cụm căn hộ phía Tây Bắc, đại diện khu dân cư mật độ cao', TRUE),
     ('S03', 'Ven Hồ Ngọc Trai', 'lakeside_residential', 20.9953, 105.9500, 'Điểm mô phỏng ven Hồ Ngọc Trai và khu Ngọc Trai, đại diện không gian ven hồ trung tâm', TRUE),
     ('S04', 'Khuôn viên VinUni', 'university_campus', 20.9898, 105.9467, 'Điểm mô phỏng trong khuôn viên VinUni ở phía Tây Nam phạm vi quan sát', TRUE),
-    ('S05', 'Khu Hải Âu phía Đông Nam', 'southeast_residential', 20.9910, 105.9560, 'Điểm mô phỏng tại khu Hải Âu, phụ vùng dân cư phía Đông Nam Ocean Park 1', TRUE)
+    ('S05', 'Khu Hải Âu phía Đông Nam', 'southeast_residential', 20.9910, 105.9560, 'Điểm mô phỏng tại khu Hải Âu, phủ vùng dân cư phía Đông Nam Ocean Park 1', TRUE)
 ON CONFLICT (station_id) DO UPDATE SET
     station_name = EXCLUDED.station_name,
     location_type = EXCLUDED.location_type,
@@ -50,10 +50,10 @@ VALUES
     ('SEED-S05-03', 'S05', NOW(), 35.9, 590, 54.0, 30.8, 64, 2.4, 140, 0, 'simulator', 'valid')
 ON CONFLICT (message_id) DO NOTHING;
 
--- Seed initial alert
-INSERT INTO alerts (alert_id, station_id, alert_type, severity, title, description, observed_value, threshold_value, unit, recommendation, status, rule_version)
+-- Seed initial alert. Unit and recommendation are enriched by the backend rule registry.
+INSERT INTO alerts (alert_id, station_id, alert_type, severity, title, description, observed_value, threshold_value, status, rule_version)
 VALUES
-    ('ALT-001', 'S03', 'pm25_threshold', 'warning', 'PM2.5 vượt ngưỡng khuyến nghị', 'Nồng độ PM2.5 tại Ven Hồ Ngọc Trai đạt 66.1 µg/m³ vượt ngưỡng 50 µg/m³', 66.1, 50.0, 'µg/m³', 'Theo dõi diễn biến chất lượng không khí và cân nhắc kích hoạt hệ thống lọc khí.', 'active', 'pm25-threshold-v1')
+    ('00000000-0000-0000-0000-00000000a001', 'S03', 'pm25_threshold', 'warning', 'PM2.5 vượt ngưỡng khuyến nghị', 'Nồng độ PM2.5 tại Ven Hồ Ngọc Trai đạt 66.1 µg/m³ vượt ngưỡng 50 µg/m³', 66.1, 50.0, 'active', 'pm25-threshold-v1')
 ON CONFLICT (alert_id) DO NOTHING;
 
 INSERT INTO users (

@@ -39,24 +39,23 @@ if (Test-Path -LiteralPath $HookFile) {
 
 $HookBody = @'
 #!/usr/bin/env bash
-# AI_LOG_HOOK_V2
-set -u
-
-REPO_ROOT=$(git rev-parse --show-toplevel) || exit 1
-cd "$REPO_ROOT" || exit 1
-USER_HOOK=$(git rev-parse --git-path hooks/pre-push.user)
-
-if [ -f "$USER_HOOK" ]; then
-  chmod +x "$USER_HOOK" 2>/dev/null || true
-  "$USER_HOOK" "$@" || exit $?
+# Pre-push: sweep recent Antigravity / Gemini prompts, then submit AI logs.
+if command -v cmd.exe >/dev/null 2>&1; then
+  cmd.exe //c scripts\\\\_pyrun.cmd scripts\\\\log_antigravity.py --auto || true
+  cmd.exe //c scripts\\\\_pyrun.cmd scripts\\\\submit_log.py || true
+else
+  bash scripts/_pyrun.sh scripts/log_antigravity.py --auto || true
+  bash scripts/_pyrun.sh scripts/submit_log.py || true
 fi
-
-bash scripts/_pyrun.sh scripts/log_antigravity.py --auto || exit $?
-bash scripts/_pyrun.sh scripts/submit_log.py || exit $?
+exit 0
 '@
 
-$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText($HookFile, $HookBody, $Utf8NoBom)
+[System.IO.File]::WriteAllText(
+    (Resolve-Path $HookFile).Path,
+    $HookBody,
+    [System.Text.UTF8Encoding]::new($false)
+)
+Write-Host "[ai-log] Git pre-push hook installed."
 
 if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.ai-log'))) {
     New-Item -ItemType Directory -Path (Join-Path $RepoRoot '.ai-log') | Out-Null

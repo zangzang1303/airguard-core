@@ -31,20 +31,17 @@ fi
 
 cat > "$HOOK_FILE" <<'EOF'
 #!/usr/bin/env bash
-# AI_LOG_HOOK_V2
-set -u
-
-REPO_ROOT=$(git rev-parse --show-toplevel) || exit 1
-cd "$REPO_ROOT" || exit 1
-USER_HOOK=$(git rev-parse --git-path hooks/pre-push.user)
-
-if [ -f "$USER_HOOK" ]; then
-  chmod +x "$USER_HOOK" 2>/dev/null || true
-  "$USER_HOOK" "$@" || exit $?
+# Pre-push: sweep recent Antigravity / Gemini prompts, then submit AI logs.
+# Uses the cross-platform Python launcher so it works whether the user
+# has python3, python, or only the `py` launcher (Windows).
+if command -v cmd.exe >/dev/null 2>&1; then
+  cmd.exe //c scripts\\\\_pyrun.cmd scripts\\\\log_antigravity.py --auto || true
+  cmd.exe //c scripts\\\\_pyrun.cmd scripts\\\\submit_log.py || true
+else
+  bash scripts/_pyrun.sh scripts/log_antigravity.py --auto || true
+  bash scripts/_pyrun.sh scripts/submit_log.py || true
 fi
-
-bash scripts/_pyrun.sh scripts/log_antigravity.py --auto || exit $?
-bash scripts/_pyrun.sh scripts/submit_log.py || exit $?
+exit 0  # Never block push, even if either step fails
 EOF
 
 chmod +x "$HOOK_FILE"

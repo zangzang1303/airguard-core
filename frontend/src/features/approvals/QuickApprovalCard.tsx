@@ -34,7 +34,7 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
 
   const [confirmModal, setConfirmModal] = useState<"approve" | "reject" | null>(null);
   const [rejectNote, setRejectNote] = useState<string>("");
-  const [approveNote, setApproveNote] = useState<string>("Manager quick approved from dashboard.");
+  const approveNote = "Manager quick approved from dashboard.";
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -43,6 +43,8 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
   if (!isManagerOrAdmin || !proposal || proposal.status !== "pending") {
     return null;
   }
+
+  const quickApproveIdempotencyKey = `quick-approve-${proposal.proposal_id}-v${proposal.version}`;
 
   const handleApproveClick = () => {
     setErrorMessage(null);
@@ -63,12 +65,34 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
     setErrorMessage(null);
 
     try {
-      const updated = await api.approveProposal(proposal.proposal_id, proposal.version, approveNote, {
-        userId,
-        role: "manager",
-      });
+      const updated = await api.quickApproveProposal(
+        proposal.proposal_id,
+        proposal.version,
+        approveNote,
+        quickApproveIdempotencyKey,
+        {
+          userId,
+          role: "manager",
+        },
+      );
       setConfirmModal(null);
-      setActionSuccessMessage(`Đã phê duyệt đề xuất ${proposal.proposal_id}.`);
+      if (updated.dispatch_status === "succeeded") {
+        setActionSuccessMessage(
+          `Đã phê duyệt đề xuất ${proposal.proposal_id}. Thiết bị đã xác nhận thực thi thành công.`,
+        );
+      } else if (updated.dispatch_status === "queued" || updated.dispatch_status === "pending") {
+        setActionSuccessMessage(
+          `Đã phê duyệt đề xuất ${proposal.proposal_id}. Lệnh đang chờ thiết bị xác nhận; chưa thể kết luận đã thực thi.`,
+        );
+      } else if (updated.dispatch_status === "failed") {
+        setActionSuccessMessage(
+          `Đã phê duyệt đề xuất ${proposal.proposal_id}, nhưng backend báo phát lệnh thất bại.`,
+        );
+      } else {
+        setActionSuccessMessage(
+          `Đã phê duyệt đề xuất ${proposal.proposal_id}. Chưa có xác nhận thiết bị thực thi.`,
+        );
+      }
       if (onSuccess) onSuccess(updated);
     } catch (err: any) {
       const msg = err?.message || String(err);
@@ -167,7 +191,7 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
           <div className="station-meta-row">
             <div className="station-name-pill">
               <MapPin size={13} />
-              <span>Trạm {proposal.station_id || "S05"}</span>
+              <span>Trạm {proposal.station_id || "Không xác định"}</span>
             </div>
             <div className="proposal-id-tag">
               ID: <code>{proposal.proposal_id}</code> (v{proposal.version})
@@ -179,6 +203,24 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
 
           {/* Grounded Evidence Grid */}
           <div className="grounded-evidence-grid">
+            {proposal.device_id && (
+              <div className="evidence-item">
+                <span className="ev-label">Thiết bị:</span>
+                <strong className="ev-val">{proposal.device_id}</strong>
+              </div>
+            )}
+            {proposal.proposed_action && (
+              <div className="evidence-item">
+                <span className="ev-label">Lệnh:</span>
+                <strong className="ev-val">{proposal.proposed_action}</strong>
+              </div>
+            )}
+            {proposal.duration_minutes != null && (
+              <div className="evidence-item">
+                <span className="ev-label">Thời lượng:</span>
+                <strong className="ev-val">{proposal.duration_minutes} phút</strong>
+              </div>
+            )}
             <div className="evidence-item">
               <span className="ev-label">AQI:</span>
               <strong className="ev-val">{proposal.evidence?.aqi ?? "—"}</strong>
@@ -206,7 +248,7 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
             <span className="strip-label">Trạng thái phát lệnh IoT:</span>
             {isSucceededDispatch ? (
               <span className="outcome-pill outcome-succeeded">
-                <CheckCircle2 size={13} /> Đã bật quạt / Đã thực thi thành công
+                <CheckCircle2 size={13} /> Thiết bị đã xác nhận thực thi thành công
               </span>
             ) : isFailedDispatch ? (
               <span className="outcome-pill outcome-failed">
@@ -214,11 +256,11 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
               </span>
             ) : proposal.dispatch_status === "pending" || proposal.dispatch_status === "queued" ? (
               <span className="outcome-pill outcome-pending">
-                <Clock size={13} /> Đang hàng chờ phát lệnh IoT...
+                <Clock size={13} /> Đã duyệt, đang chờ xác nhận thiết bị...
               </span>
             ) : (
               <span className="outcome-pill outcome-not-configured">
-                <Info size={13} /> Phê duyệt server truth (Dispatcher chưa phát lệnh tự động)
+                <Info size={13} /> Chưa có xác nhận thiết bị thực thi
               </span>
             )}
           </div>
@@ -247,7 +289,7 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
             ) : (
               <Check size={16} />
             )}
-            <span>Duyệt & Bật Quạt Ngay (1 Chạm)</span>
+            <span>Duyệt đề xuất (1 chạm)</span>
           </button>
         </div>
       </div>
@@ -257,7 +299,7 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
         <div className="modal-overlay" role="presentation" style={{ zIndex: 9999 }}>
           <div className="modal-content quick-modal-content" role="dialog" aria-modal="true">
             <div className="modal-header">
-              <h3>Xác nhận Duyệt & Bật Quạt Thông Gió</h3>
+              <h3>Xác nhận duyệt đề xuất thông gió</h3>
               <button
                 type="button"
                 className="close-icon-btn"
@@ -274,7 +316,10 @@ export const QuickApprovalCard: React.FC<QuickApprovalCardProps> = ({
               </p>
               <div className="info-box-note">
                 <ShieldCheck size={16} />
-                <span>Quyết định phê duyệt sẽ được lưu vào Audit Log hệ thống.</span>
+                <span>
+                  Quyết định được lưu vào Audit Log. Phê duyệt chỉ tạo ý định/lệnh điều khiển;
+                  UI chỉ xác nhận thiết bị thành công khi backend trả về trạng thái đã được xác nhận.
+                </span>
               </div>
             </div>
             <div className="modal-footer">

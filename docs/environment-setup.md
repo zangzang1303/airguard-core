@@ -14,6 +14,19 @@ Start the full local stack:
 docker compose up --build
 ```
 
+`db-migrate` applies the additive authentication, Auto Ventilation/Report and UTF-8 Vietnamese
+station/alert repair migrations before the backend starts. Existing named volumes are preserved. To
+enable scheduled daily/weekly reports, start the async profile, which includes RabbitMQ, Redis,
+Celery worker and Celery Beat:
+
+```powershell
+docker compose --profile async-jobs up -d --build
+```
+
+Beat uses `REPORT_TIMEZONE` (default `Asia/Ho_Chi_Minh`): daily at 00:10 and weekly at 00:20 on
+Monday. Scheduled/manual retries reuse the same persisted report range rather than creating a
+second record.
+
 The development frontend bind-mounts `frontend/src` and the Vite/TypeScript
 configuration, while `node_modules` stays inside the rebuilt image. Source and
 style edits therefore keep Vite HMR, and dependency changes require rebuilding
@@ -87,3 +100,50 @@ The migration is transactional and safe to re-run. It intentionally fails when l
 users contain emails that differ only by letter case; resolve those identities manually
 before retrying. The migration stores only token hashes and does not enable login APIs or
 replace the current demo-header RBAC by itself.
+
+### Apply the Auto Ventilation and Report migration
+
+Compose applies this migration through `db-migrate`. For an existing database managed outside
+Compose, apply it explicitly after the authentication migration:
+
+```powershell
+Get-Content -Raw backend/db/migrations/20260821_002_auto_ventilation_reports.sql |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U airguard -d airguard
+```
+
+The migration is additive and safe to re-run. It adds proposal control/review metadata, durable
+device-command ACK events and persisted environmental reports; it does not approve or dispatch any
+proposal.
+
+### Repair Vietnamese station and alert text
+
+Compose applies this migration through `db-migrate`. For an existing database, apply it explicitly
+once (it is safe to re-run) to replace legacy mojibake or `?` characters in station metadata and
+alert copy:
+
+```powershell
+Get-Content -Raw backend/db/migrations/20260823_003_fix_vietnamese_station_names_and_alerts.sql |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U airguard -d airguard
+```
+
+Verify the repair through the backend API after restarting the stack:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/api/v1/stations
+Invoke-RestMethod "http://localhost:8000/api/v1/alerts?status=active"
+```
+
+### Repair Vietnamese demo user display names
+
+Compose applies this migration through `db-migrate`. For an existing database volume, apply it explicitly once (it is idempotent, safe to re-run and does not create new users) to restore corrupted UTF-8 names for the three demo accounts:
+
+```powershell
+Get-Content -Raw backend/db/migrations/20260823_004_fix_vietnamese_demo_user_names.sql |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U airguard -d airguard
+```
+
+Verify that the demo user names are properly restored:
+
+```powershell
+docker compose exec -T postgres psql -U airguard -d airguard -c "SELECT email, full_name FROM users WHERE LOWER(BTRIM(email)) IN ('manager@vinuni.edu.vn', 'admin@vinuni.edu.vn', 'resident@vinuni.edu.vn') ORDER BY email;"
+```
