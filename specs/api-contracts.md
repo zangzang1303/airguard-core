@@ -36,6 +36,8 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/spatial/heatmap?metric=aqi|pm25|co2|noise_db|temperature&forecast_hour=0..24` | grounded wind-adjusted IDW grid from at least three fresh valid online stations | 200 | 422/503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
 | PATCH `/auth/profile` | authenticated user updates own display name and recommendation group | 200 | 401/403/422/404 |
+| GET `/users` | manager/admin reads persisted user accounts | 200 | 401/403/503 |
+| PATCH `/users/{id}` | admin changes role and/or active status with reason, CSRF and audit | 200 | 401/403/404/409/422/503 |
 | POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
 | POST `/agent/jobs` | async agent job dispatch | 202 | 422/503 |
 | POST `/forecast/jobs` | async forecast job dispatch | 202 | 404/422/503 |
@@ -64,6 +66,11 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 `GET /spatial/heatmap` returns `metric`, `unit`, timezone-aware `timestamp` and `generated_at`,
 `forecast_hour`, `source=spatial_idw_dispersion_model`, `model_version`, `model`, `extent`,
 `weather`, `data_quality`, `station_inputs`, wind fields, `grid_points` and `disclaimer`.
+
+`GET /weather/current` uses Open-Meteo current fields when configured and valid. Provider responses
+are labelled `source=open_meteo_forecast_api`, include `observed_at`, `is_fallback=false` and an
+explicit stale flag. Timeout, provider errors or invalid payloads return the deterministic
+`simulator_fallback_weather` payload with `is_fallback=true` and a sanitized reason. See ADR 0013.
 `model` records the IDW name/version, grid dimensions, power and minimum station count. `extent`
 contains ordered south/west/north/east bounds. `station_inputs` preserves station id, coordinates,
 value, measurement source/time and optional forecast source. `data_quality` lists required, used and
@@ -75,6 +82,12 @@ snapshots. Empty data or insufficient coverage returns `insufficient_spatial_dat
 An unavailable station snapshot store returns `spatial_station_data_unavailable` with HTTP 503.
 Invalid metric or forecast horizon returns the standard structured 422 error. The frontend and Agent
 must not generate substitute grid points, intensity, station values or provenance.
+
+Station list, current, history, comparison and forecast endpoints fail closed when PostgreSQL data
+is unavailable or forecast history is insufficient. They never replace missing, stale or failed
+system-of-record reads with an in-memory simulator snapshot. The `timestamp` returned by
+`/stations/{id}/current` is the measurement observation time, not the API request time. Frontend
+clients must show loading, empty or retryable error states instead of rendering fixture values as live.
 
 ## Environmental alert response
 
@@ -197,6 +210,11 @@ Facts must map to sources from the same request. Tool failure or absent/stale/in
 returns a transparent insufficient-data answer and no environmental source. The additive
 `response` field is a deprecated alias of `answer` for the original template client.
 
+The geospatial response path receives fresh station snapshots and forecast histories from the
+backend request scope. It must return structured `503` when grounded inputs are unavailable and
+must not synthesize AQI, PM2.5, CO₂, noise, temperature, timestamp or a default user profile in an
+exception handler.
+
 Basic social messages are intercepted before telemetry access. Their response adds
 `conversation_kind`, has empty `used_tools`, `sources`/`evidence` and `map_actions`, and omits
 current/forecast time context. A configured LLM may rewrite only the locked social fallback; output
@@ -208,6 +226,20 @@ Recommendation intent requires current PM2.5, weather, forecast, active alerts a
 profile from the same request. The client must not submit a trusted `user_group`; the Agent uses
 the result of `get_user_profile`. Missing profile or environmental evidence produces clarification
 or insufficient-data behavior rather than a generic personalized recommendation.
+
+The public backend proxy must use the isolated Agent response as the authority for `answer`,
+`used_tools`, `sources` and `trace`; it must not infer tool names from intent. Deterministic map
+planning may add route geometry and map actions only after the Agent returns at least one validated
+source. A map-wide running/area request without a station id uses `get_spatial_air_quality` instead
+of inventing a default station.
+
+## Administrative user mutation
+
+`PATCH /api/v1/users/{id}` is Admin-only, requires CSRF and accepts a non-empty `reason` plus
+optional `role` (`resident`, `manager`, `admin`) and/or `status` (`active`, `disabled`). The backend
+prevents self-mutation and removal of the last active Admin, revokes active sessions when disabling
+an account, and writes `user.admin_updated` in the same database transaction. The response contains
+the persisted `user` and its `audit` record. Invitation lifecycle is not part of this endpoint.
 
 ## Authenticated profile update
 

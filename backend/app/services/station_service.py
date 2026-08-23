@@ -25,17 +25,11 @@ class StationService:
         self.db = db
         self.stale_after_seconds = stale_after_seconds
 
-    def _fallback_stations(self) -> list[dict[str, Any]]:
-        return live_engine.get_current_stations()
-
-    def _fallback_history(self, station_id: str, hours: int) -> dict[str, Any]:
-        items = live_engine.get_history(station_id, hours=hours)
-        return {"station_id": station_id, "hours": hours, "items": items}
-
-    def _fallback_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
-        return live_engine.get_forecast_history(station_id)
-
-    def list_stations(self, *, allow_fallback: bool = True) -> list[dict[str, Any]]:
+    def list_stations(self, *, allow_fallback: bool = False) -> list[dict[str, Any]]:
+        # ``allow_fallback`` is retained for call-site compatibility only. Runtime
+        # station facts must always come from PostgreSQL; silently switching to the
+        # in-memory demo generator would violate the data-quality contract.
+        _ = allow_fallback
         try:
             with self.db.connection() as conn:
                 with dict_cursor(conn) as cur:
@@ -59,26 +53,26 @@ class StationService:
                     )
                     rows = cur.fetchall()
                     if not rows:
-                        return self._fallback_stations() if allow_fallback else []
+                        raise ServiceError(
+                            "station_data_unavailable",
+                            "No station records are available",
+                            503,
+                        )
                     stations = [self._shape_station(row) for row in rows]
-                    if allow_fallback and all(st.get("pm25") is None for st in stations):
-                        return self._fallback_stations()
                     return [live_engine.apply_demo_override(station) for station in stations]
         except ServiceError as exc:
-            if allow_fallback:
-                return self._fallback_stations()
+            if exc.code == "station_data_unavailable":
+                raise
             raise ServiceError(
                 "station_data_unavailable",
-                "Station snapshots are unavailable without simulator fallback",
+                "Station snapshots are unavailable",
                 503,
-                {"reason_code": exc.code},
+                {"upstream_code": exc.code},
             ) from exc
         except Exception as exc:
-            if allow_fallback:
-                return self._fallback_stations()
             raise ServiceError(
                 "station_data_unavailable",
-                "Station snapshots are unavailable without simulator fallback",
+                "Station snapshots are unavailable",
                 503,
             ) from exc
 
@@ -107,22 +101,18 @@ class StationService:
                     )
                     row = cur.fetchone()
                     if not row:
-                        found = next((s for s in self._fallback_stations() if s["station_id"] == station_id), None)
-                        if not found:
-                            raise ServiceError("station_not_found", "Station was not found", 404, {"station_id": station_id})
-                        return found
+                        raise ServiceError("station_not_found", "Station was not found", 404, {"station_id": station_id})
                     station = self._shape_station(row)
-                    if station.get("pm25") is None:
-                        found = next((s for s in self._fallback_stations() if s["station_id"] == station_id), None)
-                        return found or station
                     return live_engine.apply_demo_override(station)
         except ServiceError:
             raise
-        except Exception:
-            found = next((s for s in self._fallback_stations() if s["station_id"] == station_id), None)
-            if not found:
-                raise ServiceError("station_not_found", "Station was not found", 404, {"station_id": station_id})
-            return found
+        except Exception as exc:
+            raise ServiceError(
+                "station_data_unavailable",
+                "Station snapshot is unavailable",
+                503,
+                {"station_id": station_id},
+            ) from exc
 
     def get_history(self, station_id: str, hours: int) -> dict[str, Any]:
         try:
@@ -142,16 +132,21 @@ class StationService:
                         (station_id, hours),
                     )
                     rows = cur.fetchall()
-                    if not rows:
-                        return self._fallback_history(station_id, hours)
                     items = []
                     for row in rows:
                         item = dict(row)
                         item["aqi"] = pm25_aqi(item.get("pm25"))
                         items.append(item)
                     return {"station_id": station_id, "hours": hours, "items": items}
-        except Exception:
-            return self._fallback_history(station_id, hours)
+        except ServiceError:
+            raise
+        except Exception as exc:
+            raise ServiceError(
+                "station_history_unavailable",
+                "Station history is unavailable",
+                503,
+                {"station_id": station_id},
+            ) from exc
 
     def get_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
         try:
@@ -172,13 +167,25 @@ class StationService:
                     )
                     rows = cur.fetchall()
                     if not rows or len(rows) < 3:
-                        return self._fallback_forecast_history(station_id)
+                        raise ServiceError(
+                            "insufficient_forecast_history",
+                            "At least three fresh valid measurements are required for forecasting",
+                            503,
+                            {"station_id": station_id, "required": 3, "available": len(rows)},
+                        )
                     history = list(reversed([dict(row) for row in rows]))
                     for item in history:
                         item["aqi"] = pm25_aqi(item.get("pm25"))
                     return history
-        except Exception:
-            return self._fallback_forecast_history(station_id)
+        except ServiceError:
+            raise
+        except Exception as exc:
+            raise ServiceError(
+                "forecast_history_unavailable",
+                "Forecast history is unavailable",
+                503,
+                {"station_id": station_id},
+            ) from exc
 
     def compare_stations(self, station_ids: list[str]) -> dict[str, Any]:
         ids = list(dict.fromkeys(station_ids))
@@ -204,26 +211,47 @@ class StationService:
                         (ids,),
                     )
                     rows = cur.fetchall()
-        except Exception:
-            all_st = self._fallback_stations()
-            rows = [st for st in all_st if st["station_id"] in ids]
+        except Exception as exc:
+            raise ServiceError(
+                "station_comparison_unavailable",
+                "Station comparison data is unavailable",
+                503,
+            ) from exc
 
         found = {row["station_id"] for row in rows}
         missing = [station_id for station_id in ids if station_id not in found]
         if missing:
             raise ServiceError("station_not_found", "One or more stations were not found", 404, {"station_id": missing})
         ranking = []
+        excluded_stations = []
         for row in rows:
             pm = row.get("pm25")
-            if pm is not None:
-                ranking.append({
-                    "station_id": row["station_id"],
-                    "station_name": row["station_name"],
-                    "pm25": pm,
-                    "measured_at": row.get("measured_at") or row.get("updated_at"),
-                    "source": row.get("source", "simulator"),
-                    "status": "online",
-                })
+            measured_at = row.get("measured_at") or row.get("updated_at")
+            status = row.get("explicit_status") or ("online" if measured_at else "offline")
+            is_stale = self._is_stale(measured_at) if status == "online" else True
+            if pm is None or status != "online" or is_stale or not row.get("source"):
+                excluded_stations.append(
+                    {
+                        "station_id": row["station_id"],
+                        "reason": "stale" if is_stale and status == "online" else status,
+                    }
+                )
+                continue
+            ranking.append({
+                "station_id": row["station_id"],
+                "station_name": row["station_name"],
+                "pm25": pm,
+                "measured_at": measured_at,
+                "source": row["source"],
+                "status": "online",
+            })
+        if not ranking:
+            raise ServiceError(
+                "insufficient_station_data",
+                "No fresh online stations are available for comparison",
+                503,
+                {"excluded_stations": excluded_stations},
+            )
         ranking.sort(key=lambda item: item["pm25"], reverse=True)
         for index, item in enumerate(ranking, start=1):
             item["rank"] = index
@@ -233,6 +261,7 @@ class StationService:
             "worst_station_id": ranking[0]["station_id"] if ranking else None,
             "comparison_valid": bool(ranking),
             "requested_station_ids": ids,
+            "excluded_stations": excluded_stations,
         }
 
     def ensure_station(self, station_id: str) -> None:
@@ -244,9 +273,13 @@ class StationService:
                         raise ServiceError("station_not_found", "Station was not found", 404, {"station_id": station_id})
         except ServiceError:
             raise
-        except Exception:
-            if station_id not in {"S01", "S02", "S03", "S04", "S05"}:
-                raise ServiceError("station_not_found", "Station was not found", 404, {"station_id": station_id})
+        except Exception as exc:
+            raise ServiceError(
+                "station_catalog_unavailable",
+                "Station catalog is unavailable",
+                503,
+                {"station_id": station_id},
+            ) from exc
 
     def _shape_station(self, row: dict[str, Any]) -> dict[str, Any]:
         last_seen = row.get("last_seen_at") or row.get("updated_at")

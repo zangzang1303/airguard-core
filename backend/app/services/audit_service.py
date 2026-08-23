@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import UTC
 from typing import Any
 
-from .database import Database, dict_cursor
+from .database import Database, ServiceError, dict_cursor
 
 SENSITIVE_KEYS = {"password", "token", "secret", "api_key", "authorization"}
 
@@ -92,27 +91,10 @@ class AuditService:
                         """,
                         [*params, limit],
                     )
-                    rows = cur.fetchall()
-                    if rows:
-                        return [dict(row) for row in rows]
-        except Exception:
-            pass
-        from datetime import datetime
-        now = datetime.now(UTC).isoformat()
-        return [
-            {
-                "audit_id": 1,
-                "actor_type": "user",
-                "actor_id": "manager@vinuni.edu.vn",
-                "actor_role": "manager",
-                "action": "system.initialize",
-                "entity_type": "system",
-                "entity_id": "SYS-001",
-                "outcome": "success",
-                "correlation_id": "init-001",
-                "details": {"status": "operational"},
-                "created_at": now,
-            }
-        ]
+                    return [dict(row) for row in cur.fetchall()]
+        except ServiceError:
+            raise
+        except Exception as exc:
+            raise ServiceError("audit_log_unavailable", "Audit logs are unavailable", 503) from exc
 
 

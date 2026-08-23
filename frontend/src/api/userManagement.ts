@@ -5,70 +5,89 @@ import {
   UserMutationResult,
   UserRole,
 } from "../types";
-import { DEMO_ADMIN_USERS, DEMO_USER_AUDIT } from "./client";
+import { apiFetch } from "./client";
 
-const makeAuditId = () => `AUD-U${Date.now()}`;
-const makeCorrelationId = () =>
-  `req-u-${Math.floor(1000 + Math.random() * 9000)}`;
+const mapUser = (raw: Record<string, any>): AdminUser => {
+  const role = raw.role as UserRole;
+  return {
+    user_id: String(raw.user_id),
+    full_name: raw.full_name || raw.email || "Người dùng AirGuard",
+    email: String(raw.email || ""),
+    role,
+    user_group: raw.user_group || raw.sensitivity_group || "normal",
+    organization:
+      role === "admin"
+        ? "AirGuard Operations"
+        : role === "manager"
+          ? "Ban Quản lý Khu đô thị"
+          : "Vinhomes Ocean Park 1",
+    region: role === "admin" ? "Toàn hệ thống" : "Vinhomes Ocean Park 1",
+    status: raw.status || (raw.is_active ? "active" : "disabled"),
+    last_active_at: raw.last_active_at || null,
+    created_at: raw.created_at,
+    avatar_initials: "",
+  };
+};
 
-const findTarget = (userId: string) =>
-  DEMO_ADMIN_USERS.find((user) => user.user_id === userId);
+const mapAudit = (raw: Record<string, any>): AdminAuditEntry => ({
+  id: String(raw.audit_id),
+  time: raw.created_at,
+  actor: [raw.actor_id, raw.actor_role].filter(Boolean).join(" · ") || raw.actor_type,
+  action: raw.action,
+  target: [raw.entity_type, raw.entity_id].filter(Boolean).join(":"),
+  outcome: String(raw.outcome || "unknown").toUpperCase(),
+  correlation_id: raw.correlation_id || "—",
+  detail: raw.details?.reason || undefined,
+});
 
-// P2 · Quản lý người dùng — demo client-side, contract đang pending.
 export const userManagementApi = {
   async getUsers(): Promise<AdminUser[]> {
-    return DEMO_ADMIN_USERS;
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/users");
+    return data.items.map(mapUser);
   },
 
   async getUserAudit(userId: string): Promise<AdminAuditEntry[]> {
-    return DEMO_USER_AUDIT.filter((entry) => entry.target.includes(userId));
+    const params = new URLSearchParams({ entity_type: "user", entity_id: userId });
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>(
+      `/api/v1/audit-logs?${params.toString()}`,
+    );
+    return data.items.map(mapAudit);
   },
 
   async updateRole(
     userId: string,
     role: UserRole,
     reason: string,
-    actorName: string,
+    _actorName: string,
   ): Promise<UserMutationResult> {
-    const target = findTarget(userId);
-    const targetLabel = target ? `${userId} · ${target.full_name}` : userId;
-    return {
-      success: true,
-      message: "Đã cập nhật vai trò (demo client-side).",
-      audit_entry: {
-        id: makeAuditId(),
-        time: new Date().toISOString(),
-        actor: `${actorName} (admin)`,
-        action: "USER_UPDATE_ROLE",
-        target: targetLabel,
-        outcome: "SUCCESS",
-        correlation_id: makeCorrelationId(),
-        detail: `Cập nhật vai trò -> ${role}${reason ? ` · Lý do: ${reason}` : ""}`,
-      },
-    };
+    return this.update(userId, { role, reason });
   },
 
   async updateStatus(
     userId: string,
     status: AdminUserStatus,
     reason: string,
-    actorName: string,
+    _actorName: string,
   ): Promise<UserMutationResult> {
-    const target = findTarget(userId);
-    const targetLabel = target ? `${userId} · ${target.full_name}` : userId;
+    if (status === "invitation_pending") {
+      throw new Error("Invitation lifecycle is not supported by the backend.");
+    }
+    return this.update(userId, { status, reason });
+  },
+
+  async update(
+    userId: string,
+    body: { role?: UserRole; status?: "active" | "disabled"; reason: string },
+  ): Promise<UserMutationResult> {
+    const data = await apiFetch<{ user: Record<string, any>; audit: Record<string, any> }>(
+      `/api/v1/users/${encodeURIComponent(userId)}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    );
     return {
       success: true,
-      message: "Đã cập nhật trạng thái (demo client-side).",
-      audit_entry: {
-        id: makeAuditId(),
-        time: new Date().toISOString(),
-        actor: `${actorName} (admin)`,
-        action: status === "disabled" ? "USER_DISABLE" : "USER_ACTIVATE",
-        target: targetLabel,
-        outcome: "SUCCESS",
-        correlation_id: makeCorrelationId(),
-        detail: `Cập nhật trạng thái -> ${status}${reason ? ` · Lý do: ${reason}` : ""}`,
-      },
+      message: "Đã lưu thay đổi và ghi audit.",
+      user: mapUser(data.user),
+      audit_entry: mapAudit(data.audit),
     };
   },
 };

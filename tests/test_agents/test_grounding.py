@@ -179,6 +179,14 @@ def test_spatial_router_validates_metric_and_explicit_forecast_horizon() -> None
     assert decision.tool_arguments == [{"metric": "pm25", "forecast_hour": 6}]
 
 
+def test_map_wide_running_route_uses_spatial_tool_without_fake_station() -> None:
+    decision = route_query("Gợi ý cung đường chạy bộ 3km ít ô nhiễm nhất")
+
+    assert decision.intent == Intent.SPATIAL
+    assert [tool.value for tool in decision.tool_calls] == ["get_spatial_air_quality"]
+    assert decision.tool_arguments == [{"metric": "aqi", "forecast_hour": 0}]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("query", "expected_tools", "expected_fact"),

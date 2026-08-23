@@ -200,37 +200,39 @@ export const UserManagement: React.FC = () => {
     setMutationMessage(null);
     try {
       const { kind, user, value } = pendingAction;
+      let savedUser: AdminUser | undefined;
       if (kind === "role") {
-        await userManagementApi.updateRole(
+        const result = await userManagementApi.updateRole(
           user.user_id,
           value as UserRole,
           reason.trim(),
           userName || "Quản trị viên",
         );
+        savedUser = result.user;
         setUsers((prev) =>
           prev.map((item) =>
             item.user_id === user.user_id
-              ? { ...item, role: value as UserRole }
+              ? savedUser || { ...item, role: value as UserRole }
               : item,
           ),
         );
       } else {
-        await userManagementApi.updateStatus(
+        const result = await userManagementApi.updateStatus(
           user.user_id,
           value as AdminUserStatus,
           reason.trim(),
           userName || "Quản trị viên",
         );
+        savedUser = result.user;
         setUsers((prev) =>
           prev.map((item) =>
             item.user_id === user.user_id
-              ? { ...item, status: value as AdminUserStatus }
+              ? savedUser || { ...item, status: value as AdminUserStatus }
               : item,
           ),
         );
       }
-      const updated = users.find((item) => item.user_id === user.user_id);
-      if (updated) setSelectedUser((prev) => (prev ? { ...updated } : prev));
+      if (savedUser) setSelectedUser(savedUser);
       setMutationMessage({
         type: "success",
         text: "Thay đổi đã được lưu và ghi vào audit.",
@@ -453,8 +455,7 @@ export const UserManagement: React.FC = () => {
         <div>
           <h1>Quản lý người dùng</h1>
           <p>
-            Quản lý identity, vai trò và trạng thái tài khoản · Dữ liệu demo
-            trên client, chờ API contract
+            Quản lý identity, vai trò và trạng thái tài khoản từ backend
           </p>
         </div>
         <button
@@ -471,9 +472,8 @@ export const UserManagement: React.FC = () => {
       <div className="admin-simulator-note" role="note">
         <AlertTriangle size={15} />
         <span>
-          <strong>DEMO DATA</strong> · Danh sách người dùng bên dưới là dữ liệu
-          giả lập phục vụ demo MVP, không phải dữ liệu production. Không hiển
-          thị password, token hay dữ liệu sức khỏe.
+          Dữ liệu tài khoản được đọc và cập nhật qua backend có RBAC, CSRF và
+          audit. Password, token và dữ liệu chẩn đoán không được hiển thị.
         </span>
       </div>
 

@@ -127,8 +127,10 @@ Invoke-RestMethod http://localhost:8000/api/v1/alerts?status=active
 
 Stack cơ bản dùng eager/in-memory cho demo. Để bật RabbitMQ, Redis và Celery:
 
-```bash
+```powershell
+$env:CELERY_TASK_ALWAYS_EAGER="false"
 docker compose --profile async-jobs up -d --build
+Remove-Item Env:CELERY_TASK_ALWAYS_EAGER
 ```
 
 Profile này khởi động thêm Celery worker và Celery Beat. Beat tạo báo cáo của ngày đã hoàn tất lúc
@@ -478,7 +480,7 @@ Runtime entry points:
 
 ## Known limitations
 
-- Sensor và phần lớn weather context là simulator/fallback.
+- Sensor là simulator. Weather dùng Open-Meteo khi `WEATHER_API_BASE_URL` được cấu hình và tự hạ cấp sang fallback có nhãn khi provider lỗi.
 - AQI là PM2.5 sub-index đơn giản, chưa phải official AQI/NowCast.
 - Forecast là baseline trend, chưa có Prophet/LSTM/backtesting production.
 - Heat zones không phải mô hình lan truyền ô nhiễm khoa học.
