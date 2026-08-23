@@ -93,6 +93,13 @@ class CompareStationsRequest(BaseModel):
     station_ids: list[str] = Field(min_length=1, max_length=5)
 
 
+class DemoStationOverrideRequest(BaseModel):
+    pm25: float = Field(ge=1, le=500)
+    co2: float = Field(ge=350, le=5000)
+    noise_db: float = Field(ge=30, le=130)
+    temperature: float = Field(ge=-10, le=60)
+
+
 class UserProfileResponse(BaseModel):
     user_id: str
     role: str
@@ -751,6 +758,49 @@ def get_station_current(station_id: str) -> dict:
         fallback = station_service._fallback_stations()
         st = next((s for s in fallback if s["station_id"] == station_id), fallback[0])
         return {**st, "timestamp": datetime.now(UTC).isoformat()}
+
+
+@app.get("/api/v1/demo/station-overrides")
+def get_demo_station_overrides(current_user: dict = Depends(require_manager)) -> dict:
+    from .services.live_telemetry_engine import live_engine
+
+    return {"demo_mode": True, "overrides": live_engine.get_demo_overrides()}
+
+
+@app.put("/api/v1/demo/stations/{station_id}/override")
+def set_demo_station_override(
+    station_id: str,
+    body: DemoStationOverrideRequest,
+    request: Request,
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    from .services.live_telemetry_engine import live_engine
+
+    if station_id not in {"S01", "S02", "S03", "S04", "S05"}:
+        raise ServiceError("station_not_found", "Station was not found", 404, {"station_id": station_id})
+    values = body.model_dump()
+    station = live_engine.set_demo_override(station_id, values)
+    audit_service.record(
+        actor_type="user", actor_id=current_user["user_id"], actor_role=current_user["role"],
+        action="demo_station_override.set", entity_type="station", entity_id=station_id,
+        correlation_id=_request_id(request), outcome="success", details={"metrics": values},
+    )
+    return {"station": station, "demo_override": True, "message": "Demo override is active; automatic simulation remains running."}
+
+
+@app.delete("/api/v1/demo/stations/{station_id}/override")
+def clear_demo_station_override(
+    station_id: str, request: Request, current_user: dict = Depends(require_manager)
+) -> dict:
+    from .services.live_telemetry_engine import live_engine
+
+    live_engine.clear_demo_override(station_id)
+    audit_service.record(
+        actor_type="user", actor_id=current_user["user_id"], actor_role=current_user["role"],
+        action="demo_station_override.clear", entity_type="station", entity_id=station_id,
+        correlation_id=_request_id(request), outcome="success", details={},
+    )
+    return {"station_id": station_id, "demo_override": False, "message": "Returned to automatic simulator values."}
 
 
 

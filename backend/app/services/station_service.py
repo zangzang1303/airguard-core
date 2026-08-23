@@ -63,7 +63,7 @@ class StationService:
                     stations = [self._shape_station(row) for row in rows]
                     if allow_fallback and all(st.get("pm25") is None for st in stations):
                         return self._fallback_stations()
-                    return stations
+                    return [live_engine.apply_demo_override(station) for station in stations]
         except ServiceError as exc:
             if allow_fallback:
                 return self._fallback_stations()
@@ -115,7 +115,7 @@ class StationService:
                     if station.get("pm25") is None:
                         found = next((s for s in self._fallback_stations() if s["station_id"] == station_id), None)
                         return found or station
-                    return station
+                    return live_engine.apply_demo_override(station)
         except ServiceError:
             raise
         except Exception:
