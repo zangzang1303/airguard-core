@@ -15,11 +15,32 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
       - ./backend/db/seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+      - ./backend/db/migrations:/migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airguard -d airguard"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  db-migrate:
+    image: postgres:16
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the server environment}
+    volumes:
+      - ./backend/db/migrations:/migrations:ro
+    command:
+      - sh
+      - -c
+      - >-
+        psql -v ON_ERROR_STOP=1 -h postgres -U airguard -d airguard
+        -f /migrations/20260820_001_auth_foundation.sql
+        -f /migrations/20260821_002_auto_ventilation_reports.sql
+        -f /migrations/20260823_003_fix_vietnamese_station_names_and_alerts.sql
+        -f /migrations/20260823_004_fix_vietnamese_demo_user_names.sql
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mqtt:
     image: eclipse-mosquitto:2
@@ -55,8 +76,8 @@ services:
     volumes:
       - ./data:/app/data:ro
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
 
   agent:
     build:
@@ -70,11 +91,24 @@ services:
       AGENT_TOOL_TIMEOUT_SECONDS: ${AGENT_TOOL_TIMEOUT_SECONDS:-3}
       AGENT_TOOL_MAX_RETRIES: ${AGENT_TOOL_MAX_RETRIES:-1}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://${DEMO_DOMAIN}}
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       MODEL_NAME: ${MODEL_NAME:-gpt-4o-mini}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
       LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-12}
+      LLM_RESPONSE_DEADLINE_SECONDS: ${LLM_RESPONSE_DEADLINE_SECONDS:-5}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-280}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
+      AGENTROUTER_API_KEY: ${AGENTROUTER_API_KEY:-}
+      AGENTROUTER_MODEL: ${AGENTROUTER_MODEL:-}
+      AGENTROUTER_BASE_URL: ${AGENTROUTER_BASE_URL:-https://co.agentrouter.org}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+      GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-minimal}
+      GEMINI_MAX_TOKENS: ${GEMINI_MAX_TOKENS:-32}
+      GEMINI_RETRY_BASE_SECONDS: ${GEMINI_RETRY_BASE_SECONDS:-1}
+      GEMINI_RETRY_MAX_SECONDS: ${GEMINI_RETRY_MAX_SECONDS:-60}
     depends_on:
       - backend
 

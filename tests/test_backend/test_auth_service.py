@@ -38,7 +38,9 @@ class FakeCursor:
                     self._last_result.append({"user_id": u["user_id"]})
 
         elif "INSERT INTO users" in q and "RETURNING" in q:
-            if len(params) == 5:
+            if len(params) == 6:
+                user_id, email_norm, pw_hash, role, full_name, sens = params
+            elif len(params) == 5:
                 user_id, email_norm, pw_hash, p4, p5 = params
                 if "'resident'" not in q and ("role" in q or "manager" in str(p4) or "admin" in str(p4)):
                     role = p4
@@ -124,6 +126,16 @@ class FakeCursor:
             for u in self.db.users.values():
                 if u["email_normalized"] == email:
                     self._last_result.append(u)
+
+        elif "UPDATE users SET full_name = COALESCE(%s, full_name), sensitivity_group = COALESCE(%s, sensitivity_group)" in q:
+            full_name, sensitivity_group, uid = params
+            user = self.db.users.get(uid)
+            if user and user["is_active"]:
+                if full_name is not None:
+                    user["full_name"] = full_name
+                if sensitivity_group is not None:
+                    user["sensitivity_group"] = sensitivity_group
+                self._last_result.append(user)
 
         elif "UPDATE users SET failed_login_count = 0, locked_until = NULL" in q:
             uid = params[0]

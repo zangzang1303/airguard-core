@@ -50,6 +50,15 @@ class StaleWeatherAdapter(FakeBackendToolClient):
         )
 
 
+@pytest.mark.parametrize("query", ["ê", "alo", "cảm ơn", "bạn khỏe không?", "bạn làm được gì?", "tạm biệt"])
+def test_basic_social_queries_are_direct_and_tool_free(query):
+    decision = route_query(query, context_station_id="S01", user_id="demo-user")
+
+    assert decision.intent == Intent.GREETING
+    assert decision.direct_response
+    assert decision.requires_tools is False
+
+
 class FallbackWeatherAdapter(FakeBackendToolClient):
     async def get_weather_context(self, payload, request_id="fixture-request"):
         result = await super().get_weather_context(payload, request_id)
@@ -489,6 +498,66 @@ async def test_live_llm_can_explain_a_safety_refusal_without_changing_the_policy
     assert result["generation"]["generation_mode"] == "live_llm"
     assert result["generation"]["model"] == "test-model"
     assert result["answer"].startswith("Mình không thể tự phê duyệt")
+
+
+@pytest.mark.asyncio
+async def test_live_llm_can_rewrite_a_bounded_social_response(monkeypatch):
+    class FakeReply:
+        content = "Mình đây 👋 Bạn muốn AirGuard hỗ trợ nội dung nào?"
+        usage_metadata = {"input_tokens": 3, "output_tokens": 4}
+
+    class FakeLlm:
+        async def ainvoke(self, _prompt):
+            return FakeReply()
+
+    monkeypatch.setattr(
+        "src.agents.nodes.orchestration.get_settings",
+        lambda: SimpleNamespace(openai_api_key="local-test-key", model_name="test-model"),
+    )
+    monkeypatch.setattr("src.agents.nodes.orchestration.get_llm", lambda **_kwargs: FakeLlm())
+
+    result = await generate_explanation_node(
+        {
+            "answer": "Mình đây. Bạn muốn hỏi gì về AirGuard?",
+            "outcome": "direct_response",
+            "sources": [],
+            "route": {"intent": "greeting"},
+        }
+    )
+
+    assert result["answer"] == FakeReply.content
+    assert result["generation"]["generation_mode"] == "live_llm"
+    assert result["generation"]["conversation_mode"] == "bounded_social"
+
+
+@pytest.mark.asyncio
+async def test_live_llm_social_claim_is_rejected_and_keeps_deterministic_fallback(monkeypatch):
+    class UnsafeReply:
+        content = "AQI tại S01 là 190 và đang ô nhiễm."
+        usage_metadata = {}
+
+    class FakeLlm:
+        async def ainvoke(self, _prompt):
+            return UnsafeReply()
+
+    monkeypatch.setattr(
+        "src.agents.nodes.orchestration.get_settings",
+        lambda: SimpleNamespace(openai_api_key="local-test-key", model_name="test-model"),
+    )
+    monkeypatch.setattr("src.agents.nodes.orchestration.get_llm", lambda **_kwargs: FakeLlm())
+
+    result = await generate_explanation_node(
+        {
+            "answer": "Mình đây. Bạn muốn hỏi gì về AirGuard?",
+            "outcome": "direct_response",
+            "sources": [],
+            "route": {"intent": "greeting"},
+        }
+    )
+
+    assert "answer" not in result
+    assert result["generation"]["generation_mode"] == "deterministic_grounded"
+    assert result["generation"]["failure_code"] == "ValueError"
 
 
 @pytest.mark.asyncio

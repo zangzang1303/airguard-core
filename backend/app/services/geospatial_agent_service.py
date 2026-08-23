@@ -4,6 +4,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from .conversational_agent_service import conversational_agent
 from .environmental_scoring import environmental_scoring
 from .live_telemetry_engine import live_engine
 from .prophet_forecast_service import prophet_service
@@ -31,6 +32,14 @@ class GeospatialAgentService:
     ) -> dict[str, Any]:
         map_context = map_context or {}
         q = message.lower().strip()
+
+        conversation = conversational_agent.classify(
+            message,
+            station_id=station_id,
+            map_context=map_context,
+        )
+        if conversation.intent != "domain":
+            return conversational_agent.deterministic_response(conversation, request_id=request_id)
 
         # 1. Resolve Time Context (Live vs Forecast)
         time_ctx = temporal_resolver.resolve(q)

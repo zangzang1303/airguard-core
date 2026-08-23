@@ -6,6 +6,34 @@ from backend.app.services.live_telemetry_engine import live_engine
 from backend.app.services.temporal_resolver import TemporalResolver
 
 
+def test_greeting_does_not_fall_through_to_environmental_recommendation():
+    agent = GeospatialAgentService()
+
+    result = agent.process_query(
+        "Xin chào!",
+        station_id="S01",
+        map_context={"selected_sensor": "S01"},
+    )
+
+    assert result["intent"] == "greeting"
+    assert "Mình đây" in result["answer"]["summary"]
+    assert result["evidence"] == []
+    assert result["map_actions"] == []
+    assert result["used_tools"] == []
+    assert "time_context" not in result
+
+
+def test_unknown_chat_does_not_fall_through_to_environmental_recommendation():
+    agent = GeospatialAgentService()
+
+    result = agent.process_query("ừm... abcxyz")
+
+    assert result["intent"] == "clarification"
+    assert result["evidence"] == []
+    assert result["map_actions"] == []
+    assert "AQI hiện tại" in result["response"]
+
+
 def test_temporal_resolver_patterns():
     # 1. Live queries
     res_now = TemporalResolver.resolve("Chất lượng không khí hiện tại thế nào?")

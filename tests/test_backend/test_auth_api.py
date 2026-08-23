@@ -234,6 +234,37 @@ def test_demo_login_flow_and_rbacs() -> None:
     assert res_inv.status_code == 422
 
 
+def test_health_demo_profiles_and_self_service_group_update() -> None:
+    client, _, _ = setup_test_app()
+
+    sensitive = client.post("/api/v1/auth/demo-login", json={"persona": "sensitive"})
+    assert sensitive.status_code == 200
+    assert sensitive.json()["user"]["role"] == "resident"
+    assert sensitive.json()["user"]["sensitivity_group"] == "sensitive"
+
+    client.cookies.set("airguard_session", sensitive.cookies["airguard_session"])
+    updated = client.patch(
+        "/api/v1/auth/profile",
+        json={"full_name": "Nguoi dung chay bo", "sensitivity_group": "outdoor_sport"},
+        headers={"X-CSRF-Token": sensitive.cookies["airguard_csrf"]},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["user"]["full_name"] == "Nguoi dung chay bo"
+    assert updated.json()["user"]["sensitivity_group"] == "outdoor_sport"
+
+    me = client.get("/api/v1/auth/me")
+    assert me.status_code == 200
+    assert me.json()["user"]["sensitivity_group"] == "outdoor_sport"
+
+    outdoor = client.post(
+        "/api/v1/auth/demo-login",
+        json={"persona": "outdoor_sport"},
+        headers={"X-CSRF-Token": client.cookies["airguard_csrf"]},
+    )
+    assert outdoor.status_code == 200
+    assert outdoor.json()["user"]["sensitivity_group"] == "outdoor_sport"
+
+
 def test_demo_login_disabled_returns_404() -> None:
     fake_db = FakeDatabase()
     email_service = AuthEmailService()
