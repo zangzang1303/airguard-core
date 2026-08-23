@@ -11,6 +11,7 @@ interface TopFloatingBarProps {
   connectionStatus: "connected" | "updating" | "disconnected";
   lastUpdated: Date | null;
   refreshData: () => Promise<void>;
+  showConnectionStatus: boolean;
   hasAIOverlay?: boolean;
   onClearAIOverlay?: () => void;
   onSelectCoordinates: (coords: [number, number], title: string) => void;
@@ -31,6 +32,7 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   connectionStatus,
   lastUpdated,
   refreshData,
+  showConnectionStatus,
   hasAIOverlay = false,
   onClearAIOverlay,
   onSelectCoordinates,
@@ -48,7 +50,7 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
       {/* Top Left Controls Group: Brand Badge & Connection Status (Structured normal flow) */}
       <div className="top-left-controls-group">
         {/* Brand & Location Identifier */}
-        <div
+        {showConnectionStatus && <div
           className="top-brand-badge"
           onClick={() => onSelectCoordinates([20.9942, 105.9485], "Ocean Park 1")}
           role="button"
@@ -68,7 +70,7 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
             <span className="brand-name">AirGuard</span>
             <span className="brand-location">Ocean Park 1</span>
           </div>
-        </div>
+        </div>}
 
         {/* Connection Status Badge Bar */}
         <div

@@ -23,6 +23,7 @@ export interface HeatmapLayerProps {
   forecastHour?: number;
   viewMode?: MapViewMode;
   showHeatmap?: boolean;
+  showMetadata?: boolean;
 }
 
 const DISPERSION_BOUNDS: [[number, number], [number, number]] = [
@@ -35,6 +36,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
   forecastHour = 0,
   viewMode = "heatmap",
   showHeatmap = true,
+  showMetadata = true,
 }) => {
   const [data, setData] = useState<SpatialHeatmapResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -128,7 +130,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
       )}
 
       {/* 2. Unified Metric Overlay Panel */}
-      <div className="spatial-heatmap-metadata-card unified-aqi-panel">
+      {showMetadata && <div className="spatial-heatmap-metadata-card unified-aqi-panel">
         <div className="unified-panel-header">
           <div className="header-title-wrap">
             <Layers size={16} className="header-icon" />
@@ -186,7 +188,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
             )}
           </>
         )}
-      </div>
+      </div>}
     </>
   );
 };

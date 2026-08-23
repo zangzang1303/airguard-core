@@ -105,6 +105,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
         <HeatmapLayer
           activeLayer={layerConfig.activeEnvironmentalLayer}
           showHeatmap={layerConfig.showHeatmap}
+          showMetadata={layerConfig.showDispersionInfo}
           viewMode={viewMode}
           forecastHour={forecastHour}
         />
