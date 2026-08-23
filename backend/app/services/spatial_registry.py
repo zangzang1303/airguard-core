@@ -634,11 +634,29 @@ class SpatialRegistry:
 
     @classmethod
     def list_routes(cls) -> list[dict[str, Any]]:
-        return list(cls.RUNNING_ROUTES)
+        from .road_graph_router import road_graph_router
+        circuits = road_graph_router.get_all_canonical_circuits()
+        return circuits if circuits else list(cls.RUNNING_ROUTES)
 
     @classmethod
     def list_indoor_venues(cls) -> list[dict[str, Any]]:
         return list(cls.INDOOR_VENUES)
+
+    @classmethod
+    def generate_candidate_routes(
+        cls,
+        user_lat: float,
+        user_lng: float,
+        target_km: float | None = None,
+        station_pm25_map: dict[str, float] | None = None,
+    ) -> list[dict[str, Any]]:
+        from .road_graph_router import road_graph_router
+        return road_graph_router.generate_candidate_routes_from_origin(
+            origin_lat=user_lat,
+            origin_lng=user_lng,
+            target_km=target_km,
+            station_pm25_map=station_pm25_map,
+        )
 
     @classmethod
     def generate_personalized_route(
@@ -653,15 +671,19 @@ class SpatialRegistry:
         Dynamically generates a 100% genuine OpenStreetMap road-network running path
         tailored to the user's starting location and requested distance.
         """
-        from .real_road_routing_service import real_road_routing
+        from .road_graph_router import road_graph_router
 
-        return real_road_routing.generate_exact_running_route(
-            user_lat=user_lat,
-            user_lng=user_lng,
+        candidates = road_graph_router.generate_candidate_routes_from_origin(
+            origin_lat=user_lat,
+            origin_lng=user_lng,
             target_km=target_km,
-            prefer_circuit_id=base_circuit_id,
             station_pm25_map=station_pm25_map,
         )
+        if base_circuit_id:
+            match = next((c for c in candidates if c.get("base_circuit_id") == base_circuit_id), None)
+            if match:
+                return match
+        return candidates[0] if candidates else {}
 
     @classmethod
     def find_poi_by_name(cls, query: str) -> dict[str, Any] | None:

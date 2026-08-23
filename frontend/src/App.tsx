@@ -543,7 +543,23 @@ const SuperAppMain: React.FC<{
             selected_sensor: selectedStationId,
             selected_location: selectedPoi?.name || selectedPoi?.id,
             active_layer: layerConfig.activeEnvironmentalLayer,
-            user_location: userLocation,
+            user_location: userLocation
+              ? {
+                  lat: userLocation[0],
+                  lng: userLocation[1],
+                  source: userLocationSource,
+                  name: userLocationName,
+                }
+              : null,
+            selected_origin:
+              userLocation && userLocationSource === "manual_click"
+                ? {
+                    lat: userLocation[0],
+                    lng: userLocation[1],
+                    source: "map_selection",
+                    name: userLocationName || `Điểm đã chọn (${userLocation[0].toFixed(4)}, ${userLocation[1].toFixed(4)})`,
+                  }
+                : null,
           }}
         />
       )}
