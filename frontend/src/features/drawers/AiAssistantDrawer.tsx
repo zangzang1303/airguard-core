@@ -51,6 +51,16 @@ interface ChatMessage {
   showEvidence?: boolean;
 }
 
+const formatAgentRequestError = (error: any): string => {
+  if (error?.status === 422) {
+    return "Yêu cầu gửi tới AI chưa hợp lệ. Vui lòng thử lại hoặc đăng nhập để cá nhân hóa kết quả.";
+  }
+  if ([502, 503, 504].includes(error?.status)) {
+    return "Dịch vụ AI Agent đang tạm thời gián đoạn. Vui lòng thử lại sau ít phút.";
+  }
+  return "Không thể kết nối tới dịch vụ AI Agent hoặc xảy ra lỗi mạng. Vui lòng kiểm tra kết nối và thử lại.";
+};
+
 const DEFAULT_QUESTIONS = [
   "🏃‍♂️ Tìm đoạn đường chạy bộ phù hợp nhất tối nay",
   "⚠️ Khu nào đang ô nhiễm nhất?",
@@ -163,7 +173,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const errorMsg: ChatMessage = {
         id: `msg-err-${Date.now()}`,
         sender: "ai",
-        text: "Không thể kết nối tới dịch vụ AI Agent hoặc xảy ra lỗi mạng. Vui lòng kiểm tra kết nối và thử lại.",
+        text: formatAgentRequestError(err),
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         isError: true,
         retryQuery: query,

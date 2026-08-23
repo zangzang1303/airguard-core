@@ -672,12 +672,16 @@ export const api = {
     userId: string = "demo-user",
     mapContext?: Record<string, any>,
   ): Promise<AgentResponse> => {
+    // The public Demo Day map is intentionally usable without authentication.
+    // AuthContext represents that state with an empty string, so normalize it to
+    // the grounded demo profile required by the backend AgentChatRequest contract.
+    const effectiveUserId = userId.trim() || "demo-user";
     const response = await apiFetch<any>("/api/v1/agent/chat", {
       method: "POST",
       body: JSON.stringify({
         message,
         station_id: contextStationId,
-        user_id: userId,
+        user_id: effectiveUserId,
         map_context: mapContext,
       }),
     });
