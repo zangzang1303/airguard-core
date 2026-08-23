@@ -386,10 +386,11 @@ const SuperAppMain: React.FC<{
   }
 
   return (
-    <div
-      className={`map-super-app-root${isManager ? " is-manager" : ""}`}
-      style={{ width: "100vw", height: "100dvh", position: "relative", overflow: "hidden", margin: 0, padding: 0 }}
-    >
+    <FloatingPanelProvider>
+      <div
+        className={`map-super-app-root${isManager ? " is-manager" : ""}`}
+        style={{ width: "100vw", height: "100dvh", position: "relative", overflow: "hidden", margin: 0, padding: 0 }}
+      >
       {/* Location Status Toast Banner */}
       {locationNotice && (
         <div className={`map-location-toast ${locationNotice.type}`} role="alert">
