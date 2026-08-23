@@ -68,7 +68,7 @@
 - Replaced the incomplete Render/Vercel runtime with a full-stack Azure VM deployment.
 - VM: `airguard-demo`, Ubuntu 24.04, Standard B2as v2, Azure for Students.
 - Public URL: `https://airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com`.
-- Deployed revision: `109f8eb` from deployment repository `main`; the same commit is on team branch `Canh`.
+- Deployed revision: `9c5ef06` from branch `Canh`; the same commit is on the team repository and deployment mirror.
 - Runtime directory: `/home/azureuser/airguard-core`.
 - Protected environment file: `/home/azureuser/airguard-demo.env` with mode `600`; secrets were generated on the VM and not printed or committed.
 
@@ -99,3 +99,18 @@
 - `OPENAI_API_KEY` is intentionally blank, so the Agent uses deterministic grounded behavior rather than an external LLM.
 - Azure automatic shutdown is disabled. Availability still depends on remaining Azure for Students credit and the VM not being manually stopped.
 - SSH port 22 remains public; restrict the Azure NSG source to the operator's current IP after deployment access is no longer needed.
+
+## Azure auto-deploy completion
+
+- Added `.github/workflows/deploy-azure.yml`, `scripts/deploy-azure-vm.sh` and `docs/azure-auto-deploy.md`.
+- Pushes to `Canh` are sent to both the private team repository and `zangzang1303/airguard-core` by the local `origin` push URLs.
+- The deploy job is scoped to the deployment mirror because the current GitHub account has `WRITE` rather than `ADMIN` permission on the team repository.
+- Repository secret `AZURE_DEPLOY_SSH_KEY` was created in `zangzang1303/airguard-core` after explicit user approval.
+- The VM authorized-key entry uses `restrict` and forced command `/usr/local/sbin/airguard-deploy`; arbitrary SSH commands were verified to fail.
+- The workflow sends a Git bundle for the exact commit. The root-owned wrapper verifies bundle head/SHA, requires a fast-forward update, refuses a dirty checkout, serializes deployments with `flock`, runs Compose and checks public readiness.
+- Manual forced-command bundle test deployed `a960bd5` successfully.
+- GitHub Actions run `32627347754` completed successfully on the first real push.
+- Upgraded to `actions/checkout@v6`; final run `32627407531` completed all seven deployment/readiness steps successfully in 28 seconds.
+- VM final revision is `9c5ef06`; public `/backend/ready` reports database `ok`.
+- The active restricted key count is one and the revoked v1 key count is zero on the VM.
+- The active v2 private/public key files were removed from the workstation after the successful run. Two inaccessible v1 test files remain under the Windows Temp directory, but their public key was revoked from the VM and cannot authenticate.
