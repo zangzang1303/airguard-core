@@ -11,6 +11,10 @@ from backend.app.services.spatial_registry import spatial_registry
 from backend.app.services.temporal_resolver import TemporalResolver
 
 
+def demo_agent() -> GeospatialAgentService:
+    return GeospatialAgentService(telemetry_engine=live_engine)
+
+
 # =========================================================================
 # PHASE 2: SENSOR GROUNDING & DYNAMIC DATA INVERSION
 # =========================================================================
@@ -20,7 +24,7 @@ def test_phase2_1_worst_station_dynamic_inversion():
     Test 2.1: Changing sensor telemetry dynamically must flip the worst station
     identified by the Agent without stale cache or hardcoding.
     """
-    agent = GeospatialAgentService()
+    agent = demo_agent()
 
     # Step 1: Set deterministic state: S03 is highest pollution (AQI = 165)
     live_engine.update_station("S01", {"pm25": 12.0, "aqi": 40, "co2": 450.0, "noise_db": 50.0, "temperature": 26.0})
@@ -48,7 +52,7 @@ def test_phase2_2_best_station_dynamic_inversion():
     """
     Test 2.2: Best station selection dynamically flips according to live measurements.
     """
-    agent = GeospatialAgentService()
+    agent = demo_agent()
 
     # Step 1: S01 is cleanest (AQI = 35)
     live_engine.update_station("S01", {"pm25": 10.0, "aqi": 35, "co2": 400.0, "noise_db": 45.0, "temperature": 25.0})
@@ -72,7 +76,7 @@ def test_phase2_3_exact_sensor_value():
     """
     Test 2.3: Current sensor inquiry returns exact value, unit, and live timestamp.
     """
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     live_engine.update_station("S03", {"pm25": 42.5, "aqi": 118, "co2": 680.0, "noise_db": 53.0, "temperature": 28.5})
 
     res = agent.process_query("PM2.5 ở S03 hiện tại là bao nhiêu?", station_id="S03")
@@ -86,7 +90,7 @@ def test_phase2_3_exact_sensor_value():
 # =========================================================================
 
 def test_phase3_realtime_vs_forecast_distinction():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
 
     # 3.1: Live
     res_live = agent.process_query("AQI hiện tại ở Hồ Ngọc Trai thế nào?")
@@ -109,7 +113,7 @@ def test_phase3_realtime_vs_forecast_distinction():
 # =========================================================================
 
 def test_phase4_follow_up_map_context():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
 
     # User clicked Hồ Ngọc Trai (S03)
     res_ctx = agent.process_query(
@@ -132,7 +136,7 @@ def test_phase4_follow_up_map_context():
 # =========================================================================
 
 def test_phase5_rain_unsupported_scope_transparency():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     res = agent.process_query("Bây giờ ở san hô có mưa hay không")
     assert res["intent"] == "unsupported_precipitation_weather"
     assert "chưa trang bị cảm biến đo lượng mưa" in res["answer"]["summary"] or "ngoài phạm vi" in res["answer"]["summary"]
@@ -140,7 +144,7 @@ def test_phase5_rain_unsupported_scope_transparency():
 
 
 def test_phase5_general_out_of_scope_rejection():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     res_med = agent.process_query("Tôi bị đau đầu thì nên uống thuốc gì?")
     assert res_med["intent"] == "out_of_scope"
     assert "ngoài phạm vi" in res_med["answer"]["summary"]
@@ -151,7 +155,7 @@ def test_phase5_general_out_of_scope_rejection():
 # =========================================================================
 
 def test_phase6_health_profile_differentiation():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     # At moderate pollution (AQI = 115, PM2.5 = 42.0)
     for s_id in ["S01", "S02", "S03", "S04", "S05"]:
         live_engine.update_station(s_id, {"pm25": 42.0, "aqi": 115, "co2": 600.0, "noise_db": 55.0, "temperature": 29.0})
@@ -191,7 +195,7 @@ def test_phase7_and_8_inspectable_scoring_weights():
 # =========================================================================
 
 def test_phase9_and_10_map_action_schema():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     res = agent.process_query("So sánh Sapphire và Hồ Ngọc Trai chỗ nào tốt hơn?")
     assert res["intent"] == "compare_locations"
     actions = res["map_actions"]
@@ -215,7 +219,7 @@ def test_phase9_and_10_map_action_schema():
 # =========================================================================
 
 def test_phase11_location_comparison_both_locations():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     live_engine.update_station("S02", {"pm25": 15.0, "aqi": 45, "co2": 480.0, "noise_db": 48.0, "temperature": 26.0})
     live_engine.update_station("S03", {"pm25": 55.0, "aqi": 120, "co2": 720.0, "noise_db": 58.0, "temperature": 29.0})
 
@@ -230,7 +234,7 @@ def test_phase11_location_comparison_both_locations():
 # =========================================================================
 
 def test_phase13_genuine_road_network_routing():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     res = agent.process_query(
         "Tôi muốn chạy 2.5km",
         map_context={"user_location": {"lat": 20.9975, "lng": 105.9430}},
@@ -246,7 +250,7 @@ def test_phase13_genuine_road_network_routing():
 # =========================================================================
 
 def test_phase21_specific_metrics_unit_consistency():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     live_engine.update_station("S01", {"noise_db": 44.0, "temperature": 26.5})
 
     res_noise = agent.process_query("Độ ồn ở công viên san hô thế nào?")
@@ -257,7 +261,7 @@ def test_phase21_specific_metrics_unit_consistency():
 
 
 def test_phase22_prompt_injection_defense():
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     live_engine.update_station("S03", {"pm25": 10.0, "aqi": 30})
 
     # Adversarial prompt: Force agent to say S03 is AQI 999
@@ -279,7 +283,7 @@ def test_phase31_eval_cases_dataset():
 
     assert len(cases) >= 20, "Must contain at least 20 evaluation cases"
 
-    agent = GeospatialAgentService()
+    agent = demo_agent()
     passed_count = 0
 
     for c in cases:

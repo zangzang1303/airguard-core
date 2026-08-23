@@ -71,6 +71,69 @@ SPATIAL_LOCATIONS: dict[str, SpatialLocation] = {
         105.9560,
         "residential",
     ),
+    "an_dao": SpatialLocation(
+        "an_dao",
+        "Khu Biệt thự An Đào",
+        20.9995,
+        105.9415,
+        "residential",
+    ),
+    "vinuni": SpatialLocation(
+        "vinuni",
+        "Khuôn viên VinUniversity",
+        20.9898,
+        105.9467,
+        "campus",
+    ),
+    "sao_bien": SpatialLocation(
+        "sao_bien",
+        "Phân khu Sao Biển",
+        20.9985,
+        105.9525,
+        "residential",
+    ),
+    "dao_ngoc_trai": SpatialLocation(
+        "dao_ngoc_trai",
+        "Phân khu Đảo Ngọc Trai",
+        20.9960,
+        105.9510,
+        "residential",
+    ),
+    "zenpark_ruby": SpatialLocation(
+        "zenpark_ruby",
+        "Phân khu The Zenpark & Ruby",
+        20.9965,
+        105.9395,
+        "residential",
+    ),
+    "pavilion_zurich": SpatialLocation(
+        "pavilion_zurich",
+        "Phân khu The Pavilion & The Zurich",
+        20.9980,
+        105.9385,
+        "residential",
+    ),
+    "vincom": SpatialLocation(
+        "vincom",
+        "TTTM Vincom Mega Mall",
+        20.9985,
+        105.9525,
+        "commercial",
+    ),
+    "vinschool": SpatialLocation(
+        "vinschool",
+        "Cụm Trường liên cấp Vinschool",
+        20.9950,
+        105.9450,
+        "school",
+    ),
+    "vinmec": SpatialLocation(
+        "vinmec",
+        "Bệnh viện Vinmec Ocean Park",
+        20.9915,
+        105.9440,
+        "hospital",
+    ),
 }
 
 _ALIASES: tuple[tuple[str, str], ...] = (
@@ -94,6 +157,22 @@ _ALIASES: tuple[tuple[str, str], ...] = (
     ("ngoc trai", "ngoc_trai"),
     ("khu hai au", "hai_au"),
     ("hai au", "hai_au"),
+    ("khu biet thu an dao", "an_dao"),
+    ("biet thu an dao", "an_dao"),
+    ("an dao", "an_dao"),
+    ("vinuni", "vinuni"),
+    ("vin university", "vinuni"),
+    ("dai hoc vinuni", "vinuni"),
+    ("sao bien", "sao_bien"),
+    ("dao ngoc trai", "dao_ngoc_trai"),
+    ("zenpark", "zenpark_ruby"),
+    ("the zenpark", "zenpark_ruby"),
+    ("ruby", "zenpark_ruby"),
+    ("pavilion", "pavilion_zurich"),
+    ("zurich", "pavilion_zurich"),
+    ("vincom", "vincom"),
+    ("vinschool", "vinschool"),
+    ("vinmec", "vinmec"),
 )
 
 _RESIDENTIAL_TARGETS = ("sapphire", "ngoc_trai", "hai_au")
@@ -141,6 +220,18 @@ def is_spatial_query(query: str, location_ids: list[str]) -> bool:
             "nguoc gio",
         )
     )
+    location_environmental = bool(location_ids) and any(
+        phrase in plain
+        for phrase in (
+            "chat luong khong khi",
+            "khong khi",
+            "moi truong",
+            "o nhiem",
+            "aqi",
+            "pm25",
+            "pm2.5",
+        )
+    )
     location_comparison = len(location_ids) >= 2 and any(
         phrase in plain for phrase in ("so voi", "so sanh", "khac nhau", "khu nao")
     )
@@ -149,7 +240,7 @@ def is_spatial_query(query: str, location_ids: list[str]) -> bool:
         and "o nhiem" in plain
         and any(phrase in plain for phrase in ("tu ", "ve khu", "thoi", "lan"))
     )
-    return explicit_spatial or location_comparison or wind_dispersion
+    return explicit_spatial or location_environmental or location_comparison or wind_dispersion
 
 
 def spatial_analysis_mode(query: str, location_ids: list[str]) -> SpatialAnalysisMode:
