@@ -153,6 +153,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         : "Vinhomes Ocean Park 1"
     );
     setIsAuthenticated(true);
+    setCurrentScreen("dashboard");
   };
 
   // Check existing session & load config on mount
@@ -170,12 +171,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const urlParams = new URLSearchParams(window.location.search);
         const authStatus = urlParams.get("auth");
         if (authStatus === "google_success") {
-          window.history.replaceState({}, document.title, window.location.pathname);
-          const data = await api.getMe();
-          if (mounted && data.user) {
-            applyUser(data.user);
-            setAuthMessage("Đăng nhập bằng tài khoản Google thành công!");
-          }
+          window.location.replace(window.location.pathname);
           return;
         } else if (authStatus === "google_error") {
           const errorReason = urlParams.get("error");
@@ -189,7 +185,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
 
-        // Default to login screen on initial load so users can choose login method / persona
+        // Restore active session if session cookie exists
+        try {
+          const meData = await api.getMe();
+          if (mounted && meData.user) {
+            applyUser(meData.user);
+            setCurrentScreen("dashboard");
+            return;
+          }
+        } catch {
+          // No active session, stay on login
+        }
+
+        // Default to login screen if unauthenticated
         if (mounted) {
           setIsAuthenticated(false);
           setCurrentScreen("login");

@@ -591,7 +591,7 @@ def auth_google_callback(
             correlation_id=_request_id(request),
         )
         csrf_token = generate_csrf_token()
-        response = RedirectResponse(url=f"{settings.frontend_url}/?auth=google_success", status_code=307)
+        response = RedirectResponse(url=f"{settings.frontend_url}/", status_code=307)
         response.set_cookie(
             key="airguard_session",
             value=raw_session_token,

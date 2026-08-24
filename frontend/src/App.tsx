@@ -820,7 +820,9 @@ const AppContent: React.FC = () => {
 
   // Auth Screen Routing
   if (currentScreen === "login") {
-    return <Login />;
+    if (!isAuthenticated) {
+      return <Login />;
+    }
   }
   if (currentScreen === "register") {
     return <Register />;
