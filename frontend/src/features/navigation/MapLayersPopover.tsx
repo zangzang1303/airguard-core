@@ -13,10 +13,19 @@ import {
   Wifi,
   ChartNoAxesCombined,
   PanelTop,
+  SlidersHorizontal,
+  FlaskConical,
+  ShieldAlert,
   X,
   RotateCcw,
 } from "lucide-react";
-import { MapLayerConfig, EnvironmentalLayerType, MapViewMode } from "../../types/superApp";
+import {
+  MapLayerConfig,
+  MapLayerVisibilityKey,
+  EnvironmentalLayerType,
+  MapViewMode,
+} from "../../types/superApp";
+import { useAuth } from "../../context/AuthContext";
 import { useDraggableFloatingPanel, useFloatingPanelContext } from "../floating";
 
 interface MapLayersPopoverProps {
@@ -30,6 +39,10 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
   onChangeConfig,
   onClose,
 }) => {
+  const { role, demoMode } = useAuth();
+  const isManager = role === "manager" || role === "admin";
+  const canUseDemoControl = isManager && Boolean(demoMode);
+
   const { containerProps, handleProps } = useDraggableFloatingPanel({
     panelId: "map-layers",
     group: "popover",
@@ -48,8 +61,11 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
     });
   };
 
-  const toggleFeature = (key: keyof MapLayerConfig) => {
-    onChangeConfig({ ...config, [key]: !config[key] });
+  const toggleFeature = (key: MapLayerVisibilityKey) => {
+    onChangeConfig({
+      ...config,
+      [key]: !config[key],
+    });
   };
 
   const currentViewMode: MapViewMode = config.viewMode ?? (config.showHeatmap ? "heatmap" : "markers");
@@ -73,7 +89,7 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
         </button>
       </div>
 
-      {/* View Mode Toggle Section */}
+      {/* 1. View Mode Toggle Section */}
       <div className="popover-section no-drag" data-no-drag="true">
         <div className="section-label">Chế độ hiển thị chính</div>
         <div className="layer-options-grid" role="radiogroup" aria-label="Chế độ hiển thị chính">
@@ -101,7 +117,7 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
         </div>
       </div>
 
-      {/* Environmental Metrics Section */}
+      {/* 2. Environmental Metrics Section */}
       <div className="popover-section no-drag" data-no-drag="true">
         <div className="section-label">Chỉ số môi trường</div>
         <div className="layer-options-grid">
@@ -157,61 +173,153 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
         </div>
       </div>
 
-      {/* Map Elements Toggle Section */}
+      {/* 3. Common Map Elements Toggle Section */}
       <div className="popover-section no-drag" data-no-drag="true">
-        <div className="section-label">Thành phần phụ hỗ trợ</div>
+        <div className="section-label">Thành phần phụ trợ</div>
         <div className="feature-toggles-list">
-          <label className="toggle-item-row" onClick={() => toggleFeature("showBoundary")}>
+          {/* Ranh giới */}
+          <label className="toggle-item-row" htmlFor="toggle-boundary">
             <div className="toggle-label-wrap">
               <Layers size={15} />
               <span>Ranh giới Ocean Park 1</span>
             </div>
-            <input type="checkbox" checked={config.showBoundary} readOnly />
+            <input
+              id="toggle-boundary"
+              type="checkbox"
+              checked={config.showBoundary}
+              onChange={() => toggleFeature("showBoundary")}
+            />
           </label>
 
-          <label className="toggle-item-row" onClick={() => toggleFeature("showSensors")}>
+          {/* Trạm cảm biến */}
+          <label className="toggle-item-row" htmlFor="toggle-sensors">
             <div className="toggle-label-wrap">
               <Radio size={15} />
-              <span>Trạm cảm biến quan trắc</span>
+              <div className="toggle-title-block">
+                <span>Trạm cảm biến quan trắc</span>
+                {currentViewMode === "heatmap" && (
+                  <span className="toggle-helper-note">Chỉ hiển thị ở chế độ Điểm đo Trạm</span>
+                )}
+              </div>
             </div>
-            <input type="checkbox" checked={config.showSensors} readOnly />
+            <input
+              id="toggle-sensors"
+              type="checkbox"
+              checked={config.showSensors}
+              onChange={() => toggleFeature("showSensors")}
+            />
           </label>
 
-          <label className="toggle-item-row" onClick={() => toggleFeature("showPlaces")}>
+          {/* Địa danh & Phân khu */}
+          <label className="toggle-item-row" htmlFor="toggle-places">
             <div className="toggle-label-wrap">
               <MapPin size={15} />
               <span>Địa danh & Phân khu</span>
             </div>
-            <input type="checkbox" checked={config.showPlaces} readOnly />
+            <input
+              id="toggle-places"
+              type="checkbox"
+              checked={config.showPlaces}
+              onChange={() => toggleFeature("showPlaces")}
+            />
           </label>
 
-          <label className="toggle-item-row" onClick={() => toggleFeature("showConnectionStatus")}>
+          {/* Trạng thái kết nối */}
+          <label className="toggle-item-row" htmlFor="toggle-connection">
             <div className="toggle-label-wrap">
               <Wifi size={15} />
               <span>Trạng thái kết nối</span>
             </div>
-            <input type="checkbox" checked={config.showConnectionStatus} readOnly />
+            <input
+              id="toggle-connection"
+              type="checkbox"
+              checked={config.showConnectionStatus}
+              onChange={() => toggleFeature("showConnectionStatus")}
+            />
           </label>
 
-          <label className="toggle-item-row" onClick={() => toggleFeature("showStationOverview")}>
-            <div className="toggle-label-wrap">
-              <ChartNoAxesCombined size={15} />
-              <span>Tổng quan trạng thái trạm</span>
-            </div>
-            <input type="checkbox" checked={config.showStationOverview} readOnly />
-          </label>
-
-          <label className="toggle-item-row" onClick={() => toggleFeature("showDispersionInfo")}>
+          {/* Thông tin IDW */}
+          <label className="toggle-item-row" htmlFor="toggle-dispersion">
             <div className="toggle-label-wrap">
               <PanelTop size={15} />
-              <span>Thông tin bản đồ lan truyền</span>
+              <div className="toggle-title-block">
+                <span>Thông tin bản đồ lan truyền</span>
+                {currentViewMode !== "heatmap" && (
+                  <span className="toggle-helper-note">Chỉ áp dụng cho Bản đồ nhiệt</span>
+                )}
+              </div>
             </div>
-            <input type="checkbox" checked={config.showDispersionInfo} readOnly />
+            <input
+              id="toggle-dispersion"
+              type="checkbox"
+              checked={config.showDispersionInfo}
+              onChange={() => toggleFeature("showDispersionInfo")}
+            />
+          </label>
+
+          {/* Thanh trượt dự báo lan truyền */}
+          <label className="toggle-item-row" htmlFor="toggle-timeline">
+            <div className="toggle-label-wrap">
+              <SlidersHorizontal size={15} />
+              <div className="toggle-title-block">
+                <span>Thanh trượt dự báo lan truyền</span>
+                {currentViewMode !== "heatmap" && (
+                  <span className="toggle-helper-note">Chỉ áp dụng cho Bản đồ nhiệt</span>
+                )}
+              </div>
+            </div>
+            <input
+              id="toggle-timeline"
+              type="checkbox"
+              checked={config.showForecastTimeline ?? true}
+              onChange={() => toggleFeature("showForecastTimeline")}
+            />
           </label>
         </div>
       </div>
 
-      {/* Floating Layout Reset Action */}
+      {/* 4. Manager Tools Section (Rendered exclusively for Manager / Admin) */}
+      {isManager && (
+        <div className="popover-section no-drag manager-tools-section" data-no-drag="true">
+          <div className="section-label manager-section-label">
+            <ShieldAlert size={12} className="inline-manager-icon" />
+            <span>Công cụ Ban Quản lý</span>
+          </div>
+          <div className="feature-toggles-list">
+            {/* Tổng quan trạng thái trạm */}
+            <label className="toggle-item-row" htmlFor="toggle-station-overview">
+              <div className="toggle-label-wrap">
+                <ChartNoAxesCombined size={15} />
+                <span>Tổng quan trạng thái trạm</span>
+              </div>
+              <input
+                id="toggle-station-overview"
+                type="checkbox"
+                checked={config.showStationOverview}
+                onChange={() => toggleFeature("showStationOverview")}
+              />
+            </label>
+
+            {/* Điều khiển dữ liệu demo (Chỉ khi demoMode=true) */}
+            {canUseDemoControl && (
+              <label className="toggle-item-row" htmlFor="toggle-demo-control">
+                <div className="toggle-label-wrap">
+                  <FlaskConical size={15} />
+                  <span>Điều khiển dữ liệu demo</span>
+                </div>
+                <input
+                  id="toggle-demo-control"
+                  type="checkbox"
+                  checked={config.showDemoControl ?? true}
+                  onChange={() => toggleFeature("showDemoControl")}
+                />
+              </label>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 5. Floating Layout Reset Action */}
       <div className="popover-section no-drag" data-no-drag="true" style={{ paddingTop: 8, borderTop: "1px solid var(--border-subtle, #e2e8f0)" }}>
         <button
           type="button"

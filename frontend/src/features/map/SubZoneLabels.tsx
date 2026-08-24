@@ -10,7 +10,14 @@ interface SubZoneLabelsProps {
   selectedPoiId: string | null;
 }
 
-function createPoiIcon(category: string, isSelected: boolean) {
+/**
+ * Creates lightweight, muted POI marker icon.
+ * Features:
+ * - Smaller size (22x22px) compared to sensor station pins (40x48px)
+ * - Neutral soft pastel/gray styling to avoid competing with sensor markers
+ * - Clear category emoji
+ */
+function createPoiIcon(category: string, isSelected: boolean): L.DivIcon {
   const isSelectedClass = isSelected ? "poi-icon-selected" : "";
   let iconEmoji = "📍";
   if (category === "university") iconEmoji = "🎓";
@@ -24,12 +31,12 @@ function createPoiIcon(category: string, isSelected: boolean) {
   return L.divIcon({
     className: "custom-poi-marker",
     html: `
-      <div class="poi-marker-badge ${isSelectedClass}">
-        <span class="poi-emoji">${iconEmoji}</span>
+      <div class="poi-marker-badge ${isSelectedClass}" role="img" aria-label="Địa danh: ${category}">
+        <span class="poi-emoji" aria-hidden="true">${iconEmoji}</span>
       </div>
     `,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
   });
 }
 
@@ -51,14 +58,16 @@ export const SubZoneLabels: React.FC<SubZoneLabelsProps> = ({
             key={poi.id}
             position={[poi.latitude, poi.longitude]}
             icon={icon}
+            aria-label={`Địa danh ${poi.name}, ${poi.subdivision || ""}`}
             eventHandlers={{
               click: () => onSelectPoi(poi),
             }}
           >
-            <Tooltip direction="bottom" offset={[0, 10]} opacity={0.92} permanent={false}>
+            <Tooltip direction="bottom" offset={[0, 8]} opacity={0.92} permanent={false}>
               <div className="poi-tooltip">
+                <div className="poi-category-tag">Địa danh · {poi.category}</div>
                 <div className="poi-title">{poi.name}</div>
-                <div className="poi-sub">{poi.subdivision}</div>
+                {poi.subdivision && <div className="poi-sub">{poi.subdivision}</div>}
               </div>
             </Tooltip>
           </Marker>

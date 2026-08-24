@@ -386,11 +386,11 @@ const SuperAppMain: React.FC<{
   }
 
   return (
-    <FloatingPanelProvider>
-      <div
-        className={`map-super-app-root${isManager ? " is-manager" : ""}`}
-        style={{ width: "100vw", height: "100dvh", position: "relative", overflow: "hidden", margin: 0, padding: 0 }}
-      >
+    <FloatingPanelProvider boundarySelector=".map-super-app-root">
+    <div
+      className={`map-super-app-root${isManager ? " is-manager" : ""}`}
+      style={{ width: "100vw", height: "100dvh", position: "relative", overflow: "hidden", margin: 0, padding: 0 }}
+    >
       {/* Location Status Toast Banner */}
       {locationNotice && (
         <div className={`map-location-toast ${locationNotice.type}`} role="alert">
@@ -456,7 +456,6 @@ const SuperAppMain: React.FC<{
         onSelectCoordinates={handleFlyTo}
         onSelectStation={handleSelectStation}
         onSelectPoi={handleSelectPoi}
-        onOpenAiChat={handleOpenAiChat}
         onOpenAlerts={() => setActiveDrawer("alerts")}
         onOpenProfile={() => setActiveDrawer("health-profile")}
         onOpenManagerDrawer={() => setActiveDrawer("manager-approval")}
@@ -483,7 +482,6 @@ const SuperAppMain: React.FC<{
       <BottomActionDock
         activeDrawer={activeDrawer}
         isLayersOpen={isLayersOpen}
-        activeAlertCount={activeAlertCount}
         onToggleLayers={() => setIsLayersOpen(!isLayersOpen)}
         onOpenDrawer={(drawer) => {
           setActiveDrawer(drawer);

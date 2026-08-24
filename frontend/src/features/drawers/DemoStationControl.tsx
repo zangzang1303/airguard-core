@@ -7,14 +7,14 @@ import { useDraggableFloatingPanel } from "../floating";
 const DEFAULT_VALUES = { pm25: 120, co2: 1600, noise_db: 88, temperature: 39 };
 
 export const DemoStationControl: React.FC<{ floating?: boolean }> = ({ floating = false }) => {
-  const { role, selectedStationId } = useAuth();
+  const { role, selectedStationId, demoMode } = useAuth();
   const [open, setOpen] = useState(false);
   const [stationId, setStationId] = useState(selectedStationId || "S03");
   const [values, setValues] = useState(DEFAULT_VALUES);
   const [active, setActive] = useState<Record<string, unknown>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const allowed = role === "manager" || role === "admin";
+  const allowed = (role === "manager" || role === "admin") && Boolean(demoMode);
 
   const { containerProps, handleProps } = useDraggableFloatingPanel({
     panelId: "demo-control",
@@ -23,6 +23,7 @@ export const DemoStationControl: React.FC<{ floating?: boolean }> = ({ floating 
   });
 
   const refresh = async () => {
+    if (!allowed) return;
     try {
       setActive((await api.getDemoStationOverrides()).overrides || {});
     } catch {
@@ -30,8 +31,19 @@ export const DemoStationControl: React.FC<{ floating?: boolean }> = ({ floating 
     }
   };
 
-  useEffect(() => { refresh(); }, []);
-  useEffect(() => { if (selectedStationId) setStationId(selectedStationId); }, [selectedStationId]);
+  useEffect(() => {
+    if (allowed) {
+      refresh();
+    }
+  }, [allowed]);
+
+  useEffect(() => {
+    if (selectedStationId) setStationId(selectedStationId);
+  }, [selectedStationId]);
+
+  if (!allowed) {
+    return null;
+  }
 
   const setValue = (key: keyof typeof values, value: string) =>
     setValues((old) => ({ ...old, [key]: Number(value) }));

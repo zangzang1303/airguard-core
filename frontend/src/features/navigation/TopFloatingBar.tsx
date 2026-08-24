@@ -1,15 +1,30 @@
 import React from "react";
-import { Wind, Bell, Sparkles, User, ShieldCheck, FileClock, Wifi, WifiOff, RefreshCw, EyeOff } from "lucide-react";
+import { Wind, Bell, User, ShieldCheck, FileClock, Wifi, WifiOff, RefreshCw, EyeOff } from "lucide-react";
 import { PlaceSearchOmnibox } from "./PlaceSearchOmnibox";
 import { Station } from "../../types";
 import { PlacePOI } from "../../types/superApp";
+import { formatVnTimeWithSeconds } from "../../utils/datetime";
+
+/**
+ * Format alert count badge:
+ * - count <= 0: null (badge hidden)
+ * - 1 <= count <= 99: exact count as string
+ * - count > 99: "99+"
+ */
+export const formatAlertBadge = (count: number): string | null => {
+  if (count <= 0) return null;
+  if (count > 99) return "99+";
+  return count.toString();
+};
 
 interface TopFloatingBarProps {
   stations: Station[];
   activeAlertCount: number;
+  isAlertsOpen?: boolean;
   isManager: boolean;
   connectionStatus: "connected" | "updating" | "disconnected";
-  lastUpdated: Date | null;
+  lastStationSyncAt?: Date | null;
+  lastUpdated?: Date | null;
   refreshData: () => Promise<void>;
   showConnectionStatus: boolean;
   hasAIOverlay?: boolean;
@@ -17,7 +32,6 @@ interface TopFloatingBarProps {
   onSelectCoordinates: (coords: [number, number], title: string) => void;
   onSelectStation: (stationId: string) => void;
   onSelectPoi: (poi: PlacePOI) => void;
-  onOpenAiChat: () => void;
   onOpenAlerts: () => void;
   onOpenProfile: () => void;
   onOpenManagerDrawer: () => void;
@@ -35,8 +49,10 @@ interface TopFloatingBarProps {
 export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   stations,
   activeAlertCount,
+  isAlertsOpen = false,
   isManager,
   connectionStatus,
+  lastStationSyncAt,
   lastUpdated,
   refreshData,
   showConnectionStatus,
@@ -45,7 +61,6 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   onSelectCoordinates,
   onSelectStation,
   onSelectPoi,
-  onOpenAiChat,
   onOpenAlerts,
   onOpenProfile,
   onOpenManagerDrawer,
@@ -55,12 +70,21 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   onLocateGps,
   onStartPickOnMap,
 }) => {
+  const syncTime = lastStationSyncAt ?? lastUpdated ?? null;
+  const formattedAlertBadge = formatAlertBadge(activeAlertCount);
+  const alertAriaLabel =
+    activeAlertCount > 0
+      ? `Cảnh báo môi trường, có ${activeAlertCount > 99 ? "hơn 99" : activeAlertCount} cảnh báo đang hoạt động`
+      : "Cảnh báo môi trường, không có cảnh báo nào";
+
+  const formattedSyncTime = syncTime ? formatVnTimeWithSeconds(syncTime) : "Chưa đồng bộ";
+
   return (
     <header className="top-floating-bar-header">
       {/* Top Left Controls Group: Brand Badge & Connection Status (Structured normal flow) */}
       <div className="top-left-controls-group">
-        {/* Brand & Location Identifier */}
-        {showConnectionStatus && <div
+        {/* Brand & Location Identifier (Always rendered) */}
+        <div
           className="top-brand-badge"
           onClick={() => onSelectCoordinates([20.9942, 105.9485], "Ocean Park 1")}
           role="button"
@@ -80,21 +104,22 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
             <span className="brand-name">AirGuard</span>
             <span className="brand-location">Ocean Park 1</span>
           </div>
-        </div>}
+        </div>
 
-        {/* Connection Status Badge Bar */}
-        <div
-          className="connection-status-badge-bar"
-          role="status"
-          aria-live="polite"
-          aria-label={`Trạng thái kết nối: ${
-            connectionStatus === "connected"
-              ? "Đã kết nối trực tiếp"
-              : connectionStatus === "updating"
-              ? "Đang cập nhật dữ liệu"
-              : "Mất kết nối - Đang thử lại"
-          }. ${lastUpdated ? `Dữ liệu cập nhật lúc ${lastUpdated.toLocaleTimeString("vi-VN")}` : "Chưa đồng bộ"}`}
-        >
+        {/* Connection Status Badge Bar (Controlled by showConnectionStatus) */}
+        {showConnectionStatus && (
+          <div
+            className="connection-status-badge-bar"
+            role="status"
+            aria-live="polite"
+            aria-label={`Trạng thái kết nối: ${
+              connectionStatus === "connected"
+                ? "Đã kết nối trực tiếp"
+                : connectionStatus === "updating"
+                ? "Đang cập nhật dữ liệu"
+                : "Mất kết nối - Đang thử lại"
+            }. ${syncTime ? `Đồng bộ trạm lúc ${formattedSyncTime}` : "Chưa đồng bộ"}`}
+          >
           <span className="status-indicator">
             {connectionStatus === "connected" && (
               <>
@@ -124,12 +149,14 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
               </>
             )}
           </span>
-          <span className="status-divider" aria-hidden="true">|</span>
+          <span className="status-divider" aria-hidden="true">
+            |
+          </span>
           <span className="status-time">
-            {lastUpdated ? (
+            {syncTime ? (
               <>
-                <span className="time-prefix">Vừa cập nhật </span>
-                <span className="time-val">{lastUpdated.toLocaleTimeString("vi-VN")}</span>
+                <span className="time-prefix">Đồng bộ trạm lúc </span>
+                <span className="time-val">{formattedSyncTime}</span>
               </>
             ) : (
               "Chưa đồng bộ"
@@ -140,12 +167,13 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
             onClick={refreshData}
             disabled={connectionStatus === "updating"}
             className="status-refresh-btn"
-            title="Làm mới thủ công"
+            title="Làm mới dữ liệu thủ công"
             aria-label="Làm mới dữ liệu thủ công"
           >
             <RefreshCw size={12} className={connectionStatus === "updating" ? "spin-icon" : ""} aria-hidden="true" />
           </button>
         </div>
+        )}
 
         {/* Proactive AI Overlay Clear Button in normal stack flow */}
         {hasAIOverlay && onClearAIOverlay && (
@@ -176,44 +204,45 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
 
       {/* Right Quick Action Utility Icons */}
       <div className="top-actions-right">
-        {/* Active Alerts Bell */}
+        {/* Active Alerts Bell: Single entry point for environmental alerts */}
         <button
-          className={`top-icon-btn ${activeAlertCount > 0 ? "has-alerts" : ""}`}
+          type="button"
+          className={`top-icon-btn ${activeAlertCount > 0 ? "has-alerts" : ""} ${isAlertsOpen ? "active" : ""}`}
           onClick={onOpenAlerts}
-          title="Cảnh báo môi trường"
+          title={alertAriaLabel}
+          aria-label={alertAriaLabel}
+          aria-expanded={isAlertsOpen}
         >
-          <Bell size={18} />
-          {activeAlertCount > 0 && <span className="badge-count">{activeAlertCount}</span>}
-        </button>
-
-        {/* Ask AirGuard AI Button */}
-        <button
-          className="top-ai-btn"
-          onClick={onOpenAiChat}
-          title="Trò chuyện với AirGuard AI"
-        >
-          <Sparkles size={16} />
-          <span className="btn-text">Hỏi AI</span>
+          <Bell size={18} aria-hidden="true" />
+          {formattedAlertBadge && (
+            <span className="badge-count" aria-hidden="true">
+              {formattedAlertBadge}
+            </span>
+          )}
         </button>
 
         {/* Manager Mode Access Button */}
         {isManager && (
           <>
             <button
+              type="button"
               className="top-manager-btn"
               onClick={onOpenManagerDrawer}
               title="Bảng phê duyệt Ban Quản Lý"
+              aria-label="Mở Bảng phê duyệt Ban Quản Lý"
             >
-              <ShieldCheck size={16} />
+              <ShieldCheck size={16} aria-hidden="true" />
               <span className="btn-text">Duyệt BQL</span>
             </button>
             {onOpenAudit && (
               <button
+                type="button"
                 className="top-icon-btn"
                 onClick={onOpenAudit}
                 title="Nhật ký Audit Log"
+                aria-label="Mở Nhật ký Audit Log"
               >
-                <FileClock size={18} />
+                <FileClock size={18} aria-hidden="true" />
               </button>
             )}
           </>
@@ -221,15 +250,18 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
 
         {/* User Health Profile */}
         <button
+          type="button"
           className="top-icon-btn profile-btn"
           onClick={onOpenProfile}
           title="Hồ sơ người dùng & Đăng xuất"
+          aria-label="Hồ sơ người dùng & Đăng xuất"
         >
-          <User size={18} />
+          <User size={18} aria-hidden="true" />
         </button>
       </div>
     </header>
   );
 };
+
 
 
