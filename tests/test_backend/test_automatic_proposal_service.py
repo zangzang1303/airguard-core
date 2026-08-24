@@ -138,18 +138,46 @@ def test_auto_proposal_uses_live_llm_before_creating_pending_proposal() -> None:
     ]
 
 
-def test_auto_proposal_does_not_create_when_live_llm_is_unavailable() -> None:
+def test_auto_proposal_uses_grounded_deterministic_fallback_when_live_llm_is_unavailable() -> None:
     agent = FakeAgentService([{"trace": {"generation_mode": "deterministic_grounded"}}])
     audit = FakeAuditService()
+    approvals = FakeApprovalService()
+    notifier = FakeNotifier()
     service = AutomaticProposalService(
-        agent_service=agent, approval_service=FakeApprovalService(), audit_service=audit, enabled=True
+        agent_service=agent,
+        approval_service=approvals,
+        audit_service=audit,
+        enabled=True,
+        proposal_notifier=notifier,
     )
 
     service.analyze_and_propose(alert=alert(), correlation_id="corr-002")
 
     assert len(agent.calls) == 1
+    assert approvals.created[0]["proposed_action"] == "ventilation_boost"
+    assert approvals.created[0]["created_by"] == "ai_agent"
+    assert approvals.created[0]["evidence"]["automation"]["generation_mode"] == "deterministic_grounded"
+    assert audit.records[-1]["action"] == "agent.auto_proposal.create"
+    assert audit.records[-1]["details"]["generation_mode"] == "deterministic_grounded"
+    assert notifier.calls[0]["proposal_id"] == "eco-proposal-001"
+
+
+def test_auto_proposal_rejects_ungrounded_generation_mode() -> None:
+    agent = FakeAgentService([{"trace": {"generation_mode": "unknown"}}])
+    audit = FakeAuditService()
+    approvals = FakeApprovalService()
+    service = AutomaticProposalService(
+        agent_service=agent,
+        approval_service=approvals,
+        audit_service=audit,
+        enabled=True,
+    )
+
+    service.analyze_and_propose(alert=alert(), correlation_id="corr-ungrounded")
+
+    assert approvals.created == []
     assert audit.records[-1]["action"] == "agent.auto_proposal.skipped"
-    assert audit.records[-1]["outcome"] == "skipped"
+    assert audit.records[-1]["details"]["reason"] == "grounded_generation_required"
 
 
 def test_safe_recovery_creates_pending_eco_proposal_without_agent_or_dispatch() -> None:

@@ -12,8 +12,9 @@ from .audit_service import AuditService
 class AutomaticProposalService:
     """Turns a backend-confirmed environmental alert into one Agent review request.
 
-    The alert rule remains the eligibility gate. The Agent must first complete a
-    live-LLM, tool-grounded analysis; only then may it create a pending proposal.
+    The alert rule remains the eligibility gate. A live LLM may create the
+    proposal through tools; deterministic grounded mode creates the same
+    pending HITL record directly from backend-owned evidence.
     """
 
     SYSTEM_USER_ID = "system-alert-agent"
@@ -105,33 +106,69 @@ class AutomaticProposalService:
                 request_id=f"{correlation_id}:analysis",
             )
             generation_mode = analysis.get("trace", {}).get("generation_mode")
-            if generation_mode != "live_llm":
+            if generation_mode == "live_llm":
+                proposal = self.agent_service.chat_sync(
+                    message=(
+                        f"Tao warning proposal ventilation_boost pending cho {station_id} "
+                        f"dua tren canh bao backend {alert_id}; khong phe duyet hoac dispatch."
+                    ),
+                    user_id=self.SYSTEM_USER_ID,
+                    station_id=station_id,
+                    request_id=f"{correlation_id}:proposal",
+                )
+                proposal_id = proposal.get("proposal_id")
+                if not proposal_id:
+                    self._audit(
+                        action="agent.auto_proposal.skipped",
+                        alert_id=alert_id,
+                        correlation_id=correlation_id,
+                        outcome="skipped",
+                        details={"reason": "proposal_not_created", "agent_outcome": proposal.get("trace", {}).get("final_outcome")},
+                    )
+                    return
+            elif generation_mode == "deterministic_grounded":
+                proposal = self.approval_service.create_request(
+                    request_type="warning_proposal",
+                    station_id=station_id,
+                    device_id=None,
+                    proposed_action="ventilation_boost",
+                    reason=(
+                        "Backend-confirmed PM2.5/CO2 threshold continuity requires "
+                        "Manager review before simulated ventilation."
+                    ),
+                    evidence={
+                        "alert_id": alert_id,
+                        "alert_type": alert.get("alert_type"),
+                        "rule_version": alert.get("rule_version"),
+                        "observed_value": alert.get("observed_value"),
+                        "threshold_value": alert.get("threshold_value"),
+                        "source": alert.get("source"),
+                        "automation": {
+                            "generation_mode": generation_mode,
+                            "policy": "deterministic_grounded_fallback_v1",
+                        },
+                    },
+                    created_by="ai_agent",
+                    correlation_id=correlation_id,
+                    idempotency_key=f"auto-ventilation:{alert_id}:v1",
+                )
+                proposal_id = proposal.get("request_id")
+            else:
                 self._audit(
                     action="agent.auto_proposal.skipped",
                     alert_id=alert_id,
                     correlation_id=correlation_id,
                     outcome="skipped",
-                    details={"reason": "live_llm_required", "generation_mode": generation_mode},
+                    details={"reason": "grounded_generation_required", "generation_mode": generation_mode},
                 )
                 return
-
-            proposal = self.agent_service.chat_sync(
-                message=(
-                    f"Tao warning proposal ventilation_boost pending cho {station_id} "
-                    f"dua tren canh bao backend {alert_id}; khong phe duyet hoac dispatch."
-                ),
-                user_id=self.SYSTEM_USER_ID,
-                station_id=station_id,
-                request_id=f"{correlation_id}:proposal",
-            )
-            proposal_id = proposal.get("proposal_id")
             if not proposal_id:
                 self._audit(
                     action="agent.auto_proposal.skipped",
                     alert_id=alert_id,
                     correlation_id=correlation_id,
                     outcome="skipped",
-                    details={"reason": "proposal_not_created", "agent_outcome": proposal.get("trace", {}).get("final_outcome")},
+                    details={"reason": "proposal_not_created", "generation_mode": generation_mode},
                 )
                 return
             self._audit(

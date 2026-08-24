@@ -96,13 +96,16 @@ Each alert includes `alert_type` (`aqi_threshold`, `pm25_threshold`, `co2_thresh
 ## Automatic Agent proposal
 
 When `AUTO_PROPOSAL_ENABLED=true`, a newly eligible environmental alert schedules an internal
-Agent analysis. The Agent must report `generation_mode=live_llm` and revalidate fresh station data
-plus the active alert through backend tools before it creates a `pending` proposal. Only one pending
+Agent analysis. With `generation_mode=live_llm`, the Agent revalidates fresh station data plus the
+active alert through backend tools before it creates a `pending` proposal. With
+`generation_mode=deterministic_grounded`, the backend creates the same idempotent `pending`
+proposal directly from Rule Engine evidence and re-runs the continuity/device policy gate. Unknown
+or ungrounded modes fail closed. Only one pending
 automatic warning proposal is permitted per station; later automatic triggers are skipped until the
 Manager reviews it. Pending proposals automatically expire after `PROPOSAL_PENDING_TTL_SECONDS`
 (default: 3600 seconds); expiry preserves the proposal and writes an audit event, but it can no
-longer be approved or dispatched. No Manager decision or device command is automated. A failed/missing LLM is
-audited and leaves the alert active without a proposal.
+longer be approved or dispatched. No Manager decision or device command is automated. Agent service
+failure is audited and leaves the alert active without a proposal.
 
 For a focused demo, `AUTO_PROPOSAL_STATIONS=S03` matches the `spike` scenario and registered `FILTER-01` device.
 Other stations may still produce backend alerts, but their alerts do not schedule Agent proposals.

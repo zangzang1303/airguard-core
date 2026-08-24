@@ -329,7 +329,7 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 
 - Proposal chỉ được tạo khi có active alert, station fresh/online và evidence không rỗng.
 - Trạng thái ban đầu bắt buộc là `pending`; có version, reason, action, target/device nếu có và thời hạn.
-- Automatic Agent proposal chỉ chạy khi LLM/evidence/policy đủ điều kiện; lỗi không được tạo proposal giả.
+- Automatic Agent proposal chạy với `live_llm` hoặc `deterministic_grounded`; cả hai đều phải revalidate evidence/policy backend, mode không grounded hoặc lỗi Agent thì fail closed.
 - Chỉ một automatic pending proposal cho mỗi station trong cùng policy window.
 - **Trạng thái:** E2E.
 
