@@ -191,7 +191,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
 
-        // Default to login screen on initial load so users can choose login method / persona
+        // Restore active session if session cookie exists
+        try {
+          const meData = await api.getMe();
+          if (mounted && meData.user) {
+            applyUser(meData.user);
+            setCurrentScreen("dashboard");
+            return;
+          }
+        } catch {
+          // No active session, stay on login
+        }
+
+        // Default to login screen if unauthenticated
         if (mounted) {
           setIsAuthenticated(false);
           setCurrentScreen("login");
