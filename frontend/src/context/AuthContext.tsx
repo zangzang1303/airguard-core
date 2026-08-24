@@ -153,6 +153,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         : "Vinhomes Ocean Park 1"
     );
     setIsAuthenticated(true);
+    setCurrentScreen("dashboard");
   };
 
   // Check existing session & load config on mount
