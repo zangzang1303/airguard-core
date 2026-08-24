@@ -174,7 +174,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const data = await api.getMe();
           if (mounted && data.user) {
             applyUser(data.user);
+            setCurrentScreen("dashboard");
             setAuthMessage("Đăng nhập bằng tài khoản Google thành công!");
+            window.scrollTo({ top: 0, left: 0, behavior: "auto" });
           }
           return;
         } else if (authStatus === "google_error") {
