@@ -1,6 +1,7 @@
 export type UserRole = "resident" | "manager" | "admin";
 export type UserGroup = "normal" | "sensitive" | "outdoor_sport";
 export type AdminUserStatus = "active" | "disabled" | "invitation_pending";
+export type EmailDeliveryStatus = "accepted" | "not_configured" | "failed" | "unknown";
 
 export interface AdminUser {
   user_id: string;
@@ -30,6 +31,7 @@ export interface AdminAuditEntry {
 export interface UserMutationResult {
   success: boolean;
   message?: string;
+  user?: AdminUser;
   audit_entry: AdminAuditEntry;
 }
 

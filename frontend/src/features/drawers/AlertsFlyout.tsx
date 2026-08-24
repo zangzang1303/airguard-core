@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { AlertTriangle, Bell, CheckCircle, MapPin, RefreshCw, X } from "lucide-react";
 
 import { Alert, Station } from "../../types";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface AlertsFlyoutProps {
   alerts: Alert[];
@@ -31,6 +32,11 @@ export const AlertsFlyout: React.FC<AlertsFlyoutProps> = ({
   onClose,
   onShowAlertOnMap,
 }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "alerts",
+    group: "drawer",
+  });
+
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const activeAlerts = useMemo(
     () => alerts
@@ -41,18 +47,18 @@ export const AlertsFlyout: React.FC<AlertsFlyoutProps> = ({
   );
 
   return (
-    <div className="floating-flyout-card alerts-flyout">
+    <div {...containerProps} className="floating-flyout-card alerts-flyout">
       <div className="flyout-header-row">
-        <div className="flyout-title-group">
+        <div className="flyout-title-group" {...handleProps}>
           <Bell size={18} className="flyout-bell-icon" aria-hidden="true" />
           <h3 className="flyout-title">Cảnh báo môi trường</h3>
         </div>
-        <button className="flyout-close-btn" onClick={onClose} aria-label="Đóng danh sách cảnh báo">
+        <button className="no-drag flyout-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng danh sách cảnh báo">
           <X size={16} />
         </button>
       </div>
 
-      <div className="alerts-filter-row">
+      <div className="alerts-filter-row no-drag" data-no-drag="true">
         <label htmlFor="map-alert-severity">Mức độ</label>
         <select
           id="map-alert-severity"

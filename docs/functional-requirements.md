@@ -107,7 +107,7 @@ AirGuard AI thu thập dữ liệu từ 5 trạm mô phỏng `S01`–`S05`, truy
 - Token chỉ dùng một lần, có thời hạn và chỉ lưu bản băm.
 - Reset mật khẩu phải vô hiệu các session cũ.
 - Không tiết lộ email có tồn tại hay không qua phản hồi quên mật khẩu.
-- **Trạng thái:** E2E ở backend; gửi email phụ thuộc SMTP.
+- **Trạng thái:** E2E ở backend; gửi email qua Resend Email API.
 
 ### FR-AUTH-05 — Google OAuth
 
@@ -400,8 +400,8 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 - Mỗi proposal chỉ enqueue tối đa một notification cho mỗi Manager/Admin hợp lệ.
 - Notification failure không thay đổi trạng thái `pending` và không bypass HITL.
 - `NOTIFICATION_PROVIDER=disabled` phải ghi `not_configured`, không tuyên bố đã gửi email.
-- SMTP chỉ gửi thật khi host/credential/recipient hợp lệ; log không chứa địa chỉ/body.
-- **Trạng thái:** queue/status E2E; gửi email phụ thuộc SMTP.
+- Resend API chỉ gửi thật khi API key/sender/recipient hợp lệ; log không chứa địa chỉ/body.
+- **Trạng thái:** queue/status E2E; gửi email qua Resend Email API (`resend==2.36.0`).
 
 ## 5.9. Admin surfaces
 
@@ -414,9 +414,10 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 ### FR-ADM-02 — Danh sách người dùng
 
 - Manager/Admin có thể đọc danh sách user từ `/api/v1/users`.
-- Các thao tác đổi role/status trong module quản trị hiện có local demo adapter; chưa được dùng làm bằng chứng backend mutation.
-- Nếu backend lỗi và UI dùng `DEMO_ADMIN_USERS`, giao diện phải được xem là fallback/demo, không phải dữ liệu tài khoản thật.
-- **Trạng thái:** đọc E2E; mutation Demo UI.
+- Admin có thể đổi role/status qua `PATCH /api/v1/users/{id}`; request yêu cầu CSRF, lý do và audit trong cùng transaction.
+- Backend chặn tự thay đổi tài khoản Admin, bảo vệ Admin active cuối cùng và revoke session khi vô hiệu hóa.
+- UI fail closed khi API lỗi; không trả `DEMO_ADMIN_USERS` như dữ liệu thật.
+- **Trạng thái:** đọc và mutation role/status E2E; invitation chưa triển khai.
 
 ### FR-ADM-03 — Khu vực, trạm và thiết bị nâng cao
 
@@ -437,7 +438,7 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 
 ### FR-OPS-02 — Async jobs
 
-- `docker compose --profile async-jobs up -d --build` bật RabbitMQ, Redis, Celery worker/beat theo cấu hình.
+- Đặt `CELERY_TASK_ALWAYS_EAGER=false` rồi chạy `docker compose --profile async-jobs up -d --build` để bật RabbitMQ, Redis, Celery worker/beat theo cấu hình.
 - Không bật profile thì demo có thể dùng eager/in-memory; UI phải không giả worker đang chạy.
 - Scheduled reports phải idempotent.
 - **Trạng thái:** phụ thuộc profile.
@@ -533,7 +534,7 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 | Proposal/HITL/device | `/approvals*`, `/devices*`, dispatcher | H-01..H-07 |
 | Audit | `/audit-logs` | H-06 |
 | Report | `/reports*` | R-01..R-05 |
-| Notification | notification jobs/SMTP | NT-01..NT-03 |
+| Notification | notification jobs/Resend | NT-01..NT-03 |
 | MQTT/pipeline | simulator, broker, consumer, PostgreSQL | P-01..P-06 |
 | Deployment | Compose/health/readiness | DP-01..DP-04 |
 

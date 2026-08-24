@@ -17,6 +17,7 @@ import {
   OCEAN_PARK_1_EXTENT,
   OCEAN_PARK_1_BOUNDARY,
 } from "../../utils/dispersionField";
+import { useDraggableFloatingPanel } from "../floating";
 
 export interface HeatmapLayerProps {
   activeLayer?: EnvironmentalLayerType;
@@ -38,6 +39,11 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
   showHeatmap = true,
   showMetadata = true,
 }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "heatmap-metadata",
+    group: "widget",
+  });
+
   const [data, setData] = useState<SpatialHeatmapResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,9 +140,9 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
       )}
 
       {/* 2. Unified Metric Overlay Panel */}
-      {showMetadata && <div className="spatial-heatmap-metadata-card unified-aqi-panel">
+      {showMetadata && <div {...containerProps} className="spatial-heatmap-metadata-card unified-aqi-panel">
         <div className="unified-panel-header">
-          <div className="header-title-wrap">
+          <div className="header-title-wrap" {...handleProps}>
             <Layers size={16} className="header-icon" />
             <span>Bản đồ lan truyền {currentMetricScale.label}</span>
           </div>
@@ -146,7 +152,8 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
             </span>
             <button
               type="button"
-              className="panel-collapse-btn"
+              data-no-drag="true"
+              className="no-drag panel-collapse-btn"
               onClick={() => setIsCollapsed(!isCollapsed)}
               title={isCollapsed ? "Mở rộng panel" : "Thu gọn panel"}
               aria-label={isCollapsed ? "Mở rộng panel" : "Thu gọn panel"}

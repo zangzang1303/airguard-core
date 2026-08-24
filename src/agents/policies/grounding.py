@@ -334,6 +334,32 @@ def route_query(
             ),
         )
 
+    route_or_area_recommendation = _contains_any(
+        plain,
+        (
+            "chay bo",
+            "jog",
+            "jogging",
+            "lo trinh",
+            "cung duong",
+            "tuyen duong",
+            "khu nao",
+            "it o nhiem",
+            "sach nhat",
+        ),
+    )
+    # A map-wide route/area recommendation does not need the client to invent a
+    # station id. Ground it with the backend spatial grid, then let the map
+    # planner render a route from that same request context.
+    if route_or_area_recommendation and not stations:
+        return RouteDecision(
+            intent=Intent.SPATIAL,
+            tool_calls=[ToolName.GET_SPATIAL_AIR_QUALITY],
+            tool_arguments=[{"metric": _spatial_metric(plain), "forecast_hour": _hours(plain, 0)}],
+            spatial_analysis="overview",
+            spatial_location_ids=explicit_spatial_locations,
+        )
+
     if _contains_any(
         plain,
         (

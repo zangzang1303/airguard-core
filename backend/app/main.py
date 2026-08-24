@@ -1,5 +1,6 @@
 import asyncio
 import re
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -17,6 +18,7 @@ from .dependencies.auth import (
     get_auth_service,
     get_current_user,
     get_optional_user,
+    require_admin,
     require_manager,
     set_auth_service,
 )
@@ -46,7 +48,9 @@ from .services.report_narrative_service import HttpReportNarrator
 from .services.report_repository import PostgresReportRepository
 from .services.spatial_dispersion_service import SpatialDispersionService
 from .services.station_service import StationService
+from .services.temporal_resolver import temporal_resolver
 from .services.user_service import UserService
+from .services.user_admin_service import UserAdminService
 from .services.ventilation_service import VentilationService
 from .services.weather_service import WeatherService
 
@@ -147,6 +151,12 @@ class ProfileUpdateRequest(BaseModel):
     sensitivity_group: Literal["normal", "sensitive", "outdoor_sport"] | None = None
 
 
+class AdminUserUpdateRequest(BaseModel):
+    role: Literal["resident", "manager", "admin"] | None = None
+    status: Literal["active", "disabled"] | None = None
+    reason: str = Field(..., min_length=3, max_length=500)
+
+
 class DemoLoginRequest(BaseModel):
     persona: Literal["resident", "sensitive", "outdoor_sport", "manager", "admin"] = Field(
         ...,
@@ -160,7 +170,7 @@ class LoginRequest(BaseModel):
 
 
 class VerifyEmailRequest(BaseModel):
-    token: str = Field(..., min_length=16, max_length=256)
+    token: str = Field(..., min_length=6, max_length=256, examples=["123456"])
 
 
 class ResendVerificationRequest(BaseModel):
@@ -258,6 +268,7 @@ db = Database(settings.database_url)
 audit_service = AuditService(db)
 station_service = StationService(db, settings.stale_after_seconds)
 user_service = UserService(db)
+user_admin_service = UserAdminService(db, audit_service)
 device_service = DeviceService(db)
 email_service = AuthEmailService(frontend_url=settings.frontend_url)
 auth_service = AuthService(
@@ -345,9 +356,68 @@ report_service = ReportGeneratorService(
     PostgresReportRepository(db),
     narrator=report_narrator,
 )
-spatial_service = SpatialDispersionService(station_service)
+weather_service = WeatherService(
+    settings.weather_api_base_url,
+    latitude=settings.weather_latitude,
+    longitude=settings.weather_longitude,
+    timeout_seconds=settings.weather_timeout_seconds,
+    max_age_seconds=settings.weather_max_age_seconds,
+)
+spatial_service = SpatialDispersionService(station_service, weather_provider=weather_service)
 
-app = FastAPI(title="AirGuard AI API", version="0.3.0")
+
+async def _telemetry_ticker() -> None:
+    while True:
+        try:
+            from .services.live_telemetry_engine import live_engine
+
+            live_engine.tick()
+        except Exception:
+            pass
+        await asyncio.sleep(10)
+
+
+def _bootstrap_database() -> None:
+    if not settings.database_url:
+        return
+    try:
+        with db.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'stations')")
+                exists = cur.fetchone()[0]
+                db_dir = Path(__file__).resolve().parent.parent / "db"
+                if not exists:
+                    schema_path = db_dir / "schema.sql"
+                    seed_path = db_dir / "seed.sql"
+                    if schema_path.exists():
+                        cur.execute(schema_path.read_text(encoding="utf-8"))
+                    if seed_path.exists():
+                        cur.execute(seed_path.read_text(encoding="utf-8"))
+
+                migrations_dir = db_dir / "migrations"
+                if migrations_dir.exists():
+                    for migration_file in sorted(migrations_dir.glob("*.sql")):
+                        try:
+                            cur.execute(migration_file.read_text(encoding="utf-8"))
+                        except Exception as mig_exc:
+                            print(f"Migration {migration_file.name} notice: {mig_exc}")
+    except Exception as exc:
+        print(f"Database bootstrap notice: {exc}")
+
+
+@asynccontextmanager
+async def app_lifespan(_app: FastAPI):
+    _bootstrap_database()
+    telemetry_task = asyncio.create_task(_telemetry_ticker())
+    try:
+        yield
+    finally:
+        telemetry_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await telemetry_task
+
+
+app = FastAPI(title="AirGuard AI API", version="0.3.0", lifespan=app_lifespan)
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
 app.add_middleware(
     CORSMiddleware,
@@ -365,19 +435,6 @@ async def add_request_id(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return response
-
-
-@app.on_event("startup")
-async def start_background_telemetry():
-    async def _telemetry_ticker():
-        while True:
-            try:
-                from .services.live_telemetry_engine import live_engine
-                live_engine.tick()
-            except Exception:
-                pass
-            await asyncio.sleep(10)
-    asyncio.create_task(_telemetry_ticker())
 
 
 def _request_id(request: Request) -> str:
@@ -426,35 +483,6 @@ async def unhandled_error_handler(request: Request, exc: Exception):
         code="internal_error",
         message="Internal server error",
     )
-
-
-@app.on_event("startup")
-def bootstrap_database():
-    if not settings.database_url:
-        return
-    try:
-        with db.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'stations')")
-                exists = cur.fetchone()[0]
-                db_dir = Path(__file__).resolve().parent.parent / "db"
-                if not exists:
-                    schema_path = db_dir / "schema.sql"
-                    seed_path = db_dir / "seed.sql"
-                    if schema_path.exists():
-                        cur.execute(schema_path.read_text(encoding="utf-8"))
-                    if seed_path.exists():
-                        cur.execute(seed_path.read_text(encoding="utf-8"))
-
-                migrations_dir = db_dir / "migrations"
-                if migrations_dir.exists():
-                    for migration_file in sorted(migrations_dir.glob("*.sql")):
-                        try:
-                            cur.execute(migration_file.read_text(encoding="utf-8"))
-                        except Exception as mig_exc:
-                            print(f"Migration {migration_file.name} notice: {mig_exc}")
-    except Exception as exc:
-        print(f"Database bootstrap notice: {exc}")
 
 
 @app.get("/api/v1/auth/config")
@@ -751,13 +779,10 @@ def get_station(station_id: str) -> dict:
 
 @app.get("/api/v1/stations/{station_id}/current")
 def get_station_current(station_id: str) -> dict:
-    try:
-        station = station_service.get_station(station_id)
-        return {**station, "timestamp": datetime.now(UTC).isoformat()}
-    except Exception:
-        fallback = station_service._fallback_stations()
-        st = next((s for s in fallback if s["station_id"] == station_id), fallback[0])
-        return {**st, "timestamp": datetime.now(UTC).isoformat()}
+    station = station_service.get_station(station_id)
+    # ``timestamp`` is the observation timestamp, not the request time. This
+    # prevents an old measurement from appearing fresh merely because it was read.
+    return {**station, "timestamp": station.get("updated_at")}
 
 
 @app.get("/api/v1/demo/station-overrides")
@@ -870,8 +895,6 @@ def resolve_alert(
     )
 
 
-weather_service = WeatherService()
-
 @app.get("/api/v1/weather/current")
 def get_current_weather() -> dict:
     return {**weather_service.current_weather(), "timestamp": datetime.now(UTC).isoformat()}
@@ -890,7 +913,7 @@ def get_spatial_heatmap(
 @app.get("/api/v1/stations/{station_id}/forecast")
 def get_station_forecast(
     station_id: str,
-    hours: int = Query(default=24, ge=1, le=24),
+    hours: int = Query(default=3, ge=1, le=3),
     metric: Literal["pm25", "aqi", "co2", "noise_db", "temperature"] = Query(default="pm25"),
     model: Literal["prophet", "baseline"] = Query(default="prophet"),
 ) -> dict:
@@ -899,15 +922,23 @@ def get_station_forecast(
         return prophet_service.forecast(station_id, history, hours=hours, metric=metric)
 
     try:
-        forecast = trend_forecast(history, min(3, hours), metric=metric)
-        return {"station_id": station_id, **forecast, "timestamp": datetime.now(UTC).isoformat()}
-    except Exception:
-        return prophet_service.forecast(station_id, history, hours=hours, metric=metric)
+        forecast = trend_forecast(history, hours, metric=metric)
+    except InsufficientForecastHistory as exc:
+        raise ServiceError(
+            "insufficient_forecast_history",
+            "Fresh valid history is insufficient for baseline forecasting",
+            503,
+            {"station_id": station_id},
+        ) from exc
+    return {"station_id": station_id, **forecast, "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)
 def get_user_profile(user_id: str) -> UserProfileResponse:
-    row = user_service.get_profile(user_id)
+    canonical_user_id = (
+        "00000000-0000-0000-0000-000000000101" if user_id == "demo-user" else user_id
+    )
+    row = user_service.get_profile(canonical_user_id)
     return UserProfileResponse(
         user_id=str(row["user_id"]), role=row["role"], user_group=row.get("sensitivity_group")
     )
@@ -947,46 +978,134 @@ async def agent_chat(
         if conversation.intent == "clarification":
             return conversational_agent.deterministic_response(conversation, request_id=req_id)
 
-        user_group = "normal"
+        # The public map's stable alias resolves to the seeded resident profile;
+        # all profile fields still come from PostgreSQL rather than client input.
+        profile_user_id = (
+            "00000000-0000-0000-0000-000000000101"
+            if effective_user_id == "demo-user"
+            else effective_user_id
+        )
         try:
-            profile = user_service.get_profile(effective_user_id)
-            user_group = profile.get("sensitivity_group", "normal")
-        except Exception:
-            pass
+            profile = user_service.get_profile(profile_user_id)
+        except ServiceError:
+            raise
+        except Exception as exc:
+            raise ServiceError(
+                "user_profile_unavailable",
+                "The user profile required for personalized analysis is unavailable",
+                503,
+                {"user_id": effective_user_id},
+            ) from exc
+        user_group = profile.get("sensitivity_group")
+        if not user_group:
+            raise ServiceError(
+                "user_profile_incomplete",
+                "A sensitivity group is required for personalized analysis",
+                422,
+                {"user_id": effective_user_id},
+            )
 
-        return geospatial_agent.process_query(
+        snapshots = {
+            station["station_id"]: station
+            for station in station_service.list_stations(allow_fallback=False)
+        }
+        time_context = temporal_resolver.resolve(body.message.lower().strip())
+        histories: dict[str, list[dict[str, Any]]] = {}
+        if time_context["is_forecast"]:
+            for station_id, snapshot in snapshots.items():
+                if snapshot.get("status") != "online" or snapshot.get("freshness") != "fresh":
+                    continue
+                try:
+                    histories[station_id] = station_service.get_forecast_history(station_id)
+                except ServiceError as exc:
+                    if exc.code != "insufficient_forecast_history":
+                        raise
+
+        effective_station_id = body.station_id
+        if not effective_station_id and body.map_context:
+            effective_station_id = body.map_context.get("selected_sensor")
+
+        agent_result = await agent_service.chat(
             message=body.message,
             user_id=effective_user_id,
-            station_id=body.station_id,
+            station_id=effective_station_id,
+            request_id=req_id,
+        )
+        result = geospatial_agent.process_query(
+            message=body.message,
+            user_id=effective_user_id,
+            station_id=effective_station_id,
             map_context=body.map_context,
             request_id=req_id,
             user_group=user_group,
+            station_snapshots=snapshots,
+            station_histories=histories,
         )
-    except Exception:
-        st_id = body.station_id or "S01"
-        try:
-            st = station_service.get_station(st_id)
-        except Exception:
-            st = station_service._fallback_stations()[0]
-        pm25 = st.get("pm25", 40.0)
-        aqi = st.get("aqi", 112)
-        cat = st.get("aqi_category", "Trung bình")
-        name = st.get("station_name", st_id)
-        summary = f"Dữ liệu quan trắc tại trạm {name} ({st_id}): AQI hiện tại là {aqi} ({cat})."
-        details = f"PM2.5: {pm25} µg/m³, CO₂: {st.get('co2', 650)} ppm, Nhiệt độ: {st.get('temperature', 31.0)}°C."
-        return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
-            "intent": "get_current_environment",
-            "time_context": {"type": "live", "is_forecast": False, "label": "Hiện tại"},
-            "data_mode": "live",
-            "evidence": [{"source": "sensor", "station_id": st_id, "metric": "pm25", "value": pm25, "timestamp": datetime.now(UTC).isoformat()}],
-            "map_actions": [
-                {"type": "clear_ai_layer"},
-                {"type": "highlight_sensor", "sensor_id": st_id, "severity": "normal", "lat": st.get("latitude", 20.995), "lng": st.get("longitude", 105.95)},
-            ],
-            "request_id": req_id,
+        # The Agent graph is the authority for the answer, tool trace and source
+        # list. The deterministic geospatial service contributes UI map actions,
+        # structured route geometry, and fallback for map-grounded intents.
+        agent_sources = agent_result.get("sources")
+        if not isinstance(agent_sources, list) or not agent_sources:
+            if result.get("intent") in {
+                "get_location_environment",
+                "get_noise_metric",
+                "get_temperature_metric",
+                "find_worst_location",
+                "compare_locations",
+                "recommend_running_route",
+                "recommend_personalized_running_route",
+                "recommend_indoor_activity",
+                "recommend_outdoor_location",
+                "unsupported_precipitation_weather",
+                "unknown_location",
+            }:
+                return result
+            return {
+                "answer": {"summary": agent_result["answer"], "details": ""},
+                "response": agent_result["answer"],
+                "intent": agent_result.get("trace", {}).get("intent", "domain"),
+                "evidence": [],
+                "sources": [],
+                "map_actions": [],
+                "used_tools": agent_result.get("used_tools", []),
+                "request_id": req_id,
+                "trace": agent_result.get("trace", {}),
+            }
+
+        evidence_source = "prophet_time_series_v1" if time_context["is_forecast"] else None
+        for evidence_item in result.get("evidence", []):
+            evidence_station_id = evidence_item.get("station_id")
+            evidence_snapshot = snapshots.get(evidence_station_id)
+            if not evidence_snapshot:
+                continue
+            evidence_item["source"] = evidence_source or evidence_snapshot.get("source")
+            evidence_item["observed_at"] = evidence_snapshot.get("updated_at")
+            evidence_item["timestamp"] = (
+                time_context.get("target_datetime")
+                if time_context["is_forecast"]
+                else evidence_snapshot.get("updated_at")
+            )
+        result["answer"] = {"summary": agent_result["answer"], "details": ""}
+        result["response"] = agent_result["answer"]
+        result["used_tools"] = agent_result.get("used_tools", [])
+        result["sources"] = agent_sources
+        result["trace"] = {
+            **agent_result.get("trace", {}),
+            "map_planner": "deterministic_grounded_geospatial",
+            "map_intent": result.get("intent"),
+            "data_mode": result.get("data_mode"),
         }
+        return result
+    except ServiceError:
+        raise
+    except AgentServiceError as exc:
+        raise ServiceError(exc.code, exc.message, exc.status_code) from exc
+    except Exception as exc:
+        raise ServiceError(
+            "agent_processing_failed",
+            "The Agent could not process the request using grounded data",
+            503,
+        ) from exc
 
 
 def dispatch_job(task, job_type: str, payload: dict, idempotency_key: str | None) -> dict:
@@ -1268,18 +1387,26 @@ def get_audit_logs(
 
 @app.get("/api/v1/users")
 def get_users(current_user: dict = Depends(require_manager)) -> dict:
-    with db.connection() as conn:
-        with dict_cursor(conn) as cur:
-            cur.execute(
-                """
-                SELECT user_id, email, role, full_name, sensitivity_group,
-                       email_verified_at, is_active, created_at
-                FROM users
-                ORDER BY created_at DESC
-                """
-            )
-            rows = cur.fetchall()
-            return {"items": [dict(r) for r in rows]}
+    return {"items": user_admin_service.list_users()}
+
+
+@app.patch("/api/v1/users/{user_id}")
+def update_user_admin(
+    user_id: str,
+    body: AdminUserUpdateRequest,
+    request: Request,
+    current_user: dict = Depends(require_admin),
+) -> dict:
+    validate_csrf(request)
+    return user_admin_service.update_user(
+        target_user_id=user_id,
+        actor_user_id=str(current_user["user_id"]),
+        actor_role=str(current_user["role"]),
+        role=body.role,
+        status=body.status,
+        reason=body.reason,
+        correlation_id=_request_id(request),
+    )
 
 
 

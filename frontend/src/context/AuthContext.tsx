@@ -1,5 +1,5 @@
 import React, { createContext, ReactNode, useContext, useEffect, useState } from "react";
-import { UserGroup, UserRole } from "../types";
+import { EmailDeliveryStatus, UserGroup, UserRole } from "../types";
 import { api } from "../api/client";
 import { formatAuthError } from "../utils/authErrors";
 
@@ -39,9 +39,17 @@ export interface RegisterResidentInput {
   userGroup: UserGroup;
 }
 
-interface AuthResult {
+export interface PendingEmailVerification {
+  email: string;
+  deliveryStatus: EmailDeliveryStatus;
+  message?: string;
+}
+
+export interface AuthResult {
   success: boolean;
   message?: string;
+  /** Trạng thái gửi email thực tế từ backend — phân biệt sent / not_configured / failed / unknown. */
+  emailDeliveryStatus?: EmailDeliveryStatus;
 }
 
 interface AuthContextType {
@@ -52,6 +60,9 @@ interface AuthContextType {
   authMessage: string | null;
   setAuthMessage: (msg: string | null) => void;
   clearAuthMessage: () => void;
+  pendingEmailVerification: PendingEmailVerification | null;
+  setPendingEmailVerification: (pending: PendingEmailVerification | null) => void;
+  clearPendingEmailVerification: () => void;
   demoMode: boolean;
   googleAuthEnabled: boolean;
   login: (email: string, password: string) => Promise<AuthResult>;
@@ -85,6 +96,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [pendingEmailVerification, setPendingEmailVerificationState] = useState<PendingEmailVerification | null>(() => {
+    try {
+      const saved = sessionStorage.getItem("airguard_pending_verification");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const setPendingEmailVerification = (val: PendingEmailVerification | null) => {
+    setPendingEmailVerificationState(val);
+    try {
+      if (val) {
+        sessionStorage.setItem("airguard_pending_verification", JSON.stringify(val));
+      } else {
+        sessionStorage.removeItem("airguard_pending_verification");
+      }
+    } catch {}
+  };
+
+  const clearPendingEmailVerification = () => setPendingEmailVerification(null);
   const [demoMode, setDemoMode] = useState(true);
   const [googleAuthEnabled, setGoogleAuthEnabled] = useState(false);
   const [selectedStationId, setSelectedStationId] = useState("S01");
@@ -95,6 +127,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [userId, setUserId] = useState("");
   const [organization, setOrganization] = useState("Vinhomes Ocean Park 1");
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
+
 
   // Auto-dismiss auth message after 4s
   useEffect(() => {
@@ -155,14 +189,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
 
-        const data = await api.getMe();
-        if (mounted && data.user) {
-          applyUser(data.user);
-          setCurrentScreen("dashboard");
+        // Default to login screen on initial load so users can choose login method / persona
+        if (mounted) {
+          setIsAuthenticated(false);
+          setCurrentScreen("login");
         }
       } catch {
         if (mounted) {
           setIsAuthenticated(false);
+          setCurrentScreen("login");
         }
       } finally {
         if (mounted) {
@@ -241,10 +276,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         full_name: input.name,
         sensitivity_group: input.userGroup,
       });
-      setAuthMessage(data.message || "Đăng ký thành công! Vui lòng kiểm tra email để kích hoạt tài khoản.");
-      setCurrentScreen("login");
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      return { success: true, message: data.message };
+      const deliveryStatus: EmailDeliveryStatus = data.email_delivery_status ?? "unknown";
+      setPendingEmailVerification({
+        email: input.email.trim(),
+        deliveryStatus,
+        message: data.message,
+      });
+      return {
+        success: true,
+        message: data.message,
+        emailDeliveryStatus: deliveryStatus,
+      };
     } catch (err: any) {
       return {
         success: false,
@@ -272,6 +314,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const verifyEmail = async (token: string): Promise<AuthResult> => {
     try {
       const data = await api.verifyEmail(token);
+      if (data.success) {
+        clearPendingEmailVerification();
+      }
       return { success: true, message: data.message };
     } catch (err: any) {
       return { success: false, message: err?.message || "Xác minh email không thành công." };
@@ -281,7 +326,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const resendVerification = async (email: string): Promise<AuthResult> => {
     try {
       const data = await api.resendVerification(email);
-      return { success: true, message: data.message };
+      const deliveryStatus: EmailDeliveryStatus = data.email_delivery_status ?? "unknown";
+      setPendingEmailVerification({
+        email: email.trim(),
+        deliveryStatus,
+        message: data.message,
+      });
+      return {
+        success: true,
+        message: data.message,
+        emailDeliveryStatus: deliveryStatus,
+      };
     } catch (err: any) {
       return { success: false, message: err?.message || "Gửi lại email xác minh không thành công." };
     }
@@ -290,7 +345,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const forgotPassword = async (email: string): Promise<AuthResult> => {
     try {
       const data = await api.forgotPassword(email);
-      return { success: true, message: data.message };
+      return {
+        success: true,
+        message: data.message,
+        emailDeliveryStatus: data.email_delivery_status,
+      };
     } catch (err: any) {
       return { success: false, message: err?.message || "Yêu cầu đặt lại mật khẩu thất bại." };
     }
@@ -336,6 +395,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         authMessage,
         setAuthMessage,
         clearAuthMessage: () => setAuthMessage(null),
+        pendingEmailVerification,
+        setPendingEmailVerification,
+        clearPendingEmailVerification,
         demoMode,
         googleAuthEnabled,
         login,
@@ -366,6 +428,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     </AuthContext.Provider>
   );
 };
+
 
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);

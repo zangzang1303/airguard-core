@@ -20,8 +20,13 @@ enable scheduled daily/weekly reports, start the async profile, which includes R
 Celery worker and Celery Beat:
 
 ```powershell
+$env:CELERY_TASK_ALWAYS_EAGER="false"
 docker compose --profile async-jobs up -d --build
+Remove-Item Env:CELERY_TASK_ALWAYS_EAGER
 ```
+
+The explicit override is required because the core profile defaults to eager execution so it can
+run without RabbitMQ. Verify `celery-worker`, `celery-beat`, `rabbitmq` and `redis` are running.
 
 The public demo topology runs the same one-shot migration gate before starting the backend:
 
@@ -153,3 +158,24 @@ Verify that the demo user names are properly restored:
 ```powershell
 docker compose exec -T postgres psql -U airguard -d airguard -c "SELECT email, full_name FROM users WHERE LOWER(BTRIM(email)) IN ('manager@vinuni.edu.vn', 'admin@vinuni.edu.vn', 'resident@vinuni.edu.vn') ORDER BY email;"
 ```
+
+## Resend Email API Configuration
+
+To enable real email dispatch for account verification and manager notifications:
+
+1. **Create Resend account**: Register at [resend.com](https://resend.com).
+2. **Add sending domain**: Add your sending subdomain (e.g. `mail.example.com`).
+3. **Configure DNS**: Add SPF and DKIM TXT/MX records according to Resend Dashboard instructions.
+4. **Wait for domain verification**: Confirm domain status shows `Verified`.
+5. **Create API key**: Create a restricted API Key with `Sending access` scoped to the verified domain.
+6. **Set environment variables** in `.env`:
+   ```env
+   NOTIFICATION_PROVIDER=resend
+   RESEND_API_KEY=re_your_api_key_here
+   RESEND_FROM_EMAIL=AirGuard AI <no-reply@mail.example.com>
+   RESEND_FROM_NAME=AirGuard AI
+   RESEND_TIMEOUT_SECONDS=10
+   FRONTEND_URL=https://your-frontend-domain.com
+   ```
+7. **Production reminder**: Never hardcode `onboarding@resend.dev` in production (it is restricted to account owner email). Ensure `FRONTEND_URL` uses production HTTPS so verification/reset links point to the right origin.
+
