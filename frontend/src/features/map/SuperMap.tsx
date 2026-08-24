@@ -14,6 +14,7 @@ import { TimelineSlider } from "../stations/TimelineSlider";
 import { MapLocationControls } from "./MapLocationControls";
 import { mapActionController } from "./MapActionController";
 import { Crosshair, X } from "lucide-react";
+import { useDraggableFloatingPanel, useFloatingPanelContext } from "../floating";
 
 interface SuperMapProps {
   stations: Station[];
