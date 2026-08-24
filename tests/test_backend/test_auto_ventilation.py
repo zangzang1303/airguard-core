@@ -115,6 +115,32 @@ def continuous_rows(
     ]
 
 
+def test_configured_thirty_second_trigger_requires_full_continuous_window() -> None:
+    now = datetime(2026, 8, 21, 5, tzinfo=UTC)
+    eligible_rows = [
+        measurement("S03", now - timedelta(seconds=30)),
+        measurement("S03", now - timedelta(seconds=20)),
+        measurement("S03", now - timedelta(seconds=10)),
+        measurement("S03", now),
+    ]
+    short_rows = eligible_rows[1:]
+
+    eligible = VentilationService(
+        FakeDatabase(eligible_rows),
+        trigger_duration_seconds=30,
+        max_gap_seconds=15,
+    ).assess_trigger("S03", reference_at=now)
+    too_short = VentilationService(
+        FakeDatabase(short_rows),
+        trigger_duration_seconds=30,
+        max_gap_seconds=15,
+    ).assess_trigger("S03", reference_at=now)
+
+    assert eligible.eligible is True
+    assert eligible.required_duration_seconds == 30
+    assert too_short.eligible is False
+
+
 def test_trigger_requires_strict_threshold_for_full_fifteen_minutes() -> None:
     now = datetime(2026, 8, 21, 5, tzinfo=UTC)
     at_boundary = continuous_rows(now, minutes=15, pm25=50, co2=1000)

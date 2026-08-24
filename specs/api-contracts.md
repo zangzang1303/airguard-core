@@ -108,7 +108,7 @@ For a focused demo, `AUTO_PROPOSAL_STATIONS=S03` matches the `spike` scenario an
 Other stations may still produce backend alerts, but their alerts do not schedule Agent proposals.
 
 For auto ventilation, only `pm25_threshold` and `co2_threshold` alerts qualify. The Rule Engine must
-also prove a continuous valid/fresh window longer than or equal to 15 minutes with PM2.5 strictly
+also prove a continuous valid/fresh window longer than or equal to 30 seconds with PM2.5 strictly
 above 50 µg/m³ or CO₂ strictly above 1000 ppm. The canonical action is
 `ventilation_boost`; the backend resolves `device_id` from its device registry and applies the
 default `duration_minutes=45` and `intensity_percent=80`. LLM output cannot choose a device,

@@ -98,7 +98,7 @@ class AutomaticProposalService:
             analysis = self.agent_service.chat_sync(
                 message=(
                     f"Danh gia grounded canh bao {alert_id} tai {station_id}; "
-                    "chi xem xet de xuat thong gio khi backend xac nhan du 15 phut."
+                    "chi xem xet de xuat thong gio khi backend xac nhan du cua so lien tuc da cau hinh."
                 ),
                 user_id=self.SYSTEM_USER_ID,
                 station_id=station_id,

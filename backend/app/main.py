@@ -291,7 +291,7 @@ ventilation_service = VentilationService(
     db,
     pm25_threshold=settings.alert_warning_threshold,
     co2_threshold=settings.co2_warning_threshold,
-    trigger_duration_seconds=settings.ventilation_trigger_minutes * 60,
+    trigger_duration_seconds=settings.ventilation_trigger_seconds,
     recovery_duration_seconds=settings.ventilation_recovery_minutes * 60,
     stale_after_seconds=settings.stale_after_seconds,
     max_gap_seconds=settings.ventilation_max_gap_seconds,
