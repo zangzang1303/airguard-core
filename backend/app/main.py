@@ -42,6 +42,7 @@ from .services.forecast_service import InsufficientForecastHistory, trend_foreca
 from .services.geospatial_agent_service import geospatial_agent
 from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
+from .services.live_telemetry_engine import live_engine
 from .services.prophet_forecast_service import prophet_service
 from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
@@ -297,6 +298,7 @@ ventilation_service = VentilationService(
     max_gap_seconds=settings.ventilation_max_gap_seconds,
     default_duration_minutes=settings.ventilation_default_duration_minutes,
     default_intensity_percent=settings.ventilation_intensity_percent,
+    demo_override_provider=live_engine.get_demo_override_evidence,
 )
 approval_service = ApprovalService(
     db,
@@ -795,8 +797,6 @@ def get_station_current(station_id: str) -> dict:
 
 @app.get("/api/v1/demo/station-overrides")
 def get_demo_station_overrides(current_user: dict = Depends(require_manager)) -> dict:
-    from .services.live_telemetry_engine import live_engine
-
     return {"demo_mode": True, "overrides": live_engine.get_demo_overrides()}
 
 
@@ -807,8 +807,6 @@ def set_demo_station_override(
     request: Request,
     current_user: dict = Depends(require_manager),
 ) -> dict:
-    from .services.live_telemetry_engine import live_engine
-
     if station_id not in {"S01", "S02", "S03", "S04", "S05"}:
         raise ServiceError("station_not_found", "Station was not found", 404, {"station_id": station_id})
     values = body.model_dump()
@@ -825,8 +823,6 @@ def set_demo_station_override(
 def clear_demo_station_override(
     station_id: str, request: Request, current_user: dict = Depends(require_manager)
 ) -> dict:
-    from .services.live_telemetry_engine import live_engine
-
     live_engine.clear_demo_override(station_id)
     audit_service.record(
         actor_type="user", actor_id=current_user["user_id"], actor_role=current_user["role"],

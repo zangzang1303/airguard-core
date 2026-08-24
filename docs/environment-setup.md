@@ -14,7 +14,7 @@ Start the full local stack:
 docker compose up --build
 ```
 
-`db-migrate` applies the additive authentication, Auto Ventilation/Report and UTF-8 Vietnamese
+`db-migrate` applies the additive authentication, Auto Ventilation/Report, demo device mapping and UTF-8 Vietnamese
 station/alert repair migrations before the backend starts. Existing named volumes are preserved. To
 enable scheduled daily/weekly reports, start the async profile, which includes RabbitMQ, Redis,
 Celery worker and Celery Beat:

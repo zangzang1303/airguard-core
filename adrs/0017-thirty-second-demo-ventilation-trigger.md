@@ -8,6 +8,8 @@ Accepted for the timed MVP demo; supersedes only the 15-minute trigger duration 
 
 The automatic ventilation eligibility window is 30 seconds in the deployed demo. The backend still requires continuously valid, fresh and online simulator measurements with PM2.5 strictly above 50 µg/m³ or CO₂ strictly above 1000 ppm. Missing, invalid, stale or offline data fails closed. The resulting proposal remains `pending` and still requires Manager approval before dispatch.
 
+An authenticated demo station override is timestamped by the backend and may satisfy this timed window while it remains active. Its evidence is explicitly labeled `demo_override`; it does not rewrite PostgreSQL measurement history. The station status gate still requires the underlying simulator station to be online.
+
 `VENTILATION_TRIGGER_SECONDS` is the canonical configuration. `VENTILATION_TRIGGER_MINUTES` remains a compatibility fallback when the seconds setting is absent. Recovery remains 20 minutes, proposal TTL remains one hour and device duration/intensity policy is unchanged.
 
 ## Rationale
