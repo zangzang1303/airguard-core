@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
 import resend
 

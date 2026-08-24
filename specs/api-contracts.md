@@ -91,7 +91,7 @@ clients must show loading, empty or retryable error states instead of rendering 
 
 ## Environmental alert response
 
-Each alert includes `alert_type` (`aqi_threshold`, `pm25_threshold`, `co2_threshold`, `noise_threshold`, `temperature_threshold` or `sensor_offline`), `severity`, observed and threshold values, title/description, source and lifecycle timestamps. Environmental threshold alerts additionally expose `metric`, `unit` and a deterministic `recommendation`; UI must render these values and must not infer its own thresholds or recommendation. Rules evaluate only valid, fresh and online simulator data. The configured thresholds are provisional MVP defaults, not health or legal limits.
+Each alert includes `alert_type` (`aqi_threshold`, `pm25_threshold`, `co2_threshold`, `noise_threshold`, `temperature_threshold` or `sensor_offline`), `severity`, observed and threshold values, title/description, source and lifecycle timestamps. Environmental threshold alerts additionally expose `metric`, `unit` and a deterministic `recommendation`; UI must render these values and must not infer its own thresholds or recommendation. Rules evaluate only valid, fresh and online simulator data. AQI, PM2.5, CO2, noise and temperature require `ALERT_CONSECUTIVE_MEASUREMENTS` consecutive samples at or above the metric warning threshold (default `2`); AQI derives the sub-index for each stored PM2.5 sample. The configured thresholds are provisional MVP defaults, not health or legal limits.
 
 ## Automatic Agent proposal
 
@@ -155,6 +155,18 @@ persisted `pending` proposal. Audit details identify the recipient by internal u
 contain the email address. Task results and worker logs must omit both recipient address and message
 body. A real email is sent only when `NOTIFICATION_PROVIDER=resend` and valid Resend API settings are
 configured (yielding `delivery_status=accepted` with message ID); otherwise the job completes with `delivery_status=not_configured`.
+
+When `RESIDENT_ALERT_NOTIFICATIONS_ENABLED=true` and the Rule Engine returns an active AQI, PM2.5, CO2, noise or temperature alert, the backend also
+queues at most one resident notification per `(station_id, alert_type, severity, recipient_user_id,
+cooldown_bucket)`. The default cooldown is 3600 seconds. Recipients
+are active, email-verified users whose backend role is `resident`. The stored `sensitivity_group`
+selects deterministic wording for `normal`, `sensitive` or `outdoor_sport`; alert thresholds and
+severity remain Rule Engine-owned and are not changed by the notification layer. A severity
+escalation may enqueue one additional message, while repeated samples or a reopened alert lifecycle
+at the same severity are idempotently reused during the cooldown. Resolved and sensor-offline alerts do not send resident environmental email.
+Messages retain the simulator/non-certified disclaimer. Notification failure does not mutate the
+alert or any proposal/HITL state, and audit metadata must not contain recipient email or body. The
+resident email flag defaults to `false`; UI alerts continue to work while it is disabled.
 
 
 ## Environmental report request and response

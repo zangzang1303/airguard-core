@@ -73,6 +73,18 @@ def test_settings_rejects_non_positive_pending_proposal_ttl() -> None:
             os.environ["PROPOSAL_PENDING_TTL_SECONDS"] = previous
 
 
+def test_settings_loads_global_alert_consecutive_measurements() -> None:
+    previous = os.environ.get("ALERT_CONSECUTIVE_MEASUREMENTS")
+    try:
+        os.environ["ALERT_CONSECUTIVE_MEASUREMENTS"] = "2"
+        assert Settings.load().alert_consecutive_measurements == 2
+    finally:
+        if previous is None:
+            os.environ.pop("ALERT_CONSECUTIVE_MEASUREMENTS", None)
+        else:
+            os.environ["ALERT_CONSECUTIVE_MEASUREMENTS"] = previous
+
+
 def test_settings_parses_auto_proposal_station_allowlist() -> None:
     previous = os.environ.get("AUTO_PROPOSAL_STATIONS")
     try:
@@ -87,6 +99,7 @@ def test_settings_parses_auto_proposal_station_allowlist() -> None:
 
 def test_settings_load_alert_consecutive_measurements() -> None:
     previous = os.environ.get("PM25_ALERT_CONSECUTIVE_MEASUREMENTS")
+    previous_global = os.environ.pop("ALERT_CONSECUTIVE_MEASUREMENTS", None)
     try:
         os.environ["PM25_ALERT_CONSECUTIVE_MEASUREMENTS"] = "3"
         settings = Settings.load()
@@ -96,10 +109,13 @@ def test_settings_load_alert_consecutive_measurements() -> None:
             os.environ.pop("PM25_ALERT_CONSECUTIVE_MEASUREMENTS", None)
         else:
             os.environ["PM25_ALERT_CONSECUTIVE_MEASUREMENTS"] = previous
+        if previous_global is not None:
+            os.environ["ALERT_CONSECUTIVE_MEASUREMENTS"] = previous_global
 
 
 def test_settings_reject_invalid_alert_consecutive_measurements() -> None:
     previous = os.environ.get("PM25_ALERT_CONSECUTIVE_MEASUREMENTS")
+    previous_global = os.environ.pop("ALERT_CONSECUTIVE_MEASUREMENTS", None)
     try:
         os.environ["PM25_ALERT_CONSECUTIVE_MEASUREMENTS"] = "0"
         try:
@@ -113,6 +129,8 @@ def test_settings_reject_invalid_alert_consecutive_measurements() -> None:
             os.environ.pop("PM25_ALERT_CONSECUTIVE_MEASUREMENTS", None)
         else:
             os.environ["PM25_ALERT_CONSECUTIVE_MEASUREMENTS"] = previous
+        if previous_global is not None:
+            os.environ["ALERT_CONSECUTIVE_MEASUREMENTS"] = previous_global
 
 
 def test_pm25_level_boundaries() -> None:
@@ -246,6 +264,8 @@ def test_alert_threshold_requires_consecutive_fresh_values() -> None:
     assert engine._threshold_is_qualified([60]) is False
     assert engine._threshold_is_qualified([60, 65]) is True
     assert engine._threshold_is_qualified([60, 45]) is False
+    assert engine._threshold_is_qualified([1100, 1200], warning_threshold=1000) is True
+    assert engine._threshold_is_qualified([1100, 900], warning_threshold=1000) is False
 
 
 def test_environmental_alert_rules_and_recommendations_are_deterministic() -> None:

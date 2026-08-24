@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -74,3 +74,26 @@ def test_notification_task_resend_permanent_error_returns_failed() -> None:
             assert res["delivery_status"] == "failed"
             assert res["provider"] == "resend"
             assert res["reason"] == "invalid_api_key"
+
+
+def test_notification_task_accepts_resident_alert_subject_and_type() -> None:
+    env_vars = {
+        "NOTIFICATION_PROVIDER": "resend",
+        "RESEND_API_KEY": "re_test_key_123",
+        "RESEND_FROM_EMAIL": "no-reply@mail.example.com",
+    }
+    with patch.dict(os.environ, env_vars, clear=False):
+        with patch("resend.Emails.send", return_value={"id": "msg_resident_alert_123"}) as send:
+            res = send_notification_job.apply(
+                kwargs={
+                    "recipient": "resident@vinuni.edu.vn",
+                    "message": "PM2.5 vượt ngưỡng.",
+                    "idempotency_key": "resident-alert-1",
+                    "subject": "AirGuard — Cảnh báo môi trường tại S03",
+                    "email_type": "resident_environmental_alert",
+                }
+            ).get()
+
+            assert res["delivery_status"] == "accepted"
+            params = send.call_args.args[0]
+            assert params["subject"] == "AirGuard — Cảnh báo môi trường tại S03"
