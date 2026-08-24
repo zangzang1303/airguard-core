@@ -12,6 +12,14 @@ class RoadGraphRouter:
     with environmental cost weighting (PM2.5/AQI penalty) to find real footpaths and loops.
     """
 
+    STATION_COORDINATES = {
+        "S01": (21.0008, 105.9428),
+        "S02": (20.9975, 105.9430),
+        "S03": (20.9953, 105.9500),
+        "S04": (20.9898, 105.9467),
+        "S05": (20.9910, 105.9560),
+    }
+
     # Real Street Network Graph Nodes in Ocean Park 1 spanning all 6 zones
     # [lat, lng]
     NODES: dict[str, dict[str, Any]] = {
@@ -595,27 +603,53 @@ class RoadGraphRouter:
         return best_node, min_d
 
     @classmethod
+    def interpolate_pm25_at_point(
+        cls,
+        lat: float,
+        lng: float,
+        station_pm25_map: dict[str, float],
+    ) -> float:
+        weighted_total = 0.0
+        weight_sum = 0.0
+        for station_id, (station_lat, station_lng) in cls.STATION_COORDINATES.items():
+            if station_id not in station_pm25_map:
+                continue
+            distance_m = cls.calculate_distance_m(lat, lng, station_lat, station_lng)
+            if distance_m <= 15.0:
+                return float(station_pm25_map[station_id])
+            distance_km = max(0.001, distance_m / 1000.0)
+            weight = 1.0 / (distance_km**2)
+            weight_sum += weight
+            weighted_total += weight * float(station_pm25_map[station_id])
+        if weight_sum <= 0:
+            raise ValueError("road routing requires grounded PM2.5 station values")
+        return weighted_total / weight_sum
+
+    @classmethod
     def build_adjacency(
         cls,
         station_pm25_map: dict[str, float] | None = None,
         environmental_weight: float = 1.0,
     ) -> dict[str, list[dict[str, Any]]]:
         adj: dict[str, list[dict[str, Any]]] = {n: [] for n in cls.NODES}
-        pm_map = station_pm25_map or {"S01": 35.0, "S02": 30.0, "S03": 25.0, "S04": 20.0, "S05": 32.0}
+        if not station_pm25_map:
+            # Geometry-only callers can still build the graph. Environmental
+            # ranking happens later and never receives these neutral costs as facts.
+            station_pm25_map = {station_id: 0.0 for station_id in cls.STATION_COORDINATES}
 
         for edge in cls.EDGES:
             u, v = edge["from"], edge["to"]
             dist_m = cls.calculate_polyline_distance_m(edge["coords"])
-            sensor = edge.get("sensor_id", "S03")
-            pm25 = float(pm_map.get(sensor, 30.0))
+            midpoint = edge["coords"][len(edge["coords"]) // 2]
+            pm25 = cls.interpolate_pm25_at_point(midpoint[0], midpoint[1], station_pm25_map)
 
             # Environmental cost weight: Distance * (1 + beta * PM2.5 / 50.0)
             cost = dist_m * (1.0 + (environmental_weight * (pm25 / 50.0)))
 
             # Bidirectional road edges
-            adj[u].append({"to": v, "cost": cost, "dist_m": dist_m, "coords": edge["coords"], "name": edge["name"]})
+            adj[u].append({"to": v, "cost": cost, "dist_m": dist_m, "coords": edge["coords"], "name": edge["name"], "pm25": round(pm25, 1)})
             rev_coords = list(reversed(edge["coords"]))
-            adj[v].append({"to": u, "cost": cost, "dist_m": dist_m, "coords": rev_coords, "name": edge["name"]})
+            adj[v].append({"to": u, "cost": cost, "dist_m": dist_m, "coords": rev_coords, "name": edge["name"], "pm25": round(pm25, 1)})
 
         return adj
 

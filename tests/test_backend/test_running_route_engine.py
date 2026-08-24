@@ -353,3 +353,64 @@ def test_loop_closure_geometry():
     assert abs(coords[-1][0] - origin[0]) < 1e-4
     assert abs(coords[-1][1] - origin[1]) < 1e-4
 
+
+def test_route_exposure_returns_grounded_drawable_segments():
+    station_map = {
+        "S01": {"pm25": 12.0, "aqi": 35, "co2": 420.0, "noise_db": 45.0, "temperature": 25.0, "timestamp": "2026-08-24T08:00:00+00:00"},
+        "S02": {"pm25": 85.0, "aqi": 165, "co2": 850.0, "noise_db": 72.0, "temperature": 32.0, "timestamp": "2026-08-24T08:00:00+00:00"},
+        "S03": {"pm25": 18.0, "aqi": 48, "co2": 450.0, "noise_db": 47.0, "temperature": 26.0, "timestamp": "2026-08-24T08:00:00+00:00"},
+        "S04": {"pm25": 10.0, "aqi": 30, "co2": 410.0, "noise_db": 44.0, "temperature": 25.0, "timestamp": "2026-08-24T08:00:00+00:00"},
+        "S05": {"pm25": 20.0, "aqi": 55, "co2": 470.0, "noise_db": 49.0, "temperature": 27.0, "timestamp": "2026-08-24T08:00:00+00:00"},
+    }
+    route = [[20.9968, 105.9410], [20.9975, 105.9430], [20.9960, 105.9470]]
+
+    exposure = EnvironmentalScoringEngine.evaluate_route_spatial_exposure(
+        route_coords=route,
+        station_data_map=station_map,
+    )
+
+    segments = exposure["environment_segments"]
+    assert exposure["segment_count"] == len(segments)
+    assert len(segments) > len(route)
+    assert all(len(segment["coordinates"]) == 2 for segment in segments)
+    assert all(segment["distance_m"] > 0 for segment in segments)
+    assert all(segment["source"] == "spatial_idw_route_segment" for segment in segments)
+    assert all(segment["source_station_ids"] for segment in segments)
+    assert any(segment["level"] in {"unhealthy_sensitive", "unhealthy"} for segment in segments)
+
+
+def test_agent_returns_one_best_route_with_time_specific_segment_profile():
+    agent = create_test_agent()
+    values = {"S01": 55.0, "S02": 70.0, "S03": 12.0, "S04": 18.0, "S05": 20.0}
+    for station_id, pm25 in values.items():
+        live_engine.update_station(
+            station_id,
+            {"pm25": pm25, "aqi": int(pm25 * 2.2), "co2": 500.0, "noise_db": 48.0, "temperature": 26.0},
+        )
+
+    result = agent.process_query(
+        "Tìm tuyến chạy bộ 3km ít ô nhiễm nhất bây giờ",
+        map_context={"user_location": {"lat": 20.9953, "lng": 105.9500, "source": "gps"}},
+    )
+
+    route_actions = [action for action in result["map_actions"] if action["type"] == "highlight_route"]
+    assert len(route_actions) == 1
+    route_action = route_actions[0]
+    assert route_action["rank"] == 1
+    assert route_action["data_mode"] == "live"
+    assert route_action["source"] == "spatial_idw_route_segment"
+    assert len(route_action["segments"]) > 0
+    assert route_action["segments"] == result["personalized_route"]["environment_segments"]
+
+    forecast_result = agent.process_query(
+        "Tìm tuyến chạy bộ 3km ít ô nhiễm nhất tối nay",
+        map_context={"user_location": {"lat": 20.9953, "lng": 105.9500, "source": "gps"}},
+    )
+    forecast_action = next(
+        action for action in forecast_result["map_actions"] if action["type"] == "highlight_route"
+    )
+    assert forecast_result["time_context"]["is_forecast"] is True
+    assert forecast_action["data_mode"] == "forecast"
+    assert forecast_action["source"] == "forecast"
+    assert forecast_action["observed_at"]
+    assert all(segment["observed_at"] for segment in forecast_action["segments"])

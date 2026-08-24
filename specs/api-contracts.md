@@ -246,6 +246,17 @@ planning may add route geometry and map actions only after the Agent returns at 
 source. A map-wide running/area request without a station id uses `get_spatial_air_quality` instead
 of inventing a default station.
 
+For running-route intents, the planner resolves the request origin in this order: explicit map
+selection, named POI, current map selection, GPS user location, then the labelled demo default.
+It evaluates candidate road-network polylines using distance-weighted environmental exposure at
+short route segments. The selected `highlight_route` action contains `coordinates`, `segments`,
+`distance_km`, `rank=1`, `data_mode`, `observed_at` and `source`. Each segment contains exactly two
+coordinates, distance, AQI, PM2.5, CO2, noise, temperature, level, source station ids and timestamp.
+The frontend colors those returned segments independently; it must not recompute pollution or
+choose a different route. Current and forecast requests produce separate segment profiles from the
+corresponding request-scoped station data. Missing grounded station coverage returns `503` and no
+route geometry.
+
 ## Administrative user mutation
 
 `PATCH /api/v1/users/{id}` is Admin-only, requires CSRF and accepts a non-empty `reason` plus

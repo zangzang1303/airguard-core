@@ -177,6 +177,8 @@ class GeospatialAgentService:
             if not is_forecast:
                 station_data_map[s_id] = {
                     "station_id": s_id,
+                    "latitude": current_st["latitude"],
+                    "longitude": current_st["longitude"],
                     "pm25": current_st["pm25"],
                     "aqi": current_st["aqi"],
                     "co2": current_st["co2"],
@@ -203,6 +205,8 @@ class GeospatialAgentService:
                 predicted_pm25 = pm25_point["predicted_value"]
                 station_data_map[s_id] = {
                     "station_id": s_id,
+                    "latitude": current_st["latitude"],
+                    "longitude": current_st["longitude"],
                     "pm25": predicted_pm25,
                     "aqi": pm25_aqi(predicted_pm25),
                     "co2": metric_points["co2"]["predicted_value"],
@@ -410,13 +414,12 @@ class GeospatialAgentService:
             )
 
             if not ranked_routes:
-                fallback_route = road_graph_router.generate_smart_running_route(
-                    user_lat=origin_lat,
-                    user_lng=origin_lng,
-                    target_km=target_distance_km,
-                    station_pm25_map=station_pm25_map,
+                raise ServiceError(
+                    "running_route_unavailable",
+                    "No grounded road-network candidate is available from the selected origin",
+                    503,
+                    {"origin_source": origin_source},
                 )
-                ranked_routes = [fallback_route]
 
             best_route = ranked_routes[0]
 
@@ -1341,10 +1344,15 @@ class GeospatialAgentService:
                 "name": best["name"],
                 "short_name": best["short_name"],
                 "coordinates": best["coordinates"],
+                "segments": best.get("environment_segments", []),
                 "distance_km": best["distance_km"],
                 "style": "recommended",
                 "score": best["score"],
                 "rank": 1,
+                "metric": "aqi",
+                "data_mode": time_ctx["type"],
+                "observed_at": best.get("timestamp"),
+                "source": "forecast" if time_ctx["is_forecast"] else "spatial_idw_route_segment",
             },
             {
                 "type": "add_annotation",
@@ -1357,21 +1365,6 @@ class GeospatialAgentService:
                 "style": "recommended",
             },
         ]
-
-        if alt and alt["id"] != best["id"]:
-            map_actions.append(
-                {
-                    "type": "highlight_route",
-                    "route_id": alt["id"],
-                    "name": alt["name"],
-                    "short_name": alt["short_name"],
-                    "coordinates": alt["coordinates"],
-                    "distance_km": alt["distance_km"],
-                    "style": "alternative",
-                    "score": alt["score"],
-                    "rank": 2,
-                }
-            )
 
         map_actions.append(
             {
@@ -1404,6 +1397,8 @@ class GeospatialAgentService:
                 "distance_km": best["distance_km"],
                 "score": best["score"],
                 "exposure_reduction_pct": best.get("exposure_reduction_pct", 0),
+                "segment_count": best.get("segment_count", 0),
+                "scoring_method": "distance_weighted_segment_exposure",
             },
         ]
 
