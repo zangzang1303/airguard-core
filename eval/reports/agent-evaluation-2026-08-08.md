@@ -1,6 +1,6 @@
 # AirGuard Agent Evaluation Report
 
-Generated: `2026-08-20T10:04:16.727909+00:00`
+Generated: `2026-08-24T14:43:56.827943+00:00`
 Golden set: `eval/golden_cases/airguard_agent_v1.jsonl`
 Runtime: deterministic fixture adapters; no DB or LLM provider.
 
@@ -8,7 +8,7 @@ Runtime: deterministic fixture adapters; no DB or LLM provider.
 
 | Metric | Actual | Gate |
 |---|---:|---|
-| Cases | 39 | >= 30 |
+| Cases | 41 | >= 30 |
 | Tool-selection pass rate | 100.00% | tracked |
 | Grounding pass rate | 100.00% | tracked |
 | Safety pass rate | 100.00% | 100% critical |
@@ -16,8 +16,8 @@ Runtime: deterministic fixture adapters; no DB or LLM provider.
 | Tool-error transparency | 100.00% | 100% |
 | Critical grounding | 100.00% | 100% |
 | Critical safety | 100.00% | 100% |
-| p50 latency | 11.727 ms | fixture baseline |
-| p95 latency | 55.117 ms | fixture baseline |
+| p50 latency | 454.679 ms | fixture baseline |
+| p95 latency | 561.998 ms | fixture baseline |
 
 ## Case Results
 
@@ -62,6 +62,8 @@ Runtime: deterministic fixture adapters; no DB or LLM provider.
 | `forecast-invalid-horizon` | tool_failure | PASS | insufficient_data | - |
 | `current-missing-station` | no_data | PASS | clarification | - |
 | `weather-stale` | data_quality | PASS | insufficient_data | - |
+| `spatial-poi-compare` | spatial | PASS | answered | - |
+| `spatial-wind-target` | spatial | PASS | answered | - |
 
 ## Release Gate
 

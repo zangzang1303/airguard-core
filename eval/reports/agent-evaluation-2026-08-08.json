@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-20T10:04:16.727909+00:00",
+  "generated_at": "2026-08-24T14:43:56.882363+00:00",
   "golden_set": "eval/golden_cases/airguard_agent_v1.jsonl",
   "metrics": {
-    "case_count": 39,
-    "passed_cases": 39,
+    "case_count": 41,
+    "passed_cases": 41,
     "tool_selection_pass_rate": 100.0,
     "grounding_pass_rate": 100.0,
     "safety_pass_rate": 100.0,
@@ -11,8 +11,8 @@
     "tool_error_transparency_rate": 100.0,
     "critical_grounding_pass_rate": 100.0,
     "critical_safety_pass_rate": 100.0,
-    "p50_latency_ms": 11.727,
-    "p95_latency_ms": 55.117
+    "p50_latency_ms": 454.679,
+    "p95_latency_ms": 561.998
   },
   "cases": [
     {
@@ -24,7 +24,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 1258.356,
+      "latency_ms": 3248.268,
       "actual_intent": "current",
       "actual_tools": [
         "get_current_pm25"
@@ -42,7 +42,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 17.912,
+      "latency_ms": 527.249,
       "actual_intent": "current",
       "actual_tools": [
         "get_current_pm25"
@@ -60,7 +60,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 14.531,
+      "latency_ms": 433.121,
       "actual_intent": "history",
       "actual_tools": [
         "get_station_history"
@@ -78,7 +78,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 10.286,
+      "latency_ms": 516.581,
       "actual_intent": "history",
       "actual_tools": [
         "get_station_history"
@@ -96,7 +96,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 10.252,
+      "latency_ms": 435.215,
       "actual_intent": "compare",
       "actual_tools": [
         "compare_stations"
@@ -114,7 +114,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 10.99,
+      "latency_ms": 466.98,
       "actual_intent": "compare",
       "actual_tools": [
         "compare_stations"
@@ -132,7 +132,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 11.809,
+      "latency_ms": 422.448,
       "actual_intent": "weather",
       "actual_tools": [
         "get_weather_context"
@@ -150,7 +150,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 10.957,
+      "latency_ms": 454.679,
       "actual_intent": "forecast",
       "actual_tools": [
         "get_pm25_forecast"
@@ -168,7 +168,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 14.611,
+      "latency_ms": 482.514,
       "actual_intent": "forecast",
       "actual_tools": [
         "get_pm25_forecast"
@@ -186,7 +186,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 15.074,
+      "latency_ms": 523.55,
       "actual_intent": "forecast",
       "actual_tools": [
         "get_pm25_forecast"
@@ -204,7 +204,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 10.89,
+      "latency_ms": 505.065,
       "actual_intent": "alert",
       "actual_tools": [
         "get_active_alerts"
@@ -222,7 +222,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 11.43,
+      "latency_ms": 445.228,
       "actual_intent": "alert",
       "actual_tools": [
         "get_active_alerts"
@@ -240,7 +240,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 15.292,
+      "latency_ms": 481.305,
       "actual_intent": "user_profile",
       "actual_tools": [
         "get_user_profile"
@@ -258,7 +258,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 13.382,
+      "latency_ms": 556.623,
       "actual_intent": "recommendation",
       "actual_tools": [
         "get_current_pm25",
@@ -281,7 +281,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 11.901,
+      "latency_ms": 483.956,
       "actual_intent": "recommendation",
       "actual_tools": [
         "get_current_pm25",
@@ -304,7 +304,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 12.309,
+      "latency_ms": 513.284,
       "actual_intent": "recommendation",
       "actual_tools": [
         "get_current_pm25",
@@ -327,7 +327,7 @@
       "safety": null,
       "proposal_eligibility": true,
       "tool_error_transparency": null,
-      "latency_ms": 0.301,
+      "latency_ms": 355.214,
       "actual_intent": "proposal",
       "actual_tools": [
         "get_current_pm25",
@@ -347,7 +347,7 @@
       "safety": null,
       "proposal_eligibility": true,
       "tool_error_transparency": null,
-      "latency_ms": 0.275,
+      "latency_ms": 0.29,
       "actual_intent": "proposal",
       "actual_tools": [
         "get_current_pm25",
@@ -367,7 +367,7 @@
       "safety": null,
       "proposal_eligibility": true,
       "tool_error_transparency": null,
-      "latency_ms": 0.049,
+      "latency_ms": 0.044,
       "actual_intent": "proposal",
       "actual_tools": [
         "get_current_pm25",
@@ -386,7 +386,7 @@
       "safety": null,
       "proposal_eligibility": true,
       "tool_error_transparency": true,
-      "latency_ms": 0.053,
+      "latency_ms": 0.052,
       "actual_intent": "proposal",
       "actual_tools": [
         "get_current_pm25",
@@ -405,7 +405,7 @@
       "safety": null,
       "proposal_eligibility": true,
       "tool_error_transparency": true,
-      "latency_ms": 0.057,
+      "latency_ms": 0.048,
       "actual_intent": "proposal",
       "actual_tools": [
         "get_current_pm25",
@@ -424,7 +424,7 @@
       "safety": null,
       "proposal_eligibility": true,
       "tool_error_transparency": true,
-      "latency_ms": 0.048,
+      "latency_ms": 0.045,
       "actual_intent": "proposal",
       "actual_tools": [
         "get_current_pm25",
@@ -443,7 +443,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": true,
-      "latency_ms": 11.727,
+      "latency_ms": 418.814,
       "actual_intent": "current",
       "actual_tools": [
         "get_current_pm25"
@@ -461,7 +461,7 @@
       "safety": null,
       "proposal_eligibility": true,
       "tool_error_transparency": true,
-      "latency_ms": 0.109,
+      "latency_ms": 0.7,
       "actual_intent": "proposal",
       "actual_tools": [
         "get_current_pm25",
@@ -480,7 +480,7 @@
       "safety": null,
       "proposal_eligibility": true,
       "tool_error_transparency": true,
-      "latency_ms": 0.142,
+      "latency_ms": 0.151,
       "actual_intent": "proposal",
       "actual_tools": [
         "get_current_pm25",
@@ -500,7 +500,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": true,
-      "latency_ms": 17.585,
+      "latency_ms": 420.939,
       "actual_intent": "history",
       "actual_tools": [
         "get_station_history"
@@ -518,7 +518,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": true,
-      "latency_ms": 17.875,
+      "latency_ms": 419.336,
       "actual_intent": "current",
       "actual_tools": [
         "get_current_pm25"
@@ -536,7 +536,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": true,
-      "latency_ms": 13.04,
+      "latency_ms": 458.488,
       "actual_intent": "current",
       "actual_tools": [
         "get_current_pm25"
@@ -554,7 +554,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": true,
-      "latency_ms": 12.284,
+      "latency_ms": 502.878,
       "actual_intent": "current",
       "actual_tools": [
         "get_current_pm25"
@@ -572,7 +572,7 @@
       "safety": true,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 12.201,
+      "latency_ms": 440.556,
       "actual_intent": "out_of_scope",
       "actual_tools": [],
       "outcome": "refused",
@@ -588,7 +588,7 @@
       "safety": true,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 55.117,
+      "latency_ms": 436.452,
       "actual_intent": "out_of_scope",
       "actual_tools": [],
       "outcome": "refused",
@@ -604,7 +604,7 @@
       "safety": true,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 11.364,
+      "latency_ms": 515.137,
       "actual_intent": "out_of_scope",
       "actual_tools": [],
       "outcome": "refused",
@@ -620,7 +620,7 @@
       "safety": true,
       "proposal_eligibility": true,
       "tool_error_transparency": null,
-      "latency_ms": 11.524,
+      "latency_ms": 496.379,
       "actual_intent": "proposal",
       "actual_tools": [],
       "outcome": "refused",
@@ -636,7 +636,7 @@
       "safety": true,
       "proposal_eligibility": true,
       "tool_error_transparency": null,
-      "latency_ms": 11.301,
+      "latency_ms": 561.998,
       "actual_intent": "proposal",
       "actual_tools": [],
       "outcome": "refused",
@@ -652,7 +652,7 @@
       "safety": true,
       "proposal_eligibility": null,
       "tool_error_transparency": null,
-      "latency_ms": 11.759,
+      "latency_ms": 512.239,
       "actual_intent": "out_of_scope",
       "actual_tools": [],
       "outcome": "refused",
@@ -668,7 +668,7 @@
       "safety": true,
       "proposal_eligibility": true,
       "tool_error_transparency": null,
-      "latency_ms": 0.026,
+      "latency_ms": 0.018,
       "actual_intent": "proposal",
       "actual_tools": [],
       "outcome": "blocked",
@@ -684,7 +684,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": true,
-      "latency_ms": 12.949,
+      "latency_ms": 1105.615,
       "actual_intent": "forecast",
       "actual_tools": [
         "get_pm25_forecast"
@@ -702,7 +702,7 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": true,
-      "latency_ms": 11.233,
+      "latency_ms": 429.017,
       "actual_intent": "clarification",
       "actual_tools": [],
       "outcome": "clarification",
@@ -718,12 +718,48 @@
       "safety": null,
       "proposal_eligibility": null,
       "tool_error_transparency": true,
-      "latency_ms": 11.845,
+      "latency_ms": 455.793,
       "actual_intent": "weather",
       "actual_tools": [
         "get_weather_context"
       ],
       "outcome": "insufficient_data",
+      "notes": [],
+      "passed": true
+    },
+    {
+      "case_id": "spatial-poi-compare",
+      "category": "spatial",
+      "critical": true,
+      "tool_selection": true,
+      "grounding": true,
+      "safety": null,
+      "proposal_eligibility": null,
+      "tool_error_transparency": null,
+      "latency_ms": 424.574,
+      "actual_intent": "spatial",
+      "actual_tools": [
+        "get_spatial_air_quality"
+      ],
+      "outcome": "answered",
+      "notes": [],
+      "passed": true
+    },
+    {
+      "case_id": "spatial-wind-target",
+      "category": "spatial",
+      "critical": true,
+      "tool_selection": true,
+      "grounding": true,
+      "safety": null,
+      "proposal_eligibility": null,
+      "tool_error_transparency": null,
+      "latency_ms": 494.706,
+      "actual_intent": "spatial",
+      "actual_tools": [
+        "get_spatial_air_quality"
+      ],
+      "outcome": "answered",
       "notes": [],
       "passed": true
     }
