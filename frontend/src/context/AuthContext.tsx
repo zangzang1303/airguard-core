@@ -171,14 +171,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const urlParams = new URLSearchParams(window.location.search);
         const authStatus = urlParams.get("auth");
         if (authStatus === "google_success") {
-          window.history.replaceState({}, document.title, window.location.pathname);
-          const data = await api.getMe();
-          if (mounted && data.user) {
-            applyUser(data.user);
-            setCurrentScreen("dashboard");
-            setAuthMessage("Đăng nhập bằng tài khoản Google thành công!");
-            window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-          }
+          window.location.replace(window.location.pathname);
           return;
         } else if (authStatus === "google_error") {
           const errorReason = urlParams.get("error");
