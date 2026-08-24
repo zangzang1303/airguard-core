@@ -40,3 +40,28 @@ class UserService:
                     {"user_id": str(row["user_id"]), "email": str(row["email"])}
                     for row in cur.fetchall()
                 ]
+
+    def list_resident_alert_recipients(self) -> list[dict[str, str]]:
+        """Return active, verified residents and their backend-owned policy group."""
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    SELECT user_id, email, sensitivity_group
+                    FROM users
+                    WHERE role = 'resident'
+                      AND is_active = TRUE
+                      AND email_verified_at IS NOT NULL
+                      AND email IS NOT NULL
+                      AND BTRIM(email) <> ''
+                    ORDER BY user_id
+                    """
+                )
+                return [
+                    {
+                        "user_id": str(row["user_id"]),
+                        "email": str(row["email"]),
+                        "sensitivity_group": str(row.get("sensitivity_group") or "normal"),
+                    }
+                    for row in cur.fetchall()
+                ]

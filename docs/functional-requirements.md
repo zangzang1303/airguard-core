@@ -300,6 +300,7 @@ AirGuard AI thu thập dữ liệu từ 5 trạm mô phỏng `S01`–`S05`, truy
 
 - Rule Engine hỗ trợ AQI, PM2.5, CO₂, noise, temperature và sensor offline.
 - Mỗi alert có station, type/metric, unit, observed value, threshold, severity, time, status và deterministic recommendation.
+- AQI, PM2.5, CO₂, noise và temperature chỉ tạo alert sau hai measurement valid/fresh liên tiếp cùng vượt ngưỡng; chu kỳ simulator mặc định là 10 giây.
 - Chỉ dữ liệu valid/fresh/online được dùng; LLM không được đặt threshold.
 - **Trạng thái:** E2E.
 
@@ -402,6 +403,15 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 - `NOTIFICATION_PROVIDER=disabled` phải ghi `not_configured`, không tuyên bố đã gửi email.
 - Resend API chỉ gửi thật khi API key/sender/recipient hợp lệ; log không chứa địa chỉ/body.
 - **Trạng thái:** queue/status E2E; gửi email qua Resend Email API (`resend==2.36.0`).
+
+### FR-NT-02 — Cảnh báo cư dân theo nhóm hồ sơ
+
+- Khi `RESIDENT_ALERT_NOTIFICATIONS_ENABLED=true`, alert AQI/PM2.5/CO₂/tiếng ồn/nhiệt độ đang active enqueue tối đa một email cho mỗi cư dân active, đã xác minh email, tại mỗi mức severity. Cấu hình mặc định là `false`; cảnh báo trên UI không phụ thuộc email.
+- Nội dung dùng policy deterministic theo `normal`, `sensitive`, `outdoor_sport`; nhóm không được thay đổi threshold/severity của Rule Engine hoặc tạo chẩn đoán y tế.
+- Cùng station/alert type/severity/recipient không gửi lặp trong cooldown mặc định 3600 giây, kể cả alert lifecycle mở lại; escalation `warning -> critical` được gửi thêm một lần.
+- Alert resolved và `sensor_offline` không gửi email môi trường cho cư dân. Email phải ghi rõ dữ liệu simulator/không phải quan trắc chính thức.
+- Audit chỉ lưu recipient user ID, group, severity và policy version; không lưu email/body. Notification failure không thay đổi alert, proposal hoặc HITL.
+- **Trạng thái:** backend queue/audit E2E; gửi thật phụ thuộc cấu hình Resend.
 
 ## 5.9. Admin surfaces
 

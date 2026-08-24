@@ -35,7 +35,7 @@ from .services.csrf_service import (
     generate_csrf_token,
     validate_csrf,
 )
-from .services.database import Database, ServiceError, dict_cursor
+from .services.database import Database, ServiceError
 from .services.device_service import DeviceService
 from .services.email_service import AuthEmailService
 from .services.forecast_service import InsufficientForecastHistory, trend_forecast
@@ -46,11 +46,12 @@ from .services.prophet_forecast_service import prophet_service
 from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
 from .services.report_repository import PostgresReportRepository
+from .services.resident_alert_notification_service import ResidentAlertNotificationService
 from .services.spatial_dispersion_service import SpatialDispersionService
 from .services.station_service import StationService
 from .services.temporal_resolver import temporal_resolver
-from .services.user_service import UserService
 from .services.user_admin_service import UserAdminService
+from .services.user_service import UserService
 from .services.ventilation_service import VentilationService
 from .services.weather_service import WeatherService
 
@@ -343,6 +344,13 @@ automatic_proposal_service = AutomaticProposalService(
     allowed_stations=settings.auto_proposal_stations,
     proposal_notifier=_enqueue_manager_proposal_notification,
 )
+resident_alert_notification_service = ResidentAlertNotificationService(
+    user_service=user_service,
+    audit_service=audit_service,
+    notification_task=send_notification_job,
+    enabled=settings.resident_alert_notifications_enabled,
+    cooldown_seconds=settings.resident_alert_notification_cooldown_seconds,
+)
 report_narrator = (
     HttpReportNarrator(
         settings.report_narrative_endpoint,
@@ -591,7 +599,7 @@ def auth_google_callback(
             correlation_id=_request_id(request),
         )
         csrf_token = generate_csrf_token()
-        response = RedirectResponse(url=f"{settings.frontend_url}/", status_code=307)
+        response = RedirectResponse(url=f"{settings.frontend_url}/?auth=google_success", status_code=307)
         response.set_cookie(
             key="airguard_session",
             value=raw_session_token,
@@ -847,16 +855,36 @@ def ingest_measurement(
 ) -> dict:
     result = ingestion_service.ingest(body)
     if result.get("accepted"):
-        result["alert"] = alert_engine.evaluate_station(body.station_id, correlation_id=_request_id(request))
-        _schedule_automatic_proposal(background_tasks, result["alert"], _request_id(request))
+        result["alert"], evaluated_alerts = alert_engine.evaluate_station_with_alerts(
+            body.station_id,
+            correlation_id=_request_id(request),
+        )
+        _schedule_alert_side_effects(
+            background_tasks,
+            result["alert"],
+            evaluated_alerts,
+            _request_id(request),
+        )
     return result
 
 
-def _schedule_automatic_proposal(background_tasks: BackgroundTasks, alert: dict | None, correlation_id: str) -> None:
-    if automatic_proposal_service.should_analyze(alert):
+def _schedule_alert_side_effects(
+    background_tasks: BackgroundTasks,
+    primary_alert: dict | None,
+    evaluated_alerts: list[dict],
+    correlation_id: str,
+) -> None:
+    for alert in evaluated_alerts:
+        if resident_alert_notification_service.should_notify(alert):
+            background_tasks.add_task(
+                resident_alert_notification_service.notify,
+                alert=alert,
+                correlation_id=correlation_id,
+            )
+    if automatic_proposal_service.should_analyze(primary_alert):
         background_tasks.add_task(
             automatic_proposal_service.analyze_and_propose,
-            alert=alert,
+            alert=primary_alert,
             correlation_id=correlation_id,
         )
 
@@ -868,11 +896,16 @@ def evaluate_ingested_measurement(
     station_id: str | None = Body(default=None, embed=True),
 ) -> dict:
     if station_id:
-        alert = alert_engine.evaluate_station(station_id, correlation_id=_request_id(request))
-        _schedule_automatic_proposal(background_tasks, alert, _request_id(request))
+        alert, evaluated_alerts = alert_engine.evaluate_station_with_alerts(
+            station_id,
+            correlation_id=_request_id(request),
+        )
+        _schedule_alert_side_effects(background_tasks, alert, evaluated_alerts, _request_id(request))
         return {"station_id": station_id, "alert": alert}
-    alert_engine.evaluate_all_current(correlation_id=_request_id(request))
-    return {"status": "evaluated"}
+    evaluations = alert_engine.evaluate_all_current_with_alerts(correlation_id=_request_id(request))
+    for alert, evaluated_alerts in evaluations:
+        _schedule_alert_side_effects(background_tasks, alert, evaluated_alerts, _request_id(request))
+    return {"status": "evaluated", "alert_count": sum(alert is not None for alert, _ in evaluations)}
 
 
 @app.get("/api/v1/alerts")
