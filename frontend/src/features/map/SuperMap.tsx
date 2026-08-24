@@ -13,6 +13,7 @@ import { HeatmapLayer } from "../stations/HeatmapLayer";
 import { TimelineSlider } from "../stations/TimelineSlider";
 import { MapLocationControls } from "./MapLocationControls";
 import { mapActionController } from "./MapActionController";
+import { useFloatingPanelContext, useDraggableFloatingPanel } from "../floating";
 import { Crosshair, X } from "lucide-react";
 import { useDraggableFloatingPanel, useFloatingPanelContext } from "../floating";
 

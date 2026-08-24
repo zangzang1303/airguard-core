@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../api/client";
 import { formatAuthError, isEmailNotVerifiedError } from "../../utils/authErrors";
@@ -121,7 +121,14 @@ export const Login: React.FC = () => {
     demoMode,
     googleAuthEnabled,
     setPendingEmailVerification,
+    isAuthenticated,
   } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      setCurrentScreen("dashboard");
+    }
+  }, [isAuthenticated, setCurrentScreen]);
 
 
   const [email, setEmail] = useState("");

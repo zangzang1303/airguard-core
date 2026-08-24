@@ -226,6 +226,9 @@ class LiveTelemetryEngine:
         curr = self.get_latest(station_id)
         updated = {**curr, **overrides, "station_id": station_id, "measured_at": now.isoformat(), "timestamp": now.isoformat()}
         self._history[station_id].append(updated)
+        if len(self._history[station_id]) >= 5:
+            for i in range(-5, 0):
+                self._history[station_id][i].update(overrides)
 
     def set_demo_override(self, station_id: str, values: dict[str, float]) -> dict[str, Any]:
         if station_id not in self._history:

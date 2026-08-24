@@ -591,7 +591,7 @@ def auth_google_callback(
             correlation_id=_request_id(request),
         )
         csrf_token = generate_csrf_token()
-        response = RedirectResponse(url=f"{settings.frontend_url}/?auth=google_success", status_code=307)
+        response = RedirectResponse(url=f"{settings.frontend_url}/", status_code=307)
         response.set_cookie(
             key="airguard_session",
             value=raw_session_token,
@@ -1021,16 +1021,20 @@ async def agent_chat(
                     if exc.code != "insufficient_forecast_history":
                         raise
 
+        effective_station_id = body.station_id
+        if not effective_station_id and body.map_context:
+            effective_station_id = body.map_context.get("selected_sensor")
+
         agent_result = await agent_service.chat(
             message=body.message,
             user_id=effective_user_id,
-            station_id=body.station_id,
+            station_id=effective_station_id,
             request_id=req_id,
         )
         result = geospatial_agent.process_query(
             message=body.message,
             user_id=effective_user_id,
-            station_id=body.station_id,
+            station_id=effective_station_id,
             map_context=body.map_context,
             request_id=req_id,
             user_group=user_group,
@@ -1038,10 +1042,24 @@ async def agent_chat(
             station_histories=histories,
         )
         # The Agent graph is the authority for the answer, tool trace and source
-        # list. The deterministic geospatial service only contributes UI map
-        # actions and structured route geometry.
+        # list. The deterministic geospatial service contributes UI map actions,
+        # structured route geometry, and fallback for map-grounded intents.
         agent_sources = agent_result.get("sources")
         if not isinstance(agent_sources, list) or not agent_sources:
+            if result.get("intent") in {
+                "get_location_environment",
+                "get_noise_metric",
+                "get_temperature_metric",
+                "find_worst_location",
+                "compare_locations",
+                "recommend_running_route",
+                "recommend_personalized_running_route",
+                "recommend_indoor_activity",
+                "recommend_outdoor_location",
+                "unsupported_precipitation_weather",
+                "unknown_location",
+            }:
+                return result
             return {
                 "answer": {"summary": agent_result["answer"], "details": ""},
                 "response": agent_result["answer"],
