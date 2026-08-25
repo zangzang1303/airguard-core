@@ -451,6 +451,40 @@ def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "unknown")
 
 
+def _is_ocean_park_area_overview(message: str) -> bool:
+    """Return true for an Ocean Park-wide question without a station target.
+
+    A selected pin is navigation state, not an implicit user intent. In
+    particular, map POIs must not become the answer target for a broad Ocean
+    Park question merely because a user last viewed that POI.
+    """
+    normalized = message.casefold()
+    mentions_ocean_park = any(term in normalized for term in ("ocean park", "oceanpark", "ocp1", "ocp 1"))
+    has_explicit_station = re.search(r"\bs0?[1-5]\b", normalized, flags=re.IGNORECASE) is not None
+    return mentions_ocean_park and not has_explicit_station
+
+
+def _spatial_overview_response(*, agent_result: dict[str, Any], request_id: str) -> dict[str, Any]:
+    """Build a map-neutral response for a grounded whole-area overview."""
+    trace = agent_result.get("trace", {})
+    return {
+        "answer": {"summary": agent_result["answer"], "details": ""},
+        "response": agent_result["answer"],
+        "intent": trace.get("intent", "spatial"),
+        "evidence": [],
+        "sources": agent_result.get("sources", []),
+        # Preserve the user's current map view; do not replay a POI fallback.
+        "map_actions": [],
+        "used_tools": agent_result.get("used_tools", []),
+        "request_id": request_id,
+        "trace": {
+            **trace,
+            "map_planner": "agent_spatial_overview",
+            "map_intent": "spatial_overview",
+        },
+    }
+
+
 def _error_response(request: Request, *, status_code: int, code: str, message: str, details: dict | list | None = None):
     return JSONResponse(
         status_code=status_code,
@@ -1097,6 +1131,12 @@ async def agent_chat(
                 "request_id": req_id,
                 "trace": agent_result.get("trace", {}),
             }
+
+        if (
+            agent_result.get("trace", {}).get("intent") == "spatial"
+            and _is_ocean_park_area_overview(body.message)
+        ):
+            return _spatial_overview_response(agent_result=agent_result, request_id=req_id)
 
         evidence_source = "prophet_time_series_v1" if time_context["is_forecast"] else None
         for evidence_item in result.get("evidence", []):

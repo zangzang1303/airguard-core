@@ -161,3 +161,25 @@ def test_legacy_agent_social_rewrite_helper_is_locked_to_deterministic_response(
     assert result["trace"]["generation_mode"] == "deterministic_grounded"
     assert result["used_tools"] == []
     assert result["tool_arguments"] == []
+
+
+def test_ocean_park_spatial_overview_does_not_replay_selected_poi_actions():
+    from backend.app.main import _is_ocean_park_area_overview, _spatial_overview_response
+
+    assert _is_ocean_park_area_overview("Chất lượng không khí hiện tại ở Ocean Park 1?")
+    assert not _is_ocean_park_area_overview("Chất lượng không khí ở S1, Ocean Park 1?")
+
+    response = _spatial_overview_response(
+        agent_result={
+            "answer": "Tổng quan chất lượng không khí toàn khu Ocean Park 1.",
+            "used_tools": ["get_spatial_air_quality"],
+            "sources": [{"tool": "get_spatial_air_quality"}],
+            "trace": {"intent": "spatial", "generation_mode": "deterministic_grounded"},
+        },
+        request_id="ocean-park-overview",
+    )
+
+    assert response["intent"] == "spatial"
+    assert response["map_actions"] == []
+    assert response["sources"] == [{"tool": "get_spatial_air_quality"}]
+    assert response["trace"]["map_planner"] == "agent_spatial_overview"
