@@ -1,11 +1,10 @@
 import React, { useMemo } from "react";
-import { Activity, Bot, ChevronRight, Cloud, ShieldAlert, Thermometer, Volume2, Wind } from "lucide-react";
+import { Activity, ChevronRight, Cloud, ShieldAlert, Thermometer, Volume2, Wind } from "lucide-react";
 import { Alert, Station } from "../../types";
 
 interface MapIntelligencePanelsProps {
   stations: Station[];
   alerts: Alert[];
-  onAskAi: (query: string) => void;
   onOpenAlerts: () => void;
 }
 
@@ -21,7 +20,6 @@ const aqiLabel = (value: number | null | undefined) => {
 export const MapIntelligencePanels: React.FC<MapIntelligencePanelsProps> = ({
   stations,
   alerts,
-  onAskAi,
   onOpenAlerts,
 }) => {
   const freshStations = useMemo(
@@ -43,7 +41,7 @@ export const MapIntelligencePanels: React.FC<MapIntelligencePanelsProps> = ({
     : null;
 
   return (
-    <>
+    <aside className="map-intelligence-stack" aria-label="Tổng quan chất lượng không khí">
       <section className="map-intelligence-summary" aria-label="Air quality now">
         <div className="map-panel-kicker"><Activity size={14} /> Air quality now</div>
         <div className="map-summary-main">
@@ -61,20 +59,6 @@ export const MapIntelligencePanels: React.FC<MapIntelligencePanelsProps> = ({
         <div className="map-panel-source">SIMULATED DATA · backend-sourced</div>
       </section>
 
-      <section className="map-ai-insight" aria-label="AirGuard AI insight">
-        <div className="map-ai-insight__head"><span><Bot size={17} /> AirGuard AI Insight</span>{activeAlert && <button type="button" onClick={onOpenAlerts}>{alerts.filter((alert) => alert.status === "active").length} alerts</button>}</div>
-        {focusStation ? (
-          <>
-            <h2>{focusStation.station_id} has the highest current AQI</h2>
-            <p>AQI at {focusStation.station_id} is {focusStation.aqi}. This insight is based on the latest fresh station readings.</p>
-            <div className="map-ai-recommendation"><span>Recommended next step</span><p>{activeAlert?.recommendation ?? "Review this station on the map and monitor the next validated update."}</p></div>
-            <button type="button" className="map-ai-cta" onClick={() => onAskAi(`Phân tích dữ liệu mới nhất của trạm ${focusStation.station_id} và khuyến nghị phù hợp dựa trên bằng chứng hiện có.`)}>Ask AirGuard AI <ChevronRight size={16} /></button>
-          </>
-        ) : (
-          <><h2>Insight pending data</h2><p>AirGuard AI will wait for valid, fresh measurements before making a recommendation.</p></>
-        )}
-      </section>
-
       {activeAlert && (
         <button type="button" className="map-alert-peek" onClick={onOpenAlerts}>
           <ShieldAlert size={17} />
@@ -82,6 +66,6 @@ export const MapIntelligencePanels: React.FC<MapIntelligencePanelsProps> = ({
           <ChevronRight size={16} />
         </button>
       )}
-    </>
+    </aside>
   );
 };

@@ -470,7 +470,6 @@ const SuperAppMain: React.FC<{
       <MapIntelligencePanels
         stations={stations}
         alerts={alerts}
-        onAskAi={handleAskAiWithQuery}
         onOpenAlerts={() => setActiveDrawer("alerts")}
       />
 

@@ -5780,6 +5780,24 @@ html {
   animation: mapPanelEnter 220ms ease-out both;
 }
 
+/* Keep the remaining map widgets in document flow so alert cards cannot
+   overlap the live AQI summary when their content grows. */
+.map-intelligence-stack {
+  position: absolute;
+  top: 96px;
+  left: 20px;
+  z-index: 1000;
+  display: grid;
+  gap: 12px;
+  width: 292px;
+}
+
+.map-intelligence-stack .map-intelligence-summary,
+.map-intelligence-stack .map-alert-peek {
+  position: static;
+  width: auto;
+}
+
 .map-panel-kicker,
 .map-ai-insight__head,
 .map-summary-metrics span,
@@ -5843,6 +5861,12 @@ html {
 }
 
 @media (max-width: 640px) {
+  .map-intelligence-stack {
+    top: 150px;
+    left: 12px;
+    width: min(292px, calc(100vw - 24px));
+  }
+
   .map-intelligence-summary { top: 74px; left: 12px; width: min(292px, calc(100vw - 24px)); padding: 13px; }
   .map-alert-peek { top: 321px; left: 12px; width: min(292px, calc(100vw - 24px)); }
   .map-summary-main > strong { font-size: 2.25rem; }
