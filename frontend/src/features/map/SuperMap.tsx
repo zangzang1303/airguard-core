@@ -230,7 +230,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           selectedStationId={selectedStationId}
           criticalStationIds={criticalStationIds}
           onSelectStation={onSelectStation}
-          showSensors={layerConfig.showSensors && viewMode !== "heatmap"}
+          showSensors={layerConfig.showSensors}
           activeMetric={layerConfig.activeEnvironmentalLayer}
         />
 
@@ -257,7 +257,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
       )}
 
       {/* Accessible Map Legend Overlay (Bottom Right — Only in markers view mode when heatmap is NOT active) */}
-      {viewMode === "markers" && !layerConfig.showHeatmap && (
+      {(
         <DraggableLegendOverlay metric={layerConfig.activeEnvironmentalLayer} />
       )}
 
