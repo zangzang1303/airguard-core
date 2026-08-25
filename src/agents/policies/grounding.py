@@ -207,7 +207,10 @@ def _has_explicit_domain_request(query: str) -> bool:
 
 
 def _stations(query: str) -> list[str]:
-    return list(dict.fromkeys(re.findall(r"\bS0[1-5]\b", query.upper())))
+    # Accept both the canonical IDs (S01-S05) and the short form users type
+    # in conversation (S1-S5), while passing only canonical IDs to tools.
+    matches = re.findall(r"\bS0?([1-5])\b", query.upper())
+    return list(dict.fromkeys(f"S0{station_number}" for station_number in matches))
 
 
 # Product entity aliases are deliberately small and exact.  This entry is

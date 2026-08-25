@@ -454,7 +454,26 @@ class GeospatialAgentService:
         is_temp_inquiry = any(w in q for w in ["nhiệt độ", "nóng không", "mát không", "nhiệt độ bao nhiêu", "bao nhiêu độ"])
 
         target_poi = None
-        if explicit_poi:
+        explicit_station_id = self._extract_explicit_station_id(q)
+        if explicit_station_id:
+            station_poi = next(
+                (
+                    poi for poi in ranked_pois
+                    if poi.get("sensor_id") == explicit_station_id and not poi.get("is_interpolated")
+                ),
+                None,
+            )
+            # A station ID is an explicit telemetry request, not a request for
+            # whichever named POI happens to share that sensor or is selected
+            # on the map. Keep the POI coordinates for map focus, but present
+            # the answer and annotations as the requested station.
+            if station_poi:
+                target_poi = {
+                    **station_poi,
+                    "short_name": f"Trạm {explicit_station_id}",
+                    "name": f"Trạm quan trắc {explicit_station_id}",
+                }
+        elif explicit_poi:
             target_poi = next((p for p in ranked_pois if p["id"] == explicit_poi["id"]), explicit_poi)
         elif map_context.get("selected_location"):
             sel_id = map_context["selected_location"]
@@ -480,7 +499,8 @@ class GeospatialAgentService:
 
             # If user asks a specific question about a location or follow-up
             is_single_loc_query = (
-                explicit_poi is not None
+                explicit_station_id is not None
+                or explicit_poi is not None
                 or is_forecast
                 or map_context.get("selected_location")
                 or map_context.get("selected_sensor")
@@ -1643,6 +1663,12 @@ class GeospatialAgentService:
             and observed_at
             and all(snapshot.get(metric) is not None for metric in required_metrics)
         )
+
+    @staticmethod
+    def _extract_explicit_station_id(query: str) -> str | None:
+        """Normalize user-facing station aliases such as S1 and S01."""
+        match = re.search(r"\bS0?([1-5])\b", query, flags=re.IGNORECASE)
+        return f"S0{match.group(1)}" if match else None
 
     @staticmethod
     def _forecast_point(
