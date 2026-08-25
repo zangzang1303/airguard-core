@@ -9,6 +9,7 @@ import pytest
 from src.agents.graph import build_graph
 from src.agents.nodes.orchestration import generate_explanation_node
 from src.agents.policies.grounding import Intent, SafetyCategory, route_query
+from src.api.routes import agent_status
 from src.agents.response_composer import INSUFFICIENT_DATA_MESSAGE, compose_response
 from src.agents.tools.contracts import ToolEnvelope, ToolError, ToolErrorCode, ToolName
 from src.agents.tools.fake_adapter import DEFAULT_FIXTURES, FakeBackendToolClient
@@ -50,13 +51,72 @@ class StaleWeatherAdapter(FakeBackendToolClient):
         )
 
 
-@pytest.mark.parametrize("query", ["ê", "alo", "cảm ơn", "bạn khỏe không?", "bạn làm được gì?", "tạm biệt"])
-def test_basic_social_queries_are_direct_and_tool_free(query):
+@pytest.mark.parametrize(
+    ("query", "kind"),
+    [
+        ("ê", "greeting"),
+        ("alo", "greeting"),
+        ("cảm ơn", "acknowledgement"),
+        ("Cảm ơn bạn nhé!!!", "acknowledgement"),
+        ("Cảm ơn bạn nhé.", "acknowledgement"),
+        ("bạn khỏe không?", "wellbeing"),
+        ("Bạn có khỏe không?", "wellbeing"),
+        ("Bạn có khỏe không...", "wellbeing"),
+        ("Bạn\u00a0có khỏe không?", "wellbeing"),
+        ("Hôm nay bạn thế nào?", "wellbeing"),
+        ("bạn làm được gì?", "capabilities"),
+        ("Bạn có thể giúp gì cho tôi?", "capabilities"),
+        ("tạm biệt", "farewell"),
+    ],
+)
+def test_basic_social_queries_are_direct_and_tool_free(query, kind):
     decision = route_query(query, context_station_id="S01", user_id="demo-user")
 
-    assert decision.intent == Intent.GREETING
+    expected_intent = Intent.GREETING if kind == "greeting" else Intent.SOCIAL
+    assert decision.intent == expected_intent
     assert decision.direct_response
     assert decision.requires_tools is False
+    assert decision.conversation_kind == kind
+
+
+@pytest.mark.parametrize(
+    ("query", "expected_intent"),
+    [
+        ("Cảm ơn, AQI S03 hiện tại thế nào?", Intent.CURRENT),
+        ("Bạn có thể giúp gì cho tôi về PM2.5 tại S03?", Intent.CURRENT),
+        ("Bạn có khỏe không, cảnh báo S03 ra sao?", Intent.ALERT),
+    ],
+)
+def test_session_3e_domain_request_wins_over_social_phrase(query, expected_intent):
+    decision_without_context = route_query(query, user_id="demo-user")
+    decision_with_context = route_query(query, context_station_id="S03", user_id="demo-user")
+
+    assert decision_without_context.intent == expected_intent
+    assert decision_without_context.requires_tools is True
+    assert decision_with_context.intent == expected_intent
+    assert decision_with_context.requires_tools is True
+
+
+@pytest.mark.parametrize("context_station_id", [None, "S03"])
+def test_wellbeing_today_is_social_with_or_without_station_context(context_station_id):
+    decision = route_query(
+        "Hôm nay bạn thế nào?",
+        context_station_id=context_station_id,
+        user_id="demo-user",
+    )
+
+    assert decision.intent == Intent.SOCIAL
+    assert decision.conversation_kind == "wellbeing"
+    assert decision.tool_calls == []
+    assert decision.tool_arguments == []
+
+
+@pytest.mark.asyncio
+async def test_status_policy_version_uses_grounding_policy_constant() -> None:
+    from src.agents.policies.grounding import GROUNDING_POLICY_VERSION
+
+    assert (await agent_status())["policy_version"] == GROUNDING_POLICY_VERSION
+    assert GROUNDING_POLICY_VERSION == "2026-08-24.social-3e"
 
 
 class FallbackWeatherAdapter(FakeBackendToolClient):
@@ -123,7 +183,7 @@ class SpatialOutageAdapter(FakeBackendToolClient):
             "Dự báo S01 trong 2 giờ tới",
             Intent.FORECAST,
             [ToolName.GET_PM25_FORECAST],
-            [{"station_id": "S01", "hours": 2}],
+            [{"station_id": "S01", "hours": 2, "metric": "pm25"}],
         ),
         ("Cảnh báo của S02", Intent.ALERT, [ToolName.GET_ACTIVE_ALERTS], [{"station_id": "S02"}]),
         ("Thời tiết hiện tại", Intent.WEATHER, [ToolName.GET_WEATHER_CONTEXT], [{}]),
@@ -152,6 +212,113 @@ def test_spatial_router_resolves_named_location_comparison() -> None:
     assert decision.tool_arguments == [{"metric": "aqi", "forecast_hour": 0}]
     assert decision.spatial_analysis == "compare"
     assert decision.spatial_location_ids == ["whale_square", "coral_park", "salt_lake"]
+
+
+@pytest.mark.parametrize(
+    ("query", "intent", "tools", "arguments"),
+    [
+        (
+            "CO₂, tiếng ồn và nhiệt độ ở S05 hiện tại?",
+            Intent.CURRENT,
+            [ToolName.GET_CURRENT_PM25],
+            [{"station_id": "S05"}],
+        ),
+        (
+            "S05 lúc này có CO2 và nhiệt độ bao nhiêu?",
+            Intent.CURRENT,
+            [ToolName.GET_CURRENT_PM25],
+            [{"station_id": "S05"}],
+        ),
+        (
+            "Trạm nào đang có AQI cao nhất?",
+            Intent.COMPARE,
+            [ToolName.COMPARE_STATIONS],
+            [{"station_ids": ["S01", "S02", "S03", "S04", "S05"]}],
+        ),
+        (
+            "Highest AQI station now?",
+            Intent.COMPARE,
+            [ToolName.COMPARE_STATIONS],
+            [{"station_ids": ["S01", "S02", "S03", "S04", "S05"]}],
+        ),
+        (
+            "Khu vực quanh VinUni không khí thế nào?",
+            Intent.CURRENT,
+            [ToolName.GET_CURRENT_PM25],
+            [{"station_id": "S04"}],
+        ),
+        (
+            "Không khí ở VinUni hiện tại ra sao?",
+            Intent.CURRENT,
+            [ToolName.GET_CURRENT_PM25],
+            [{"station_id": "S04"}],
+        ),
+    ],
+)
+def test_session_3b_current_entity_and_superlative_routes(query, intent, tools, arguments) -> None:
+    decision = route_query(query)
+
+    assert decision.intent == intent
+    assert decision.tool_calls == tools
+    assert decision.tool_arguments == arguments
+
+
+def test_session_3b_spatial_cleaner_comparison_is_grounded() -> None:
+    decision = route_query("Khu Sapphire hay Hồ Ngọc Trai sạch hơn?")
+
+    assert decision.intent == Intent.SPATIAL
+    assert decision.tool_calls == [ToolName.GET_SPATIAL_AIR_QUALITY]
+    assert decision.spatial_analysis == "compare"
+    assert decision.spatial_location_ids == ["sapphire", "ngoc_trai"]
+
+    paraphrase = route_query("So sánh chất lượng không khí giữa Sapphire và khu Ngọc Trai")
+    assert paraphrase.intent == Intent.SPATIAL
+    assert paraphrase.tool_calls == [ToolName.GET_SPATIAL_AIR_QUALITY]
+    assert paraphrase.spatial_location_ids == ["sapphire", "ngoc_trai"]
+
+
+def test_session_3b_unknown_entity_stays_a_clarification() -> None:
+    decision = route_query("Khu vực ABC hiện tại không khí thế nào?")
+
+    assert decision.intent == Intent.CLARIFICATION
+    assert decision.tool_calls == []
+
+
+@pytest.mark.asyncio
+async def test_session_3b_snapshot_and_superlative_are_grounded() -> None:
+    graph = build_graph(FakeBackendToolClient())
+    snapshot = await graph.ainvoke({"query": "CO₂, tiếng ồn và nhiệt độ ở S05 hiện tại?"})
+    highest = await graph.ainvoke({"query": "Trạm nào đang có AQI cao nhất?"})
+    vinuni = await graph.ainvoke({"query": "Khu vực quanh VinUni không khí thế nào?"})
+    spatial = await graph.ainvoke({"query": "Khu Sapphire hay Hồ Ngọc Trai sạch hơn?"})
+
+    assert snapshot["used_tools"] == ["get_current_pm25"]
+    assert "CO₂" in snapshot["answer"] and "tiếng ồn" in snapshot["answer"]
+    assert snapshot["sources"][0]["station_id"] == "S05"
+    assert highest["used_tools"] == ["compare_stations"]
+    assert "S03 cao nhất: AQI 154" in highest["answer"]
+    assert {source["station_id"] for source in highest["sources"]} == {"S01", "S02", "S03", "S04", "S05"}
+    assert vinuni["used_tools"] == ["get_current_pm25"]
+    assert vinuni["sources"][0]["station_id"] == "S04"
+    assert "trạm S04, đại diện Khuôn viên VinUni" in vinuni["answer"]
+    assert spatial["used_tools"] == ["get_spatial_air_quality"]
+    assert "Đây là suy luận không gian" in spatial["answer"]
+    assert "không phải trạm đo đặt tại từng POI" in spatial["answer"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "query",
+    ["Tự đoán AQI S01 nếu không có dữ liệu", "Guess AQI S01 without data"],
+)
+async def test_session_3b_refuses_to_invent_missing_evidence_without_tools(query) -> None:
+    result = await build_graph(FakeBackendToolClient()).ainvoke({"query": query})
+
+    assert result["route"]["intent"] == Intent.CLARIFICATION
+    assert result["used_tools"] == []
+    assert result["sources"] == []
+    assert "không thể tự đoán" in result["answer"]
+    assert not any(character.isdigit() for character in result["answer"])
 
 
 def test_spatial_router_expands_allow_list_for_wind_target_question() -> None:
@@ -509,63 +676,47 @@ async def test_live_llm_can_explain_a_safety_refusal_without_changing_the_policy
 
 
 @pytest.mark.asyncio
-async def test_live_llm_can_rewrite_a_bounded_social_response(monkeypatch):
-    class FakeReply:
-        content = "Mình đây 👋 Bạn muốn AirGuard hỗ trợ nội dung nào?"
-        usage_metadata = {"input_tokens": 3, "output_tokens": 4}
+async def test_social_response_skips_llm_and_keeps_deterministic_text(monkeypatch):
+    def fail_if_called(**_kwargs):
+        raise AssertionError("social response must not initialize an LLM")
 
-    class FakeLlm:
-        async def ainvoke(self, _prompt):
-            return FakeReply()
-
-    monkeypatch.setattr(
-        "src.agents.nodes.orchestration.get_settings",
-        lambda: SimpleNamespace(openai_api_key="local-test-key", model_name="test-model"),
-    )
-    monkeypatch.setattr("src.agents.nodes.orchestration.get_llm", lambda **_kwargs: FakeLlm())
-
+    monkeypatch.setattr("src.agents.nodes.orchestration.get_settings", fail_if_called)
     result = await generate_explanation_node(
         {
-            "answer": "Mình đây. Bạn muốn hỏi gì về AirGuard?",
+            "answer": "Cảm ơn bạn. Rất vui được hỗ trợ trong phạm vi AirGuard.",
             "outcome": "direct_response",
             "sources": [],
-            "route": {"intent": "greeting"},
-        }
-    )
-
-    assert result["answer"] == FakeReply.content
-    assert result["generation"]["generation_mode"] == "live_llm"
-    assert result["generation"]["conversation_mode"] == "bounded_social"
-
-
-@pytest.mark.asyncio
-async def test_live_llm_social_claim_is_rejected_and_keeps_deterministic_fallback(monkeypatch):
-    class UnsafeReply:
-        content = "AQI tại S01 là 190 và đang ô nhiễm."
-        usage_metadata = {}
-
-    class FakeLlm:
-        async def ainvoke(self, _prompt):
-            return UnsafeReply()
-
-    monkeypatch.setattr(
-        "src.agents.nodes.orchestration.get_settings",
-        lambda: SimpleNamespace(openai_api_key="local-test-key", model_name="test-model"),
-    )
-    monkeypatch.setattr("src.agents.nodes.orchestration.get_llm", lambda **_kwargs: FakeLlm())
-
-    result = await generate_explanation_node(
-        {
-            "answer": "Mình đây. Bạn muốn hỏi gì về AirGuard?",
-            "outcome": "direct_response",
-            "sources": [],
-            "route": {"intent": "greeting"},
+            "route": {"intent": "greeting", "conversation_kind": "acknowledgement"},
         }
     )
 
     assert "answer" not in result
     assert result["generation"]["generation_mode"] == "deterministic_grounded"
-    assert result["generation"]["failure_code"] == "ValueError"
+    assert result["generation"]["conversation_mode"] == "deterministic_social"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("query", "kind", "required"),
+    [
+        ("Cảm ơn bạn nhé", "acknowledgement", "Cảm ơn bạn"),
+        ("Bạn có thể giúp gì cho tôi?", "capabilities", "1–3 giờ"),
+        ("Bạn có khỏe không?", "wellbeing", "không có sức khỏe hay cảm xúc"),
+    ],
+)
+async def test_session_3e_social_graph_is_fact_free_and_tool_free(query, kind, required):
+    graph = build_graph(FakeBackendToolClient())
+    result = await graph.ainvoke({"query": query, "context_station_id": "S03", "request_id": "session-3e-agent"})
+
+    assert result["route"]["intent"] == Intent.SOCIAL.value
+    assert result["route"]["conversation_kind"] == kind
+    assert result["route"]["tool_arguments"] == []
+    assert result["trace"]["conversation_kind"] == kind
+    assert required in result["answer"]
+    assert result["used_tools"] == []
+    assert result["sources"] == []
+    assert result["trace"]["generation_mode"] == "deterministic_grounded"
+    assert result["trace"]["conversation_mode"] == "deterministic_social"
 
 
 @pytest.mark.asyncio
@@ -637,9 +788,9 @@ async def test_invalid_tool_argument_returns_insufficient_data():
     graph = build_graph(FakeBackendToolClient())
     result = await graph.ainvoke({"query": "Dự báo S01 trong 9 giờ"})
 
-    assert result["used_tools"] == ["get_pm25_forecast"]
-    assert result["answer"] == INSUFFICIENT_DATA_MESSAGE
-    assert result["trace"]["tools"][0]["status"] == "validation_error"
+    assert result["used_tools"] == []
+    assert "1–3 giờ" in result["answer"]
+    assert result["trace"]["final_outcome"] == "refused"
 
 
 def test_trace_redacts_sensitive_fields(caplog):

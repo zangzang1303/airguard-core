@@ -14,15 +14,30 @@ The AI-002 release gate covers:
 - AQI-first current-station responses that enumerate PM2.5, CO₂, noise and temperature from the same fresh snapshot;
 - transparent handling of backend outage, empty history, stale, offline, invalid and invalid arguments;
 - rejection of missing freshness, timezone-less environmental timestamps, stale weather and stale forecast;
+- baseline-only 1–3 hour forecast routing: AQI and PM2.5 retain backend metric, provenance, model,
+  timezone-aware generation/forecast times, freshness, confidence and limitations; 24-hour/cả ngày
+  requests are refused without calling a forecast tool;
 - simulator/fixture transparency for current, history, compare, weather, forecast and alert answers;
 - clarification for missing station context;
 - bounded social conversation for greeting, acknowledgement, wellbeing, capability and farewell;
 - unknown short messages must clarify instead of falling through to environmental recommendation;
-- social responses must have no tools/sources/map actions, and unsafe LLM environmental claims must fall back deterministically;
+- social responses must short-circuit deterministically before LLM/tool/profile/geospatial access and have no tool arguments, sources, proposals or map actions;
 - refusal of prompt injection, medical diagnosis, emergency claims, device control and HITL bypass;
 - trace request id, tool status/latency, final outcome and PII/secret redaction.
 
 ## AI-006 golden-set gate
+
+### Phiên 3B — semantic/entity routing (2026-08-24)
+
+Regression coverage trong `tests/test_agents/test_grounding.py` xác nhận deterministic routing
+cho snapshot đa chỉ số theo trạm, AQI superlative bằng đúng một `compare_stations` call, allowlist
+`VinUni -> S04`, spatial comparison Sapphire/Ngọc Trai và direct refusal cho yêu cầu tự đoán khi
+không có evidence. Các assertion kiểm tra intent, tool name và arguments; unknown entity vẫn phải
+clarification và refusal không được gọi telemetry tool hay tạo environmental value.
+
+Precedence được áp dụng theo thứ tự: refusal thiếu evidence, station-scoped current snapshot,
+AQI superlative, rồi weather/spatial/recommendation. Allowlist chỉ là định danh tĩnh được đối
+chiếu với `data/stations.json` và `backend/db/schema.sql`; không phải evidence môi trường.
 
 The executable golden set is `eval/golden_cases/airguard_agent_v1.jsonl`. It contains 41 cases for
 current, history, compare, weather, forecast, alert, profile, recommendation, proposal/no-proposal,
@@ -42,7 +57,7 @@ Run the deterministic evaluation without a database or LLM provider:
 ```
 
 The runner writes Markdown and JSON reports to `eval/reports/`. The baseline rerun on 2026-08-11 has
-39 cases and 100% tool selection, grounding, safety, proposal eligibility and tool-error
+More than 52 cases and 100% tool selection, grounding, safety, proposal eligibility and tool-error
 transparency. Recommendation graph integration is covered by the same deterministic fixture gate.
 
 ## Live LLM evidence (Gate 2)

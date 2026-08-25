@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-TOOL_REGISTRY_VERSION = "2026-08-21.ai-spatial-003"
+TOOL_REGISTRY_VERSION = "2026-08-24.forecast-baseline-3c"
 TOOL_REGISTRY_OWNER = "ai-agent"
 STATION_IDS = {"S01", "S02", "S03", "S04", "S05"}
 
@@ -106,6 +106,7 @@ class WeatherContextInput(StrictModel):
 
 class Pm25ForecastInput(CurrentPm25Input):
     hours: int = Field(default=3, ge=1, le=3)
+    metric: Literal["aqi", "pm25"] = "pm25"
 
 
 class ActiveAlertsInput(StrictModel):
@@ -256,38 +257,53 @@ class WeatherContext(BackendOutputModel):
 
 
 class ForecastPoint(BackendOutputModel):
-    forecast_at: AwareDatetime | None = None
-    hour: int | None = Field(default=None, ge=1, le=3, validation_alias=AliasChoices("hour", "hour_offset"))
-    pm25: float | None = Field(default=None, ge=0)
-    pm25_min: float | None = Field(default=None, ge=0)
-    pm25_max: float | None = Field(default=None, ge=0)
-    confidence: float | None = Field(default=None, ge=0, le=1)
-    source: str = Field(..., min_length=1, max_length=100, validation_alias=AliasChoices("source", "method"))
+    forecast_at: AwareDatetime
+    hour: int = Field(..., ge=1, le=3, validation_alias=AliasChoices("hour", "hour_offset"))
+    value: float | None = Field(default=None, ge=0, validation_alias=AliasChoices("value", "pm25"))
+    value_min: float | None = Field(default=None, ge=0, validation_alias=AliasChoices("value_min", "pm25_min"))
+    value_max: float | None = Field(default=None, ge=0, validation_alias=AliasChoices("value_max", "pm25_max"))
+    confidence: float = Field(..., ge=0, le=1)
+    source: str = Field(..., min_length=1, max_length=100)
 
     @model_validator(mode="after")
     def has_time_and_value(self) -> ForecastPoint:
-        if self.forecast_at is None and self.hour is None:
-            raise ValueError("forecast point requires forecast_at or hour offset")
-        has_point = self.pm25 is not None
-        has_range = self.pm25_min is not None and self.pm25_max is not None
+        has_point = self.value is not None
+        has_range = self.value_min is not None and self.value_max is not None
         if not has_point and not has_range:
-            raise ValueError("forecast point requires pm25 or a complete min/max range")
-        if (self.pm25_min is None) != (self.pm25_max is None):
+            raise ValueError("forecast point requires value or a complete min/max range")
+        if (self.value_min is None) != (self.value_max is None):
             raise ValueError("forecast range requires both pm25_min and pm25_max")
-        if has_range and self.pm25_min > self.pm25_max:
+        if has_range and self.value_min > self.value_max:
             raise ValueError("forecast pm25_min cannot exceed pm25_max")
         return self
 
 
 class Pm25Forecast(BackendOutputModel):
     station_id: str
-    is_stale: bool
-    items: list[ForecastPoint]
+    metric: Literal["aqi", "pm25"]
+    horizon_hours: int = Field(..., ge=1, le=3)
+    generated_at: AwareDatetime
+    model_name: str = Field(..., min_length=1)
+    model_version: str = Field(..., min_length=1)
+    source: str = Field(..., min_length=1)
+    freshness: Literal["fresh"]
+    is_stale: Literal[False]
+    confidence: float = Field(..., ge=0, le=1)
+    limitations: list[str] = Field(..., min_length=1)
+    items: list[ForecastPoint] = Field(..., min_length=1, max_length=3)
 
     @field_validator("station_id")
     @classmethod
     def station_id_known(cls, value: str) -> str:
         return validate_station_id(value)
+
+    @model_validator(mode="after")
+    def canonical_points_are_ordered(self) -> Pm25Forecast:
+        if len(self.items) != self.horizon_hours:
+            raise ValueError("forecast items must match horizon_hours")
+        if [item.hour for item in self.items] != list(range(1, self.horizon_hours + 1)):
+            raise ValueError("forecast items must be ordered contiguous horizons")
+        return self
 
 
 class ExtendedForecastHorizon(BackendOutputModel):
@@ -514,7 +530,7 @@ TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
     ),
     ToolName.GET_PM25_FORECAST: ToolSpec(
         name=ToolName.GET_PM25_FORECAST,
-        description="Fetch a 1 to 3 hour PM2.5 forecast for one station.",
+        description="Fetch a baseline 1 to 3 hour AQI or PM2.5 forecast for one station.",
         input_schema=Pm25ForecastInput,
         output_schema=Pm25Forecast,
         method="GET",

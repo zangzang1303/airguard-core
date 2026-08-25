@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from time import perf_counter
 from typing import Any
 from uuid import uuid4
@@ -16,24 +15,6 @@ from src.agents.tools.contracts import ToolError, ToolErrorCode
 from src.agents.trace import emit_trace
 from src.config import get_settings
 from src.services.llm import LlmProviderError, get_llm, resolve_llm_provider, resolved_model_name
-
-
-def _safe_social_generation(text: str) -> bool:
-    cleaned = text.strip()
-    if not cleaned or len(cleaned) > 500:
-        return False
-    without_metric_names = re.sub(r"PM\s*2[.,]5|CO\s*2", "", cleaned, flags=re.IGNORECASE)
-    if any(character.isdigit() for character in without_metric_names):
-        return False
-    forbidden = (
-        r"\bS0[1-5]\b",
-        r"\b(?:µg/m³|ug/m3|ppm|db|°c)\b",
-        r"\bAQI\s+(?:là|la|đạt|dat|đang|dang)\b",
-        r"\b(?:đang|dang)\s+(?:ô nhiễm|o nhiem)\b",
-        r"\b(?:an toàn|an toan)\s+(?:để|de)\b",
-        r"\b(?:bật|bat|tắt|tat|approve|reject)\b",
-    )
-    return not any(re.search(pattern, cleaned, flags=re.IGNORECASE) for pattern in forbidden)
 
 
 def route_node(state: AgentState) -> dict[str, Any]:
@@ -142,6 +123,12 @@ async def generate_explanation_node(state: AgentState) -> dict[str, Any]:
     fact-bearing deterministic answer. Provider outages retain that answer and are
     explicitly traced as a fallback, never as a successful live generation.
     """
+    route = state.get("route")
+    # Social responses are fully deterministic by contract. Do not make an LLM
+    # call even when a provider happens to be configured.
+    if isinstance(route, dict) and route.get("conversation_kind"):
+        return {"generation": {"generation_mode": "deterministic_grounded", "conversation_mode": "deterministic_social"}}
+
     settings = get_settings()
     base_answer = state.get("answer", "")
     fallback = {"generation_mode": "deterministic_grounded", "provider": None, "model": None}
@@ -157,33 +144,6 @@ async def generate_explanation_node(state: AgentState) -> dict[str, Any]:
     started = perf_counter()
     try:
         llm = get_llm(settings=settings)
-        route = state.get("route")
-        is_social = isinstance(route, dict) and route.get("intent") == Intent.GREETING.value
-        if is_social:
-            prompt = (
-                "Bạn là lớp giao tiếp xã giao của AirGuard. Viết lại nội dung đã khóa dưới đây "
-                "thành một hoặc hai câu tiếng Việt thân thiện, ngắn gọn. Chỉ được giới thiệu khả năng "
-                "của AirGuard hoặc duy trì phép lịch sự. Không đưa ra số liệu, trạng thái môi trường, "
-                "dự báo, đánh giá an toàn, lời khuyên sức khỏe, lệnh thiết bị hay quyết định phê duyệt. "
-                f"Nội dung đã khóa: {base_answer}"
-            )
-            deadline_seconds = float(getattr(settings, "llm_response_deadline_seconds", 5.0))
-            reply = await asyncio.wait_for(llm.ainvoke(prompt), timeout=deadline_seconds)
-            social_reply = str(reply.content).strip()
-            if not _safe_social_generation(social_reply):
-                raise ValueError("model output failed social safety validation")
-            usage = getattr(reply, "usage_metadata", None) or {}
-            return {
-                "answer": social_reply,
-                "generation": {
-                    "generation_mode": "live_llm",
-                    "conversation_mode": "bounded_social",
-                    "provider": provider,
-                    "model": resolved_model_name(settings, provider),
-                    "latency_ms": round((perf_counter() - started) * 1000, 3),
-                    "token_usage": dict(usage),
-                },
-            }
         prompt = (
             "Viết đúng một câu tiếng Việt ngắn, tối đa mười hai từ, chỉ nêu giới hạn dữ liệu "
             "hoặc ranh giới an toàn. Không thêm hay lặp số đo, thời gian, tên trạm, chỉ số, "
@@ -236,9 +196,12 @@ def trace_node(state: AgentState) -> dict[str, Any]:
     trace = {
         "request_id": state["request_id"],
         "intent": decision.intent.value,
+        "conversation_kind": decision.conversation_kind,
         "policy_version": GROUNDING_POLICY_VERSION,
         "tools": state.get("tool_traces", []),
         "safety_category": decision.safety_category.value if decision.safety_category else None,
+        "refusal_category": decision.refusal_category.value if decision.refusal_category else None,
+        "reason_code": decision.reason_code.value if decision.reason_code else None,
         "final_outcome": state.get("outcome", "unknown"),
         "latency_ms": round((perf_counter() - state["started_at"]) * 1000, 3),
         **state.get("generation", {"generation_mode": "deterministic_grounded"}),
