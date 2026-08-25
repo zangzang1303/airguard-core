@@ -558,6 +558,22 @@ def test_deictic_query_without_explicit_name_uses_map_selection():
     assert res["resolved_location"]["id"] == "poi_san_ho_park"
 
 
+def test_explicit_short_station_id_overrides_selected_poi_label():
+    """S1 means telemetry station S01, even when San Hô is selected on the map."""
+    agent = demo_agent()
+    live_engine.update_station("S01", {"pm25": 12.0, "aqi": 38, "co2": 420.0, "noise_db": 44.0, "temperature": 25.0})
+
+    res = agent.process_query(
+        "chất lượng không khí tại trạm S1 thế nào?",
+        map_context={"selected_location": "poi_san_ho_park", "selected_sensor": "S01"},
+    )
+
+    assert res["intent"] == "get_location_environment"
+    assert "Trạm S01" in res["answer"]["summary"]
+    assert "San Hô" not in res["answer"]["summary"]
+    assert res["target_station"] == "S01"
+
+
 def test_unknown_location_outside_ocean_park_fails_closed():
     """
     Test that queries for unknown locations outside Ocean Park 1 (e.g. ABCXYZ)

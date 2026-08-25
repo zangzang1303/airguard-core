@@ -275,6 +275,13 @@ async def test_user_instruction_cannot_disable_required_tool_call():
     assert "22.4" in result["answer"]
 
 
+def test_short_station_alias_is_normalized_before_tool_selection() -> None:
+    decision = route_query("PM2.5 tại trạm S1 hiện tại thế nào?")
+
+    assert decision.tool_calls == [ToolName.GET_CURRENT_PM25]
+    assert decision.tool_arguments == [{"station_id": "S01"}]
+
+
 def test_current_station_response_is_aqi_first_and_includes_all_environmental_readings() -> None:
     decision = route_query("Chất lượng không khí tại S01 hiện tại thế nào?")
     current = dict(DEFAULT_FIXTURES["current"]["S01"])
