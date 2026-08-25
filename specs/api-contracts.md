@@ -31,7 +31,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/internal/ingestion/evaluate-alerts` | internal alert catch-up for one/all stations | 200 | 404/503 |
 | GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up for AQI, PM2.5, CO₂, noise, temperature and sensor availability | 200 | 422/503 |
 | POST `/alerts/{id}/resolve` | manager-only manual alert resolution | 200 | 403/404/503 |
-| GET `/stations/{id}/forecast?hours=1..3&metric=pm25|aqi|co2|noise_db|temperature` | damped linear-trend forecast from at least 3 fresh valid measurements of the selected metric; defaults to PM2.5 | 200 | 404/422/503 |
+| GET `/stations/{id}/forecast?hours=1..3&metric=pm25|aqi|co2|noise_db|temperature&model=baseline` | damped linear-trend forecast from at least 3 fresh valid measurements of the selected metric; defaults to PM2.5 and `model=baseline` | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
 | GET `/spatial/heatmap?metric=aqi|pm25|co2|noise_db|temperature&forecast_hour=0..24` | grounded wind-adjusted IDW grid from at least three fresh valid online stations | 200 | 422/503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
@@ -88,6 +88,17 @@ is unavailable or forecast history is insufficient. They never replace missing, 
 system-of-record reads with an in-memory simulator snapshot. The `timestamp` returned by
 `/stations/{id}/current` is the measurement observation time, not the API request time. Frontend
 clients must show loading, empty or retryable error states instead of rendering fixture values as live.
+
+## Short-term forecast response
+
+The canonical Agent forecast is the `baseline` model only, for 1–3 hours and `metric=aqi|pm25`.
+Its response preserves `station_id`, `metric`, `horizon_hours`, timezone-aware `generated_at`,
+`model_name`, `model_version`, `source`, `freshness="fresh"`, `is_stale=false`, numeric
+`confidence`, `limitations`, and ordered `items`. Each item has `hour`/`hour_offset`, timezone-aware
+`forecast_at`, `value` (or complete `value_min`/`value_max`), numeric `confidence`, and `source`.
+The Agent may accept the legacy PM2.5 field aliases from this endpoint only during typed validation;
+it must not infer a source, timestamp, value, freshness, or metadata that is absent. A 24-hour/cả ngày
+request is refused by the Agent without a tool call because it is outside the MVP forecast contract.
 
 ## Environmental alert response
 
@@ -215,7 +226,8 @@ The current frontend identity is demo-only and does not replace production backe
 service uses the same payload. The root Agent keeps the legacy `POST /api/v1/chat` alias during
 migration; its `user_id` remains optional for non-personalized requests.
 
-The response contains `answer`, `intent`, `used_tools`, `sources`, `request_id`, `trace`, and optional
+The response contains `answer`, `intent`, `conversation_kind`, `used_tools`, `tool_arguments`,
+`sources`, `map_actions`, `request_id`, `trace`, and optional
 `proposal_id`, `recommendation_policy_version`, and `impact_policy_version`. The impact intent
 uses a fresh station snapshot and rates operational environmental impact with AQI as the primary
 index; PM2.5, CO₂, noise and temperature are supporting evidence only. It is not a medical
@@ -231,11 +243,10 @@ backend request scope. It must return structured `503` when grounded inputs are 
 must not synthesize AQI, PM2.5, CO₂, noise, temperature, timestamp or a default user profile in an
 exception handler.
 
-Basic social messages are intercepted before telemetry access. Their response adds
-`conversation_kind`, has empty `used_tools`, `sources`/`evidence` and `map_actions`, and omits
-current/forecast time context. A configured LLM may rewrite only the locked social fallback; output
-that introduces environmental observations, station values/status, safety claims, health advice,
-device commands or approval decisions is rejected. Unknown messages return `clarification` instead
+Basic social messages are intercepted before profile, geospatial, telemetry or LLM access. Their
+response adds `conversation_kind`, has empty `used_tools`, `tool_arguments`, `sources`/`evidence`
+and `map_actions`, and omits current/forecast time context. The response is the locked deterministic
+social fallback; no configured LLM may rewrite it. Unknown messages return `clarification` instead
 of falling through to a default environmental recommendation.
 
 Recommendation intent requires current PM2.5, weather, forecast, active alerts and a backend user

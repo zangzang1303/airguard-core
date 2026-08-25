@@ -944,7 +944,7 @@ def get_station_forecast(
     station_id: str,
     hours: int = Query(default=3, ge=1, le=3),
     metric: Literal["pm25", "aqi", "co2", "noise_db", "temperature"] = Query(default="pm25"),
-    model: Literal["prophet", "baseline"] = Query(default="prophet"),
+    model: Literal["prophet", "baseline"] = Query(default="baseline"),
 ) -> dict:
     history = station_service.get_forecast_history(station_id)
     if model == "prophet":
@@ -959,7 +959,7 @@ def get_station_forecast(
             503,
             {"station_id": station_id},
         ) from exc
-    return {"station_id": station_id, **forecast, "timestamp": datetime.now(UTC).isoformat()}
+    return {"station_id": station_id, "horizon_hours": hours, "is_stale": False, **forecast, "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)
@@ -990,20 +990,9 @@ async def agent_chat(
             map_context=body.map_context,
         )
         if conversation.intent in {"greeting", "social"}:
-            try:
-                agent_result = await agent_service.chat(
-                    message=body.message,
-                    user_id=effective_user_id,
-                    station_id=body.station_id,
-                    request_id=req_id,
-                )
-                return conversational_agent.response_from_agent(
-                    conversation,
-                    agent_result,
-                    request_id=req_id,
-                )
-            except AgentServiceError:
-                return conversational_agent.deterministic_response(conversation, request_id=req_id)
+            # Social replies are deliberately local and deterministic: they do
+            # not need telemetry, map planning, or an LLM-mediated Agent call.
+            return conversational_agent.deterministic_response(conversation, request_id=req_id)
         if conversation.intent == "clarification":
             return conversational_agent.deterministic_response(conversation, request_id=req_id)
 
@@ -1074,6 +1063,11 @@ async def agent_chat(
         # list. The deterministic geospatial service contributes UI map actions,
         # structured route geometry, and fallback for map-grounded intents.
         agent_sources = agent_result.get("sources")
+        canonical_intent = agent_result.get("intent") or agent_result.get("trace", {}).get("intent", "domain")
+        canonical_kind = agent_result.get("conversation_kind") or agent_result.get("trace", {}).get(
+            "conversation_kind"
+        )
+        canonical_arguments = agent_result.get("tool_arguments", [])
         if not isinstance(agent_sources, list) or not agent_sources:
             if result.get("intent") in {
                 "get_location_environment",
@@ -1092,11 +1086,14 @@ async def agent_chat(
             return {
                 "answer": {"summary": agent_result["answer"], "details": ""},
                 "response": agent_result["answer"],
-                "intent": agent_result.get("trace", {}).get("intent", "domain"),
+                "intent": canonical_intent,
+                "conversation_kind": canonical_kind,
                 "evidence": [],
                 "sources": [],
                 "map_actions": [],
                 "used_tools": agent_result.get("used_tools", []),
+                "tool_arguments": canonical_arguments,
+                "proposal_id": agent_result.get("proposal_id"),
                 "request_id": req_id,
                 "trace": agent_result.get("trace", {}),
             }
@@ -1114,14 +1111,19 @@ async def agent_chat(
                 if time_context["is_forecast"]
                 else evidence_snapshot.get("updated_at")
             )
+        map_intent = result.get("intent")
         result["answer"] = {"summary": agent_result["answer"], "details": ""}
         result["response"] = agent_result["answer"]
+        result["intent"] = canonical_intent
+        result["conversation_kind"] = canonical_kind
         result["used_tools"] = agent_result.get("used_tools", [])
+        result["tool_arguments"] = canonical_arguments
         result["sources"] = agent_sources
+        result["proposal_id"] = agent_result.get("proposal_id")
         result["trace"] = {
             **agent_result.get("trace", {}),
             "map_planner": "deterministic_grounded_geospatial",
-            "map_intent": result.get("intent"),
+            "map_intent": map_intent,
             "data_mode": result.get("data_mode"),
         }
         return result

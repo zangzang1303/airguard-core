@@ -51,6 +51,32 @@ def test_tool_input_validation_station_and_hours():
 
 
 @pytest.mark.asyncio
+async def test_backend_forecast_adapter_sends_baseline_metric_and_preserves_canonical_payload():
+    fixture = await FakeBackendToolClient().get_pm25_forecast(
+        {"station_id": "S03", "hours": 3, "metric": "aqi"}, request_id="forecast-fixture"
+    )
+    assert fixture.ok is True
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/stations/S03/forecast"
+        assert dict(request.url.params) == {"hours": "3", "metric": "aqi", "model": "baseline"}
+        return httpx.Response(200, json=fixture.data)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://backend") as http_client:
+        adapter = BackendToolClient("http://backend", client=http_client)
+        result = await adapter.get_pm25_forecast(
+            {"station_id": "S03", "hours": 3, "metric": "aqi"}, request_id="forecast-adapter"
+        )
+
+    assert result.ok is True
+    assert result.data["metric"] == "aqi"
+    assert result.data["model_name"] == "damped_linear_trend_v1"
+    assert result.data["source"] == "fixture_forecast"
+    assert result.data["freshness"] == "fresh"
+    assert result.data["items"][0]["forecast_at"]
+
+
+@pytest.mark.asyncio
 async def test_fake_adapter_validates_without_llm_or_db():
     adapter = FakeBackendToolClient()
 

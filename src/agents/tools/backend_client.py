@@ -134,7 +134,7 @@ class BackendToolClient:
             request_id,
             "GET",
             f"/api/v1/stations/{args.station_id}/forecast",
-            params={"hours": args.hours},
+            params={"hours": args.hours, "metric": args.metric, "model": "baseline"},
         )
 
     async def get_extended_forecast(

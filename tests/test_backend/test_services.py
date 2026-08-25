@@ -207,6 +207,26 @@ def test_short_term_forecast_refuses_to_repeat_current_for_insufficient_history(
         raise AssertionError("forecast should require enough history to estimate a trend")
 
 
+def test_short_term_forecast_preserves_canonical_aqi_metadata() -> None:
+    start = datetime(2026, 8, 13, 10, tzinfo=UTC)
+    result = trend_forecast(
+        [
+            {"measured_at": start, "aqi": 80},
+            {"measured_at": start + timedelta(minutes=10), "aqi": 85},
+            {"measured_at": start + timedelta(minutes=20), "aqi": 90},
+        ],
+        3,
+        metric="aqi",
+        generated_at=start + timedelta(minutes=20),
+    )
+
+    assert result["metric"] == "aqi"
+    assert result["model_version"] == result["model_name"]
+    assert result["freshness"] == "fresh"
+    assert result["items"][0]["source"] == result["source"]
+    assert [item["hour_offset"] for item in result["items"]] == [1, 2, 3]
+
+
 def test_manager_guard_rejects_non_manager() -> None:
     try:
         ApprovalService._require_manager("viewer")

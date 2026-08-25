@@ -19,6 +19,8 @@ import {
   SpatialHeatmapPoint,
   EmailDeliveryStatus,
 } from "../types";
+import { resolveApiBaseUrl } from "./apiBaseUrl";
+import { extractAgentReply } from "./agentResponseHelper.js";
 
 export interface DemoApiActor {
   userId: string;
@@ -26,11 +28,10 @@ export interface DemoApiActor {
 }
 
 const isBrowser = typeof window !== "undefined";
-const isLocal = isBrowser && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  (isLocal ? "http://localhost:8000" : "https://airguard-core.onrender.com");
+const API_BASE_URL = resolveApiBaseUrl({
+  hostname: isBrowser ? window.location.hostname : "",
+  configuredBaseUrl: import.meta.env.VITE_API_BASE_URL,
+});
 
 const API_TIMEOUT_MS = 10_000;
 
@@ -295,6 +296,7 @@ export async function apiFetch<T>(
       err.status = res.status;
       err.code = errBody?.code;
       err.details = errBody?.details;
+      err.request_id = errBody?.request_id || res.headers.get("x-request-id") || null;
       throw err;
     }
     return await res.json();
@@ -711,28 +713,10 @@ export const api = {
       }),
     });
 
-    const rawAnswer = response.answer;
-    let summaryStr = "";
-    let detailsStr = "";
-
-    if (typeof rawAnswer === "string") {
-      summaryStr = rawAnswer;
-    } else if (rawAnswer && typeof rawAnswer === "object") {
-      summaryStr = typeof rawAnswer.summary === "string" ? rawAnswer.summary : (typeof rawAnswer.summary === "object" ? JSON.stringify(rawAnswer.summary) : String(rawAnswer.summary || ""));
-      detailsStr = typeof rawAnswer.details === "string" ? rawAnswer.details : (typeof rawAnswer.details === "object" ? JSON.stringify(rawAnswer.details) : String(rawAnswer.details || ""));
-    }
-
-    let textReply = "";
-    if (typeof response.response === "string" && response.response.trim()) {
-      textReply = response.response;
-    } else if (typeof response.reply === "string" && response.reply.trim()) {
-      textReply = response.reply;
-    } else {
-      textReply = summaryStr + (detailsStr ? `\n\n${detailsStr}` : "");
-    }
+    const { reply: textReply, summary: summaryStr, details: detailsStr } = extractAgentReply(response);
 
     return {
-      reply: textReply || "Agent đã xử lý yêu cầu.",
+      reply: textReply,
       answer: { summary: summaryStr, details: detailsStr },
       intent: response.intent,
       time_context: response.time_context,
