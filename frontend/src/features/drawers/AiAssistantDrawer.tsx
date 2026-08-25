@@ -78,7 +78,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   onClose,
   mapContext,
 }) => {
-  const { role, userId, navigateTo, setPendingApprovalsCount, selectedStationId } = useAuth();
+  const { role, userId, navigateTo, setPendingApprovalsCount } = useAuth();
   const { containerProps, handleProps } = useDraggableFloatingPanel({
     panelId: "ai-chat",
     group: "drawer",
@@ -145,7 +145,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setIsTyping(true);
 
     try {
-      const res: AgentResponse = await api.sendAgentMessage(query, selectedStationId, userId, mapContext);
+      // Only bind a request to a station selected in this map session. The
+      // AuthContext default (S01) is a UI default, not user intent, and must
+      // never turn an Ocean Park-wide question into an S01 question.
+      const selectedSensor = mapContext?.selected_sensor;
+      const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
+        ? selectedSensor
+        : null;
+      const res: AgentResponse = await api.sendAgentMessage(query, contextStationId, userId, mapContext);
       
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";

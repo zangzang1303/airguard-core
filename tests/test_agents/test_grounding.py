@@ -449,6 +449,18 @@ def test_short_station_alias_is_normalized_before_tool_selection() -> None:
     assert decision.tool_arguments == [{"station_id": "S01"}]
 
 
+def test_ocean_park_overview_overrides_stale_station_context() -> None:
+    decision = route_query(
+        "Chất lượng không khí hiện tại ở Ocean Park 1?",
+        context_station_id="S01",
+    )
+
+    assert decision.intent == Intent.SPATIAL
+    assert decision.tool_calls == [ToolName.GET_SPATIAL_AIR_QUALITY]
+    assert decision.tool_arguments == [{"metric": "aqi", "forecast_hour": 0}]
+    assert decision.spatial_location_ids == []
+
+
 def test_current_station_response_is_aqi_first_and_includes_all_environmental_readings() -> None:
     decision = route_query("Chất lượng không khí tại S01 hiện tại thế nào?")
     current = dict(DEFAULT_FIXTURES["current"]["S01"])

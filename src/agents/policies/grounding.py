@@ -351,7 +351,12 @@ def route_query(
         if station_id not in stations:
             stations.append(station_id)
     normalized_context = (context_station_id or "").upper()
-    if not stations and normalized_context in {"S01", "S02", "S03", "S04", "S05"}:
+    is_ocean_park_area_query = _contains_any(plain, ("ocean park", "oceanpark", "ocp1", "ocp 1"))
+    if (
+        not stations
+        and not is_ocean_park_area_query
+        and normalized_context in {"S01", "S02", "S03", "S04", "S05"}
+    ):
         stations = [normalized_context]
     if _contains_any(
         plain,
@@ -449,6 +454,23 @@ def route_query(
                 if analysis_mode == "wind" and explicit_spatial_locations
                 else None
             ),
+        )
+
+    # Ocean Park 1 is the monitored area, not a station alias. A question
+    # about the whole development must use the map-wide grounded grid instead
+    # of inheriting a previously selected station such as S01.
+    is_ocean_park_overview = (
+        not stations
+        and is_ocean_park_area_query
+        and _contains_any(plain, ("chat luong khong khi", "khong khi", "moi truong", "o nhiem", "aqi", "pm25", "pm2.5"))
+    )
+    if is_ocean_park_overview:
+        return RouteDecision(
+            intent=Intent.SPATIAL,
+            tool_calls=[ToolName.GET_SPATIAL_AIR_QUALITY],
+            tool_arguments=[{"metric": _spatial_metric(plain), "forecast_hour": _hours(plain, 0)}],
+            spatial_analysis="overview",
+            spatial_location_ids=[],
         )
 
     route_or_area_recommendation = _contains_any(
