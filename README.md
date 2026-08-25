@@ -18,7 +18,7 @@ AirGuard AI là MVP giám sát chất lượng môi trường tại Vinhomes Oce
 | Khuyến nghị | Rule-owned recommendation trong alert; Agent recommendation theo profile và evidence cùng request |
 | AI Agent | Conversation gate + LangGraph/tool calling; xã giao có kiểm soát, grounded answer và deterministic fallback khi không có provider key |
 | HITL | Proposal bắt đầu `pending`; chỉ Manager approve/reject; có audit và device simulator |
-| Notification | SMTP thật khi cấu hình `NOTIFICATION_PROVIDER=smtp`; mặc định `disabled` |
+| Notification | Resend Email API khi cấu hình; proposal báo Manager/Admin và environmental alert báo cư dân theo nhóm hồ sơ; mặc định provider `disabled` |
 | Prophet/LSTM | Chưa triển khai |
 | Mô hình lan truyền khoa học | Chưa có; vùng nhiệt chỉ trực quan hóa cường độ quanh trạm |
 
@@ -36,7 +36,7 @@ Backend tool endpoints
   -> LangGraph Agent
   -> grounded response / recommendation / warning proposal
   -> Manager HITL
-  -> audit + optional dispatcher/device simulator + optional SMTP
+  -> audit + optional dispatcher/device simulator + optional Resend email
 ```
 
 Ranh giới trách nhiệm:
@@ -106,7 +106,7 @@ docker compose ps
 | PostgreSQL | `localhost:5432` |
 | MQTT | `localhost:1883` |
 
-Chờ ít nhất 2 chu kỳ simulator (mặc định 10 giây) trước khi đánh giá cảnh báo PM2.5 vì rule mặc định cần hai measurement liên tiếp.
+Chờ ít nhất 2 chu kỳ simulator (mặc định 10 giây) trước khi đánh giá cảnh báo vì cả năm rule AQI, PM2.5, CO₂, tiếng ồn và nhiệt độ mặc định cần hai measurement liên tiếp.
 
 ### 3. Kiểm tra pipeline
 
@@ -323,7 +323,7 @@ Không cần nhập prompt tạo proposal để demo luồng tự động. Khi c
 - Proposal create/review/dispatch/failure có audit và correlation ID.
 - Sau một boost thành công và 20 phút dữ liệu an toàn liên tục, backend chỉ tạo proposal `eco_mode`
   `pending`; Manager vẫn phải duyệt trước dispatch.
-- SMTP gửi thật khi `NOTIFICATION_PROVIDER=smtp` và cấu hình SMTP hợp lệ.
+- Resend gửi thật khi `NOTIFICATION_PROVIDER=resend` và API key/sender hợp lệ. Alert môi trường gửi nội dung deterministic theo nhóm hồ sơ cho resident active đã xác minh email; proposal vẫn gửi riêng cho Manager/Admin.
 
 Auth frontend hiện là demo identity, chưa phải authentication production.
 
@@ -374,7 +374,7 @@ Sao chép `.env.example` thành `.env`; không commit file `.env`. Stack demo c�
 | `SENSOR_SCENARIO` | Không | `normal`, `rush-hour`, `spike`, `recovery`, `duplicate`, hoặc `station-silence`; mặc định `normal`. |
 | `SENSOR_INTERVAL_SECONDS` | Không | Chu kỳ simulator, mặc định 10 giây. |
 | `STALE_AFTER_SECONDS` | Không | Đánh dấu dữ liệu cũ; mặc định 300 giây. |
-| `PM25_ALERT_CONSECUTIVE_MEASUREMENTS` | Không | Số phép đo PM2.5 liên tiếp vượt ngưỡng; mặc định 2. |
+| `ALERT_CONSECUTIVE_MEASUREMENTS` | Không | Số phép đo liên tiếp vượt ngưỡng cho AQI, PM2.5, CO₂, tiếng ồn và nhiệt độ; mặc định 2. `PM25_ALERT_CONSECUTIVE_MEASUREMENTS` chỉ còn là fallback tương thích. |
 | `*_WARNING_THRESHOLD`, `*_CRITICAL_THRESHOLD` | Không | Ngưỡng MVP cho PM2.5, AQI, CO₂, tiếng ồn và nhiệt độ. |
 | `AUTO_PROPOSAL_ENABLED` | Không | Bật/tắt automatic warning proposal; mặc định `true`. |
 | `AUTO_PROPOSAL_STATIONS` | Không | Để trống là mọi trạm; đặt `S03` cho demo `spike` vì `FILTER-01` được đăng ký tại S03. |
@@ -487,4 +487,4 @@ Runtime entry points:
 - Heat zones không phải mô hình lan truyền ô nhiễm khoa học.
 - Threshold CO₂/noise/temperature cần mentor/operations xác nhận.
 - Authentication/RBAC frontend còn ở mức demo.
-- SMTP và async worker production cần cấu hình hạ tầng/secret riêng.
+- Resend và async worker production cần cấu hình hạ tầng/secret riêng.

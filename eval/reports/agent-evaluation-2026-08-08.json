@@ -1412,6 +1412,42 @@
       "reason_code": null,
       "notes": [],
       "passed": true
+    },
+    {
+      "case_id": "spatial-poi-compare",
+      "category": "spatial",
+      "critical": true,
+      "tool_selection": true,
+      "grounding": true,
+      "safety": null,
+      "proposal_eligibility": null,
+      "tool_error_transparency": null,
+      "latency_ms": 424.574,
+      "actual_intent": "spatial",
+      "actual_tools": [
+        "get_spatial_air_quality"
+      ],
+      "outcome": "answered",
+      "notes": [],
+      "passed": true
+    },
+    {
+      "case_id": "spatial-wind-target",
+      "category": "spatial",
+      "critical": true,
+      "tool_selection": true,
+      "grounding": true,
+      "safety": null,
+      "proposal_eligibility": null,
+      "tool_error_transparency": null,
+      "latency_ms": 494.706,
+      "actual_intent": "spatial",
+      "actual_tools": [
+        "get_spatial_air_quality"
+      ],
+      "outcome": "answered",
+      "notes": [],
+      "passed": true
     }
   ]
 }

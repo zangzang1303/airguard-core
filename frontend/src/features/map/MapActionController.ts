@@ -173,6 +173,7 @@ export class MapActionController {
       case "highlight_route": {
         const coords = action.coordinates as Array<[number, number]>;
         if (!coords || !Array.isArray(coords) || coords.length < 2) break;
+        const segments = Array.isArray(action.segments) ? action.segments : [];
 
         const style = action.style || "recommended";
         const colorMap: Record<string, { stroke: string; halo: string }> = {
@@ -193,14 +194,48 @@ export class MapActionController {
           lineJoin: "round",
         });
 
-        // 2. Core Solid Polyline
-        const corePolyline = L.polyline(coords, {
-          color: theme.stroke,
-          weight: 5.5,
-          opacity: 0.95,
-          lineCap: "round",
-          lineJoin: "round",
-        });
+        // 2. Draw the core by environmental segment when the backend supplies
+        // grounded per-section exposure. This keeps the selected route visible
+        // while showing local air-quality changes along it.
+        const segmentColorMap: Record<string, string> = {
+          good: "#10b981",
+          moderate: "#f59e0b",
+          unhealthy_sensitive: "#f97316",
+          unhealthy: "#ef4444",
+        };
+        const segmentPolylines: L.Polyline[] = [];
+        if (segments.length > 0) {
+          segments.forEach((segment: any) => {
+            const segmentCoords = segment?.coordinates as Array<[number, number]>;
+            if (!Array.isArray(segmentCoords) || segmentCoords.length < 2) return;
+            const segmentColor = segmentColorMap[String(segment.level)] || theme.stroke;
+            const segmentPolyline = L.polyline(segmentCoords, {
+              color: segmentColor,
+              weight: 7,
+              opacity: 0.98,
+              lineCap: "round",
+              lineJoin: "round",
+            });
+            const observedAt = segment.observed_at
+              ? new Date(segment.observed_at).toLocaleString("vi-VN")
+              : "Không có thời điểm";
+            segmentPolyline.bindTooltip(
+              `AQI ${segment.aqi} · PM2.5 ${segment.pm25} µg/m³ · ${observedAt}`,
+              { sticky: true, direction: "top" },
+            );
+            segmentPolylines.push(segmentPolyline);
+          });
+        }
+
+        const corePolyline = segments.length === 0
+          ? L.polyline(coords, {
+              color: theme.stroke,
+              weight: 5.5,
+              opacity: 0.95,
+              lineCap: "round",
+              lineJoin: "round",
+            })
+          : null;
 
         // 3. Neon Flowing Dash Animation Overlay (Runner Track Effect)
         const flowingDash = L.polyline(coords, {
@@ -248,7 +283,8 @@ export class MapActionController {
         const endMarker = L.marker(endCoord, { icon: endIcon });
 
         this.aiOverlayLayer.addLayer(glowPolyline);
-        this.aiOverlayLayer.addLayer(corePolyline);
+        if (corePolyline) this.aiOverlayLayer.addLayer(corePolyline);
+        segmentPolylines.forEach((polyline) => this.aiOverlayLayer?.addLayer(polyline));
         this.aiOverlayLayer.addLayer(flowingDash);
         this.aiOverlayLayer.addLayer(startMarker);
         this.aiOverlayLayer.addLayer(endMarker);

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+
 from fastapi import Depends, Request
 
 from ..services.auth_service import AuthService
 from ..services.database import ServiceError
-
 
 # Global auth_service instance reference configured in main.py lifespan
 _auth_service: AuthService | None = None

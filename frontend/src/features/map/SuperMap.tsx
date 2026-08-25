@@ -15,7 +15,6 @@ import { MapLocationControls } from "./MapLocationControls";
 import { mapActionController } from "./MapActionController";
 import { useFloatingPanelContext, useDraggableFloatingPanel } from "../floating";
 import { Crosshair, X } from "lucide-react";
-import { useDraggableFloatingPanel, useFloatingPanelContext } from "../floating";
 
 interface SuperMapProps {
   stations: Station[];
