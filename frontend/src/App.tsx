@@ -18,6 +18,7 @@ import { AdminDashboard } from "./features/admin/AdminDashboard";
 import { ReportViewer } from "./features/admin/ReportViewer";
 
 import { SuperMap } from "./features/map/SuperMap";
+import { MapIntelligencePanels } from "./features/map/MapIntelligencePanels";
 import { mapActionController } from "./features/map/MapActionController";
 import { useAiOverlayActive } from "./features/map/useAiOverlayActive";
 import { TopFloatingBar } from "./features/navigation/TopFloatingBar";
@@ -464,6 +465,13 @@ const SuperAppMain: React.FC<{
         onSetUserLocation={handleSetUserLocation}
         onLocateGps={handleLocateGps}
         onStartPickOnMap={handleStartPickingOnMap}
+      />
+
+      <MapIntelligencePanels
+        stations={stations}
+        alerts={alerts}
+        onAskAi={handleAskAiWithQuery}
+        onOpenAlerts={() => setActiveDrawer("alerts")}
       />
 
       {isManager && <ManagerStationStatusBar stations={stations} alerts={alerts} />}
