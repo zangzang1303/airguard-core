@@ -931,6 +931,60 @@ html {
   border: 1px solid var(--border-subtle);
 }
 
+.dock-more-menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 1;
+  display: grid;
+  width: 244px;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+  transform: translateX(-50%);
+}
+
+.dock-more-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-main);
+  cursor: pointer;
+  text-align: left;
+}
+
+.dock-more-menu button:hover,
+.dock-more-menu button:focus-visible {
+  background: var(--primary-soft);
+  outline: none;
+}
+
+.dock-more-menu svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.dock-more-menu span {
+  display: grid;
+  gap: 2px;
+}
+
+.dock-more-menu strong {
+  font-size: 0.8rem;
+}
+
+.dock-more-menu small {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
 /* Keep the forecast controls in a separate row above the primary action dock. */
 .map-timeline-floating-dock {
   position: absolute;
