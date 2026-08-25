@@ -243,15 +243,15 @@ def test_spatial_router_resolves_named_location_comparison() -> None:
         ),
         (
             "Khu vực quanh VinUni không khí thế nào?",
-            Intent.CURRENT,
-            [ToolName.GET_CURRENT_PM25],
-            [{"station_id": "S04"}],
+            Intent.SPATIAL,
+            [ToolName.GET_SPATIAL_AIR_QUALITY],
+            [{"metric": "aqi", "forecast_hour": 0}],
         ),
         (
             "Không khí ở VinUni hiện tại ra sao?",
-            Intent.CURRENT,
-            [ToolName.GET_CURRENT_PM25],
-            [{"station_id": "S04"}],
+            Intent.SPATIAL,
+            [ToolName.GET_SPATIAL_AIR_QUALITY],
+            [{"metric": "aqi", "forecast_hour": 0}],
         ),
     ],
 )
@@ -298,9 +298,9 @@ async def test_session_3b_snapshot_and_superlative_are_grounded() -> None:
     assert highest["used_tools"] == ["compare_stations"]
     assert "S03 cao nhất: AQI 154" in highest["answer"]
     assert {source["station_id"] for source in highest["sources"]} == {"S01", "S02", "S03", "S04", "S05"}
-    assert vinuni["used_tools"] == ["get_current_pm25"]
-    assert vinuni["sources"][0]["station_id"] == "S04"
-    assert "trạm S04, đại diện Khuôn viên VinUni" in vinuni["answer"]
+    assert vinuni["used_tools"] == ["get_spatial_air_quality"]
+    assert vinuni["sources"][0]["source"] == "spatial_idw_dispersion_model"
+    assert "Khuôn viên VinUniversity" in vinuni["answer"]
     assert spatial["used_tools"] == ["get_spatial_air_quality"]
     assert "Đây là suy luận không gian" in spatial["answer"]
     assert "không phải trạm đo đặt tại từng POI" in spatial["answer"]
