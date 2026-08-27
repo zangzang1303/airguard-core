@@ -88,6 +88,12 @@ MOCK_STATIONS = [
 ENVIRONMENTAL_QUERY = "Chất lượng không khí và AQI hiện tại ở trạm S03 VinUni thế nào?"
 
 
+MOCK_MEMORY = {
+    "conversation_id": "11111111-1111-4111-8111-111111111111",
+    "context": {"context_version": 1, "station_ids": [], "turn_count": 0},
+}
+
+
 def test_agent_chat_timeout_returns_structured_503_and_request_id_parity() -> None:
     """When Agent times out, public endpoint must return structured 503 with exact code and header parity."""
     from app.services.agent_service import AgentServiceError
@@ -98,6 +104,7 @@ def test_agent_chat_timeout_returns_structured_503_and_request_id_parity() -> No
     mock_chat = AsyncMock(side_effect=AgentServiceError("agent_timeout", "Agent service timed out", 503))
 
     with patch.object(main_module.agent_service, "chat", new=mock_chat), \
+         patch.object(main_module.conversation_memory_service, "start_or_resume", return_value=MOCK_MEMORY), \
          patch.object(main_module.user_service, "get_profile", return_value=MOCK_PROFILE), \
          patch.object(main_module.station_service, "list_stations", return_value=MOCK_STATIONS):
         response = client.post(
@@ -132,6 +139,7 @@ def test_agent_chat_503_error_body_must_not_contain_answer_or_evidence_fields() 
     mock_chat = AsyncMock(side_effect=AgentServiceError("agent_unavailable", "Agent service is unavailable", 503))
 
     with patch.object(main_module.agent_service, "chat", new=mock_chat), \
+         patch.object(main_module.conversation_memory_service, "start_or_resume", return_value=MOCK_MEMORY), \
          patch.object(main_module.user_service, "get_profile", return_value=MOCK_PROFILE), \
          patch.object(main_module.station_service, "list_stations", return_value=MOCK_STATIONS):
         response = client.post(
@@ -162,6 +170,7 @@ def test_agent_chat_does_not_retry_on_timeout() -> None:
     mock_chat = AsyncMock(side_effect=AgentServiceError("agent_timeout", "Agent service timed out", 503))
 
     with patch.object(main_module.agent_service, "chat", new=mock_chat) as mocked, \
+         patch.object(main_module.conversation_memory_service, "start_or_resume", return_value=MOCK_MEMORY), \
          patch.object(main_module.user_service, "get_profile", return_value=MOCK_PROFILE), \
          patch.object(main_module.station_service, "list_stations", return_value=MOCK_STATIONS):
         response = client.post(

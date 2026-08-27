@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
-from uuid import NAMESPACE_URL, uuid4, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -29,6 +29,7 @@ from .services.approval_service import ApprovalService, configure_default_servic
 from .services.audit_service import AuditService
 from .services.auth_service import AuthService
 from .services.automatic_proposal_service import AutomaticProposalService
+from .services.conversation_memory_service import ConversationMemoryService
 from .services.conversational_agent_service import conversational_agent
 from .services.csrf_service import (
     CSRF_COOKIE_NAME,
@@ -82,6 +83,10 @@ class AgentChatRequest(BaseModel):
         examples=["Hien tai co nen chay bo o cong vien khong?"],
     )
     station_id: str | None = Field(default=None, pattern=r"^S0[1-5]$", examples=["S05"])
+    conversation_id: UUID | None = Field(
+        default=None,
+        description="Opaque conversation identifier used for backend-owned semantic memory",
+    )
     map_context: dict[str, Any] | None = Field(default=None, description="Current map view state, selected POI, and user location")
 
 
@@ -337,6 +342,10 @@ configure_default_service(approval_service)
 agent_service = AgentService(
     settings.agent_service_url,
     timeout_seconds=settings.agent_service_timeout_seconds,
+)
+conversation_memory_service = ConversationMemoryService(
+    db,
+    ttl_seconds=settings.agent_conversation_ttl_seconds,
 )
 automatic_proposal_service = AutomaticProposalService(
     agent_service=agent_service,
@@ -986,6 +995,7 @@ async def agent_chat(
     # An authenticated browser cannot impersonate another profile by editing the
     # client payload. Public Demo Day visitors retain the explicit demo profile.
     effective_user_id = str(current_user.get("user_id") or body.user_id) if current_user else body.user_id
+    conversation_id = str(body.conversation_id or uuid4())
     try:
         conversation = conversational_agent.classify(
             body.message,
@@ -995,11 +1005,20 @@ async def agent_chat(
         if conversation.intent in {"greeting", "social"}:
             # Social replies are deliberately local and deterministic: they do
             # not need telemetry, map planning, or an LLM-mediated Agent call.
-            return conversational_agent.deterministic_response(conversation, request_id=req_id)
+            response = conversational_agent.deterministic_response(conversation, request_id=req_id)
+            response["conversation_id"] = conversation_id
+            return response
         # Phase 2: unclear non-social messages continue to the isolated Agent,
         # where the bounded semantic router may propose a schema-validated
         # intent. Invalid/low-confidence/provider-failure results still fall
         # back to the Agent's deterministic clarification without tool calls.
+
+        memory = conversation_memory_service.start_or_resume(
+            conversation_id=conversation_id,
+            owner_id=effective_user_id,
+        )
+        conversation_id = memory["conversation_id"]
+        conversation_context = memory["context"]
 
         effective_station_id = body.station_id
         if not effective_station_id and body.map_context:
@@ -1016,9 +1035,39 @@ async def agent_chat(
             user_id=effective_user_id,
             station_id=effective_station_id,
             request_id=req_id,
+            conversation_context=conversation_context,
         )
+        memory_trace: dict[str, Any]
+        try:
+            persisted_context = conversation_memory_service.record_agent_result(
+                conversation_id=conversation_id,
+                owner_id=effective_user_id,
+                previous_context=conversation_context,
+                agent_result=agent_result,
+            )
+            memory_trace = {
+                "memory_persisted": True,
+                "memory_turn_count": persisted_context["turn_count"],
+            }
+        except ServiceError as exc:
+            # A memory write failure must not discard an answer already grounded
+            # by current-request tools. The bounded trace exposes the loss.
+            memory_trace = {
+                "memory_persisted": False,
+                "memory_failure_reason": exc.code,
+            }
+        except Exception:
+            memory_trace = {
+                "memory_persisted": False,
+                "memory_failure_reason": "conversation_memory_write_failed",
+            }
         trace = agent_result.get("trace")
         trace = dict(trace) if isinstance(trace, dict) else {}
+        trace = {
+            **trace,
+            **memory_trace,
+            "memory_context_used": bool(conversation_context.get("station_ids")),
+        }
         canonical_intent = agent_result.get("intent") or trace.get("intent", "domain")
         canonical_kind = agent_result.get("conversation_kind") or trace.get("conversation_kind")
         agent_outcome = agent_result.get("outcome") or trace.get("final_outcome") or "unknown"
@@ -1151,6 +1200,7 @@ async def agent_chat(
             "tool_arguments": agent_result.get("tool_arguments", []),
             "proposal_id": agent_result.get("proposal_id"),
             "request_id": req_id,
+            "conversation_id": conversation_id,
             "trace": {**trace, **planner_trace},
             "outcome": agent_outcome,
             "data_mode": agent_result.get("data_mode") or planner_fields.get("data_mode"),

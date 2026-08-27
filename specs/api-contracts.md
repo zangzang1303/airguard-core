@@ -225,7 +225,17 @@ The current frontend identity is demo-only and does not replace production backe
 service uses the same payload. The root Agent keeps the legacy `POST /api/v1/chat` alias during
 migration; its `user_id` remains optional for non-personalized requests.
 
-The response contains `answer`, `intent`, `conversation_kind`, `used_tools`, `tool_arguments`,
+`conversation_id` is an optional UUID on the public request and is always returned by the public
+response. When omitted, the backend allocates a new conversation. Domain turns load an
+owner-scoped, TTL-bounded semantic context from PostgreSQL and send only allow-listed station IDs,
+the previous canonical intent and turn count to the isolated Agent. Raw prompts, answers,
+environmental values and profile facts are not conversation memory. A recognized follow-up may use
+that context to select tool arguments, but all environmental facts still require fresh backend tool
+results from the current request. Unknown, expired or cross-owner IDs fail with structured
+`404/410`; a cross-owner lookup must not reveal that the record exists. Social short-circuits do not
+read or write conversation storage.
+
+The response contains `answer`, `intent`, `conversation_kind`, `conversation_id`, `used_tools`, `tool_arguments`,
 `sources`, `map_actions`, `request_id`, `trace`, and optional
 `proposal_id`, `recommendation_policy_version`, and `impact_policy_version`. The impact intent
 uses a fresh station snapshot and rates operational environmental impact with AQI as the primary

@@ -40,6 +40,8 @@ The AI-002 release gate covers:
   requests are refused without calling a forecast tool;
 - simulator/fixture transparency for current, history, compare, weather, forecast and alert answers;
 - clarification for missing station context;
+- multi-turn follow-up resolution from backend-validated semantic memory, with fresh tool calls,
+  owner isolation, expiry and no-memory clarification;
 - bounded social conversation for greeting, acknowledgement, wellbeing, capability and farewell;
 - unknown short messages must clarify instead of falling through to environmental recommendation;
 - social responses must short-circuit deterministically before LLM/tool/profile/geospatial access and have no tool arguments, sources, proposals or map actions;

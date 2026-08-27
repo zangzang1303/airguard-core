@@ -1,11 +1,37 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, Mock
+from uuid import UUID
 
 import pytest
 from starlette.requests import Request
 
 from backend.app import main as main_module
+
+_CONVERSATION_ID = "11111111-1111-4111-8111-111111111111"
+
+
+def _mock_conversation_memory(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    context: dict | None = None,
+    record_result: object | None = None,
+) -> tuple[Mock, Mock]:
+    start = Mock(
+        return_value={
+            "conversation_id": _CONVERSATION_ID,
+            "context": context
+            or {"context_version": 1, "station_ids": [], "turn_count": 0},
+        }
+    )
+    record = Mock(return_value=record_result or {"turn_count": 1})
+    monkeypatch.setattr(main_module.conversation_memory_service, "start_or_resume", start)
+    monkeypatch.setattr(
+        main_module.conversation_memory_service,
+        "record_agent_result",
+        record,
+    )
+    return start, record
 
 
 @pytest.mark.asyncio
@@ -27,10 +53,12 @@ async def test_public_social_endpoint_short_circuits_all_downstream_services(
     profile = Mock(side_effect=AssertionError("Profile lookup must not be called"))
     stations = Mock(side_effect=AssertionError("Station lookup must not be called"))
     geospatial = Mock(side_effect=AssertionError("Geospatial planner must not be called"))
+    memory = Mock(side_effect=AssertionError("Social reply must not access conversation storage"))
     monkeypatch.setattr(main_module.agent_service, "chat", agent_chat)
     monkeypatch.setattr(main_module.user_service, "get_profile", profile)
     monkeypatch.setattr(main_module.station_service, "list_stations", stations)
     monkeypatch.setattr(main_module.geospatial_agent, "plan_map_actions", geospatial)
+    monkeypatch.setattr(main_module.conversation_memory_service, "start_or_resume", memory)
 
     request = Request(
         {
@@ -58,10 +86,12 @@ async def test_public_social_endpoint_short_circuits_all_downstream_services(
     assert response["proposal_id"] is None
     assert response["trace"]["generation_mode"] == "deterministic_grounded"
     assert response["trace"]["conversation_mode"] == "deterministic_social"
+    assert str(UUID(response["conversation_id"])) == response["conversation_id"]
     agent_chat.assert_not_called()
     profile.assert_not_called()
     stations.assert_not_called()
     geospatial.assert_not_called()
+    memory.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -94,6 +124,16 @@ async def test_public_domain_response_preserves_canonical_agent_semantics(
     profile = Mock(side_effect=AssertionError("Non-spatial query must not load a profile"))
     stations = Mock(side_effect=AssertionError("Non-spatial query must not load all stations"))
     geospatial = Mock(side_effect=AssertionError("Non-spatial query must not run map planning"))
+    _, record_memory = _mock_conversation_memory(
+        monkeypatch,
+        context={
+            "context_version": 1,
+            "station_ids": ["S02"],
+            "primary_station_id": "S02",
+            "turn_count": 1,
+        },
+        record_result={"turn_count": 2},
+    )
     monkeypatch.setattr(main_module.agent_service, "chat", agent_chat)
     monkeypatch.setattr(main_module.user_service, "get_profile", profile)
     monkeypatch.setattr(main_module.station_service, "list_stations", stations)
@@ -119,9 +159,14 @@ async def test_public_domain_response_preserves_canonical_agent_semantics(
     assert response["sources"][0]["station_id"] == "S03"
     assert response["evidence"] == response["sources"]
     assert response["map_actions"] == []
+    assert response["conversation_id"] == _CONVERSATION_ID
+    assert response["trace"]["memory_persisted"] is True
+    assert response["trace"]["memory_context_used"] is True
     assert response["trace"]["map_planner_status"] == "skipped"
     assert response["trace"]["map_planner_reason"] == "non_spatial_intent"
     agent_chat.assert_awaited_once()
+    assert agent_chat.await_args.kwargs["conversation_context"]["station_ids"] == ["S02"]
+    record_memory.assert_called_once()
     profile.assert_not_called()
     stations.assert_not_called()
     geospatial.assert_not_called()
@@ -136,6 +181,7 @@ async def test_terminal_agent_outcome_never_runs_map_dependencies(
     monkeypatch: pytest.MonkeyPatch,
     outcome: str,
 ) -> None:
+    _mock_conversation_memory(monkeypatch)
     agent_result = {
         "answer": "Canonical terminal answer",
         "intent": "spatial",
@@ -185,6 +231,7 @@ async def test_terminal_agent_outcome_never_runs_map_dependencies(
 async def test_spatial_answer_without_validated_source_skips_map_dependencies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _mock_conversation_memory(monkeypatch)
     agent_result = {
         "answer": "Spatial answer without usable evidence",
         "intent": "spatial",
@@ -236,6 +283,7 @@ async def test_spatial_answer_without_validated_source_skips_map_dependencies(
 async def test_spatial_answer_runs_ui_only_map_planner_after_source_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _mock_conversation_memory(monkeypatch)
     spatial_source = {
         "tool_name": "get_spatial_air_quality",
         "observed_at": "2026-08-27T08:00:00Z",
@@ -309,6 +357,7 @@ async def test_spatial_answer_runs_ui_only_map_planner_after_source_gate(
 async def test_map_planner_failure_preserves_grounded_spatial_answer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _mock_conversation_memory(monkeypatch)
     agent_result = {
         "answer": "Grounded spatial answer remains available",
         "intent": "spatial",
@@ -375,3 +424,72 @@ async def test_map_planner_failure_preserves_grounded_spatial_answer(
         response["trace"]["map_planner_reason"]
         == "insufficient_geospatial_station_data"
     )
+
+
+@pytest.mark.asyncio
+async def test_memory_write_failure_preserves_grounded_agent_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent_result = {
+        "answer": "Grounded S03 answer remains available",
+        "intent": "current",
+        "outcome": "answered",
+        "used_tools": ["get_current_pm25"],
+        "tool_arguments": [{"station_id": "S03"}],
+        "sources": [
+            {
+                "tool_name": "get_current_pm25",
+                "station_id": "S03",
+                "source": "simulator",
+            }
+        ],
+        "trace": {"intent": "current", "final_outcome": "answered"},
+    }
+    start = Mock(
+        return_value={
+            "conversation_id": _CONVERSATION_ID,
+            "context": {"context_version": 1, "station_ids": [], "turn_count": 0},
+        }
+    )
+    record = Mock(
+        side_effect=main_module.ServiceError(
+            "conversation_memory_unavailable",
+            "memory write failed",
+            503,
+        )
+    )
+    profile = Mock(side_effect=AssertionError("Non-spatial query must not load a profile"))
+    stations = Mock(side_effect=AssertionError("Non-spatial query must not load all stations"))
+    planner = Mock(side_effect=AssertionError("Non-spatial query must not run map planning"))
+    monkeypatch.setattr(main_module.conversation_memory_service, "start_or_resume", start)
+    monkeypatch.setattr(main_module.conversation_memory_service, "record_agent_result", record)
+    monkeypatch.setattr(main_module.agent_service, "chat", AsyncMock(return_value=agent_result))
+    monkeypatch.setattr(main_module.user_service, "get_profile", profile)
+    monkeypatch.setattr(main_module.station_service, "list_stations", stations)
+    monkeypatch.setattr(main_module.geospatial_agent, "plan_map_actions", planner)
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/agent/chat",
+            "headers": [(b"x-request-id", b"memory-write-failure")],
+        }
+    )
+    response = await main_module.agent_chat(
+        request,
+        main_module.AgentChatRequest(
+            message="AQI S03 hiện tại thế nào?",
+            user_id="demo-user",
+            station_id="S03",
+        ),
+        None,
+    )
+
+    assert response["response"] == "Grounded S03 answer remains available"
+    assert response["map_actions"] == []
+    assert response["trace"]["memory_persisted"] is False
+    assert response["trace"]["memory_failure_reason"] == "conversation_memory_unavailable"
+    profile.assert_not_called()
+    stations.assert_not_called()
+    planner.assert_not_called()

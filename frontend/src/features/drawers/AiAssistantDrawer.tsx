@@ -97,6 +97,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   ]);
   const [inputVal, setInputVal] = useState(initialPrompt || "");
   const [isTyping, setIsTyping] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialPromptSentRef = useRef<string | null>(null);
 
@@ -149,7 +150,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setIsTyping(true);
 
     try {
-      const res: AgentResponse = await api.sendAgentMessage(query, selectedStationId, userId, mapContext);
+      const res: AgentResponse = await api.sendAgentMessage(
+        query,
+        selectedStationId,
+        userId,
+        mapContext,
+        conversationId,
+      );
+      if (res.conversation_id) setConversationId(res.conversation_id);
       
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
@@ -211,7 +219,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setIsTyping(true);
 
     try {
-      const res: AgentResponse = await api.sendAgentMessage(query, selectedStationId, userId, mapContext);
+      const res: AgentResponse = await api.sendAgentMessage(
+        query,
+        selectedStationId,
+        userId,
+        mapContext,
+        conversationId,
+      );
+      if (res.conversation_id) setConversationId(res.conversation_id);
 
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";

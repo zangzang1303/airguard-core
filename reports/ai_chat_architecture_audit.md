@@ -21,6 +21,13 @@
 > action. Verification passed 623 repository tests and 70/70 golden evaluation cases with the
 > release gate enabled. The decision and boundary are recorded in ADR 0019.
 
+> **PR2 verification — 2026-08-27:** ISSUE-03 described the pre-PR2 stateless request path and is
+> now resolved with backend-owned semantic conversation memory. The combined PR1 + PR2 branch passed
+> 637 repository tests, the frontend production build, Compose configuration validation and 70/70
+> golden evaluation cases with 100% grounding/safety. ADR 0020 records why the Agent does not receive
+> direct PostgreSQL access and why prior environmental values are never reused as evidence. PR2 is
+> stacked on PR1, so the single-Agent authority and conditional UI-only map planner remain unchanged.
+
 ---
 
 ## Danh mục Tài liệu & Mã nguồn Tham chiếu
@@ -91,7 +98,7 @@ User Input / Map Context / Selected Station
 |---|---|---|:---:|
 | **ISSUE-01 (pre-PR1)** | **Xử lý kép dư thừa (Dual Agent Execution Overhead)** | Chẩn đoán ban đầu là đúng: endpoint từng gọi cả `agent_service.chat()` và `geospatial_agent.process_query()` cho mọi domain request rồi trộn hai kết quả. PR1 đã sửa bằng một Agent authority và map planner có điều kiện, chỉ xuất UI actions sau source gate. | ✅ **Đã sửa** |
 | **ISSUE-02 (pre-P0)** | **Độ trễ do HTTP Hop & Synchronous LLM Call** | Mô tả này là lịch sử trước P0. Production answer hiện không có synchronous explanation call; semantic fallback tùy chọn chỉ có một invocation và fail-closed về clarification. | **Đã giảm** |
-| **ISSUE-03** | **Thiếu Memory State cho Hội thoại Đa lượt (Multi-turn Context Drift)** | Agent dựa vào `map_context` và `station_id` gửi kèm theo từng HTTP Request payload. Chưa tích hợp LangGraph Checkpointer (Postgres/Redis Persistence) để lưu trữ state hội thoại dài hạn, dẫn đến việc xử lý các câu hỏi tiếp nối nâng cao hoàn toàn phụ thuộc vào thông tin Client tự truyền. | **Trung bình** |
+| **ISSUE-03 (pre-PR2)** | **Thiếu Memory State cho Hội thoại Đa lượt (Multi-turn Context Drift)** | Chẩn đoán mất ngữ cảnh là đúng, nhưng nguyên nhân đầy đủ là request/frontend/backend đều không có `conversation_id`; mỗi graph invocation chỉ nhận message và UI context hiện tại. PR2 sửa bằng backend-owned semantic memory có owner isolation và TTL, không cho Agent truy cập DB trực tiếp hoặc dùng lịch sử làm environmental evidence. | ✅ **Đã sửa** |
 | **ISSUE-04** | **Phụ thuộc vào Polling trên Frontend** | Frontend [`AgentChat.tsx`](file:///d:/Ai_Thuc_Chien/P-074/frontend/src/features/agent/AgentChat.tsx) sử dụng REST POST đơn lẻ và Polling định kỳ thay vì WebSockets / Server-Sent Events (SSE). Do đó, câu trả lời từ AI Agent xuất hiện dạng block hoàn chỉnh thay vì hiển thị hiệu ứng stream từng từ (streaming response). | **Trung bình** |
 | **ISSUE-05** | **Nguy cơ Stale Cache khi Telemetry Ô nhiễm Đột biến** | Khi trạm đo ghi nhận sự gia tăng ô nhiễm đột ngột (ví dụ S01 tăng từ 40 lên 190 $\mu\text{g/m}^3$), mặc dù `LiveTelemetryEngine` đã sync 5 điểm gần nhất nhưng mô hình dự báo Prophet baseline vẫn có thể bị pha loãng nhẹ nếu không có cơ chế invalidate cache tức thì. | **Thấp** |
 
@@ -125,9 +132,9 @@ User Input / Map Context / Selected Station
    - *Giải pháp:* Nâng cấp API `/api/v1/agent/chat` hỗ trợ HTTP Response Streaming (SSE) kết hợp với `async generator` từ Gemini / OpenAI SDK. Cập nhật frontend [`AgentChat.tsx`](file:///d:/Ai_Thuc_Chien/P-074/frontend/src/features/agent/AgentChat.tsx) để tiêu thụ stream.
    - *Lợi ích:* Mang lại trải nghiệm phản hồi tức thì (Perceived Latency $< 500\text{ms}$), câu trả lời xuất hiện mượt mà từng chữ.
 
-3. **Tích hợp LangGraph Checkpointer cho Multi-turn Conversation Memory**
-   - *Giải pháp:* Sử dụng `AsyncPostgresSaver` hoặc Redis Checkpointer trong [`src/agents/graph.py`](file:///d:/Ai_Thuc_Chien/P-074/src/agents/graph.py) để lưu trữ `AgentState` theo `thread_id`.
-   - *Lợi ích:* Cho phép người dùng hỏi tiếp các câu phụ thuộc ngữ cảnh (*"Còn khu San Hô thì sao?", "Chiều nay ở đó có mưa không?"*) một cách tự nhiên mà không bị mất bối cảnh.
+3. **Hội thoại đa lượt có kiểm soát — đã hoàn thành trong PR2**
+   - *Giải pháp đã áp dụng:* Backend system-of-record lưu semantic context tối thiểu theo `conversation_id`; Agent chỉ nhận station/intent đã allowlist và luôn gọi lại tool cho dữ liệu môi trường. Không dùng `AsyncPostgresSaver` trực tiếp trong Agent vì ranh giới kiến trúc cấm Agent truy cập PostgreSQL.
+   - *Kết quả:* Các câu nối tiếp có antecedent rõ ràng được resolve qua memory; conversation hết hạn, khác owner hoặc thiếu context đều fail/clarify an toàn. PR2 chưa lưu transcript đầy đủ và không tuyên bố đó là chat-history feature.
 
 4. **Tối ưu Caching Telemetry & ML Forecast với Redis**
    - *Giải pháp:* Thiết lập bộ nhớ đệm In-Memory / Redis cho kết quả truy vấn trạm và kết quả dự báo Prophet với TTL ngắn ($10 - 15\text{s}$).

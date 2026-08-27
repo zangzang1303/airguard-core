@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -225,6 +226,9 @@ _CURRENT_REQUEST_SIGNALS = (
     "chi so",
     "tinh hinh",
     "khong khi",
+    "thi sao",
+    "tram do",
+    "tram nay",
 )
 _HISTORY_SIGNALS = (
     "lich su",
@@ -467,6 +471,49 @@ def _stations(query: str) -> list[str]:
     return list(dict.fromkeys(re.findall(r"\bS0[1-5]\b", query.upper())))
 
 
+def _conversation_station_ids(context: Mapping[str, Any] | None) -> list[str]:
+    if not isinstance(context, Mapping):
+        return []
+    values = context.get("station_ids")
+    if not isinstance(values, list):
+        return []
+    return list(
+        dict.fromkeys(
+            value.upper()
+            for value in values
+            if isinstance(value, str)
+            and value.upper() in {"S01", "S02", "S03", "S04", "S05"}
+        )
+    )[:5]
+
+
+def _is_memory_follow_up(query: str, memory_stations: list[str]) -> bool:
+    if not memory_stations:
+        return False
+    if _contains_any(
+        query,
+        (
+            "thi sao",
+            "tram do",
+            "tram nay",
+            "tram kia",
+            "o do",
+            "cho do",
+            "same station",
+            "that station",
+            "the other station",
+            "so voi",
+        ),
+    ):
+        return True
+    if re.search(r"\b(?:con|no|do|kia)\b", query):
+        return True
+    return len(memory_stations) >= 2 and _contains_any(
+        query,
+        (*_BETTER_COMPARISON_SIGNALS, *_WORSE_COMPARISON_SIGNALS, "tram nao"),
+    )
+
+
 # Product entity aliases are deliberately small and exact.  This entry is
 # canonicalized against data/stations.json and backend/db/schema.sql, where S04
 # is named "Khuôn viên VinUni".  Do not add fuzzy matching here: an unknown
@@ -605,6 +652,7 @@ def route_query(
     *,
     context_station_id: str | None = None,
     user_id: str | None = None,
+    conversation_context: Mapping[str, Any] | None = None,
 ) -> RouteDecision:
     """Route a user query and derive only allow-listed, validated tool arguments."""
     stripped = query.strip()
@@ -625,10 +673,35 @@ def route_query(
     for station_id in entity_stations:
         if station_id not in stations:
             stations.append(station_id)
+    explicit_station_count = len(stations)
+    memory_stations = _conversation_station_ids(conversation_context)
+    memory_follow_up = _is_memory_follow_up(plain, memory_stations)
     normalized_context = (context_station_id or "").upper()
-    used_context_station = not stations and normalized_context in {"S01", "S02", "S03", "S04", "S05"}
+    if not stations and memory_follow_up:
+        stations = list(memory_stations)
+    used_context_station = (
+        not stations
+        and normalized_context in {"S01", "S02", "S03", "S04", "S05"}
+    )
     if used_context_station:
         stations = [normalized_context]
+    if (
+        explicit_station_count == 1
+        and memory_follow_up
+        and _contains_any(
+            plain,
+            (*_COMPARE_SIGNALS, *_BETTER_COMPARISON_SIGNALS, *_WORSE_COMPARISON_SIGNALS),
+        )
+    ):
+        primary = (
+            str(conversation_context.get("primary_station_id") or "").upper()
+            if isinstance(conversation_context, Mapping)
+            else ""
+        )
+        if primary not in memory_stations:
+            primary = memory_stations[0] if memory_stations else ""
+        if primary and primary not in stations:
+            stations.insert(0, primary)
     if _contains_any(
         plain,
         (
@@ -773,7 +846,7 @@ def route_query(
 
     recommendation_signal = _contains_any(plain, _RECOMMENDATION_SIGNALS)
     if recommendation_signal:
-        if not stations:
+        if len(stations) != 1:
             return _clarify("Bạn muốn nhận khuyến nghị cho trạm nào (S01-S05)?")
         if not user_id:
             return _clarify(
@@ -827,7 +900,7 @@ def route_query(
         )
 
     if _contains_any(plain, _HISTORY_SIGNALS) and not _contains_any(plain, _FORECAST_SIGNALS):
-        if not stations:
+        if len(stations) != 1:
             return _clarify("Bạn muốn xem lịch sử của trạm nào (S01-S05)?")
         return RouteDecision(
             intent=Intent.HISTORY,
@@ -836,7 +909,7 @@ def route_query(
         )
 
     if _contains_any(plain, _FORECAST_SIGNALS):
-        if not stations:
+        if len(stations) != 1:
             return _clarify("Bạn muốn xem dự báo của trạm nào (S01-S05)?")
         if re.search(r"\bluc\s+\d{1,2}\s*gio\b", plain):
             return _clarify(

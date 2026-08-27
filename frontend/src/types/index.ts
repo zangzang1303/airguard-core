@@ -461,6 +461,7 @@ export interface AgentResponse {
   proposal_created?: Proposal | null;
   proposal_id?: string | null;
   request_id?: string;
+  conversation_id?: string;
   quality?: "fresh" | "stale" | "offline" | "invalid" | null;
   failure_reason?: string | null;
   clarification?: string | null;
