@@ -210,7 +210,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setIsTyping(true);
 
     try {
-      const res: AgentResponse = await api.sendAgentMessage(query, selectedStationId, userId, mapContext);
+      const selectedSensor = mapContext?.selected_sensor;
+      const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
+        ? selectedSensor
+        : null;
+      const res: AgentResponse = await api.sendAgentMessage(query, contextStationId, userId, mapContext);
 
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
