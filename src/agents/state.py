@@ -9,6 +9,7 @@ class AgentState(TypedDict, total=False):
     query: str
     user_id: str
     context_station_id: str
+    conversation: list[dict[str, str]]
     request_id: str
     started_at: float
     route: dict[str, Any]

@@ -218,7 +218,11 @@ profile. Markdown, HTML and PDF exports render the same stored record; they neve
 
 ## Agent response
 The canonical backend `POST /api/v1/agent/chat` accepts
-`{ "message": string, "user_id": string, "station_id"?: "S01".."S05", "map_context"?: object }`. For an anonymous
+`{ "message": string, "user_id": string, "station_id"?: "S01".."S05", "map_context"?: object,
+"conversation"?: [{ "role": "user"|"assistant", "text": string }] }`. `conversation` is optional, limited to the
+six most recent visible turns, and is used only to resolve an explicit follow-up such as "còn chỗ này?". It is not a
+source of environmental facts, does not enter Agent traces, and cannot override safety, grounding, station allow-lists,
+or forecast bounds. For an anonymous
 Demo Day request, `user_id` is passed to the Agent only as an argument for backend profile lookup; it is not written to
 Agent trace. For an authenticated request, backend replaces this field with the session user ID before profile lookup.
 The current frontend identity is demo-only and does not replace production backend authentication.

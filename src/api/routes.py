@@ -18,6 +18,7 @@ async def _chat(request: ChatRequest, http_request: Request) -> ChatResponse:
         "query": request.message,
         "user_id": request.user_id,
         "context_station_id": request.station_id,
+        "conversation": [turn.model_dump() for turn in request.conversation],
     }
     if request_id and REQUEST_ID_PATTERN.fullmatch(request_id):
         initial_state["request_id"] = request_id

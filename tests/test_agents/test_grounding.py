@@ -643,6 +643,38 @@ async def test_absent_station_requests_clarification_without_tool():
 
 
 @pytest.mark.asyncio
+async def test_anaphoric_follow_up_inherits_only_the_previous_environmental_question():
+    graph = build_graph(FakeBackendToolClient())
+    result = await graph.ainvoke(
+        {
+            "query": "Tối nay thì sao?",
+            "conversation": [
+                {"role": "user", "text": "AQI ở S03 hiện tại thế nào?"},
+                {"role": "assistant", "text": "Đã trả lời bằng dữ liệu mô phỏng."},
+            ],
+        }
+    )
+
+    assert result["route"]["intent"] == Intent.FORECAST.value
+    assert result["route"]["tool_arguments"] == [{"station_id": "S03", "hours": 3, "metric": "aqi"}]
+
+
+@pytest.mark.asyncio
+async def test_unrelated_short_question_never_inherits_environmental_context():
+    graph = build_graph(FakeBackendToolClient())
+    result = await graph.ainvoke(
+        {
+            "query": "Bạn bao nhiêu tuổi?",
+            "context_station_id": "S03",
+            "conversation": [{"role": "user", "text": "AQI ở S03 hiện tại thế nào?"}],
+        }
+    )
+
+    assert result["route"]["intent"] == Intent.SOCIAL.value
+    assert result["used_tools"] == []
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("query", "category"),
     [

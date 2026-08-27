@@ -67,6 +67,13 @@ except ModuleNotFoundError:
     send_notification_job = None
 
 
+class ConversationTurn(BaseModel):
+    """A bounded, client-visible turn used only to resolve follow-up intent."""
+
+    role: Literal["user", "assistant"]
+    text: str = Field(min_length=1, max_length=1200)
+
+
 class AgentChatRequest(BaseModel):
     user_id: str = Field(
         ...,
@@ -83,6 +90,11 @@ class AgentChatRequest(BaseModel):
     )
     station_id: str | None = Field(default=None, pattern=r"^S0[1-5]$", examples=["S05"])
     map_context: dict[str, Any] | None = Field(default=None, description="Current map view state, selected POI, and user location")
+    conversation: list[ConversationTurn] = Field(
+        default_factory=list,
+        max_length=6,
+        description="Most recent visible chat turns; used only for follow-up intent resolution.",
+    )
 
 
 class AgentJobRequest(AgentChatRequest):
@@ -1023,9 +1035,11 @@ async def agent_chat(
             station_id=body.station_id,
             map_context=body.map_context,
         )
-        if conversation.intent in {"greeting", "social"}:
+        if conversation.intent in {"greeting", "social", "out_of_scope"}:
             # Social replies are deliberately local and deterministic: they do
             # not need telemetry, map planning, or an LLM-mediated Agent call.
+            # Scope refusals use the same boundary: they must not fetch a user
+            # profile or environmental data merely to explain a rejected request.
             return conversational_agent.deterministic_response(conversation, request_id=req_id)
         if conversation.intent == "clarification":
             return conversational_agent.deterministic_response(conversation, request_id=req_id)
@@ -1081,6 +1095,7 @@ async def agent_chat(
             message=body.message,
             user_id=effective_user_id,
             station_id=effective_station_id,
+            conversation=[turn.model_dump() for turn in body.conversation],
             request_id=req_id,
         )
         result = geospatial_agent.process_query(
@@ -1103,20 +1118,9 @@ async def agent_chat(
         )
         canonical_arguments = agent_result.get("tool_arguments", [])
         if not isinstance(agent_sources, list) or not agent_sources:
-            if result.get("intent") in {
-                "get_location_environment",
-                "get_noise_metric",
-                "get_temperature_metric",
-                "find_worst_location",
-                "compare_locations",
-                "recommend_running_route",
-                "recommend_personalized_running_route",
-                "recommend_indoor_activity",
-                "recommend_outdoor_location",
-                "unsupported_precipitation_weather",
-                "unknown_location",
-            }:
-                return result
+            # The isolated Agent is the semantic authority.  A legacy
+            # geospatial fallback must never replace an Agent clarification,
+            # refusal, or insufficient-data response with a guessed POI/route.
             return {
                 "answer": {"summary": agent_result["answer"], "details": ""},
                 "response": agent_result["answer"],

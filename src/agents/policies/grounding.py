@@ -151,6 +151,7 @@ def _social_decision(query: str) -> RouteDecision | None:
         "airguard khoe khong",
         "airguard co khoe khong",
     }
+    identity = {"ban bao nhieu tuoi", "ban may tuoi", "airguard bao nhieu tuoi", "airguard may tuoi"}
     capabilities = {
         "ban la ai",
         "airguard la gi",
@@ -181,6 +182,9 @@ def _social_decision(query: str) -> RouteDecision | None:
         response = (
             "Mình là trợ lý AI nên không có sức khỏe hay cảm xúc, nhưng có thể hỗ trợ về AirGuard."
         )
+    elif normalized in identity:
+        kind = "identity"
+        response = "Mình là trợ lý AI nên không có tuổi như con người. Mình có thể hỗ trợ các câu hỏi AirGuard."
     elif normalized in capabilities:
         kind = "capabilities"
         response = (
@@ -202,6 +206,7 @@ def _has_explicit_domain_request(query: str) -> bool:
             "aqi", "pm2.5", "pm25", "co2", "co₂", "chat luong khong khi", "moi truong",
             "o nhiem", "bui min", "tieng on", "nhiet do", "thoi tiet", "canh bao", "du bao",
             "so sanh", "tram", "sensor", "chay bo", "ngoai troi", "cung duong", "lo trinh",
+            "nhom nhay cam", "nhay cam", "sensitive group", "nen lam gi",
         ),
     )
 
@@ -330,6 +335,7 @@ def route_query(
     *,
     context_station_id: str | None = None,
     user_id: str | None = None,
+    conversation: list[dict[str, str]] | None = None,
 ) -> RouteDecision:
     """Route a user query and derive only allow-listed, validated tool arguments."""
     stripped = query.strip()
@@ -340,13 +346,25 @@ def route_query(
 
     # Exact social variants remain tool-free, but cannot override an explicit
     # environmental request in the same utterance.
-    if not _has_explicit_domain_request(plain):
+    explicit_domain_request = _has_explicit_domain_request(plain)
+    if not explicit_domain_request:
         social = _social_decision(plain)
         if social:
             return social
 
-    stations = _stations(stripped)
-    entity_stations = _station_entity_ids(stripped)
+    # A follow-up inherits only an immediately preceding, explicit AirGuard
+    # request and only when the new turn contains a safe anaphoric phrase.  It
+    # never treats arbitrary short questions as environmental context.
+    is_anaphoric_follow_up = _is_anaphoric_follow_up(plain)
+    if is_anaphoric_follow_up:
+        prior_query = _last_environmental_user_turn(conversation or [])
+        if prior_query:
+            query = f"{prior_query} {stripped}"
+            plain = _plain(query)
+            explicit_domain_request = True
+
+    stations = _stations(query)
+    entity_stations = _station_entity_ids(query)
     for station_id in entity_stations:
         if station_id not in stations:
             stations.append(station_id)
@@ -356,8 +374,29 @@ def route_query(
         not stations
         and not is_ocean_park_area_query
         and normalized_context in {"S01", "S02", "S03", "S04", "S05"}
+        and (explicit_domain_request or is_anaphoric_follow_up)
     ):
         stations = [normalized_context]
+    # Temporal expressions take precedence over a previous/current snapshot
+    # mentioned in a referenced turn.  For example, "AQI S03 hiện tại thế
+    # nào?" followed by "Tối nay thì sao?" must be a forecast, not a replay
+    # of the earlier current value.
+    if _is_forecast_request(plain) and not _is_recommendation_request(plain):
+        if not stations:
+            return _clarify("Bạn muốn xem dự báo cho trạm nào (S01-S05)?")
+        hours = _hours(plain, 3)
+        if not 1 <= hours <= 3 or "ca ngay" in plain:
+            return RouteDecision(
+                intent=Intent.FORECAST,
+                refusal_category=RefusalCategory.CONTRACT_REFUSAL,
+                reason_code=RefusalReasonCode.FORECAST_HORIZON_UNSUPPORTED,
+                direct_response="AirGuard chỉ hỗ trợ dự báo baseline 1–3 giờ cho MVP; không có dự báo 24 giờ hoặc cả ngày.",
+            )
+        return RouteDecision(
+            intent=Intent.FORECAST,
+            tool_calls=[ToolName.GET_PM25_FORECAST],
+            tool_arguments=[{"station_id": stations[0], "hours": hours, "metric": _forecast_metric(plain)}],
+        )
     if _contains_any(
         plain,
         (
@@ -499,31 +538,7 @@ def route_query(
             spatial_location_ids=explicit_spatial_locations,
         )
 
-    recommendation_signal = _contains_any(
-        plain,
-        (
-            "co nen",
-            "khuyen",
-            "khuyen nghi",
-            "should",
-            "chay bo",
-            "run",
-            "exercise",
-            "work out",
-            "workout",
-            "jog",
-            "jogging",
-            "tap the thao",
-            "hoat dong ngoai troi",
-            "ngoai troi",
-            "outdoor",
-            "recommend",
-            "nhom nhay cam",
-            "nhay cam",
-            "sensitive group",
-            "nen lam gi",
-        ),
-    )
+    recommendation_signal = _is_recommendation_request(plain)
     if recommendation_signal:
         if not stations:
             return _clarify("Bạn muốn nhận khuyến nghị cho trạm nào (S01-S05)?")
@@ -633,6 +648,67 @@ def route_query(
             "phân bố ô nhiễm không gian, cảnh báo và proposal có manager review."
         ),
     )
+
+
+def _is_anaphoric_follow_up(query: str) -> bool:
+    return _contains_any(
+        query,
+        (
+            "con cho nay",
+            "con o day",
+            "con o do",
+            "the con",
+            "toi nay thi sao",
+            "luc do thi sao",
+            "con toi nay",
+        ),
+    )
+
+
+def _is_forecast_request(query: str) -> bool:
+    return _contains_any(
+        query,
+        ("du bao", "forecast", "gio toi", "sap toi", "toi nay", "chieu nay", "sang mai", "ngay mai"),
+    ) or bool(re.search(r"\b\d{1,2}\s*(?:h|hour|hours|gio)\s*(?:nua|sau|toi)\b", query))
+
+
+def _is_recommendation_request(query: str) -> bool:
+    return _contains_any(
+        query,
+        (
+            "co nen",
+            "khuyen",
+            "khuyen nghi",
+            "should",
+            "chay bo",
+            "run",
+            "exercise",
+            "work out",
+            "workout",
+            "jog",
+            "jogging",
+            "tap the thao",
+            "hoat dong ngoai troi",
+            "ngoai troi",
+            "outdoor",
+            "recommend",
+            "nhom nhay cam",
+            "nhay cam",
+            "sensitive group",
+            "nen lam gi",
+        ),
+    )
+
+
+def _last_environmental_user_turn(conversation: list[dict[str, str]]) -> str | None:
+    for turn in reversed(conversation):
+        if turn.get("role") != "user":
+            continue
+        text = str(turn.get("text", "")).strip()
+        if text and _has_explicit_domain_request(_plain(text)):
+            return text
+        return None
+    return None
 
 
 def _clarify(message: str) -> RouteDecision:

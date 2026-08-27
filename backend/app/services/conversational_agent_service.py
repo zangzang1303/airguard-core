@@ -68,6 +68,12 @@ class ConversationalAgentService:
         "airguard khoe khong",
         "airguard co khoe khong",
     }
+    _IDENTITY = {
+        "ban bao nhieu tuoi",
+        "ban may tuoi",
+        "airguard bao nhieu tuoi",
+        "airguard may tuoi",
+    }
     _CAPABILITIES = {
         "ban la ai",
         "airguard la gi",
@@ -101,7 +107,6 @@ class ConversationalAgentService:
         "nhiet do",
         "thoi tiet",
         "mua",
-        "bao",
         "do am",
         "nang",
         "gio",
@@ -168,7 +173,6 @@ class ConversationalAgentService:
         "toi nay",
         "hom nay",
         "bay gio",
-        "bao nhieu",
         "co tot",
         "co nen",
     )
@@ -183,8 +187,8 @@ class ConversationalAgentService:
         "doan duong",
     )
     _OUT_OF_SCOPE_SIGNALS = (
-        "thuoc",
         "uong thuoc",
+        "thuoc gi",
         "kham benh",
         "bac si",
         "chua benh",
@@ -225,11 +229,6 @@ class ConversationalAgentService:
     ) -> ConversationDecision:
         plain = cls._plain(message)
         social_plain = cls._social_plain(message)
-        # A concrete environmental request always wins over a social prefix.
-        # Do this before exact social matching so, for example, "Cảm ơn, AQI
-        # S03 hiện tại thế nào?" cannot be swallowed by an acknowledgement.
-        if cls._has_explicit_domain_request(plain):
-            return ConversationDecision(intent="domain", kind="domain", fallback_response="")
         if social_plain in cls._GREETINGS:
             return ConversationDecision(
                 intent="greeting",
@@ -270,7 +269,7 @@ class ConversationalAgentService:
                 ),
             )
 
-        if any(s in plain for s in cls._OUT_OF_SCOPE_SIGNALS):
+        if cls._contains_phrase(plain, cls._OUT_OF_SCOPE_SIGNALS):
             return ConversationDecision(
                 intent="out_of_scope",
                 kind="out_of_scope",
@@ -280,6 +279,20 @@ class ConversationalAgentService:
                     "cảnh báo môi trường và gợi ý lộ trình vận động ngoài trời tại Ocean Park 1."
                 ),
             )
+        if social_plain in cls._IDENTITY:
+            return ConversationDecision(
+                intent="social",
+                kind="identity",
+                fallback_response=(
+                    "Mình là trợ lý AI nên không có tuổi như con người. Mình có thể hỗ trợ các câu hỏi AirGuard."
+                ),
+            )
+
+        # A concrete environmental request always wins over a social prefix.
+        # Do this after the scope gate so a place name (for example Sapphire)
+        # cannot turn a restaurant or property request into an AirGuard query.
+        if cls._has_explicit_domain_request(plain):
+            return ConversationDecision(intent="domain", kind="domain", fallback_response="")
 
         if cls._is_domain_query(plain, station_id=station_id, map_context=map_context):
             return ConversationDecision(intent="domain", kind="domain", fallback_response="")
@@ -394,6 +407,10 @@ class ConversationalAgentService:
     @classmethod
     def _has_explicit_domain_request(cls, plain: str) -> bool:
         return cls._is_domain_query(plain, station_id=None, map_context=None)
+
+    @staticmethod
+    def _contains_phrase(value: str, phrases: tuple[str, ...]) -> bool:
+        return any(re.search(rf"\b{re.escape(phrase)}\b", value) for phrase in phrases)
 
     @staticmethod
     def _plain(value: str) -> str:

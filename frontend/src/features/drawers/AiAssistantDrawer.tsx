@@ -96,6 +96,15 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialPromptSentRef = useRef<string | null>(null);
 
+  const recentConversation = (items: ChatMessage[]) =>
+    items
+      .filter((item) => item.id !== "msg-welcome" && !item.isError)
+      .slice(-6)
+      .map((item) => ({
+        role: item.sender === "user" ? "user" as const : "assistant" as const,
+        text: item.text.slice(0, 1200),
+      }));
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
@@ -152,7 +161,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
         ? selectedSensor
         : null;
-      const res: AgentResponse = await api.sendAgentMessage(query, contextStationId, userId, mapContext);
+      const res: AgentResponse = await api.sendAgentMessage(
+        query,
+        contextStationId,
+        userId,
+        mapContext,
+        recentConversation(messages),
+      );
       
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
@@ -214,7 +229,13 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
         ? selectedSensor
         : null;
-      const res: AgentResponse = await api.sendAgentMessage(query, contextStationId, userId, mapContext);
+      const res: AgentResponse = await api.sendAgentMessage(
+        query,
+        contextStationId,
+        userId,
+        mapContext,
+        recentConversation(messages),
+      );
 
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";

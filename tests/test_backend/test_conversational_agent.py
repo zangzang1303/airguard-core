@@ -99,6 +99,32 @@ def test_wellbeing_today_is_social_with_or_without_station_and_map_context(with_
     assert decision.kind == "wellbeing"
 
 
+def test_bot_age_question_is_social_even_with_environment_context():
+    decision = ConversationalAgentService.classify(
+        "Bạn bao nhiêu tuổi?",
+        station_id="S03",
+        map_context={"selected_sensor": "S03", "selected_location": "Hồ Ngọc Trai"},
+    )
+    response = ConversationalAgentService.deterministic_response(decision, request_id="req-bot-age")
+
+    assert decision.intent == "social"
+    assert decision.kind == "identity"
+    assert "không có tuổi" in response["response"]
+    assert response["used_tools"] == []
+    assert response["sources"] == []
+    assert response["map_actions"] == []
+
+
+def test_generic_quantity_question_does_not_inherit_environment_context():
+    decision = ConversationalAgentService.classify(
+        "Bao nhieu?",
+        station_id="S03",
+        map_context={"selected_sensor": "S03"},
+    )
+
+    assert decision.intent == "clarification"
+
+
 def test_domain_message_with_social_prefix_still_routes_to_environmental_flow():
     decision = ConversationalAgentService.classify(
         "Xin chào, AQI tại VinUni hiện tại thế nào?",
@@ -142,6 +168,26 @@ def test_unknown_message_requests_clarification_without_environmental_facts():
     assert response["evidence"] == []
     assert response["map_actions"] == []
     assert "AQI hiện tại" in response["response"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Quan pho nao ngon o Ocean Park 1?",
+        "Gia can ho o Sapphire hien nay the nao?",
+        "Viet code Python giup toi.",
+    ],
+)
+def test_out_of_scope_messages_are_direct_and_fact_free(message):
+    decision = ConversationalAgentService.classify(message, station_id="S03")
+    response = ConversationalAgentService.deterministic_response(decision, request_id="req-out-of-scope")
+
+    assert decision.intent == "out_of_scope"
+    assert response["used_tools"] == []
+    assert response["tool_arguments"] == []
+    assert response["evidence"] == []
+    assert response["sources"] == []
+    assert response["map_actions"] == []
 
 
 def test_legacy_agent_social_rewrite_helper_is_locked_to_deterministic_response():

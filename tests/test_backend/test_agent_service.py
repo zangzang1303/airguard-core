@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+
 import httpx
 import pytest
 
@@ -17,6 +18,10 @@ async def test_agent_service_propagates_context_and_correlation_id():
             "message": "Chất lượng không khí S03 thế nào?",
             "user_id": "demo-user",
             "station_id": "S03",
+            "conversation": [
+                {"role": "user", "text": "AQI S03 hiện tại thế nào?"},
+                {"role": "assistant", "text": "Đã trả lời từ dữ liệu mô phỏng."},
+            ],
         }
         return httpx.Response(
             200,
@@ -35,6 +40,10 @@ async def test_agent_service_propagates_context_and_correlation_id():
         user_id="demo-user",
         station_id="S03",
         request_id="proxy-request-1",
+        conversation=[
+            {"role": "user", "text": "AQI S03 hiện tại thế nào?"},
+            {"role": "assistant", "text": "Đã trả lời từ dữ liệu mô phỏng."},
+        ],
     )
 
     assert result["answer"] == "Grounded response"

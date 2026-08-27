@@ -23,6 +23,7 @@ def route_node(state: AgentState) -> dict[str, Any]:
         state.get("query", ""),
         context_station_id=state.get("context_station_id"),
         user_id=state.get("user_id"),
+        conversation=state.get("conversation", []),
     )
     return {
         "request_id": request_id,

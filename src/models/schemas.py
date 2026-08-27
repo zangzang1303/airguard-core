@@ -1,8 +1,15 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class ConversationTurn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    text: str = Field(..., min_length=1, max_length=1200)
 
 
 class ChatRequest(BaseModel):
@@ -20,6 +27,11 @@ class ChatRequest(BaseModel):
         default=None,
         pattern=r"^S0[1-5]$",
         description="Optional station context selected in the dashboard",
+    )
+    conversation: list[ConversationTurn] = Field(
+        default_factory=list,
+        max_length=6,
+        description="Most recent visible chat turns for bounded follow-up resolution",
     )
 
 

@@ -34,8 +34,14 @@ class AgentService:
         user_id: str,
         station_id: str | None,
         request_id: str,
+        conversation: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
-        payload = self._payload(message=message, user_id=user_id, station_id=station_id)
+        payload = self._payload(
+            message=message,
+            user_id=user_id,
+            station_id=station_id,
+            conversation=conversation,
+        )
         try:
             async with httpx.AsyncClient(
                 base_url=self.base_url,
@@ -60,8 +66,14 @@ class AgentService:
         user_id: str,
         station_id: str | None,
         request_id: str,
+        conversation: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
-        payload = self._payload(message=message, user_id=user_id, station_id=station_id)
+        payload = self._payload(
+            message=message,
+            user_id=user_id,
+            station_id=station_id,
+            conversation=conversation,
+        )
         try:
             with httpx.Client(base_url=self.base_url, timeout=self.timeout_seconds) as client:
                 response = client.post(
@@ -76,10 +88,18 @@ class AgentService:
         return self._validated_response(response, request_id=request_id)
 
     @staticmethod
-    def _payload(*, message: str, user_id: str, station_id: str | None) -> dict[str, Any]:
+    def _payload(
+        *,
+        message: str,
+        user_id: str,
+        station_id: str | None,
+        conversation: list[dict[str, str]] | None,
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {"message": message, "user_id": user_id}
         if station_id:
             payload["station_id"] = station_id
+        if conversation:
+            payload["conversation"] = conversation
         return payload
 
     @staticmethod
