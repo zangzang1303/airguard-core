@@ -8,21 +8,21 @@ from backend.app.services.conversational_agent_service import ConversationalAgen
 @pytest.mark.parametrize(
     ("message", "intent", "kind"),
     [
-        ("ê", "greeting", "greeting"),
-        ("Alo!", "greeting", "greeting"),
-        ("cảm ơn bạn", "social", "acknowledgement"),
-        ("Cảm ơn bạn nhé!!!", "social", "acknowledgement"),
-        ("Cảm ơn bạn nhé.", "social", "acknowledgement"),
-        ("xin cảm ơn bạn", "social", "acknowledgement"),
-        ("bạn khỏe không?", "social", "wellbeing"),
-        ("Bạn có khỏe không?", "social", "wellbeing"),
-        ("Bạn có khỏe không...", "social", "wellbeing"),
-        ("Bạn\u00a0có khỏe không?", "social", "wellbeing"),
-        ("Hôm nay bạn thế nào?", "social", "wellbeing"),
-        ("bạn làm được gì?", "social", "capabilities"),
-        ("Bạn có thể giúp gì cho tôi?", "social", "capabilities"),
-        ("Bạn giúp tôi được gì", "social", "capabilities"),
-        ("tạm biệt", "social", "farewell"),
+        ("ê", "social.greeting", "greeting"),
+        ("Alo!", "social.greeting", "greeting"),
+        ("cảm ơn bạn", "social.smalltalk", "acknowledgement"),
+        ("Cảm ơn bạn nhé!!!", "social.smalltalk", "acknowledgement"),
+        ("Cảm ơn bạn nhé.", "social.smalltalk", "acknowledgement"),
+        ("xin cảm ơn bạn", "social.smalltalk", "acknowledgement"),
+        ("bạn khỏe không?", "social.smalltalk", "wellbeing"),
+        ("Bạn có khỏe không?", "social.smalltalk", "wellbeing"),
+        ("Bạn có khỏe không...", "social.smalltalk", "wellbeing"),
+        ("Bạn\u00a0có khỏe không?", "social.smalltalk", "wellbeing"),
+        ("Hôm nay bạn thế nào?", "social.smalltalk", "wellbeing"),
+        ("bạn làm được gì?", "conversation.capability", "capabilities"),
+        ("Bạn có thể giúp gì cho tôi?", "conversation.capability", "capabilities"),
+        ("Bạn giúp tôi được gì", "conversation.capability", "capabilities"),
+        ("tạm biệt", "social.smalltalk", "farewell"),
     ],
 )
 def test_basic_social_messages_are_classified_without_domain_fallthrough(message, intent, kind):
@@ -39,16 +39,16 @@ def test_basic_social_messages_are_classified_without_domain_fallthrough(message
 @pytest.mark.parametrize(
     ("message", "kind", "required", "forbidden"),
     [
-        ("Cảm ơn bạn nhé", "acknowledgement", "Cảm ơn bạn", ("AQI ", "S03", "µg/m³")),
-        ("Bạn có thể giúp gì cho tôi?", "capabilities", "không dự báo dài hạn", ("AQI ", "S03", "µg/m³")),
-        ("Bạn có khỏe không?", "wellbeing", "không có sức khỏe hay cảm xúc", ("AQI ", "S03", "µg/m³")),
+        ("Cảm ơn bạn nhé", "acknowledgement", "Không có gì", ("S03", "µg/m³", "ppm")),
+        ("Bạn có thể giúp gì cho tôi?", "capabilities", "Mình có thể giúp bạn", ("S03", "µg/m³", "ppm")),
+        ("Bạn có khỏe không?", "wellbeing", "sẵn sàng hoạt động", ("S03", "µg/m³", "ppm")),
     ],
 )
 def test_session_3e_social_responses_are_deterministic_and_fact_free(message, kind, required, forbidden):
     decision = ConversationalAgentService.classify(message, station_id="S03")
     response = ConversationalAgentService.deterministic_response(decision, request_id="session-3e-backend")
 
-    assert decision.intent == "social"
+    assert decision.intent in {"social.smalltalk", "conversation.capability"}
     assert decision.kind == kind
     assert response["response"] == decision.fallback_response
     assert required in response["response"]
@@ -95,7 +95,7 @@ def test_wellbeing_today_is_social_with_or_without_station_and_map_context(with_
 
     decision = ConversationalAgentService.classify("Hôm nay bạn thế nào?", **kwargs)
 
-    assert decision.intent == "social"
+    assert decision.intent == "social.smalltalk"
     assert decision.kind == "wellbeing"
 
 
@@ -136,12 +136,12 @@ def test_unknown_message_requests_clarification_without_environmental_facts():
     decision = ConversationalAgentService.classify("ừm... abcxyz")
     response = ConversationalAgentService.deterministic_response(decision, request_id="req-clarify")
 
-    assert decision.intent == "clarification"
-    assert response["intent"] == "clarification"
+    assert decision.intent == "conversation.unknown"
+    assert response["intent"] == "conversation.unknown"
     assert response["used_tools"] == []
     assert response["evidence"] == []
     assert response["map_actions"] == []
-    assert "AQI hiện tại" in response["response"]
+    assert "Bạn muốn mình kiểm tra" in response["response"]
 
 
 def test_legacy_agent_social_rewrite_helper_is_locked_to_deterministic_response():

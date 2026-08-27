@@ -61,6 +61,127 @@ class ResponseComposer:
         }
 
     @staticmethod
+    def compose_assistant_identity(kind: str = "identity_age", request_id: str = "") -> dict[str, Any]:
+        """Task Social: Assistant Identity (age, who, creator)."""
+        if kind == "identity_age":
+            headline = "Mình là trợ lý AI nên không có tuổi như con người 😊"
+            advice = "Mình được thiết kế để hỗ trợ bạn về chất lượng không khí, địa điểm và lộ trình trong Vinhomes Ocean Park 1."
+            summary = f"{headline}\n\n{advice}"
+        else:
+            headline = "Mình là **AirGuard Geospatial AI**, trợ lý AI hỗ trợ bạn kiểm tra chất lượng không khí, địa điểm và lộ trình trong Vinhomes Ocean Park 1."
+            advice = "Bạn có thể hỏi mình về chỉ số AQI, so sánh khu vực hoặc tìm đường đi bộ, chạy bộ trong khu đô thị."
+            summary = headline
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "social.assistant_identity",
+            "follow_up_actions": [
+                "🏫 VinUni không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
+    def compose_capabilities(request_id: str = "") -> dict[str, Any]:
+        """Task Social: Capability inquiry."""
+        headline = "Mình có thể giúp bạn:"
+        details = (
+            "• Kiểm tra chất lượng không khí theo từng khu vực tại Ocean Park 1\n"
+            "• So sánh chất lượng không khí giữa các địa điểm\n"
+            "• Xem dự báo AQI ngắn hạn 1–3 giờ\n"
+            "• Tìm cung đường đi bộ/chạy bộ tối ưu mức độ trong lành\n"
+            "• Định vị và hiển thị kết quả trực quan trên bản đồ"
+        )
+        summary = f"{headline}\n{details}"
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": details,
+                "highlights": [],
+                "recommendation": "",
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.capability",
+            "follow_up_actions": [
+                "🏫 VinUni không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
+    def compose_smalltalk(kind: str = "acknowledgement", request_id: str = "") -> dict[str, Any]:
+        """Task Social: Smalltalk (thanks, wellbeing, farewell)."""
+        if kind == "acknowledgement":
+            summary = "Không có gì 😊 Nếu cần, bạn cứ hỏi mình về không khí hoặc địa điểm trong Ocean Park 1 nhé!"
+        elif kind == "farewell":
+            summary = "Tạm biệt bạn! Hẹn gặp lại khi bạn cần hỗ trợ từ AirGuard 👋"
+        elif kind == "wellbeing":
+            summary = "Mình là trợ lý AI nên luôn sẵn sàng hoạt động để hỗ trợ bạn! Hôm nay bạn muốn kiểm tra khu vực nào ở Ocean Park 1 không?"
+        else:
+            summary = "Rất vui được trò chuyện cùng bạn! Bạn cần mình hỗ trợ gì về môi trường Ocean Park 1 không?"
+
+        return {
+            "answer": {
+                "headline": summary,
+                "summary": summary,
+                "details": "",
+                "highlights": [],
+                "recommendation": "",
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "social.smalltalk",
+            "follow_up_actions": [
+                "🏫 VinUni không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
+    def compose_unknown_inquiry(request_id: str = "") -> dict[str, Any]:
+        """Task Fallback: Prompt for clarification on unknown query."""
+        summary = "Bạn muốn mình kiểm tra **chất lượng không khí**, **một địa điểm**, hay **một cung đường** trong Ocean Park 1?"
+        return {
+            "answer": {
+                "headline": summary,
+                "summary": summary,
+                "details": "",
+                "highlights": [],
+                "recommendation": "",
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.unknown",
+            "follow_up_actions": [
+                "🏫 VinUni không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
     def compose_overview(
         overall_aqi: int | float,
         best_station_or_poi: dict[str, Any],

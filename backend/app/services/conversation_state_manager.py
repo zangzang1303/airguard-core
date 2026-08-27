@@ -23,6 +23,9 @@ class ConversationState:
     user_id: str = "demo-user"
     created_at: float = field(default_factory=time.time)
     last_updated_at: float = field(default_factory=time.time)
+    active_domain: str = "airguard"
+    domain_context: dict[str, Any] = field(default_factory=dict)
+    current_turn_intent: str | None = None
     last_intent: str | None = None
     last_query: str = ""
     active_scope: str = "ocp1"
@@ -124,8 +127,23 @@ class ConversationStateManager:
         state = self.get_or_create_state(conversation_id)
         state.last_updated_at = time.time()
 
+        is_social = intent and (
+            intent.startswith("social.")
+            or intent.startswith("conversation.")
+            or intent in {"greeting", "social", "clarification", "out_of_scope"}
+        )
+
+        if is_social:
+            state.active_domain = "social"
+            state.current_turn_intent = intent
+            if query:
+                state.last_query = query
+            return state
+
+        state.active_domain = "airguard"
         if intent:
             state.last_intent = intent
+            state.current_turn_intent = intent
         if query:
             state.last_query = query
         if scope:
@@ -148,6 +166,13 @@ class ConversationStateManager:
             state.constraints.update(constraints)
         if negations is not None:
             state.negations = negations
+
+        state.domain_context = {
+            "last_intent": state.last_intent,
+            "entities": list(state.active_entities),
+            "locations": list(state.active_locations),
+            "scope": state.active_scope,
+        }
 
         return state
 

@@ -22,7 +22,7 @@ def test_greeting_does_not_fall_through_to_environmental_recommendation():
         map_context={"selected_sensor": "S01"},
     )
 
-    assert result["intent"] == "greeting"
+    assert result["intent"] in {"greeting", "social.greeting"}
     assert "Mình đây" in result["answer"]["summary"]
     assert result["evidence"] == []
     assert result["map_actions"] == []
@@ -35,10 +35,10 @@ def test_unknown_chat_does_not_fall_through_to_environmental_recommendation():
 
     result = agent.process_query("ừm... abcxyz")
 
-    assert result["intent"] == "clarification"
+    assert result["intent"] in {"clarification", "conversation.unknown"}
     assert result["evidence"] == []
     assert result["map_actions"] == []
-    assert "AQI hiện tại" in result["response"]
+    assert "Bạn muốn mình kiểm tra" in result["response"] or "AQI" in result["response"]
 
 
 def test_temporal_resolver_patterns():

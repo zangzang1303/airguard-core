@@ -9,7 +9,7 @@ from .database import ServiceError
 from .environmental_scoring import environmental_scoring
 from .prophet_forecast_service import prophet_service
 from .response_composer import ResponseComposer, ResponseValidator, aqi_category_vi
-from .spatial_registry import spatial_registry
+from .spatial_registry import normalize_text, spatial_registry
 from .temporal_resolver import temporal_resolver
 
 logger = logging.getLogger(__name__)
@@ -766,10 +766,36 @@ class GeospatialAgentService:
         if is_temp_inquiry:
             return self._handle_specific_temp_intent(ranked_pois[0], time_ctx, request_id)
 
-        # Intent D: Best Location / Outdoor Activity Recommendation (Default rich flow)
-        return self._handle_recommendation_intent(
-            ranked_pois, activity, time_ctx, request_id, user_group, user_loc=user_loc, conversation_id=conversation_id
+        # Intent D: Best Location / Outdoor Activity Recommendation
+        q_norm = normalize_text(q)
+        is_ranking_best = (
+            any(sup in q_norm for sup in spatial_registry.RANKING_SUPERLATIVES)
+            or any(w in q_norm for w in ["chay", "di bo", "tap the thao", "tap the duc", "ra ngoai", "hoat dong", "khuyen nghi", "goi y", "nen di", "dia diem nao", "khu nao", "trong lanh", "sach", "sach nhat", "tot nhat"])
+            or activity in {"running", "walking", "outdoor_exercise"}
         )
+        if is_ranking_best:
+            return self._handle_recommendation_intent(
+                ranked_pois, activity, time_ctx, request_id, user_group, user_loc=user_loc, conversation_id=conversation_id
+            )
+
+        # Fallback for unrecognized queries: prompt clarification instead of guessing VinUni
+        composed = ResponseComposer.compose_unknown_inquiry(request_id=request_id)
+        conversation_state_manager.update_state(
+            conversation_id=conversation_id,
+            intent="conversation.unknown",
+            query=message,
+        )
+        return {
+            "answer": composed["answer"],
+            "response": composed["response"],
+            "intent": "conversation.unknown",
+            "time_context": time_ctx,
+            "data_mode": time_ctx["type"],
+            "evidence": [],
+            "map_actions": [],
+            "follow_up_actions": composed["follow_up_actions"],
+            "request_id": request_id,
+        }
 
     # -------------------------------------------------------------
     # INTENT HANDLER: Area Overview (Whole Ocean Park 1)

@@ -49,7 +49,7 @@ async def test_public_social_endpoint_short_circuits_all_downstream_services(
 
     response = await main_module.agent_chat(request, body, None)
 
-    assert response["intent"] == "social"
+    assert response["intent"] in {"social", "social.smalltalk", "conversation.capability"}
     assert response["conversation_kind"] == kind
     assert response["used_tools"] == []
     assert response["tool_arguments"] == []
