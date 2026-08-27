@@ -108,6 +108,35 @@ def test_domain_message_with_social_prefix_still_routes_to_environmental_flow():
     assert decision.intent == "domain"
 
 
+@pytest.mark.parametrize(
+    "message",
+    ["S01", "Trạm S01 đang thế nào?", "Trạm nào đang có chỉ số tốt nhất?"],
+)
+def test_station_snapshot_and_best_station_questions_reach_grounded_agent(message):
+    decision = ConversationalAgentService.classify(message)
+
+    assert decision.intent == "domain"
+    assert decision.kind == "domain"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Tình hình không khí S01 ra sao?",
+        "Trạm sạch nhất hiện tại là trạm nào?",
+        "S01 hay S02 tốt hơn?",
+        "Xu hướng PM2.5 S01 gần đây?",
+        "S02 có vượt ngưỡng không?",
+        "S01 có phù hợp để chạy bộ không?",
+    ],
+)
+def test_phase1_natural_language_variants_reach_domain_agent(message):
+    decision = ConversationalAgentService.classify(message)
+
+    assert decision.intent == "domain"
+    assert decision.kind == "domain"
+
+
 def test_contextual_follow_up_remains_a_domain_query():
     decision = ConversationalAgentService.classify(
         "Tối nay thì sao?",

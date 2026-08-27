@@ -66,3 +66,37 @@ The orchestration boundary also applies a five-second total LLM response deadlin
 the backend proxy timeout. Provider HTTP retries remain bounded inside that deadline. Deadline
 expiry preserves the deterministic grounded answer, records `provider_deadline_exceeded`, and is
 never labeled `live_llm`.
+
+## Implementation record - 2026-08-26
+
+Deterministic routing now treats a bare, validated station id such as `S01` as a current snapshot
+request for that station. AQI-first superlatives distinguish highest/worst from best/lowest: both
+use one `compare_stations` call across S01-S05, and the response composer selects the corresponding
+AQI extremum only from valid, fresh same-request tool evidence. Vietnamese normalization explicitly
+handles `đ` before accent stripping. Tool failure or unusable station data still fails closed
+without choosing a default station or inventing a value.
+
+The Phase 1 intent lexicon additionally recognizes bounded Vietnamese/English paraphrases for
+current, history, forecast, alert, weather, compare and recommendation requests. Lexicon expansion
+only changes intent selection; tool allowlists, schemas, station validation, freshness gates and
+same-request grounding remain unchanged.
+
+## Implementation record - 2026-08-27 (Phase 2 semantic routing)
+
+Unclear non-social requests may use a bounded semantic router. The provider emits only a strict
+JSON routing proposal; Pydantic validation, confidence threshold, explicit/context station checks,
+forecast horizon limits and typed `RouteDecision` reconstruction happen locally before any tool
+call. Safety/social requests never reach this provider path. Semantic success skips the later
+explanation LLM call so the final answer remains deterministic and grounded. Provider failure,
+timeout or malformed/unsafe JSON falls back to the existing clarification behavior.
+
+## Implementation record - 2026-08-27 (P0 token optimization)
+
+The deterministic response composer is the sole owner of user-facing generation for production
+chat. The former explanation node no longer calls a provider merely to observe it or to discard its
+output. Social and deterministic domain paths therefore use zero LLM calls. Only an unclear,
+non-social request may invoke the bounded semantic router, at most once; its typed proposal can
+affect routing but never supplies environmental facts or answer text. Trace keeps
+`generation_mode=deterministic_grounded`, reports `llm_call_count`, and records sanitized router
+usage/latency only when that call occurs. Live provider evaluation is no longer coupled to the
+production chat endpoint.

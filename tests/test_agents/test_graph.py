@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+
 import pytest
 
 from src.agents.graph import agent, build_graph
@@ -42,6 +43,15 @@ class TimeoutBackendToolClient(FakeBackendToolClient):
     async def get_weather_context(self, payload, request_id="fixture-request"):
         return ToolError(
             tool_name=ToolName.GET_WEATHER_CONTEXT,
+            code=ToolErrorCode.TIMEOUT,
+            message="Backend request timed out after deadline",
+            request_id=request_id,
+            status_code=503,
+        )
+
+    async def get_spatial_air_quality(self, payload, request_id="fixture-request"):
+        return ToolError(
+            tool_name=ToolName.GET_SPATIAL_AIR_QUALITY,
             code=ToolErrorCode.TIMEOUT,
             message="Backend request timed out after deadline",
             request_id=request_id,
@@ -137,6 +147,4 @@ async def test_agent_backend_timeout_fails_closed_no_grounded_claim():
 
     # Must NOT contain numeric environmental claims
     grounded_numeric_pattern = re.compile(r"(aqi|pm2\.5|pm25|co2|noise)\s*[=:]\s*\d+")
-    assert not grounded_numeric_pattern.search(full_text), (
-        f"Agent must NOT produce grounded numeric claims when tools time out. Found in: '{full_text[:300]}'"
-    )
+    assert not grounded_numeric_pattern.search(full_text), f"Found hallucinated numbers in timeout answer: {full_text}"

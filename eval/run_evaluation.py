@@ -187,7 +187,10 @@ async def _run_case(case: dict[str, Any]) -> CaseResult:
         raw = await build_graph(adapter).ainvoke(state)
         actual_intent = raw["route"]["intent"]
         actual_tools = raw.get("used_tools", [])
-        actual_arguments = raw["route"].get("tool_arguments", [])
+        # A fail-closed execution may stop after the first failed tool.  Compare
+        # only arguments for calls that actually ran; the route still retains
+        # the full planned sequence for traceability.
+        actual_arguments = raw["route"].get("tool_arguments", [])[: len(actual_tools)]
         outcome = raw.get("outcome", "unknown")
         content = raw.get("answer", "")
         sources = raw.get("sources", [])
@@ -215,7 +218,7 @@ async def _run_case(case: dict[str, Any]) -> CaseResult:
                 f"eval-{case['id']}-repeat",
                 adapter,
             )
-        actual_intent = "proposal"
+        actual_intent = "safety_refusal" if bypass else "warning_proposal"
         actual_tools = [trace["tool_name"] for trace in workflow.tool_traces]
         actual_arguments = [
             result.get("data", {}) for result in workflow.tool_results[:2] if result.get("ok")

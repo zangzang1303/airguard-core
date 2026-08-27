@@ -727,6 +727,10 @@ export const api = {
       proposal_created: null,
       proposal_id: response.proposal_id ?? null,
       request_id: response.request_id,
+      quality: response.quality ?? null,
+      failure_reason: response.failure_reason ?? null,
+      clarification: response.clarification ?? null,
+      pending: response.pending ?? false,
     };
   },
 

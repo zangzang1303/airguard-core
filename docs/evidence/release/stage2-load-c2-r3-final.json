@@ -1,0 +1,73 @@
+{
+  "generated_at": "2026-08-26T15:48:34.412436+00:00",
+  "base_url": "http://127.0.0.1:8000/api/v1",
+  "workers": 2,
+  "rounds": 3,
+  "total_requests": 6,
+  "live_llm_requests": 6,
+  "non_live_requests": 0,
+  "http_errors": 0,
+  "latency_ms": {
+    "p50": 2656.087,
+    "p95": 5376.789,
+    "p99": 5376.789,
+    "max": 5376.789
+  },
+  "results": [
+    {
+      "request_id_match": true,
+      "http_status": 200,
+      "request_latency_ms": 2656.087,
+      "generation_mode": "live_llm",
+      "provider": "openai",
+      "failure_code": null,
+      "outcome": "answered"
+    },
+    {
+      "request_id_match": true,
+      "http_status": 200,
+      "request_latency_ms": 3349.073,
+      "generation_mode": "live_llm",
+      "provider": "openai",
+      "failure_code": null,
+      "outcome": "answered"
+    },
+    {
+      "request_id_match": true,
+      "http_status": 200,
+      "request_latency_ms": 2180.057,
+      "generation_mode": "live_llm",
+      "provider": "openai",
+      "failure_code": null,
+      "outcome": "answered"
+    },
+    {
+      "request_id_match": true,
+      "http_status": 200,
+      "request_latency_ms": 4186.851,
+      "generation_mode": "live_llm",
+      "provider": "openai",
+      "failure_code": null,
+      "outcome": "answered"
+    },
+    {
+      "request_id_match": true,
+      "http_status": 200,
+      "request_latency_ms": 1973.849,
+      "generation_mode": "live_llm",
+      "provider": "openai",
+      "failure_code": null,
+      "outcome": "answered"
+    },
+    {
+      "request_id_match": true,
+      "http_status": 200,
+      "request_latency_ms": 5376.789,
+      "generation_mode": "live_llm",
+      "provider": "openai",
+      "failure_code": null,
+      "outcome": "answered"
+    }
+  ],
+  "result": "PASS"
+}

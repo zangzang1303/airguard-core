@@ -5,6 +5,7 @@ import re
 from fastapi import APIRouter, HTTPException, Request
 
 from src.agents.graph import agent
+from src.agents.metrics import snapshot
 from src.agents.policies.grounding import GROUNDING_POLICY_VERSION
 from src.models.schemas import ChatRequest, ChatResponse
 
@@ -26,6 +27,8 @@ async def _chat(request: ChatRequest, http_request: Request) -> ChatResponse:
         route = result.get("route", {})
         return ChatResponse(
             answer=result["answer"],
+            answer_summary=result.get("answer_summary"),
+            answer_details=result.get("answer_details"),
             intent=route.get("intent", "out_of_scope"),
             conversation_kind=route.get("conversation_kind"),
             response=result["answer"],
@@ -39,6 +42,11 @@ async def _chat(request: ChatRequest, http_request: Request) -> ChatResponse:
             recommendation_policy_version=result.get("recommendation_policy_version"),
             impact_policy_version=result.get("impact_policy_version"),
             outcome=result.get("outcome", "unknown"),
+            data_mode=result.get("data_mode"),
+            quality=result.get("quality"),
+            failure_reason=result.get("failure_reason"),
+            clarification=result.get("clarification"),
+            pending=result.get("pending", False),
             refusal_category=route.get("refusal_category"),
             reason_code=route.get("reason_code"),
             trace=result.get("trace", {}),
@@ -64,3 +72,9 @@ async def agent_status() -> dict[str, str]:
         "agent": "AirGuard grounded Agent",
         "policy_version": GROUNDING_POLICY_VERSION,
     }
+
+
+@router.get("/metrics")
+async def agent_metrics() -> dict:
+    """Return bounded aggregate metrics without prompts, user IDs or sources."""
+    return snapshot()

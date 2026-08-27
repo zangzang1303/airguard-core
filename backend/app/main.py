@@ -601,7 +601,10 @@ def auth_google_callback(
             correlation_id=_request_id(request),
         )
         csrf_token = generate_csrf_token()
-        response = RedirectResponse(url=f"{settings.frontend_url}/?auth=google_success", status_code=307)
+        response = RedirectResponse(
+            url=f"{settings.frontend_url}/?auth=google_success",
+            status_code=307,
+        )
         response.set_cookie(
             key="airguard_session",
             value=raw_session_token,
@@ -993,8 +996,10 @@ async def agent_chat(
             # Social replies are deliberately local and deterministic: they do
             # not need telemetry, map planning, or an LLM-mediated Agent call.
             return conversational_agent.deterministic_response(conversation, request_id=req_id)
-        if conversation.intent == "clarification":
-            return conversational_agent.deterministic_response(conversation, request_id=req_id)
+        # Phase 2: unclear non-social messages continue to the isolated Agent,
+        # where the bounded semantic router may propose a schema-validated
+        # intent. Invalid/low-confidence/provider-failure results still fall
+        # back to the Agent's deterministic clarification without tool calls.
 
         # The public map's stable alias resolves to the seeded resident profile;
         # all profile fields still come from PostgreSQL rather than client input.
@@ -1041,7 +1046,12 @@ async def agent_chat(
 
         effective_station_id = body.station_id
         if not effective_station_id and body.map_context:
-            effective_station_id = body.map_context.get("selected_sensor")
+            candidate_station_id = body.map_context.get("selected_sensor")
+            # UI context is only a routing hint after backend validation; an
+            # arbitrary client-provided station must never become an implicit
+            # default or bypass the station registry.
+            if candidate_station_id in snapshots:
+                effective_station_id = candidate_station_id
 
         agent_result = await agent_service.chat(
             message=body.message,
@@ -1068,6 +1078,34 @@ async def agent_chat(
             "conversation_kind"
         )
         canonical_arguments = agent_result.get("tool_arguments", [])
+        agent_outcome = agent_result.get("outcome") or agent_result.get("trace", {}).get("final_outcome")
+        # The isolated Agent remains authoritative for refusals, clarification,
+        # and fail-closed outcomes. Geospatial planning must never replace an
+        # insufficient-data answer with a snapshot assembled outside this
+        # request's tool evidence.
+        if agent_outcome in {"insufficient_data", "clarification", "refused", "direct_response"}:
+            return {
+                "answer": {
+                    "summary": agent_result.get("answer_summary") or agent_result["answer"],
+                    "details": agent_result.get("answer_details") or "",
+                },
+                "response": agent_result["answer"],
+                "intent": canonical_intent,
+                "conversation_kind": canonical_kind,
+                "evidence": [],
+                "sources": agent_sources if isinstance(agent_sources, list) else [],
+                "map_actions": [],
+                "used_tools": agent_result.get("used_tools", []),
+                "tool_arguments": canonical_arguments,
+                "proposal_id": agent_result.get("proposal_id"),
+                "request_id": req_id,
+                "trace": agent_result.get("trace", {}),
+                "data_mode": agent_result.get("data_mode"),
+                "quality": agent_result.get("quality"),
+                "failure_reason": agent_result.get("failure_reason"),
+                "clarification": agent_result.get("clarification"),
+                "pending": agent_result.get("pending", False),
+            }
         if not isinstance(agent_sources, list) or not agent_sources:
             if result.get("intent") in {
                 "get_location_environment",
@@ -1084,7 +1122,10 @@ async def agent_chat(
             }:
                 return result
             return {
-                "answer": {"summary": agent_result["answer"], "details": ""},
+                "answer": {
+                    "summary": agent_result.get("answer_summary") or agent_result["answer"],
+                    "details": agent_result.get("answer_details") or "",
+                },
                 "response": agent_result["answer"],
                 "intent": canonical_intent,
                 "conversation_kind": canonical_kind,
@@ -1112,7 +1153,10 @@ async def agent_chat(
                 else evidence_snapshot.get("updated_at")
             )
         map_intent = result.get("intent")
-        result["answer"] = {"summary": agent_result["answer"], "details": ""}
+        result["answer"] = {
+            "summary": agent_result.get("answer_summary") or agent_result["answer"],
+            "details": agent_result.get("answer_details") or "",
+        }
         result["response"] = agent_result["answer"]
         result["intent"] = canonical_intent
         result["conversation_kind"] = canonical_kind
@@ -1120,6 +1164,11 @@ async def agent_chat(
         result["tool_arguments"] = canonical_arguments
         result["sources"] = agent_sources
         result["proposal_id"] = agent_result.get("proposal_id")
+        result["data_mode"] = agent_result.get("data_mode", result.get("data_mode"))
+        result["quality"] = agent_result.get("quality", result.get("quality"))
+        result["failure_reason"] = agent_result.get("failure_reason")
+        result["clarification"] = agent_result.get("clarification")
+        result["pending"] = agent_result.get("pending", False)
         result["trace"] = {
             **agent_result.get("trace", {}),
             "map_planner": "deterministic_grounded_geospatial",

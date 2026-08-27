@@ -43,11 +43,15 @@ interface ChatMessage {
   details?: string;
   intent?: string;
   time_context?: any;
-  data_mode?: "live" | "forecast";
+  data_mode?: "simulator" | "realtime" | "live" | "forecast";
   evidence?: any;
   map_actions?: MapAction[];
   used_tools?: string[];
   proposal_created?: Proposal | null;
+  quality?: "fresh" | "stale" | "offline" | "invalid" | null;
+  failure_reason?: string | null;
+  clarification?: string | null;
+  pending?: boolean;
   isError?: boolean;
   retryQuery?: string;
   showEvidence?: boolean;
@@ -158,7 +162,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const aiMsg: ChatMessage = {
         id: `msg-ai-${Date.now()}`,
         sender: "ai",
-        text: aiReply,
+        text: answerObj.summary || aiReply,
         summary: answerObj.summary,
         details: answerObj.details,
         intent: res.intent,
@@ -169,6 +173,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         evidence: res.evidence,
         map_actions: res.map_actions as MapAction[],
         proposal_created: res.proposal_created,
+        quality: res.quality,
+        failure_reason: res.failure_reason,
+        clarification: res.clarification,
+        pending: res.pending,
         showEvidence: false,
       };
 
@@ -215,7 +223,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const aiMsg: ChatMessage = {
         id: `msg-ai-${Date.now()}`,
         sender: "ai",
-        text: aiReply,
+        text: answerObj.summary || aiReply,
         summary: answerObj.summary,
         details: answerObj.details,
         intent: res.intent,
@@ -226,6 +234,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         evidence: res.evidence,
         map_actions: res.map_actions as MapAction[],
         proposal_created: res.proposal_created,
+        quality: res.quality,
+        failure_reason: res.failure_reason,
+        clarification: res.clarification,
+        pending: res.pending,
         showEvidence: false,
       };
 
@@ -416,9 +428,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 )}
 
                 {/* Interactive Map Actions Trigger Button for other inquiries */}
-                {msg.map_actions && msg.map_actions.length > 0 && msg.intent !== "recommend_running_route" && (
+                {((msg.map_actions && msg.map_actions.length > 0 && msg.intent !== "recommend_running_route") || msg.details) && (
                   <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                    <button
+                    {msg.map_actions && msg.map_actions.length > 0 && msg.intent !== "recommend_running_route" && <button
                       onClick={() => {
                         mapActionController.clearAIOverlay();
                         mapActionController.executeAll(msg.map_actions);
@@ -438,9 +450,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       }}
                     >
                       <MapPin size={13} /> Xem trực tiếp trên bản đồ
-                    </button>
+                    </button>}
 
-                    {msg.evidence && (
+                    {(msg.evidence || msg.details) && (
                       <button
                         onClick={() => toggleEvidence(msg.id)}
                         style={{
@@ -458,7 +470,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         }}
                       >
                         <HelpCircle size={13} />
-                        {msg.showEvidence ? "Ẩn số liệu" : "Tại sao? (Bằng chứng)"}
+                        {msg.showEvidence ? "Ẩn chi tiết" : "Xem chi tiết"}
                         {msg.showEvidence ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                       </button>
                     )}
@@ -466,12 +478,15 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 )}
 
                 {/* Collapsible Evidence Inspector */}
-                {msg.showEvidence && msg.evidence && (
+                {msg.showEvidence && (msg.details || msg.evidence) && (
                   <div style={{ marginTop: 10, padding: 10, background: "#f8fafc", borderRadius: 10, fontSize: "11px", color: "#334155", border: "1px dashed #cbd5e1" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4, color: "#0f172a" }}>📊 Dữ liệu Grounded từ Trạm / Forecast:</div>
-                    <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "10.5px", whiteSpace: "pre-wrap", maxHeight: 160, overflowY: "auto" }}>
-                      {JSON.stringify(msg.evidence, null, 2)}
-                    </pre>
+                    {msg.details && <div style={{ whiteSpace: "pre-line", lineHeight: 1.5, marginBottom: msg.evidence ? 8 : 0 }}>{renderInlineMarkdown(msg.details)}</div>}
+                    {msg.evidence && <>
+                      <div style={{ fontWeight: 700, marginBottom: 4, color: "#0f172a" }}>📊 Dữ liệu Grounded từ Trạm / Forecast:</div>
+                      <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "10.5px", whiteSpace: "pre-wrap", maxHeight: 160, overflowY: "auto" }}>
+                        {JSON.stringify(msg.evidence, null, 2)}
+                      </pre>
+                    </>}
                   </div>
                 )}
 

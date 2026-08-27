@@ -454,13 +454,17 @@ export interface AgentResponse {
     end?: string;
     forecast_hour?: number;
   };
-  data_mode?: "live" | "forecast";
+  data_mode?: "simulator" | "realtime" | "live" | "forecast";
   evidence: Record<string, any> | Array<Record<string, any>>;
   map_actions?: Array<Record<string, any>>;
   used_tools?: string[];
   proposal_created?: Proposal | null;
   proposal_id?: string | null;
   request_id?: string;
+  quality?: "fresh" | "stale" | "offline" | "invalid" | null;
+  failure_reason?: string | null;
+  clarification?: string | null;
+  pending?: boolean;
 }
 
 export interface SpatialHeatmapPoint {

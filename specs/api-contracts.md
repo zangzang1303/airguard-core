@@ -106,17 +106,16 @@ Each alert includes `alert_type` (`aqi_threshold`, `pm25_threshold`, `co2_thresh
 
 ## Automatic Agent proposal
 
-When `AUTO_PROPOSAL_ENABLED=true`, a newly eligible environmental alert schedules an internal
-Agent analysis. With `generation_mode=live_llm`, the Agent revalidates fresh station data plus the
-active alert through backend tools before it creates a `pending` proposal. With
-`generation_mode=deterministic_grounded`, the backend creates the same idempotent `pending`
-proposal directly from Rule Engine evidence and re-runs the continuity/device policy gate. Unknown
-or ungrounded modes fail closed. Only one pending
+When `AUTO_PROPOSAL_ENABLED=true`, a newly eligible environmental alert schedules exactly one
+canonical internal Agent proposal workflow. It uses `generation_mode=deterministic_grounded` with
+`llm_call_count=0`, revalidates fresh station data plus the active alert through backend tools, and
+only then may create a `pending` proposal. Only one pending
 automatic warning proposal is permitted per station; later automatic triggers are skipped until the
 Manager reviews it. Pending proposals automatically expire after `PROPOSAL_PENDING_TTL_SECONDS`
 (default: 3600 seconds); expiry preserves the proposal and writes an audit event, but it can no
-longer be approved or dispatched. No Manager decision or device command is automated. Agent service
-failure is audited and leaves the alert active without a proposal.
+longer be approved or dispatched. No Manager decision or device command is automated. Tool error,
+missing/stale/offline/invalid data, an inactive alert or failed eligibility are audited and leave the
+alert active without a proposal or notification.
 
 For a focused demo, `AUTO_PROPOSAL_STATIONS=S03` matches the `spike` scenario and registered `FILTER-01` device.
 Other stations may still produce backend alerts, but their alerts do not schedule Agent proposals.
@@ -237,6 +236,14 @@ outcome; it must not contain the raw prompt, user id, secret, token or backend c
 Facts must map to sources from the same request. Tool failure or absent/stale/invalid/offline data
 returns a transparent insufficient-data answer and no environmental source. The additive
 `response` field is a deprecated alias of `answer` for the original template client.
+
+The internal Agent service exposes `GET /api/v1/metrics` for bounded operational monitoring. The
+response contains aggregate request counts, generation-mode counts, total LLM call count,
+sanitized failure-code counts, fallback rate, a rolling window of P50/P95/P99 request latency, and
+alert reason codes. It must not
+contain prompts, user IDs, request IDs, station evidence, sources, tokens, credentials or PII. The
+current in-process window is diagnostic for a single Agent process and resets when that process is
+restarted; production multi-replica aggregation belongs in the deployment metrics backend.
 
 The geospatial response path receives fresh station snapshots and forecast histories from the
 backend request scope. It must return structured `503` when grounded inputs are unavailable and

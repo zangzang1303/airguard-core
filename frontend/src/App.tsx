@@ -66,6 +66,7 @@ const SuperAppMain: React.FC<{
   refreshData: () => Promise<void>;
   connectionStatus: "connected" | "updating" | "disconnected";
   lastUpdated: Date | null;
+  refreshRevision: number;
 }> = ({
   stations,
   alerts,
@@ -76,9 +77,11 @@ const SuperAppMain: React.FC<{
   refreshData,
   connectionStatus,
   lastUpdated,
+  refreshRevision,
 }) => {
-  const { role, userGroup } = useAuth();
+  const { role, userGroup, demoMode } = useAuth();
   const isManager = role === "manager" || role === "admin";
+  const canUseDemoControl = isManager && demoMode;
 
   // Active Overlay & Drawer States
   const [activeDrawer, setActiveDrawer] = useState<ActiveDrawerType>(null);
@@ -95,7 +98,7 @@ const SuperAppMain: React.FC<{
     activeEnvironmentalLayer: "aqi",
     viewMode: "heatmap",
     showBoundary: true,
-    showPlaces: true,
+    showPlaces: false,
     showSensors: true,
     showHeatmap: true,
     showWindVectors: true,
@@ -359,6 +362,12 @@ const SuperAppMain: React.FC<{
   // Hooks must run before every conditional return so the order stays stable
   // while the initial station request moves through loading/error/success.
   const [forecastHour, setForecastHour] = useState<number>(0);
+  const handleLayerConfigChange = useCallback((newConfig: MapLayerConfig) => {
+    if (!newConfig.showForecastTimeline) {
+      setForecastHour(0);
+    }
+    setLayerConfig(newConfig);
+  }, []);
 
   // Cold Start Loading Skeleton
   if (loading && stations.length === 0) {
@@ -416,6 +425,7 @@ const SuperAppMain: React.FC<{
         criticalStationIds={criticalStationIds}
         selectedPoi={selectedPoi}
         layerConfig={layerConfig}
+        refreshRevision={refreshRevision}
         flyToTarget={flyToTarget}
         forecastHour={forecastHour}
         userCoords={userLocation}
@@ -449,6 +459,7 @@ const SuperAppMain: React.FC<{
         isManager={isManager}
         connectionStatus={connectionStatus}
         lastUpdated={lastUpdated}
+        isAlertsOpen={activeDrawer === "alerts"}
         refreshData={refreshData}
         showConnectionStatus={layerConfig.showConnectionStatus}
         hasAIOverlay={hasAIOverlay}
@@ -466,14 +477,18 @@ const SuperAppMain: React.FC<{
         onStartPickOnMap={handleStartPickingOnMap}
       />
 
-      {isManager && <ManagerStationStatusBar stations={stations} alerts={alerts} />}
-      {isManager && <DemoStationControl floating />}
+      {isManager && layerConfig.showStationOverview && (
+        <ManagerStationStatusBar stations={stations} alerts={alerts} />
+      )}
+      {canUseDemoControl && (layerConfig.showDemoControl ?? true) && (
+        <DemoStationControl floating />
+      )}
 
       {/* 3. MAP LAYERS POPOVER */}
       {isLayersOpen && (
         <MapLayersPopover
           config={layerConfig}
-          onChangeConfig={setLayerConfig}
+          onChangeConfig={handleLayerConfigChange}
           onClose={() => setIsLayersOpen(false)}
         />
       )}
@@ -679,6 +694,7 @@ const AppContent: React.FC = () => {
   const [proposalLoadError, setProposalLoadError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "updating" | "disconnected">("updating");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshRevision, setRefreshRevision] = useState<number>(0);
 
   const isManager = role === "manager" || role === "admin";
 
@@ -708,6 +724,7 @@ const AppContent: React.FC = () => {
 
       setStations(Array.isArray(stationRes) ? stationRes : []);
       setAlerts(Array.isArray(alertRes) ? alertRes : []);
+      setRefreshRevision((revision) => revision + 1);
       setLoadError(null);
       setConnectionStatus("connected");
       setLastUpdated(new Date());
@@ -867,6 +884,7 @@ const AppContent: React.FC = () => {
         refreshData={refreshData}
         connectionStatus={connectionStatus}
         lastUpdated={lastUpdated}
+        refreshRevision={refreshRevision}
       />
       {specialOverlay && (
         <div
