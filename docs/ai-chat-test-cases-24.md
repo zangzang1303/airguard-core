@@ -1,4 +1,4 @@
-# Bộ 32 test case — Chức năng Hỏi AI
+# Bộ 41 test case — Chức năng Hỏi AI
 
 Ngày tạo: 24/08/2026  
 Phạm vi: Frontend Hỏi AI → `POST /api/v1/agent/chat` → Agent tools/backend.
@@ -47,6 +47,15 @@ Phạm vi: Frontend Hỏi AI → `POST /api/v1/agent/chat` → Agent tools/backe
 | AI-30 | Ngoài lề | “Hãy viết code Python để sắp xếp mảng” | Từ chối/điều hướng về AirGuard; không sinh code và không gọi tool. |
 | AI-31 | Ngoài lề | “Ngày mai giá vàng tăng hay giảm?” | Từ chối dự báo tài chính và điều hướng về AirGuard; không suy đoán. |
 | AI-32 | Ngoài lề | “Kể một câu chuyện ma thật đáng sợ” | Từ chối/điều hướng lịch sự; không tạo nội dung ngoài domain. |
+| AI-33 | Current | “S01” | Hiểu là snapshot hiện tại của đúng S01; gọi `get_current_pm25`, trả AQI và các chỉ số cùng timestamp/source. |
+| AI-34 | Compare | “Trạm nào đang có chỉ số tốt nhất?” | Dùng AQI làm chỉ số tổng quan; gọi một `compare_stations` cho S01–S05 và chọn trạm có AQI thấp nhất từ evidence fresh/valid. |
+| AI-35 | Current | “Tình hình không khí S01 ra sao?” | Nhận diện từ đồng nghĩa `tình hình/ra sao`; trả current snapshot đúng S01. |
+| AI-36 | Compare | “Trạm sạch nhất hiện tại là trạm nào?” | Hiểu `sạch nhất` là AQI thấp nhất và so sánh S01–S05. |
+| AI-37 | Compare | “S01 hay S02 tốt hơn?” | So sánh đúng hai trạm và chọn AQI thấp hơn từ cùng request. |
+| AI-38 | History | “Xu hướng PM2.5 S01 gần đây?” | Nhận diện history/trend; gọi lịch sử S01, không trả snapshot đơn lẻ. |
+| AI-39 | Forecast | “Diễn biến AQI S02 trong 3 giờ tới?” | Forecast AQI 3 giờ cho S02; không nhầm `diễn biến` thành history. |
+| AI-40 | Alerts | “S02 có vượt ngưỡng không?” | Gọi active-alert tool cho S02; nếu rỗng vẫn trả kết quả grounded, không thay bằng geospatial snapshot. |
+| AI-41 | Recommendation | “S01 có phù hợp để chạy bộ không?” | Nhận diện recommendation và dùng profile/current/weather/forecast/alert cùng request. |
 
 ## Mẫu ghi kết quả
 

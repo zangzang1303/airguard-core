@@ -42,12 +42,17 @@ interface ChatMessage {
   summary?: string;
   details?: string;
   intent?: string;
+  map_intent?: string;
   time_context?: any;
-  data_mode?: "live" | "forecast";
+  data_mode?: "simulator" | "realtime" | "live" | "forecast";
   evidence?: any;
   map_actions?: MapAction[];
   used_tools?: string[];
   proposal_created?: Proposal | null;
+  quality?: "fresh" | "stale" | "offline" | "invalid" | null;
+  failure_reason?: string | null;
+  clarification?: string | null;
+  pending?: boolean;
   isError?: boolean;
   retryQuery?: string;
   showEvidence?: boolean;
@@ -78,7 +83,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   onClose,
   mapContext,
 }) => {
-  const { role, userId, navigateTo, setPendingApprovalsCount } = useAuth();
+  const { role, userId, navigateTo, setPendingApprovalsCount, selectedStationId } = useAuth();
   const { containerProps, handleProps } = useDraggableFloatingPanel({
     panelId: "ai-chat",
     group: "drawer",
@@ -93,17 +98,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   ]);
   const [inputVal, setInputVal] = useState(initialPrompt || "");
   const [isTyping, setIsTyping] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialPromptSentRef = useRef<string | null>(null);
-
-  const recentConversation = (items: ChatMessage[]) =>
-    items
-      .filter((item) => item.id !== "msg-welcome" && !item.isError)
-      .slice(-6)
-      .map((item) => ({
-        role: item.sender === "user" ? "user" as const : "assistant" as const,
-        text: item.text.slice(0, 1200),
-      }));
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -154,20 +151,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setIsTyping(true);
 
     try {
-      // Only bind a request to a station selected in this map session. The
-      // AuthContext default (S01) is a UI default, not user intent, and must
-      // never turn an Ocean Park-wide question into an S01 question.
-      const selectedSensor = mapContext?.selected_sensor;
-      const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
-        ? selectedSensor
-        : null;
       const res: AgentResponse = await api.sendAgentMessage(
         query,
-        contextStationId,
+        selectedStationId,
         userId,
         mapContext,
-        recentConversation(messages),
+        conversationId,
       );
+      if (res.conversation_id) setConversationId(res.conversation_id);
       
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
@@ -180,10 +171,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const aiMsg: ChatMessage = {
         id: `msg-ai-${Date.now()}`,
         sender: "ai",
-        text: aiReply,
+        text: answerObj.summary || aiReply,
         summary: answerObj.summary,
         details: answerObj.details,
         intent: res.intent,
+        map_intent: res.map_intent,
         time_context: res.time_context,
         data_mode: res.data_mode,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -191,6 +183,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         evidence: res.evidence,
         map_actions: res.map_actions as MapAction[],
         proposal_created: res.proposal_created,
+        quality: res.quality,
+        failure_reason: res.failure_reason,
+        clarification: res.clarification,
+        pending: res.pending,
         showEvidence: false,
       };
 
@@ -225,17 +221,14 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setIsTyping(true);
 
     try {
-      const selectedSensor = mapContext?.selected_sensor;
-      const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
-        ? selectedSensor
-        : null;
       const res: AgentResponse = await api.sendAgentMessage(
         query,
-        contextStationId,
+        selectedStationId,
         userId,
         mapContext,
-        recentConversation(messages),
+        conversationId,
       );
+      if (res.conversation_id) setConversationId(res.conversation_id);
 
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
@@ -247,10 +240,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const aiMsg: ChatMessage = {
         id: `msg-ai-${Date.now()}`,
         sender: "ai",
-        text: aiReply,
+        text: answerObj.summary || aiReply,
         summary: answerObj.summary,
         details: answerObj.details,
         intent: res.intent,
+        map_intent: res.map_intent,
         time_context: res.time_context,
         data_mode: res.data_mode,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -258,6 +252,10 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         evidence: res.evidence,
         map_actions: res.map_actions as MapAction[],
         proposal_created: res.proposal_created,
+        quality: res.quality,
+        failure_reason: res.failure_reason,
+        clarification: res.clarification,
+        pending: res.pending,
         showEvidence: false,
       };
 
@@ -339,6 +337,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       <div className="ai-chat-messages-container" style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
         {messages.map((msg) => {
           const routeAction = getRouteAction(msg.map_actions);
+          const presentationIntent = msg.map_intent || msg.intent;
+          const isRoutePresentation = presentationIntent === "recommend_running_route"
+            || presentationIntent === "recommend_personalized_running_route";
+          const isIndoorPresentation = presentationIntent === "recommend_indoor_activity";
+          const hasDedicatedMapCard = isRoutePresentation || isIndoorPresentation;
 
           return (
             <div key={msg.id} className={`chat-bubble-wrap ${msg.sender} ${msg.isError ? "error" : ""}`} {...(msg.isError ? { role: "alert", "data-testid": "ai-error-message" } : {})}>
@@ -354,7 +357,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 )}
 
                 {/* If it's a running route recommendation (Personalized or General), render the Rich Visual Route Card */}
-                {(msg.intent === "recommend_running_route" || msg.intent === "recommend_personalized_running_route") && routeAction ? (
+                {isRoutePresentation && routeAction ? (
                   <div className="ai-route-rich-card">
                     <div className="ai-route-header-banner">
                       <div className="ai-route-header-title">
@@ -372,7 +375,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         </div>
                         <div className="ai-metric-stat-box">
                           <div className="ai-metric-stat-label">AQI</div>
-                          <div className="ai-metric-stat-val" style={{ color: "#10b981" }}>Tốt</div>
+                          <div className="ai-metric-stat-val" style={{ color: "#10b981" }}>
+                            {routeAction.aqi != null ? routeAction.aqi : "--"}
+                          </div>
                         </div>
                         <div className="ai-metric-stat-box">
                           <div className="ai-metric-stat-label">Thời gian</div>
@@ -387,7 +392,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       <div className="ai-route-timeline">
                         <div className="ai-timeline-row">
                           <div className="ai-timeline-dot"></div>
-                          <span><strong>Xuất phát:</strong> {msg.intent === "recommend_personalized_running_route" ? "Vị trí của bạn" : "Điểm xuất phát tối ưu"}</span>
+                          <span><strong>Xuất phát:</strong> {presentationIntent === "recommend_personalized_running_route" ? "Vị trí của bạn" : "Điểm xuất phát tối ưu"}</span>
                         </div>
                         <div className="ai-timeline-row">
                           <div className="ai-timeline-dot" style={{ background: "#06b6d4" }}></div>
@@ -406,7 +411,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       </button>
                     </div>
                   </div>
-                ) : msg.intent === "recommend_indoor_activity" ? (
+                ) : isIndoorPresentation ? (
                   /* Indoor Activity Pivot Card */
                   <div className="ai-route-rich-card" style={{ border: "1px solid #fecaca" }}>
                     <div className="ai-route-header-banner" style={{ background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)" }}>
@@ -448,9 +453,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 )}
 
                 {/* Interactive Map Actions Trigger Button for other inquiries */}
-                {msg.map_actions && msg.map_actions.length > 0 && msg.intent !== "recommend_running_route" && (
+                {((msg.map_actions && msg.map_actions.length > 0 && !hasDedicatedMapCard) || msg.details) && (
                   <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                    <button
+                    {msg.map_actions && msg.map_actions.length > 0 && !hasDedicatedMapCard && <button
                       onClick={() => {
                         mapActionController.clearAIOverlay();
                         mapActionController.executeAll(msg.map_actions);
@@ -470,9 +475,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       }}
                     >
                       <MapPin size={13} /> Xem trực tiếp trên bản đồ
-                    </button>
+                    </button>}
 
-                    {msg.evidence && (
+                    {(msg.evidence || msg.details) && (
                       <button
                         onClick={() => toggleEvidence(msg.id)}
                         style={{
@@ -490,7 +495,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         }}
                       >
                         <HelpCircle size={13} />
-                        {msg.showEvidence ? "Ẩn số liệu" : "Tại sao? (Bằng chứng)"}
+                        {msg.showEvidence ? "Ẩn chi tiết" : "Xem chi tiết"}
                         {msg.showEvidence ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                       </button>
                     )}
@@ -498,12 +503,15 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                 )}
 
                 {/* Collapsible Evidence Inspector */}
-                {msg.showEvidence && msg.evidence && (
+                {msg.showEvidence && (msg.details || msg.evidence) && (
                   <div style={{ marginTop: 10, padding: 10, background: "#f8fafc", borderRadius: 10, fontSize: "11px", color: "#334155", border: "1px dashed #cbd5e1" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4, color: "#0f172a" }}>📊 Dữ liệu Grounded từ Trạm / Forecast:</div>
-                    <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "10.5px", whiteSpace: "pre-wrap", maxHeight: 160, overflowY: "auto" }}>
-                      {JSON.stringify(msg.evidence, null, 2)}
-                    </pre>
+                    {msg.details && <div style={{ whiteSpace: "pre-line", lineHeight: 1.5, marginBottom: msg.evidence ? 8 : 0 }}>{renderInlineMarkdown(msg.details)}</div>}
+                    {msg.evidence && <>
+                      <div style={{ fontWeight: 700, marginBottom: 4, color: "#0f172a" }}>📊 Dữ liệu Grounded từ Trạm / Forecast:</div>
+                      <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "10.5px", whiteSpace: "pre-wrap", maxHeight: 160, overflowY: "auto" }}>
+                        {JSON.stringify(msg.evidence, null, 2)}
+                      </pre>
+                    </>}
                   </div>
                 )}
 

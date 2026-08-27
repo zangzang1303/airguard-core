@@ -14,7 +14,7 @@ Start the full local stack:
 docker compose up --build
 ```
 
-`db-migrate` applies the additive authentication, Auto Ventilation/Report, demo device mapping and UTF-8 Vietnamese
+`db-migrate` applies the additive authentication, Auto Ventilation/Report, Agent conversation memory, demo device mapping and UTF-8 Vietnamese
 station/alert repair migrations before the backend starts. Existing named volumes are preserved. To
 enable scheduled daily/weekly reports, start the async profile, which includes RabbitMQ, Redis,
 Celery worker and Celery Beat:
@@ -125,6 +125,21 @@ Get-Content -Raw backend/db/migrations/20260821_002_auto_ventilation_reports.sql
 The migration is additive and safe to re-run. It adds proposal control/review metadata, durable
 device-command ACK events and persisted environmental reports; it does not approve or dispatch any
 proposal.
+
+### Apply the Agent conversation memory migration
+
+Compose applies this additive migration through `db-migrate`. For an existing database managed
+outside Compose, apply it explicitly before enabling multi-turn chat:
+
+```powershell
+Get-Content -Raw backend/db/migrations/20260827_006_agent_conversation_memory.sql |
+  docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U airguard -d airguard
+```
+
+The table stores only owner-scoped semantic routing metadata and expiry timestamps. It does not
+store raw prompts, generated answers, environmental readings or profile data. Configure the
+sliding retention window with `AGENT_CONVERSATION_TTL_SECONDS` (default `86400`, maximum seven
+days).
 
 ### Repair Vietnamese station and alert text
 

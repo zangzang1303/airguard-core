@@ -698,7 +698,7 @@ export const api = {
     contextStationId: string | null = null,
     userId: string = "demo-user",
     mapContext?: Record<string, any>,
-    conversation?: Array<{ role: "user" | "assistant"; text: string }>,
+    conversationId?: string | null,
   ): Promise<AgentResponse> => {
     // The public Demo Day map is intentionally usable without authentication.
     // AuthContext represents that state with an empty string, so normalize it to
@@ -711,7 +711,7 @@ export const api = {
         station_id: contextStationId,
         user_id: effectiveUserId,
         map_context: mapContext,
-        conversation,
+        conversation_id: conversationId || undefined,
       }),
     });
 
@@ -721,6 +721,7 @@ export const api = {
       reply: textReply,
       answer: { summary: summaryStr, details: detailsStr },
       intent: response.intent,
+      map_intent: response.map_intent,
       time_context: response.time_context,
       data_mode: response.data_mode,
       evidence: response.evidence || response.sources || {},
@@ -729,6 +730,11 @@ export const api = {
       proposal_created: null,
       proposal_id: response.proposal_id ?? null,
       request_id: response.request_id,
+      conversation_id: response.conversation_id,
+      quality: response.quality ?? null,
+      failure_reason: response.failure_reason ?? null,
+      clarification: response.clarification ?? null,
+      pending: response.pending ?? false,
     };
   },
 

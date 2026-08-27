@@ -209,10 +209,10 @@ export const SuperMap: React.FC<SuperMapProps> = ({
         <HeatmapLayer
           activeLayer={layerConfig.activeEnvironmentalLayer}
           forecastHour={forecastHour}
+          refreshRevision={refreshRevision}
           viewMode={viewMode}
           showHeatmap={layerConfig.showHeatmap}
           showMetadata={layerConfig.showDispersionInfo}
-          refreshRevision={refreshRevision}
         />
 
         {/* Ocean Park 1 Boundary Polygon */}

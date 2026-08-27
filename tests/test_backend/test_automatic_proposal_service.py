@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 
+import pytest
+
 from backend.app.services.automatic_proposal_service import AutomaticProposalService
+from src.agents.graph import build_graph
+from src.agents.tools.contracts import ToolError, ToolErrorCode, ToolName
+from src.agents.tools.fake_adapter import FakeBackendToolClient
 
 
 class FakeAgentService:
@@ -105,10 +111,9 @@ def test_auto_proposal_station_allowlist_can_focus_demo_on_s05() -> None:
     assert service.should_analyze(alert(station_id="S03")) is False
 
 
-def test_auto_proposal_uses_live_llm_before_creating_pending_proposal() -> None:
+def test_auto_proposal_uses_one_canonical_proposal_invocation() -> None:
     agent = FakeAgentService([
-        {"trace": {"generation_mode": "live_llm", "final_outcome": "answered"}},
-        {"proposal_id": "proposal-001", "trace": {"final_outcome": "proposal_pending"}},
+        {"proposal_id": "proposal-001", "outcome": "created", "trace": {"final_outcome": "proposal_pending"}},
     ])
     audit = FakeAuditService()
     notifier = FakeNotifier()
@@ -122,10 +127,9 @@ def test_auto_proposal_uses_live_llm_before_creating_pending_proposal() -> None:
 
     service.analyze_and_propose(alert=alert(), correlation_id="corr-001")
 
-    assert len(agent.calls) == 2
+    assert len(agent.calls) == 1
     assert agent.calls[0]["station_id"] == "S02"
-    assert "Danh gia" in agent.calls[0]["message"]
-    assert "warning proposal" in agent.calls[1]["message"]
+    assert "warning proposal" in agent.calls[0]["message"]
     assert audit.records[-1]["action"] == "agent.auto_proposal.create"
     assert audit.records[-1]["details"]["proposal_id"] == "proposal-001"
     assert notifier.calls == [
@@ -138,14 +142,13 @@ def test_auto_proposal_uses_live_llm_before_creating_pending_proposal() -> None:
     ]
 
 
-def test_auto_proposal_uses_grounded_deterministic_fallback_when_live_llm_is_unavailable() -> None:
-    agent = FakeAgentService([{"trace": {"generation_mode": "deterministic_grounded"}}])
+def test_auto_proposal_audits_canonical_workflow_failure_without_notification() -> None:
+    agent = FakeAgentService([{"outcome": "failed", "trace": {"final_outcome": "failed"}}])
     audit = FakeAuditService()
-    approvals = FakeApprovalService()
     notifier = FakeNotifier()
     service = AutomaticProposalService(
         agent_service=agent,
-        approval_service=approvals,
+        approval_service=FakeApprovalService(),
         audit_service=audit,
         enabled=True,
         proposal_notifier=notifier,
@@ -154,30 +157,10 @@ def test_auto_proposal_uses_grounded_deterministic_fallback_when_live_llm_is_una
     service.analyze_and_propose(alert=alert(), correlation_id="corr-002")
 
     assert len(agent.calls) == 1
-    assert approvals.created[0]["proposed_action"] == "ventilation_boost"
-    assert approvals.created[0]["created_by"] == "ai_agent"
-    assert approvals.created[0]["evidence"]["automation"]["generation_mode"] == "deterministic_grounded"
-    assert audit.records[-1]["action"] == "agent.auto_proposal.create"
-    assert audit.records[-1]["details"]["generation_mode"] == "deterministic_grounded"
-    assert notifier.calls[0]["proposal_id"] == "eco-proposal-001"
-
-
-def test_auto_proposal_rejects_ungrounded_generation_mode() -> None:
-    agent = FakeAgentService([{"trace": {"generation_mode": "unknown"}}])
-    audit = FakeAuditService()
-    approvals = FakeApprovalService()
-    service = AutomaticProposalService(
-        agent_service=agent,
-        approval_service=approvals,
-        audit_service=audit,
-        enabled=True,
-    )
-
-    service.analyze_and_propose(alert=alert(), correlation_id="corr-ungrounded")
-
-    assert approvals.created == []
     assert audit.records[-1]["action"] == "agent.auto_proposal.skipped"
-    assert audit.records[-1]["details"]["reason"] == "grounded_generation_required"
+    assert audit.records[-1]["outcome"] == "skipped"
+    assert audit.records[-1]["details"] == {"reason": "proposal_not_created", "agent_outcome": "failed"}
+    assert notifier.calls == []
 
 
 def test_safe_recovery_creates_pending_eco_proposal_without_agent_or_dispatch() -> None:
@@ -215,8 +198,7 @@ def test_safe_recovery_creates_pending_eco_proposal_without_agent_or_dispatch() 
 def test_notification_failure_is_audited_without_losing_persisted_proposal() -> None:
     agent = FakeAgentService(
         [
-            {"trace": {"generation_mode": "live_llm", "final_outcome": "answered"}},
-            {"proposal_id": "proposal-notify-001", "trace": {"final_outcome": "proposal_pending"}},
+            {"proposal_id": "proposal-notify-001", "outcome": "created", "trace": {"final_outcome": "proposal_pending"}},
         ]
     )
     audit = FakeAuditService()
@@ -234,3 +216,113 @@ def test_notification_failure_is_audited_without_losing_persisted_proposal() -> 
     assert notifier.calls[0]["proposal_id"] == "proposal-notify-001"
     assert audit.records[-1]["action"] == "proposal.notification.failure"
     assert audit.records[-1]["outcome"] == "failure"
+
+
+class GraphAgentService:
+    """Hermetic backend-to-Agent boundary backed by the real proposal graph."""
+
+    def __init__(self, tool_client: FakeBackendToolClient) -> None:
+        self.graph = build_graph(tool_client)
+        self.calls: list[dict] = []
+        self.tool_client = tool_client
+
+    def chat_sync(self, **kwargs):
+        self.calls.append(kwargs)
+        result = asyncio.run(
+            self.graph.ainvoke(
+                {
+                    "query": kwargs["message"],
+                    "user_id": kwargs["user_id"],
+                    "context_station_id": kwargs["station_id"],
+                    "request_id": kwargs["request_id"],
+                }
+            )
+        )
+        return {
+            "proposal_id": result.get("proposal_id"),
+            "outcome": result.get("outcome"),
+            "trace": result.get("trace", {}),
+        }
+
+
+def test_auto_proposal_runs_real_grounded_workflow_once_and_creates_only_pending() -> None:
+    tool_client = FakeBackendToolClient()
+    agent = GraphAgentService(tool_client)
+    audit = FakeAuditService()
+    notifier = FakeNotifier()
+    service = AutomaticProposalService(
+        agent_service=agent,
+        approval_service=FakeApprovalService(),
+        audit_service=audit,
+        enabled=True,
+        proposal_notifier=notifier,
+    )
+
+    service.analyze_and_propose(alert=alert(), correlation_id="corr-real-workflow")
+
+    assert len(agent.calls) == 1
+    assert tool_client.created_proposals
+    assert audit.records[-1]["action"] == "agent.auto_proposal.create"
+    assert notifier.calls[0]["proposed_action"] == "ventilation_boost"
+
+
+class CurrentToolErrorAdapter(FakeBackendToolClient):
+    async def get_current_pm25(self, _payload, request_id="fixture-request"):
+        return ToolError(
+            tool_name=ToolName.GET_CURRENT_PM25,
+            code=ToolErrorCode.UNAVAILABLE,
+            message="backend unavailable",
+            request_id=request_id,
+        )
+
+
+def test_auto_proposal_real_workflow_tool_error_creates_nothing_and_audits_skip() -> None:
+    agent = GraphAgentService(CurrentToolErrorAdapter())
+    audit = FakeAuditService()
+    notifier = FakeNotifier()
+    service = AutomaticProposalService(
+        agent_service=agent,
+        approval_service=FakeApprovalService(),
+        audit_service=audit,
+        enabled=True,
+        proposal_notifier=notifier,
+    )
+
+    service.analyze_and_propose(alert=alert(), correlation_id="corr-tool-error")
+
+    assert len(agent.calls) == 1
+    assert agent.tool_client.created_proposals == []
+    assert notifier.calls == []
+    assert audit.records[-1]["action"] == "agent.auto_proposal.skipped"
+    assert audit.records[-1]["details"]["agent_outcome"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "fixtures",
+    [
+        {"alerts": {"items": []}},
+        {"current": {"S02": {"station_id": "S02", "pm25": 58.2, "aqi": 151, "co2": 1080.0, "noise_db": 78.0, "temperature": 35.2, "status": "offline", "is_stale": False, "updated_at": "2026-08-15T00:00:00+00:00", "source": "simulator"}}},
+        {"current": {"S02": {"station_id": "S02", "pm25": 58.2, "aqi": 151, "co2": 1080.0, "noise_db": 78.0, "temperature": 35.2, "status": "online", "is_stale": True, "updated_at": "2026-08-15T00:00:00+00:00", "source": "simulator"}}},
+    ],
+    ids=["no_active_alert", "offline_station", "stale_station"],
+)
+def test_auto_proposal_real_workflow_blocks_unusable_evidence_without_side_effects(fixtures) -> None:
+    tool_client = FakeBackendToolClient(fixtures)
+    agent = GraphAgentService(tool_client)
+    audit = FakeAuditService()
+    notifier = FakeNotifier()
+    service = AutomaticProposalService(
+        agent_service=agent,
+        approval_service=FakeApprovalService(),
+        audit_service=audit,
+        enabled=True,
+        proposal_notifier=notifier,
+    )
+
+    service.analyze_and_propose(alert=alert(), correlation_id="corr-unusable-evidence")
+
+    assert len(agent.calls) == 1
+    assert tool_client.created_proposals == []
+    assert notifier.calls == []
+    assert audit.records[-1]["action"] == "agent.auto_proposal.skipped"
+    assert audit.records[-1]["details"]["reason"] == "proposal_not_created"

@@ -18,7 +18,6 @@ import { AdminDashboard } from "./features/admin/AdminDashboard";
 import { ReportViewer } from "./features/admin/ReportViewer";
 
 import { SuperMap } from "./features/map/SuperMap";
-import { MapIntelligencePanels } from "./features/map/MapIntelligencePanels";
 import { mapActionController } from "./features/map/MapActionController";
 import { useAiOverlayActive } from "./features/map/useAiOverlayActive";
 import { TopFloatingBar } from "./features/navigation/TopFloatingBar";
@@ -82,7 +81,7 @@ const SuperAppMain: React.FC<{
 }) => {
   const { role, userGroup, demoMode } = useAuth();
   const isManager = role === "manager" || role === "admin";
-  const canUseDemoControl = isManager && Boolean(demoMode);
+  const canUseDemoControl = isManager && demoMode;
 
   // Active Overlay & Drawer States
   const [activeDrawer, setActiveDrawer] = useState<ActiveDrawerType>(null);
@@ -107,8 +106,6 @@ const SuperAppMain: React.FC<{
     showConnectionStatus: true,
     showStationOverview: true,
     showDispersionInfo: true,
-    showDemoControl: true,
-    showForecastTimeline: true,
   });
 
   // User Health Profile State
@@ -366,10 +363,10 @@ const SuperAppMain: React.FC<{
   // while the initial station request moves through loading/error/success.
   const [forecastHour, setForecastHour] = useState<number>(0);
   const handleLayerConfigChange = useCallback((newConfig: MapLayerConfig) => {
-    setLayerConfig(newConfig);
     if (!newConfig.showForecastTimeline) {
       setForecastHour(0);
     }
+    setLayerConfig(newConfig);
   }, []);
 
   // Cold Start Loading Skeleton
@@ -428,9 +425,9 @@ const SuperAppMain: React.FC<{
         criticalStationIds={criticalStationIds}
         selectedPoi={selectedPoi}
         layerConfig={layerConfig}
+        refreshRevision={refreshRevision}
         flyToTarget={flyToTarget}
         forecastHour={forecastHour}
-        refreshRevision={refreshRevision}
         userCoords={userLocation}
         userLocationAccuracy={userLocationAccuracy}
         userLocationName={userLocationName}
@@ -462,8 +459,8 @@ const SuperAppMain: React.FC<{
         isManager={isManager}
         connectionStatus={connectionStatus}
         lastUpdated={lastUpdated}
-        refreshData={refreshData}
         isAlertsOpen={activeDrawer === "alerts"}
+        refreshData={refreshData}
         showConnectionStatus={layerConfig.showConnectionStatus}
         hasAIOverlay={hasAIOverlay}
         onClearAIOverlay={handleClearAIOverlay}
@@ -478,12 +475,6 @@ const SuperAppMain: React.FC<{
         onSetUserLocation={handleSetUserLocation}
         onLocateGps={handleLocateGps}
         onStartPickOnMap={handleStartPickingOnMap}
-      />
-
-      <MapIntelligencePanels
-        stations={stations}
-        alerts={alerts}
-        onOpenAlerts={() => setActiveDrawer("alerts")}
       />
 
       {isManager && layerConfig.showStationOverview && (
@@ -703,7 +694,7 @@ const AppContent: React.FC = () => {
   const [proposalLoadError, setProposalLoadError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "updating" | "disconnected">("updating");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [refreshRevision, setRefreshRevision] = useState(0);
+  const [refreshRevision, setRefreshRevision] = useState<number>(0);
 
   const isManager = role === "manager" || role === "admin";
 
@@ -733,10 +724,10 @@ const AppContent: React.FC = () => {
 
       setStations(Array.isArray(stationRes) ? stationRes : []);
       setAlerts(Array.isArray(alertRes) ? alertRes : []);
+      setRefreshRevision((revision) => revision + 1);
       setLoadError(null);
       setConnectionStatus("connected");
       setLastUpdated(new Date());
-      setRefreshRevision((revision) => revision + 1);
 
       if (isManager) {
         try {

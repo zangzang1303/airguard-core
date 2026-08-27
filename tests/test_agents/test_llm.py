@@ -10,6 +10,7 @@ from src.services.llm import (
     AgentRouterClaudeClient,
     GeminiGenerateContentClient,
     LlmProviderError,
+    get_llm,
     resolve_llm_provider,
 )
 
@@ -109,6 +110,33 @@ def test_auto_provider_prefers_configured_agentrouter_claude():
     )
 
     assert resolve_llm_provider(settings) == "agentrouter"
+
+
+def test_openai_client_receives_configured_base_url(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeChatOpenAI:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+    import src.services.llm as llm_module
+
+    monkeypatch.setattr(llm_module, "ChatOpenAI", FakeChatOpenAI)
+    settings = SimpleNamespace(
+        llm_provider="openai",
+        openai_api_key="openai-key",
+        openai_base_url="https://openai-compatible.test/v1",
+        model_name="gpt-4o",
+        llm_temperature=0.2,
+        llm_timeout_seconds=6.0,
+        llm_max_tokens=280,
+        llm_max_retries=1,
+    )
+
+    get_llm(settings=settings)
+
+    assert captured["model"] == "gpt-4o"
+    assert captured["base_url"] == "https://openai-compatible.test/v1"
 
 
 @pytest.mark.asyncio

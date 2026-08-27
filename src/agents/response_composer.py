@@ -35,7 +35,7 @@ def compose_response(
     data_items = [result["data"] for result in tool_results]
     if not _passes_quality_gate(decision.intent, data_items):
         return {"answer": INSUFFICIENT_DATA_MESSAGE, "sources": [], "outcome": "insufficient_data"}
-    if decision.comparison_mode == "highest_aqi" and any(
+    if decision.comparison_mode in {"highest_aqi", "lowest_aqi"} and any(
         item.get("aqi") is None for item in data_items[0].get("items", [])
     ):
         return {"answer": INSUFFICIENT_DATA_MESSAGE, "sources": [], "outcome": "insufficient_data"}
@@ -104,15 +104,24 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
     if intent == Intent.HISTORY:
         items = data_items[0].get("items", [])
         return bool(items) and all(
-            item.get("measured_at") is not None and bool(item.get("source")) for item in items
+            item.get("measured_at") is not None
+            and bool(item.get("source"))
+            and str(item.get("status") or "online").lower() not in {"stale", "offline", "invalid"}
+            for item in items
         )
     if intent == Intent.COMPARE:
         items = data_items[0].get("items", [])
         return bool(items) and all(_measurement_is_usable(item) for item in items)
     if intent == Intent.WEATHER:
         weather = data_items[0]
-        return weather.get("is_stale") is False and any(
-            weather.get(field) is not None for field in ("temperature", "humidity", "wind_speed", "rainfall")
+        return (
+            weather.get("is_stale") is False
+            and weather.get("observed_at") is not None
+            and bool(weather.get("source"))
+            and any(
+                weather.get(field) is not None
+                for field in ("temperature", "humidity", "wind_speed", "rainfall")
+            )
         )
     if intent == Intent.FORECAST:
         forecast = data_items[0]
@@ -148,9 +157,19 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
             and bool(weather.get("source"))
         )
     if intent == Intent.RECOMMENDATION:
-        if len(data_items) != 6:
+        if len(data_items) not in {5, 6}:
             return False
-        current, weather, forecast, alerts, profile, comparison = data_items
+        current, weather, forecast, alerts, profile = data_items[:5]
+        comparison = data_items[5] if len(data_items) == 6 else None
+        profile_ok = profile.get("group") in {"normal", "sensitive", "outdoor_sport"}
+        comparison_ok = (
+            profile.get("group") != "outdoor_sport"
+            or (
+                comparison is not None
+                and bool(comparison.get("items"))
+                and all(_measurement_is_usable(item) for item in comparison.get("items", []))
+            )
+        )
         return (
             _measurement_is_usable(current)
             and weather.get("is_stale") is False
@@ -160,12 +179,11 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
             and forecast.get("is_stale") is False
             and forecast.get("freshness") in (None, "fresh", "valid")
             and isinstance(alerts.get("items"), list)
-            and profile.get("group") in {"normal", "sensitive", "outdoor_sport"}
-            and bool(comparison.get("items"))
-            and all(_measurement_is_usable(item) for item in comparison.get("items", []))
+            and profile_ok
+            and comparison_ok
         )
     if intent == Intent.PROPOSAL:
-        return _measurement_is_usable(data_items[0])
+        return _measurement_is_usable(data_items[0]) and bool(data_items[0].get("source"))
     return True
 
 
@@ -234,11 +252,16 @@ def _compose_history(data_items: list[Mapping[str, Any]]) -> str:
 
 def _compose_compare(decision: RouteDecision, data_items: list[Mapping[str, Any]]) -> str:
     items = data_items[0]["items"]
-    if decision.comparison_mode == "highest_aqi":
-        highest = max(items, key=lambda item: float(item["aqi"]))
+    if decision.comparison_mode in {"highest_aqi", "lowest_aqi"}:
+        winner = (
+            max(items, key=lambda item: float(item["aqi"]))
+            if decision.comparison_mode == "highest_aqi"
+            else min(items, key=lambda item: float(item["aqi"]))
+        )
+        qualifier = "cao nhất" if decision.comparison_mode == "highest_aqi" else "tốt nhất (AQI thấp nhất)"
         return (
-            f"Theo so sánh AQI cùng request, {highest['station_id']} cao nhất: AQI {highest['aqi']:g} "
-            f"lúc {highest['updated_at']} (nguồn {highest['source']}). {SIMULATOR_NOTICE}"
+            f"Theo so sánh AQI cùng request, {winner['station_id']} {qualifier}: AQI {winner['aqi']:g} "
+            f"lúc {winner['updated_at']} (nguồn {winner['source']}). {SIMULATOR_NOTICE}"
         )
     observations = "; ".join(
         f"{item['station_id']} = {item['pm25']:g} µg/m³ lúc {item['updated_at']} (nguồn {item['source']})"
@@ -261,9 +284,15 @@ def _compose_weather(data_items: list[Mapping[str, Any]]) -> str:
         if data["is_fallback"]
         else ""
     )
+    source_name = str(data.get("source", "")).lower()
+    simulator_notice = (
+        f" {SIMULATOR_NOTICE}"
+        if "simulator" in source_name or source_name.startswith("fixture_")
+        else ""
+    )
     return (
         f"Bối cảnh thời tiết tại {data['area_id']} lúc {data['observed_at']}: {values}. "
-        f"Nguồn: {data['source']}.{fallback_notice} {SIMULATOR_NOTICE}"
+        f"Nguồn: {data['source']}.{fallback_notice}{simulator_notice}"
     )
 
 
@@ -300,6 +329,7 @@ def _compose_alerts(data_items: list[Mapping[str, Any]]) -> str:
     items = data_items[0]["items"]
     if not items:
         return "Backend không trả về cảnh báo active nào cho bộ lọc trong request này."
+    source = items[0].get("source") or "simulator"
     alerts = "; ".join(
         f"{item['alert_id']} tại {item['station_id']} ({item['alert_type']}): severity {item['severity']}, "
         f"observed {_format_alert_value(item.get('observed_value'), item.get('unit'))}, "
@@ -307,7 +337,7 @@ def _compose_alerts(data_items: list[Mapping[str, Any]]) -> str:
         f"khuyến nghị {item.get('recommendation') or 'theo dõi theo quy trình vận hành'}, tạo lúc {item['created_at']}"
         for item in items
     )
-    return f"Cảnh báo active từ backend: {alerts}. {SIMULATOR_NOTICE}"
+    return f"Cảnh báo active từ backend (nguồn simulator/{source}): {alerts}. {SIMULATOR_NOTICE}"
 
 
 def _format_alert_value(value: Any, unit: Any) -> str:
@@ -332,7 +362,8 @@ def _compose_proposal_gate(data_items: list[Mapping[str, Any]]) -> str:
 def _compose_recommendation(
     data_items: list[Mapping[str, Any]], *, recommendation_window_limited: bool = False
 ) -> str:
-    current, weather, forecast, alerts, profile, comparison = (dict(item) for item in data_items)
+    current, weather, forecast, alerts, profile = (dict(item) for item in data_items[:5])
+    comparison = dict(data_items[5]) if len(data_items) > 5 else None
     decision, assessment = build_recommendation(
         current=current,
         alerts=alerts,
@@ -498,13 +529,24 @@ def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict
             for item in data.get("items", []):
                 sources.append(_measurement_source(tool_name, item))
         elif tool_name == "get_active_alerts":
-            for item in data.get("items", []):
+            alert_items = data.get("items", [])
+            for item in alert_items:
                 sources.append(
                     {
                         "tool_name": tool_name,
                         "station_id": item.get("station_id"),
                         "observed_at": item.get("created_at"),
                         "source": item.get("source"),
+                    }
+                )
+            if not alert_items:
+                # An empty, successful backend query is still authoritative
+                # evidence that no active alerts matched the request filter.
+                sources.append(
+                    {
+                        "tool_name": tool_name,
+                        "observed_at": None,
+                        "source": "backend_active_alerts",
                     }
                 )
         elif tool_name == "get_pm25_forecast":
