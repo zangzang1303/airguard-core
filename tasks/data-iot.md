@@ -1,8 +1,13 @@
-﻿# Công việc Dữ liệu và IoT
+
+# Công việc Dữ liệu và IoT
 
 ## Mục tiêu và phạm vi
 
 Xay dung pipeline du lieu PM2.5 gia lap cho 5 tram S01-S05: simulator -> MQTT -> consumer -> PostgreSQL. Data duoc gan `source=simulator`, co timestamp timezone, message id va station status. Du lieu invalid/stale khong duoc dung cho current, alert, forecast hay warning proposal.
+
+> Checklist triển khai, scenario, lệnh kiểm chứng và tiêu chí leader sign-off nằm tại
+> [Backend + Data/IoT Demo Completion Guide](../docs/backend-data-iot-demo-completion.md).
+> Một service/file tồn tại chỉ xác nhận `Implemented`; `Verified` yêu cầu trace runtime và evidence.
 
 ## Thứ tự thực hiện
 
@@ -162,3 +167,22 @@ Xay dung pipeline du lieu PM2.5 gia lap cho 5 tram S01-S05: simulator -> MQTT ->
 | DI-005 | `docker-compose.yml`, `backend/db/schema.sql` | `services/mqtt-consumer/main.py`, Dockerfile, requirements | pipeline integration test |
 | DI-006 | - | `services/device-simulator/` | command contract, HITL/audit test |
 | DI-007 | `backend/app/main.py` | `backend/app/services/weather_service.py` | weather contract and fallback test |
+## Trạng thái triển khai hiện tại
+
+Pipeline chính đã có implementation nền, nhưng chưa được ký xác nhận demo-ready:
+
+| Hạng mục | Trạng thái | File chính |
+|---|---|---|
+| DI-001 | Đã có station catalog dùng chung và seed idempotent | `data/stations.json`, `backend/db/schema.sql` |
+| DI-002 | Đã có simulator đọc catalog, publish measurement/status, hỗ trợ scenario demo và run-scoped message ID | `services/sensor-simulator/sensor_simulator.py` |
+| DI-003 | Đã có status topic và persistence `station_status` | `services/mqtt-consumer/mqtt_consumer/main.py`, `backend/db/schema.sql` |
+| DI-004 | Đã có validator/reason taxonomy và test unit cho reason chính | `services/mqtt-consumer/mqtt_consumer/validator.py`, `tests/test_iot/test_validator.py` |
+| DI-005 | Đã có consumer container, retry reconnect, manual MQTT ack sau persistence, persist measurement/status/rejection | `services/mqtt-consumer/`, `docker-compose.yml` |
+| DI-006 | Đã có device simulator, command validation, simulated ack và consumer device-status persistence; cần runtime evidence | `services/device-simulator/`, `services/mqtt-consumer/` |
+| DI-007 | Có fallback được gắn nhãn; chưa có provider/cache/failure matrix | `backend/app/services/weather_service.py` |
+
+Ghi chú kiểm chứng ngày 08/08/2026: compile đã pass và `docker compose config` hợp lệ. Full
+`pytest` chưa chạy vì interpreter hiện tại thiếu `pytest-asyncio`; Docker daemon chưa chạy nên chưa
+có trace MQTT -> consumer -> PostgreSQL -> API. DI-006 vẫn chưa có implementation.
+
+

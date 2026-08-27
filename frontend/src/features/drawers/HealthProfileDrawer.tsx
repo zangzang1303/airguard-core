@@ -1,0 +1,200 @@
+import React, { useState } from "react";
+import { X, Check, LogOut, Mail, Building, ShieldCheck } from "lucide-react";
+import { HealthProfile } from "../../types/superApp";
+import { useAuth } from "../../context/AuthContext";
+import { useDraggableFloatingPanel } from "../floating";
+
+interface HealthProfileDrawerProps {
+  profile: HealthProfile;
+  onUpdateProfile: (updated: HealthProfile) => void;
+  onClose: () => void;
+}
+
+export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
+  profile,
+  onUpdateProfile,
+  onClose,
+}) => {
+  const { userName, userEmail, role, organization, logout, updateProfile } = useAuth();
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "health-profile",
+    group: "drawer",
+  });
+
+  const [formData, setFormData] = useState<HealthProfile>(profile);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const SENSITIVITY_GROUPS: { id: HealthProfile["sensitivityGroup"]; label: string; desc: string; emoji: string }[] = [
+    { id: "normal", label: "Cư dân thông thường", desc: "Khuyến nghị chung theo dữ liệu môi trường.", emoji: "🏃" },
+    { id: "sensitive", label: "Nhóm nhạy cảm", desc: "Ưu tiên cảnh báo sớm và khuyến nghị thận trọng.", emoji: "🌿" },
+    { id: "outdoor_sport", label: "Hoạt động ngoài trời", desc: "Ưu tiên thời điểm và khu vực vận động phù hợp.", emoji: "🚴" },
+  ];
+
+  const ACTIVITIES = [
+    { id: "running", label: "Chạy bộ (Running)" },
+    { id: "walking", label: "Đi dạo ven hồ (Walking)" },
+    { id: "cycling", label: "Đạp xe (Cycling)" },
+    { id: "kids_park", label: "Khu vui chơi trẻ em (Kids Park)" },
+    { id: "bbq", label: "Nướng BBQ dã ngoại" },
+  ];
+
+  const handleSave = async () => {
+    setSaveError(null);
+    setSaving(true);
+    const result = await updateProfile({ userGroup: formData.sensitivityGroup });
+    setSaving(false);
+    if (!result.success) {
+      setSaveError(result.message || "Không thể lưu nhóm sức khỏe.");
+      return;
+    }
+    onUpdateProfile({ ...profile, sensitivityGroup: formData.sensitivityGroup });
+    setSavedSuccess(true);
+    setTimeout(() => {
+      setSavedSuccess(false);
+      onClose();
+    }, 800);
+  };
+
+  const roleLabel = role === "resident" ? "Cư dân" : role === "manager" ? "Manager BQL" : "Admin";
+
+  return (
+    <aside {...containerProps} className="contextual-drawer right-drawer health-profile-drawer">
+      <div className="drawer-header-bar">
+        <div className="drawer-title-group" {...handleProps}>
+          <div className="badge-tag">Tài khoản & Cá nhân hóa</div>
+          <h2 className="drawer-main-title">Hồ sơ người dùng</h2>
+        </div>
+        <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng hồ sơ">
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="drawer-scroll-body">
+        {saveError && <div className="drawer-inline-error" role="alert">{saveError}</div>}
+        {/* User Account Card */}
+        <div className="user-account-card" style={{ padding: "14px 16px", background: "linear-gradient(135deg, #1e293b, #0f172a)", color: "#fff", borderRadius: "12px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ width: "42px", height: "42px", borderRadius: "50%", background: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "1.1rem" }}>
+              {userName ? userName.charAt(0) : "U"}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: "1rem" }}>{userName || "Người dùng AirGuard"}</div>
+              <div style={{ fontSize: "0.8rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: "4px" }}>
+                <Mail size={12} /> {userEmail}
+              </div>
+            </div>
+            <span style={{ padding: "3px 8px", borderRadius: "12px", background: role === "resident" ? "#10b981" : role === "manager" ? "#f59e0b" : "#6366f1", fontSize: "0.72rem", fontWeight: 700 }}>
+              {roleLabel}
+            </span>
+          </div>
+          <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: "0.78rem", color: "#cbd5e1", display: "flex", alignItems: "center", gap: "6px" }}>
+            <Building size={13} /> Organization: {organization || "Vinhomes Ocean Park 1"}
+          </div>
+        </div>
+
+        {/* Grounding notice: the frontend does not calculate personal exposure. */}
+        <div className="exposure-summary-card">
+          <div className="exposure-header">
+            <ShieldCheck size={18} className="heart-icon" />
+            <span>Cá nhân hóa có kiểm chứng</span>
+          </div>
+          <p className="exposure-note">
+            Hồ sơ này chỉ được dùng làm ngữ cảnh. Mức phơi nhiễm và khuyến nghị chỉ hiển thị khi Agent có dữ liệu môi trường cùng bằng chứng backend; giao diện không tự tính điểm an toàn.
+          </p>
+        </div>
+
+        {/* Sensitivity Group Selection */}
+        <div className="form-section-group">
+          <label className="section-form-label">Nhóm khuyến nghị môi trường:</label>
+          <div className="sensitivity-options-list">
+            {SENSITIVITY_GROUPS.map((grp) => (
+              <div
+                key={grp.id}
+                className={`sensitivity-item-card ${formData.sensitivityGroup === grp.id ? "selected" : ""}`}
+                onClick={() => setFormData({ ...formData, sensitivityGroup: grp.id })}
+              >
+                <span className="grp-emoji">{grp.emoji}</span>
+                <div className="grp-text">
+                  <div className="grp-title">{grp.label}</div>
+                  <div className="grp-desc">{grp.desc}</div>
+                </div>
+                {formData.sensitivityGroup === grp.id && <Check size={16} className="grp-check" />}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Interests & Activities */}
+        <div className="form-section-group">
+          <label className="section-form-label">Hoạt động ngoài trời bạn quan tâm:</label>
+          <p className="exposure-note">Chưa có API lưu sở thích; các lựa chọn này chỉ được hiển thị để mô tả tính năng dự kiến.</p>
+          <div className="interests-pills-wrap">
+            {ACTIVITIES.map((act) => {
+              const isSelected = formData.interests.includes(act.id);
+              return (
+                <button
+                  key={act.id}
+                  type="button"
+                  className={`interest-chip-btn ${isSelected ? "selected" : ""}`}
+                  disabled
+                  title="Chưa có API lưu sở thích"
+                >
+                  {act.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Notification Settings */}
+        <div className="form-section-group">
+          <label className="section-form-label">Cài đặt thông báo môi trường:</label>
+          <p className="exposure-note">Chưa có API lưu tùy chọn notification; thay đổi tại đây đã được khóa để tránh báo lưu giả.</p>
+          <div className="settings-toggle-list">
+            <label className="setting-toggle-row">
+              <span>Nhận cảnh báo khẩn do backend phát hành</span>
+              <input
+                type="checkbox"
+                checked={formData.alertPushEnabled}
+                disabled
+              />
+            </label>
+            <label className="setting-toggle-row">
+              <span>Bản tin tổng hợp thời tiết sáng (07:00)</span>
+              <input
+                type="checkbox"
+                checked={formData.dailyDigestEnabled}
+                disabled
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="drawer-footer-actions" style={{ display: "flex", gap: "8px", justifyContent: "space-between" }}>
+        <button
+          className="action-pill-btn danger"
+          onClick={() => {
+            onClose();
+            logout();
+          }}
+          style={{ background: "#ef4444", color: "#fff" }}
+        >
+          <LogOut size={15} />
+          <span>Đăng xuất</span>
+        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button className="action-pill-btn secondary" onClick={onClose}>
+            Hủy
+          </button>
+          <button className="action-pill-btn primary" onClick={handleSave} disabled={saving}>
+            {saving ? "Đang lưu..." : savedSuccess ? "Đã lưu!" : "Lưu hồ sơ"}
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+};
+

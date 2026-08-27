@@ -47,6 +47,20 @@ Xay dung Agent co tool calling de giai thich PM2.5, so sanh tram, tham chieu wea
 
 **Hoàn thành khi:** evaluator co the doi chieu moi environmental fact voi tool payload cua cung request.
 
+### AI-002 - Phan ra va trang thai implementation (04/08/2026)
+
+- [x] Policy va system prompt: tach observation/inference/recommendation, cam invent environmental fact.
+- [x] Intent router: current, history, compare, weather, forecast, spatial, alert, profile, proposal va out-of-scope.
+- [x] Validated arguments: chi trich station/hour/user id allow-list; adapter AI-001 validate lan cuoi truoc HTTP.
+- [x] Graph: `route -> execute_tools -> compose -> trace`; direct response chi cho greeting/clarification/scope/safety.
+- [x] Composer va quality gate: station/time/source/used_tools; block tool error, no-data, stale, invalid, offline.
+- [x] Safety: medical diagnosis, emergency claim, device control, injection va bypass HITL.
+- [x] Trace/API: request id, intent, tool status/latency, outcome, redaction va response contract co sources.
+- [x] Regression tests: `tests/test_agents/test_grounding.py` va API correlation/response contract.
+
+Gioi han co chu dich: AI-002 chi route proposal va thu thap evidence read-only; create proposal/eligibility
+la AI-005, nen graph khong goi `create_warning_proposal` trong task nay.
+
 ## AI-003 - Khuyến nghị theo nhóm người dùng
 
 **Mục tiêu:** ca nhan hoa khuyen nghi an toan cho `normal`, `sensitive`, `outdoor_sport`.

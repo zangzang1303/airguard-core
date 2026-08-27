@@ -4,6 +4,11 @@
 
 Xay dung FastAPI la system of record cho station, measurement, alert, approval va audit. Backend la cua vao duy nhat cho Frontend va AI Agent; MQTT Consumer dung service ingestion noi bo. Agent khong truy cap PostgreSQL truc tiep va khong co quyen publish MQTT.
 
+> Checklist triển khai, lệnh kiểm chứng và tiêu chí leader sign-off nằm tại
+> [Backend + Data/IoT Demo Completion Guide](../docs/backend-data-iot-demo-completion.md).
+> Cột "Hoàn thành" bên dưới mô tả code đã có; chỉ được coi là demo-ready sau khi cột `Verified`
+> trong guide có evidence runtime.
+
 ## Thứ tự thực hiện
 
 `BE-001 -> BE-002 -> BE-003 -> BE-004 -> BE-005 -> BE-006 -> BE-007`.
@@ -163,3 +168,22 @@ Xay dung FastAPI la system of record cho station, measurement, alert, approval v
 | BE-005 | `backend/app/services/approval_service.py` | `backend/app/api/approvals.py`, `backend/app/repositories/approvals.py` | `tests/test_api/test_approvals.py`, `specs/api-contracts.md` |
 | BE-006 | `backend/db/schema.sql` | `backend/app/services/audit_service.py`, `backend/app/repositories/audit_logs.py` | `tests/test_services/test_audit.py`, `docs/observability.md` |
 | BE-007 | `backend/app/celery_app.py`, `backend/app/tasks/*.py` | `backend/app/services/job_service.py` | `tests/test_api/test_jobs.py`, `docs/test-plan.md` |
+## Trạng thái triển khai hiện tại
+
+Backend MVP theo BE-001..BE-007 đã có implementation nền, nhưng chưa được ký xác nhận demo-ready:
+
+| Task | Trạng thái | File chính |
+|---|---|---|
+| BE-001 | Hoàn thành implementation: app startup, CORS env, `/health`, `/ready`, request id middleware, error envelope và Compose healthcheck | `backend/app/main.py`, `backend/app/core.py`, `docker-compose.yml` |
+| BE-002 | Hoàn thành: station/current/history đọc PostgreSQL, stale/offline gate, schema và seed idempotent | `backend/app/services/station_service.py`, `backend/db/schema.sql` |
+| BE-003 | Hoàn thành: schema ingestion, validation timezone/range/source, idempotent insert, duplicate response | `backend/app/schemas/measurements.py`, `backend/app/services/ingestion_service.py` |
+| BE-004 | Hoàn thành implementation: versioned thresholds, consecutive gate, `sensor_offline`, dedupe, resolve và audit | `backend/app/services/alert_engine.py`, `backend/db/schema.sql` |
+| BE-005 | Hoàn thành: approval create/list/detail, manager-only approve/reject, optimistic version, command intent | `backend/app/services/approval_service.py`, `backend/app/main.py` |
+| BE-006 | Hoàn thành: audit service, manager query API, append-only DB trigger, metadata redaction | `backend/app/services/audit_service.py`, `backend/db/schema.sql` |
+| BE-007 | Hoàn thành ở mức MVP: job registry/status endpoint giữ idempotency; Celery optional, trả 503 nếu dependency thiếu | `backend/app/services/job_service.py`, `backend/app/main.py`, `backend/app/tasks/*.py` |
+
+Ghi chú kiểm chứng ngày 08/08/2026: compile, API smoke và service smoke đã pass; frontend build
+và `docker compose config` cũng pass. Full `pytest` chưa chạy vì interpreter hiện tại thiếu
+`pytest-asyncio`; Docker daemon chưa chạy nên chưa có PostgreSQL/consumer/API end-to-end evidence.
+Không dùng bảng implementation ở trên để thay cho release sign-off.
+
