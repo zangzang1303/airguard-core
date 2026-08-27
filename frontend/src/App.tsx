@@ -67,6 +67,7 @@ const SuperAppMain: React.FC<{
   refreshData: () => Promise<void>;
   connectionStatus: "connected" | "updating" | "disconnected";
   lastUpdated: Date | null;
+  refreshRevision: number;
 }> = ({
   stations,
   alerts,
@@ -77,9 +78,11 @@ const SuperAppMain: React.FC<{
   refreshData,
   connectionStatus,
   lastUpdated,
+  refreshRevision,
 }) => {
-  const { role, userGroup } = useAuth();
+  const { role, userGroup, demoMode } = useAuth();
   const isManager = role === "manager" || role === "admin";
+  const canUseDemoControl = isManager && Boolean(demoMode);
 
   // Active Overlay & Drawer States
   const [activeDrawer, setActiveDrawer] = useState<ActiveDrawerType>(null);
@@ -96,7 +99,7 @@ const SuperAppMain: React.FC<{
     activeEnvironmentalLayer: "aqi",
     viewMode: "heatmap",
     showBoundary: true,
-    showPlaces: true,
+    showPlaces: false,
     showSensors: true,
     showHeatmap: true,
     showWindVectors: true,
@@ -104,6 +107,8 @@ const SuperAppMain: React.FC<{
     showConnectionStatus: true,
     showStationOverview: true,
     showDispersionInfo: true,
+    showDemoControl: true,
+    showForecastTimeline: true,
   });
 
   // User Health Profile State
@@ -360,6 +365,12 @@ const SuperAppMain: React.FC<{
   // Hooks must run before every conditional return so the order stays stable
   // while the initial station request moves through loading/error/success.
   const [forecastHour, setForecastHour] = useState<number>(0);
+  const handleLayerConfigChange = useCallback((newConfig: MapLayerConfig) => {
+    setLayerConfig(newConfig);
+    if (!newConfig.showForecastTimeline) {
+      setForecastHour(0);
+    }
+  }, []);
 
   // Cold Start Loading Skeleton
   if (loading && stations.length === 0) {
@@ -419,6 +430,7 @@ const SuperAppMain: React.FC<{
         layerConfig={layerConfig}
         flyToTarget={flyToTarget}
         forecastHour={forecastHour}
+        refreshRevision={refreshRevision}
         userCoords={userLocation}
         userLocationAccuracy={userLocationAccuracy}
         userLocationName={userLocationName}
@@ -451,6 +463,7 @@ const SuperAppMain: React.FC<{
         connectionStatus={connectionStatus}
         lastUpdated={lastUpdated}
         refreshData={refreshData}
+        isAlertsOpen={activeDrawer === "alerts"}
         showConnectionStatus={layerConfig.showConnectionStatus}
         hasAIOverlay={hasAIOverlay}
         onClearAIOverlay={handleClearAIOverlay}
@@ -473,14 +486,18 @@ const SuperAppMain: React.FC<{
         onOpenAlerts={() => setActiveDrawer("alerts")}
       />
 
-      {isManager && <ManagerStationStatusBar stations={stations} alerts={alerts} />}
-      {isManager && <DemoStationControl floating />}
+      {isManager && layerConfig.showStationOverview && (
+        <ManagerStationStatusBar stations={stations} alerts={alerts} />
+      )}
+      {canUseDemoControl && (layerConfig.showDemoControl ?? true) && (
+        <DemoStationControl floating />
+      )}
 
       {/* 3. MAP LAYERS POPOVER */}
       {isLayersOpen && (
         <MapLayersPopover
           config={layerConfig}
-          onChangeConfig={setLayerConfig}
+          onChangeConfig={handleLayerConfigChange}
           onClose={() => setIsLayersOpen(false)}
         />
       )}
@@ -686,6 +703,7 @@ const AppContent: React.FC = () => {
   const [proposalLoadError, setProposalLoadError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "updating" | "disconnected">("updating");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshRevision, setRefreshRevision] = useState(0);
 
   const isManager = role === "manager" || role === "admin";
 
@@ -718,6 +736,7 @@ const AppContent: React.FC = () => {
       setLoadError(null);
       setConnectionStatus("connected");
       setLastUpdated(new Date());
+      setRefreshRevision((revision) => revision + 1);
 
       if (isManager) {
         try {
@@ -874,6 +893,7 @@ const AppContent: React.FC = () => {
         refreshData={refreshData}
         connectionStatus={connectionStatus}
         lastUpdated={lastUpdated}
+        refreshRevision={refreshRevision}
       />
       {specialOverlay && (
         <div

@@ -24,6 +24,7 @@ interface SuperMapProps {
   layerConfig: MapLayerConfig;
   flyToTarget: [number, number] | null;
   forecastHour?: number;
+  refreshRevision?: number;
   userCoords?: [number, number];
   userLocationAccuracy?: number | null;
   userLocationName?: string;
@@ -85,7 +86,7 @@ const DraggableLegendOverlay: React.FC<{ metric?: any }> = ({ metric }) => {
 
   return (
     <div {...containerProps} className="map-legend-overlay">
-      <AqiLegend showStationStatus={true} metric={metric} headerProps={handleProps} />
+      <AqiLegend showStationStatus={false} metric={metric} headerProps={handleProps} />
     </div>
   );
 };
@@ -136,6 +137,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
   layerConfig,
   flyToTarget,
   forecastHour = 0,
+  refreshRevision = 0,
   userCoords,
   userLocationAccuracy,
   userLocationName,
@@ -210,6 +212,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           viewMode={viewMode}
           showHeatmap={layerConfig.showHeatmap}
           showMetadata={layerConfig.showDispersionInfo}
+          refreshRevision={refreshRevision}
         />
 
         {/* Ocean Park 1 Boundary Polygon */}
@@ -257,12 +260,12 @@ export const SuperMap: React.FC<SuperMapProps> = ({
       )}
 
       {/* Accessible Map Legend Overlay (Bottom Right — Only in markers view mode when heatmap is NOT active) */}
-      {(
+      {viewMode === "markers" && !layerConfig.showHeatmap && (
         <DraggableLegendOverlay metric={layerConfig.activeEnvironmentalLayer} />
       )}
 
       {/* Floating Map Forecast Timeline Control Dock (Bottom Center) */}
-      {onForecastHourChange && viewMode === "heatmap" && (
+      {onForecastHourChange && viewMode === "heatmap" && (layerConfig.showForecastTimeline ?? true) && (
         <DraggableTimelineDock
           forecastHour={forecastHour}
           onForecastHourChange={onForecastHourChange}
