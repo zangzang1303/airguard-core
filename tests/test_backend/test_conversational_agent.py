@@ -22,6 +22,9 @@ from backend.app.services.conversational_agent_service import ConversationalAgen
         ("bạn làm được gì?", "social", "capabilities"),
         ("Bạn có thể giúp gì cho tôi?", "social", "capabilities"),
         ("Bạn giúp tôi được gì", "social", "capabilities"),
+        ("ngoài chạy bộ có thể làm gì khác ko", "social", "capabilities"),
+        ("ngoài chạy bộ bạn làm được gì", "social", "capabilities"),
+        ("bạn có thể làm gì khác không", "social", "capabilities"),
         ("tạm biệt", "social", "farewell"),
     ],
 )

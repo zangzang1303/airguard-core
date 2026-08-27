@@ -66,6 +66,9 @@ class StaleWeatherAdapter(FakeBackendToolClient):
         ("Hôm nay bạn thế nào?", "wellbeing"),
         ("bạn làm được gì?", "capabilities"),
         ("Bạn có thể giúp gì cho tôi?", "capabilities"),
+        ("ngoài chạy bộ có thể làm gì khác ko", "capabilities"),
+        ("ngoài chạy bộ bạn làm được gì", "capabilities"),
+        ("bạn có thể làm gì khác không", "capabilities"),
         ("tạm biệt", "farewell"),
     ],
 )

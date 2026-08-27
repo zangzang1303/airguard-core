@@ -105,6 +105,65 @@ def _contains_any(query: str, phrases: tuple[str, ...]) -> bool:
     return any(phrase in query for phrase in phrases)
 
 
+CAPABILITIES_RESPONSE = (
+    "Mình hỗ trợ AQI/trạm hiện tại, so sánh trạm, dự báo baseline 1–3 giờ, cảnh báo, "
+    "gợi ý lộ trình chạy bộ và khuyến nghị grounded từ dữ liệu demo/mô phỏng. "
+    "AirGuard không dự báo dài hạn, chẩn đoán hay điều khiển thiết bị."
+)
+
+
+def _is_capability_query(query: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9\s]", " ", _plain(query))
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    capabilities = {
+        "ban la ai",
+        "airguard la gi",
+        "ban lam duoc gi",
+        "ban lam duoc nhung gi",
+        "ban co the lam gi",
+        "ban co the lam duoc gi",
+        "ban co the lam duoc nhung gi",
+        "ban co the giup gi cho toi",
+        "ban giup toi duoc gi",
+        "ban co the ho tro gi",
+        "ban giup duoc gi",
+        "ban giup gi",
+        "lam duoc gi",
+        "giup duoc gi",
+        "chuc nang cua ban",
+        "what can you do",
+        "who are you",
+    }
+    if normalized in capabilities:
+        return True
+    if re.search(
+        r"\b(?:ngoai|tru)\s+(?:chay\s*bo|chay|di\s*bo|cung\s*duong|lo\s*trinh|ban\s*do|thoi\s*tiet|aqi|pm25)?.*?\b(?:lam\s*(?:duoc\s*)?gi|co\s*the\s*lam\s*gi|giup\s*(?:duoc\s*)?gi|chuc\s*nang\s*gi|tinh\s*nang\s*gi|ho\s*tro\s*gi|con\s*gi\s*khac|gi\s*khac|lam\s*gi\s*khac)\b",
+        normalized,
+    ):
+        return True
+    if re.search(
+        r"\b(?:co\s*the\s*lam\s*gi\s*khac|lam\s*duoc\s*gi\s*khac|giup\s*duoc\s*gi\s*khac|chuc\s*nang\s*gi\s*khac|tinh\s*nang\s*gi\s*khac|con\s*lam\s*(?:duoc\s*)?gi|con\s*gi\s*khac|con\s*tinh\s*nang\s*gi|con\s*chuc\s*nang\s*gi)\b",
+        normalized,
+    ):
+        return True
+    if re.search(
+        r"\b(?:ban|airguard|bot|ai|tro\s*ly)\s+(?:la\s*ai|la\s*gi|lam\s*duoc\s*gi|co\s*the\s*lam\s*gi|co\s*the\s*giup\s*gi|giup\s*duoc\s*gi|ho\s*tro\s*duoc\s*gi|co\s*chuc\s*nang\s*gi|co\s*tinh\s*nang\s*gi|biet\s*lam\s*gi)\b",
+        normalized,
+    ):
+        return True
+    if re.search(
+        r"\b(?:chuc\s*nang|tinh\s*nang|kha\s*nang)\s+cua\s+(?:ban|airguard|bot|ai|tro\s*ly|he\s*thong|app)\b",
+        normalized,
+    ):
+        return True
+    if re.search(
+        r"\b(?:huong\s*dan\s*su\s*dung|cach\s*su\s*dung|dung\s*de\s*lam\s*gi|ung\s*dung\s*nay\s*dung\s*de\s*lam\s*gi)\b",
+        normalized,
+    ):
+        return True
+    return False
+
+
 def _social_decision(query: str) -> RouteDecision | None:
     # Strip punctuation only for social matching. The domain router continues
     # to see decimal metric names such as PM2.5 unchanged.
@@ -152,19 +211,6 @@ def _social_decision(query: str) -> RouteDecision | None:
         "airguard co khoe khong",
     }
     identity = {"ban bao nhieu tuoi", "ban may tuoi", "airguard bao nhieu tuoi", "airguard may tuoi"}
-    capabilities = {
-        "ban la ai",
-        "airguard la gi",
-        "ban lam duoc gi",
-        "ban co the lam gi",
-        "ban co the giup gi cho toi",
-        "ban giup toi duoc gi",
-        "ban co the ho tro gi",
-        "ban giup duoc gi",
-        "chuc nang cua ban",
-        "what can you do",
-        "who are you",
-    }
     if normalized in greetings:
         kind = "greeting"
         response = (
@@ -185,13 +231,9 @@ def _social_decision(query: str) -> RouteDecision | None:
     elif normalized in identity:
         kind = "identity"
         response = "Mình là trợ lý AI nên không có tuổi như con người. Mình có thể hỗ trợ các câu hỏi AirGuard."
-    elif normalized in capabilities:
+    elif _is_capability_query(normalized):
         kind = "capabilities"
-        response = (
-            "Mình hỗ trợ AQI/trạm hiện tại, so sánh trạm, dự báo baseline 1–3 giờ, cảnh báo và "
-            "khuyến nghị grounded từ dữ liệu demo/mô phỏng. Mình không dự báo dài hạn, chẩn đoán "
-            "hay điều khiển thiết bị."
-        )
+        response = CAPABILITIES_RESPONSE
     else:
         return None
     intent = Intent.GREETING if kind == "greeting" else Intent.SOCIAL
@@ -200,6 +242,11 @@ def _social_decision(query: str) -> RouteDecision | None:
 
 def _has_explicit_domain_request(query: str) -> bool:
     """Recognize an environmental request without treating UI context as one."""
+    if _is_capability_query(query):
+        has_station = bool(re.search(r"\bS0[1-5]\b", query.upper()))
+        has_metric = _contains_any(query, ("pm2.5", "pm25", "aqi", "co2", "nhiet do", "tieng on", "canh bao", "du bao"))
+        if not (has_station and has_metric):
+            return False
     return bool(re.search(r"\bS0[1-5]\b", query.upper())) or _contains_any(
         query,
         (
