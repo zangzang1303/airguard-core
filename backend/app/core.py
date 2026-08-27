@@ -25,7 +25,6 @@ class Settings:
     temperature_critical_threshold: float
     agent_service_url: str
     agent_service_timeout_seconds: float
-    agent_conversation_ttl_seconds: int
     auto_proposal_enabled: bool
     resident_alert_notifications_enabled: bool
     resident_alert_notification_cooldown_seconds: int
@@ -93,13 +92,6 @@ class Settings:
         agent_timeout = float(os.getenv("AGENT_SERVICE_TIMEOUT_SECONDS", "8"))
         if agent_timeout <= 0:
             raise ValueError("AGENT_SERVICE_TIMEOUT_SECONDS must be positive")
-        agent_conversation_ttl_seconds = int(
-            os.getenv("AGENT_CONVERSATION_TTL_SECONDS", "86400")
-        )
-        if not 300 <= agent_conversation_ttl_seconds <= 604800:
-            raise ValueError(
-                "AGENT_CONVERSATION_TTL_SECONDS must be between 300 and 604800"
-            )
         auto_proposal_raw = os.getenv("AUTO_PROPOSAL_ENABLED", "true").strip().lower()
         if auto_proposal_raw not in {"true", "false"}:
             raise ValueError("AUTO_PROPOSAL_ENABLED must be true or false")
@@ -220,7 +212,6 @@ class Settings:
             temperature_critical_threshold=temperature_critical,
             agent_service_url=os.getenv("AGENT_SERVICE_URL", "http://localhost:8001").rstrip("/"),
             agent_service_timeout_seconds=agent_timeout,
-            agent_conversation_ttl_seconds=agent_conversation_ttl_seconds,
             auto_proposal_enabled=auto_proposal_raw == "true",
             resident_alert_notifications_enabled=resident_alert_notifications_raw == "true",
             resident_alert_notification_cooldown_seconds=resident_alert_notification_cooldown_seconds,

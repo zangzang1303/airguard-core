@@ -15,13 +15,6 @@ class ConversationDecision:
     fallback_response: str
 
 
-CAPABILITIES_RESPONSE = (
-    "Mình hỗ trợ AQI/trạm hiện tại, so sánh trạm, dự báo baseline 1–3 giờ, cảnh báo, "
-    "gợi ý lộ trình chạy bộ và khuyến nghị grounded từ dữ liệu demo/mô phỏng. "
-    "AirGuard không dự báo dài hạn, chẩn đoán hay điều khiển thiết bị."
-)
-
-
 class ConversationalAgentService:
     """Fail-closed conversation gate in front of the geospatial engine.
 
@@ -75,12 +68,6 @@ class ConversationalAgentService:
         "airguard khoe khong",
         "airguard co khoe khong",
     }
-    _IDENTITY = {
-        "ban bao nhieu tuoi",
-        "ban may tuoi",
-        "airguard bao nhieu tuoi",
-        "airguard may tuoi",
-    }
     _CAPABILITIES = {
         "ban la ai",
         "airguard la gi",
@@ -114,26 +101,15 @@ class ConversationalAgentService:
         "nhiet do",
         "thoi tiet",
         "mua",
+        "bao",
         "do am",
         "nang",
         "gio",
         "tram",
         "sensor",
         "canh bao",
-        "vuot nguong",
-        "bat thuong",
-        "co van de",
         "du bao",
-        "du kien",
-        "sap toi",
-        "gio nua",
-        "tiep theo",
         "hien tai",
-        "ra sao",
-        "tinh hinh",
-        "gan day",
-        "dien bien",
-        "thay doi",
         "toi nay",
         "chieu nay",
         "sang nay",
@@ -149,15 +125,6 @@ class ConversationalAgentService:
         "lo trinh",
         "tuyen duong",
         "so sanh",
-        "doi chieu",
-        "tot hon",
-        "sach hon",
-        "on hon",
-        "it o nhiem hon",
-        "tram tot nhat",
-        "tram on nhat",
-        "tram sach nhat",
-        "tram o nhiem nhat",
         "khu vuc",
         "dia diem",
         "sapphire",
@@ -184,6 +151,10 @@ class ConversationalAgentService:
         "phe duyet",
         "manager",
         "thong gio",
+        # A person can ask for cautious advice by naming their group without
+        # repeating an AQI/running keyword.  This only admits the request to
+        # the Agent; the Agent still obtains the authoritative group from the
+        # backend profile in the same request.
         "nhom nhay cam",
         "nhay cam",
         "sensitive group",
@@ -197,6 +168,7 @@ class ConversationalAgentService:
         "toi nay",
         "hom nay",
         "bay gio",
+        "bao nhieu",
         "co tot",
         "co nen",
     )
@@ -211,8 +183,8 @@ class ConversationalAgentService:
         "doan duong",
     )
     _OUT_OF_SCOPE_SIGNALS = (
+        "thuoc",
         "uong thuoc",
-        "thuoc gi",
         "kham benh",
         "bac si",
         "chua benh",
@@ -244,37 +216,6 @@ class ConversationalAgentService:
     )
 
     @classmethod
-    def _is_capability_query(cls, plain: str, social_plain: str) -> bool:
-        if social_plain in cls._CAPABILITIES:
-            return True
-        if re.search(
-            r"\b(?:ngoai|tru)\s+(?:chay\s*bo|chay|di\s*bo|cung\s*duong|lo\s*trinh|ban\s*do|thoi\s*tiet|aqi|pm25)?.*?\b(?:lam\s*(?:duoc\s*)?gi|co\s*the\s*lam\s*gi|giup\s*(?:duoc\s*)?gi|chuc\s*nang\s*gi|tinh\s*nang\s*gi|ho\s*tro\s*gi|con\s*gi\s*khac|gi\s*khac|lam\s*gi\s*khac)\b",
-            plain,
-        ):
-            return True
-        if re.search(
-            r"\b(?:co\s*the\s*lam\s*gi\s*khac|lam\s*duoc\s*gi\s*khac|giup\s*duoc\s*gi\s*khac|chuc\s*nang\s*gi\s*khac|tinh\s*nang\s*gi\s*khac|con\s*lam\s*(?:duoc\s*)?gi|con\s*gi\s*khac|con\s*tinh\s*nang\s*gi|con\s*chuc\s*nang\s*gi)\b",
-            plain,
-        ):
-            return True
-        if re.search(
-            r"\b(?:ban|airguard|bot|ai|tro\s*ly)\s+(?:la\s*ai|la\s*gi|lam\s*duoc\s*gi|co\s*the\s*lam\s*gi|co\s*the\s*giup\s*gi|giup\s*duoc\s*gi|ho\s*tro\s*duoc\s*gi|co\s*chuc\s*nang\s*gi|co\s*tinh\s*nang\s*gi|biet\s*lam\s*gi)\b",
-            plain,
-        ):
-            return True
-        if re.search(
-            r"\b(?:chuc\s*nang|tinh\s*nang|kha\s*nang)\s+cua\s+(?:ban|airguard|bot|ai|tro\s*ly|he\s*thong|app)\b",
-            plain,
-        ):
-            return True
-        if re.search(
-            r"\b(?:huong\s*dan\s*su\s*dung|cach\s*su\s*dung|dung\s*de\s*lam\s*gi|ung\s*dung\s*nay\s*dung\s*de\s*lam\s*gi)\b",
-            plain,
-        ):
-            return True
-        return False
-
-    @classmethod
     def classify(
         cls,
         message: str,
@@ -284,6 +225,11 @@ class ConversationalAgentService:
     ) -> ConversationDecision:
         plain = cls._plain(message)
         social_plain = cls._social_plain(message)
+        # A concrete environmental request always wins over a social prefix.
+        # Do this before exact social matching so, for example, "Cảm ơn, AQI
+        # S03 hiện tại thế nào?" cannot be swallowed by an acknowledgement.
+        if cls._has_explicit_domain_request(plain):
+            return ConversationDecision(intent="domain", kind="domain", fallback_response="")
         if social_plain in cls._GREETINGS:
             return ConversationDecision(
                 intent="greeting",
@@ -313,17 +259,18 @@ class ConversationalAgentService:
                     "Mình là trợ lý AI nên không có sức khỏe hay cảm xúc, nhưng có thể hỗ trợ về AirGuard."
                 ),
             )
-        if cls._is_capability_query(plain, social_plain):
-            has_station = bool(re.search(r"\bS0[1-5]\b", plain.upper()))
-            has_metric = any(m in plain for m in ("pm2.5", "pm25", "aqi", "co2", "nhiet do", "tieng on", "canh bao", "du bao"))
-            if not (has_station and has_metric):
-                return ConversationDecision(
-                    intent="social",
-                    kind="capabilities",
-                    fallback_response=CAPABILITIES_RESPONSE,
-                )
+        if social_plain in cls._CAPABILITIES:
+            return ConversationDecision(
+                intent="social",
+                kind="capabilities",
+                fallback_response=(
+                    "Mình hỗ trợ AQI/trạm hiện tại, so sánh trạm, dự báo baseline 1–3 giờ, cảnh báo và "
+                    "khuyến nghị grounded từ dữ liệu demo/mô phỏng. Mình không dự báo dài hạn, chẩn đoán "
+                    "hay điều khiển thiết bị."
+                ),
+            )
 
-        if cls._contains_phrase(plain, cls._OUT_OF_SCOPE_SIGNALS):
+        if any(s in plain for s in cls._OUT_OF_SCOPE_SIGNALS):
             return ConversationDecision(
                 intent="out_of_scope",
                 kind="out_of_scope",
@@ -333,18 +280,6 @@ class ConversationalAgentService:
                     "cảnh báo môi trường và gợi ý lộ trình vận động ngoài trời tại Ocean Park 1."
                 ),
             )
-        if social_plain in cls._IDENTITY:
-            return ConversationDecision(
-                intent="social",
-                kind="identity",
-                fallback_response=(
-                    "Mình là trợ lý AI nên không có tuổi như con người. Mình có thể hỗ trợ các câu hỏi AirGuard."
-                ),
-            )
-
-        # A concrete environmental request always wins over a social prefix.
-        if cls._has_explicit_domain_request(plain):
-            return ConversationDecision(intent="domain", kind="domain", fallback_response="")
 
         if cls._is_domain_query(plain, station_id=station_id, map_context=map_context):
             return ConversationDecision(intent="domain", kind="domain", fallback_response="")
@@ -392,6 +327,9 @@ class ConversationalAgentService:
         *,
         request_id: str,
     ) -> dict[str, Any]:
+        # Compatibility-only lock: no caller may re-introduce an Agent/LLM
+        # rewrite for a social decision. The public endpoint short-circuits
+        # before this helper; direct calls still fail closed deterministically.
         del agent_result
         return cls.deterministic_response(decision, request_id=request_id)
 
@@ -444,6 +382,9 @@ class ConversationalAgentService:
             map_context
             and any(map_context.get(key) for key in ("selected_sensor", "selected_location", "user_location"))
         )
+        # A distance-only follow-up after a route suggestion is still a route request.
+        # For example: "tôi chỉ muốn chạy 2km thôi" must adjust the route, not
+        # fall through to the generic clarification response.
         if cls._DISTANCE_TARGET_RE.search(plain) and (
             any(cue in plain for cue in cls._RUNNING_DISTANCE_CUES) or has_context
         ):
@@ -452,17 +393,7 @@ class ConversationalAgentService:
 
     @classmethod
     def _has_explicit_domain_request(cls, plain: str) -> bool:
-        social_plain = cls._social_plain(plain)
-        if cls._is_capability_query(plain, social_plain):
-            has_station = bool(re.search(r"\bS0[1-5]\b", plain.upper()))
-            has_metric = any(m in plain for m in ("pm2.5", "pm25", "aqi", "co2", "nhiet do", "tieng on", "canh bao", "du bao"))
-            if not (has_station and has_metric):
-                return False
         return cls._is_domain_query(plain, station_id=None, map_context=None)
-
-    @staticmethod
-    def _contains_phrase(value: str, phrases: tuple[str, ...]) -> bool:
-        return any(re.search(rf"\b{re.escape(phrase)}\b", value) for phrase in phrases)
 
     @staticmethod
     def _plain(value: str) -> str:
@@ -477,6 +408,8 @@ class ConversationalAgentService:
 
     @classmethod
     def _social_plain(cls, value: str) -> str:
+        # Strip all punctuation only after the domain-safe normalization. This
+        # accepts trailing dots/ellipsis while leaving PM2.5 intact for routing.
         return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", cls._plain(value))).strip()
 
 

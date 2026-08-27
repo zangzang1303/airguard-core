@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
+
 
 IMPACT_POLICY_VERSION = "2026-08-13.impact-v1"
 ImpactLevel = Literal["low", "moderate", "high", "very_high"]

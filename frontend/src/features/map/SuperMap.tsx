@@ -24,7 +24,6 @@ interface SuperMapProps {
   layerConfig: MapLayerConfig;
   flyToTarget: [number, number] | null;
   forecastHour?: number;
-  refreshRevision?: number;
   userCoords?: [number, number];
   userLocationAccuracy?: number | null;
   userLocationName?: string;
@@ -86,7 +85,7 @@ const DraggableLegendOverlay: React.FC<{ metric?: any }> = ({ metric }) => {
 
   return (
     <div {...containerProps} className="map-legend-overlay">
-      <AqiLegend showStationStatus={false} metric={metric} headerProps={handleProps} />
+      <AqiLegend showStationStatus={true} metric={metric} headerProps={handleProps} />
     </div>
   );
 };
@@ -137,7 +136,6 @@ export const SuperMap: React.FC<SuperMapProps> = ({
   layerConfig,
   flyToTarget,
   forecastHour = 0,
-  refreshRevision = 0,
   userCoords,
   userLocationAccuracy,
   userLocationName,
@@ -198,18 +196,17 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           onMapClickLocation={onMapClickLocation}
         />
 
-        {/* Base Map Tiles — OpenStreetMap Standard */}
+        {/* Base Map Tiles — CartoDB Voyager Clean High-Contrast */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          maxZoom={20}
         />
 
         {/* Spatial Dispersion Heatmap Canvas Layer */}
         <HeatmapLayer
           activeLayer={layerConfig.activeEnvironmentalLayer}
           forecastHour={forecastHour}
-          refreshRevision={refreshRevision}
           viewMode={viewMode}
           showHeatmap={layerConfig.showHeatmap}
           showMetadata={layerConfig.showDispersionInfo}
@@ -260,12 +257,12 @@ export const SuperMap: React.FC<SuperMapProps> = ({
       )}
 
       {/* Accessible Map Legend Overlay (Bottom Right — Only in markers view mode when heatmap is NOT active) */}
-      {viewMode === "markers" && !layerConfig.showHeatmap && (
+      {(
         <DraggableLegendOverlay metric={layerConfig.activeEnvironmentalLayer} />
       )}
 
       {/* Floating Map Forecast Timeline Control Dock (Bottom Center) */}
-      {onForecastHourChange && viewMode === "heatmap" && (layerConfig.showForecastTimeline ?? true) && (
+      {onForecastHourChange && viewMode === "heatmap" && (
         <DraggableTimelineDock
           forecastHour={forecastHour}
           onForecastHourChange={onForecastHourChange}

@@ -1,6 +1,6 @@
 {
   "test_suite": "AI Assistant Browser E2E Resilience & Recovery Suite",
-  "timestamp": "2026-08-26T11:10:04.223Z",
+  "timestamp": "2026-08-25T04:07:31.582Z",
   "results": {
     "structured_503": true,
     "recovery_503": true,
@@ -15,9 +15,9 @@
     {
       "ordinal": 1,
       "mode": "structured_503",
-      "reqId": "e2e-req-1787742581761-1",
+      "reqId": "e2e-req-1787630825747-1",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-26T11:09:41.761Z",
+      "timestamp": "2026-08-25T04:07:05.747Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
@@ -32,9 +32,9 @@
     {
       "ordinal": 2,
       "mode": "pass",
-      "reqId": "e2e-req-1787742582630-2",
+      "reqId": "e2e-req-1787630827630-2",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-26T11:09:42.630Z",
+      "timestamp": "2026-08-25T04:07:07.631Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
@@ -43,16 +43,16 @@
       },
       "outcome": {
         "status": 200,
-        "response_id": "e2e-req-1787742582630-2"
+        "response_id": "e2e-req-1787630827630-2"
       },
-      "requestBody": "{\"message\":\"Chất lượng không khí ở trạm S03 hôm nay thế nào?\",\"station_id\":\"S01\",\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":{\"lat\":20.993,\"lng\":105.946,\"source\":\"default\",\"name\":\"Vị trí của bạn (Ocean Park 1)\"},\"selected_origin\":null}}"
+      "requestBody": "{\"message\":\"Chất lượng không khí ở trạm S03 hôm nay thế nào?\",\"station_id\":\"S01\",\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":[20.993,105.946]}}"
     },
     {
       "ordinal": 3,
       "mode": "timeout",
-      "reqId": "e2e-req-1787742585168-3",
+      "reqId": "e2e-req-1787630830897-3",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-26T11:09:45.168Z",
+      "timestamp": "2026-08-25T04:07:10.897Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
@@ -67,9 +67,9 @@
     {
       "ordinal": 4,
       "mode": "pass",
-      "reqId": "e2e-req-1787742596644-4",
+      "reqId": "e2e-req-1787630843153-4",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-26T11:09:56.644Z",
+      "timestamp": "2026-08-25T04:07:23.153Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
@@ -78,16 +78,16 @@
       },
       "outcome": {
         "status": 200,
-        "response_id": "e2e-req-1787742596644-4"
+        "response_id": "e2e-req-1787630843153-4"
       },
-      "requestBody": "{\"message\":\"Dự báo chất lượng không khí 1 giờ tới tại Ocean Park?\",\"station_id\":\"S01\",\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":{\"lat\":20.993,\"lng\":105.946,\"source\":\"default\",\"name\":\"Vị trí của bạn (Ocean Park 1)\"},\"selected_origin\":null}}"
+      "requestBody": "{\"message\":\"Dự báo chất lượng không khí 1 giờ tới tại Ocean Park?\",\"station_id\":\"S01\",\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":[20.993,105.946]}}"
     },
     {
       "ordinal": 5,
       "mode": "network_failure",
-      "reqId": "e2e-req-1787742600444-5",
+      "reqId": "e2e-req-1787630847032-5",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-26T11:10:00.444Z",
+      "timestamp": "2026-08-25T04:07:27.032Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
@@ -101,9 +101,9 @@
     {
       "ordinal": 6,
       "mode": "network_failure",
-      "reqId": "e2e-req-1787742600447-6",
+      "reqId": "e2e-req-1787630847035-6",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-26T11:10:00.447Z",
+      "timestamp": "2026-08-25T04:07:27.035Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
@@ -117,9 +117,9 @@
     {
       "ordinal": 7,
       "mode": "pass",
-      "reqId": "e2e-req-1787742601195-7",
+      "reqId": "e2e-req-1787630848754-7",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-26T11:10:01.195Z",
+      "timestamp": "2026-08-25T04:07:28.754Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
@@ -128,9 +128,9 @@
       },
       "outcome": {
         "status": 200,
-        "response_id": "e2e-req-1787742601195-7"
+        "response_id": "e2e-req-1787630848754-7"
       },
-      "requestBody": "{\"message\":\"So sánh trạm S01 và S05 hiện tại\",\"station_id\":\"S01\",\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":{\"lat\":20.993,\"lng\":105.946,\"source\":\"default\",\"name\":\"Vị trí của bạn (Ocean Park 1)\"},\"selected_origin\":null}}"
+      "requestBody": "{\"message\":\"So sánh trạm S01 và S05 hiện tại\",\"station_id\":\"S01\",\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":[20.993,105.946]}}"
     }
   ],
   "total_proxy_requests": 7,

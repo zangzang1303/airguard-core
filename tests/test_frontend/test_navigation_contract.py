@@ -94,20 +94,18 @@ class TestBottomActionDockContract:
         assert "dock-active-dot" in self.content
 
     def test_all_five_standardized_items_exist(self):
-        """Bottom dock and explore menu must cover the key navigation items."""
-        assert "Lớp bản đồ" in self.content
-        assert "Khám phá" in self.content
-        assert "Hỏi AI" in self.content
-        assert "Gần tôi" in self.content
-        assert "Hôm nay" in self.content
-        assert "Phản ánh" in self.content
+        """Bottom dock must have exactly the 5 standardized items with labels."""
+        expected_labels = ["Lớp bản đồ", "Gần tôi", "Hôm nay", "Phản ánh", "Hỏi AI"]
+        for label in expected_labels:
+            assert f'<span className="dock-label">{label}</span>' in self.content, f"Missing label: {label}"
 
     def test_accessibility_attributes_present(self):
-        """All buttons in bottom dock must have type='button' and valid roles/labels."""
+        """All buttons in bottom dock must have type='button' and descriptive aria labels."""
         buttons = re.findall(r"<button[\s\S]*?</button>", self.content)
-        assert len(buttons) == 6, f"Expected 6 navigation/menu buttons, found {len(buttons)}"
+        assert len(buttons) == 5, f"Expected 5 navigation buttons, found {len(buttons)}"
         for btn in buttons:
             assert 'type="button"' in btn, f"Button missing type='button': {btn}"
+            assert "aria-label=" in btn, f"Button missing aria-label: {btn}"
 
 
 class TestAppIntegrationContract:

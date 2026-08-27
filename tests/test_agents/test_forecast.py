@@ -44,7 +44,6 @@ async def test_aqi_and_pm25_routes_preserve_metric_and_horizon():
         "Dự báo S01 trong 0 giờ tới?",
         "Dự báo S01 trong 4 giờ tới?",
         "Dự báo S01 trong 9 giờ tới?",
-        "Dự báo PM2.5 S01 trong 13 giờ tới?",
         "Dự báo 24 giờ tới ở S01?",
         "Dự báo cả ngày ở S01?",
     ],
@@ -65,17 +64,6 @@ async def test_unsupported_forecast_horizon_is_contract_refusal_without_tool_cal
     assert "1–3 giờ" in result["answer"]
     assert "forecast" not in result["answer"].lower()
     assert "22.4" not in result["answer"]
-
-
-@pytest.mark.asyncio
-async def test_clock_time_forecast_requests_clarification_without_tool_call():
-    result = await build_graph(FakeBackendToolClient()).ainvoke(
-        {"query": "Dự báo PM2.5 S01 lúc 13 giờ"}
-    )
-
-    assert result["route"]["intent"] == "clarification"
-    assert result["outcome"] == "clarification"
-    assert result["used_tools"] == []
 
 
 def test_forecast_assessment_preserves_backend_metadata():
