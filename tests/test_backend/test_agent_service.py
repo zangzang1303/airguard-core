@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-
 import httpx
 import pytest
 
@@ -40,47 +39,6 @@ async def test_agent_service_propagates_context_and_correlation_id():
 
     assert result["answer"] == "Grounded response"
     assert result["request_id"] == "proxy-request-1"
-
-
-@pytest.mark.asyncio
-async def test_agent_service_propagates_only_bounded_conversation_context():
-    async def handler(request: httpx.Request) -> httpx.Response:
-        data = json.loads(request.content)
-        assert data["conversation_context"] == {
-            "context_version": 1,
-            "station_ids": ["S03"],
-            "primary_station_id": "S03",
-            "last_intent": "current",
-            "turn_count": 1,
-        }
-        assert "conversation_id" not in data
-        return httpx.Response(
-            200,
-            json={
-                "answer": "Grounded forecast",
-                "used_tools": ["get_pm25_forecast"],
-                "sources": [{"tool_name": "get_pm25_forecast", "station_id": "S03"}],
-                "request_id": "memory-proxy-request",
-                "trace": {"intent": "forecast", "memory_context_used": True},
-            },
-        )
-
-    service = AgentService("http://agent.test", transport=httpx.MockTransport(handler))
-    result = await service.chat(
-        message="Còn 3 giờ tới thì sao?",
-        user_id="demo-user",
-        station_id="S01",
-        request_id="memory-proxy-request",
-        conversation_context={
-            "context_version": 1,
-            "station_ids": ["S03"],
-            "primary_station_id": "S03",
-            "last_intent": "current",
-            "turn_count": 1,
-        },
-    )
-
-    assert result["trace"]["memory_context_used"] is True
 
 
 @pytest.mark.asyncio

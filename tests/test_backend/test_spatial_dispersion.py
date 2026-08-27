@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from time import perf_counter
-from typing import Any, TypeVar
+from typing import Any
 
 import httpx
 import pytest
@@ -24,19 +23,6 @@ STATION_COORDINATES = {
     "S04": (20.9898, 105.9467),
     "S05": (20.9910, 105.9560),
 }
-
-T = TypeVar("T")
-
-
-def measure_best_ms(operation: Callable[[], T], *, attempts: int = 3) -> tuple[T, float]:
-    """Measure steady-state latency without failing on a single scheduler pause."""
-    operation()
-    samples: list[tuple[T, float]] = []
-    for _ in range(attempts):
-        started_at = perf_counter()
-        result = operation()
-        samples.append((result, (perf_counter() - started_at) * 1000))
-    return min(samples, key=lambda sample: sample[1])
 
 
 class FakeStationService:
@@ -237,9 +223,9 @@ def make_service(
 def test_current_heatmap_is_clipped_smooth_finite_and_under_200_ms() -> None:
     service = make_service()
 
-    result, elapsed_ms = measure_best_ms(
-        lambda: service.calculate_heatmap(metric="aqi", forecast_hour=0)
-    )
+    started_at = perf_counter()
+    result = service.calculate_heatmap(metric="aqi", forecast_hour=0)
+    elapsed_ms = (perf_counter() - started_at) * 1000
 
     assert elapsed_ms < 200, f"spatial calculation took {elapsed_ms:.2f} ms"
     assert 0 < len(result["grid_points"]) < service.GRID_ROWS * service.GRID_COLS
@@ -542,13 +528,13 @@ def test_spatial_api_returns_payload_and_structured_validation_error(monkeypatch
     monkeypatch.setattr(main_module, "spatial_service", make_service())
     client = TestClient(main_module.app)
 
-    response, elapsed_ms = measure_best_ms(
-        lambda: client.get(
-            "/api/v1/spatial/heatmap",
-            params={"metric": "aqi", "forecast_hour": 0},
-            headers={"X-Request-ID": "spatial-api-test"},
-        )
+    started_at = perf_counter()
+    response = client.get(
+        "/api/v1/spatial/heatmap",
+        params={"metric": "aqi", "forecast_hour": 0},
+        headers={"X-Request-ID": "spatial-api-test"},
     )
+    elapsed_ms = (perf_counter() - started_at) * 1000
     invalid = client.get(
         "/api/v1/spatial/heatmap",
         params={"metric": "ozone", "forecast_hour": 0},

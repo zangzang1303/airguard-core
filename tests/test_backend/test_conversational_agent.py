@@ -108,35 +108,6 @@ def test_domain_message_with_social_prefix_still_routes_to_environmental_flow():
     assert decision.intent == "domain"
 
 
-@pytest.mark.parametrize(
-    "message",
-    ["S01", "Trạm S01 đang thế nào?", "Trạm nào đang có chỉ số tốt nhất?"],
-)
-def test_station_snapshot_and_best_station_questions_reach_grounded_agent(message):
-    decision = ConversationalAgentService.classify(message)
-
-    assert decision.intent == "domain"
-    assert decision.kind == "domain"
-
-
-@pytest.mark.parametrize(
-    "message",
-    [
-        "Tình hình không khí S01 ra sao?",
-        "Trạm sạch nhất hiện tại là trạm nào?",
-        "S01 hay S02 tốt hơn?",
-        "Xu hướng PM2.5 S01 gần đây?",
-        "S02 có vượt ngưỡng không?",
-        "S01 có phù hợp để chạy bộ không?",
-    ],
-)
-def test_phase1_natural_language_variants_reach_domain_agent(message):
-    decision = ConversationalAgentService.classify(message)
-
-    assert decision.intent == "domain"
-    assert decision.kind == "domain"
-
-
 def test_contextual_follow_up_remains_a_domain_query():
     decision = ConversationalAgentService.classify(
         "Tối nay thì sao?",
@@ -190,3 +161,25 @@ def test_legacy_agent_social_rewrite_helper_is_locked_to_deterministic_response(
     assert result["trace"]["generation_mode"] == "deterministic_grounded"
     assert result["used_tools"] == []
     assert result["tool_arguments"] == []
+
+
+def test_ocean_park_spatial_overview_does_not_replay_selected_poi_actions():
+    from backend.app.main import _is_ocean_park_area_overview, _spatial_overview_response
+
+    assert _is_ocean_park_area_overview("Chất lượng không khí hiện tại ở Ocean Park 1?")
+    assert not _is_ocean_park_area_overview("Chất lượng không khí ở S1, Ocean Park 1?")
+
+    response = _spatial_overview_response(
+        agent_result={
+            "answer": "Tổng quan chất lượng không khí toàn khu Ocean Park 1.",
+            "used_tools": ["get_spatial_air_quality"],
+            "sources": [{"tool": "get_spatial_air_quality"}],
+            "trace": {"intent": "spatial", "generation_mode": "deterministic_grounded"},
+        },
+        request_id="ocean-park-overview",
+    )
+
+    assert response["intent"] == "spatial"
+    assert response["map_actions"] == []
+    assert response["sources"] == [{"tool": "get_spatial_air_quality"}]
+    assert response["trace"]["map_planner"] == "agent_spatial_overview"

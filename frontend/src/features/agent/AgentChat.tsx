@@ -73,15 +73,10 @@ export const AgentChat: React.FC = () => {
     text: `Xin chào! Tôi là Trợ lý AI AirGuard. AQI là chỉ số tổng quan cho trạm [${selectedStationId}]. Bạn cần xem AQI, các thành phần môi trường hay cảnh báo?`,
     timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
   };
+  const [conversationId, setConversationId] = useState<string>(() => `conv_${Date.now()}`);
   const [messages, setMessages] = useState<ChatMessage[]>([initialMessage]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
-
-  const resetConversation = () => {
-    setMessages([initialMessage]);
-    setConversationId(null);
-  };
 
   const handleSend = async (event?: React.FormEvent) => {
     event?.preventDefault();
@@ -98,14 +93,7 @@ export const AgentChat: React.FC = () => {
     setSending(true);
 
     try {
-      const response: AgentResponse = await api.sendAgentMessage(
-        userText,
-        selectedStationId,
-        userId,
-        undefined,
-        conversationId,
-      );
-      if (response.conversation_id) setConversationId(response.conversation_id);
+      const response: AgentResponse = await api.sendAgentMessage(userText, selectedStationId, userId, undefined, conversationId);
       const conciseReply = splitAgentReply(response.reply);
       setMessages((previous) => [...previous, {
         id: `agent-${Date.now()}`,
@@ -144,7 +132,7 @@ export const AgentChat: React.FC = () => {
         title="AI Agent"
         description={`Hỏi đáp dựa trên dữ liệu backend · Trạm ${selectedStationId} · Nhóm người dùng ${userGroup}.`}
         actions={(
-          <Button variant="ghost" size="sm" onClick={resetConversation}>
+          <Button variant="ghost" size="sm" onClick={() => setMessages([initialMessage])}>
             <Trash2 size={16} aria-hidden="true" />
             Xóa hội thoại
           </Button>
@@ -153,7 +141,7 @@ export const AgentChat: React.FC = () => {
 
       <div className="agent-workspace">
         <aside className="chat-history-panel" aria-label="Lịch sử hội thoại">
-          <Button variant="primary" size="sm" onClick={resetConversation}><Plus size={16} />Cuộc trò chuyện mới</Button>
+          <Button variant="primary" size="sm" onClick={() => setMessages([initialMessage])}><Plus size={16} />Cuộc trò chuyện mới</Button>
           <div className="chat-history-panel__title">Gần đây</div>
           <button type="button" className="chat-history-item is-active">
             <MessageSquare size={16} />

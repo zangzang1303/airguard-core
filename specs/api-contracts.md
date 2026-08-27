@@ -106,16 +106,17 @@ Each alert includes `alert_type` (`aqi_threshold`, `pm25_threshold`, `co2_thresh
 
 ## Automatic Agent proposal
 
-When `AUTO_PROPOSAL_ENABLED=true`, a newly eligible environmental alert schedules exactly one
-canonical internal Agent proposal workflow. It uses `generation_mode=deterministic_grounded` with
-`llm_call_count=0`, revalidates fresh station data plus the active alert through backend tools, and
-only then may create a `pending` proposal. Only one pending
+When `AUTO_PROPOSAL_ENABLED=true`, a newly eligible environmental alert schedules an internal
+Agent analysis. With `generation_mode=live_llm`, the Agent revalidates fresh station data plus the
+active alert through backend tools before it creates a `pending` proposal. With
+`generation_mode=deterministic_grounded`, the backend creates the same idempotent `pending`
+proposal directly from Rule Engine evidence and re-runs the continuity/device policy gate. Unknown
+or ungrounded modes fail closed. Only one pending
 automatic warning proposal is permitted per station; later automatic triggers are skipped until the
 Manager reviews it. Pending proposals automatically expire after `PROPOSAL_PENDING_TTL_SECONDS`
 (default: 3600 seconds); expiry preserves the proposal and writes an audit event, but it can no
-longer be approved or dispatched. No Manager decision or device command is automated. Tool error,
-missing/stale/offline/invalid data, an inactive alert or failed eligibility are audited and leave the
-alert active without a proposal or notification.
+longer be approved or dispatched. No Manager decision or device command is automated. Agent service
+failure is audited and leaves the alert active without a proposal.
 
 For a focused demo, `AUTO_PROPOSAL_STATIONS=S03` matches the `spike` scenario and registered `FILTER-01` device.
 Other stations may still produce backend alerts, but their alerts do not schedule Agent proposals.
@@ -225,18 +226,8 @@ The current frontend identity is demo-only and does not replace production backe
 service uses the same payload. The root Agent keeps the legacy `POST /api/v1/chat` alias during
 migration; its `user_id` remains optional for non-personalized requests.
 
-`conversation_id` is an optional UUID on the public request and is always returned by the public
-response. When omitted, the backend allocates a new conversation. Domain turns load an
-owner-scoped, TTL-bounded semantic context from PostgreSQL and send only allow-listed station IDs,
-the previous canonical intent and turn count to the isolated Agent. Raw prompts, answers,
-environmental values and profile facts are not conversation memory. A recognized follow-up may use
-that context to select tool arguments, but all environmental facts still require fresh backend tool
-results from the current request. Unknown, expired or cross-owner IDs fail with structured
-`404/410`; a cross-owner lookup must not reveal that the record exists. Social short-circuits do not
-read or write conversation storage.
-
-The response contains `answer`, `intent`, `conversation_kind`, `conversation_id`, `used_tools`, `tool_arguments`,
-`sources`, `map_actions`, `request_id`, `trace`, and optional `map_intent`,
+The response contains `answer`, `intent`, `conversation_kind`, `used_tools`, `tool_arguments`,
+`sources`, `map_actions`, `request_id`, `trace`, and optional
 `proposal_id`, `recommendation_policy_version`, and `impact_policy_version`. The impact intent
 uses a fresh station snapshot and rates operational environmental impact with AQI as the primary
 index; PM2.5, CO₂, noise and temperature are supporting evidence only. It is not a medical
@@ -247,20 +238,10 @@ Facts must map to sources from the same request. Tool failure or absent/stale/in
 returns a transparent insufficient-data answer and no environmental source. The additive
 `response` field is a deprecated alias of `answer` for the original template client.
 
-The internal Agent service exposes `GET /api/v1/metrics` for bounded operational monitoring. The
-response contains aggregate request counts, generation-mode counts, total LLM call count,
-sanitized failure-code counts, fallback rate, a rolling window of P50/P95/P99 request latency, and
-alert reason codes. It must not
-contain prompts, user IDs, request IDs, station evidence, sources, tokens, credentials or PII. The
-current in-process window is diagnostic for a single Agent process and resets when that process is
-restarted; production multi-replica aggregation belongs in the deployment metrics backend.
-
-The direct geospatial response path receives fresh station snapshots and forecast histories from
-the backend request scope. It must return structured `503` when grounded inputs are unavailable and
+The geospatial response path receives fresh station snapshots and forecast histories from the
+backend request scope. It must return structured `503` when grounded inputs are unavailable and
 must not synthesize AQI, PM2.5, CO₂, noise, temperature, timestamp or a default user profile in an
-exception handler. Within `POST /agent/chat`, geospatial planning is optional UI post-processing:
-planner unavailability returns the already-grounded Agent answer with `map_actions=[]` and a
-sanitized planner status instead of converting that answer into a `503`.
+exception handler.
 
 Basic social messages are intercepted before profile, geospatial, telemetry or LLM access. Their
 response adds `conversation_kind`, has empty `used_tools`, `tool_arguments`, `sources`/`evidence`
@@ -274,22 +255,10 @@ the result of `get_user_profile`. Missing profile or environmental evidence prod
 or insufficient-data behavior rather than a generic personalized recommendation.
 
 The public backend proxy must use the isolated Agent response as the authority for `answer`,
-`intent`, `conversation_kind`, `used_tools`, `tool_arguments`, `sources`, proposal/quality fields
-and the core `trace`; it must not infer tool names from intent. The proxy invokes the Agent exactly
-once. Deterministic route planning is skipped for non-spatial, refused, clarification,
-direct-response and insufficient-data outcomes. It may add only route geometry and declarative map
-actions after an `answered` canonical `spatial` result returns a validated
-`get_spatial_air_quality` source from the same request. Planner output must not replace the Agent
-answer, evidence, intent or tool trace. Planner dependency failure preserves the Agent answer,
-returns `map_actions=[]` and records only a sanitized planner status/reason. A map-wide running/area
-request without a station id uses `get_spatial_air_quality` instead of inventing a default station.
-
-As a separate bounded presentation projection, an `answered` canonical `compare` result may emit
-`highlight_sensor`, `add_annotation` and `fit_bounds` actions for two-to-five stations. Every
-station must be present in both the same-request `compare_stations` tool arguments and a validated
-`compare_stations` source. Coordinates come from the backend station catalog; the projector must
-not load all environmental snapshots or change the canonical answer. `map_intent` is optional
-UI-only metadata for route, indoor or comparison rendering and is never answer evidence.
+`used_tools`, `sources` and `trace`; it must not infer tool names from intent. Deterministic map
+planning may add route geometry and map actions only after the Agent returns at least one validated
+source. A map-wide running/area request without a station id uses `get_spatial_air_quality` instead
+of inventing a default station.
 
 For running-route intents, the planner resolves the request origin in this order: explicit map
 selection, named POI, current map selection, GPS user location, then the labelled demo default.

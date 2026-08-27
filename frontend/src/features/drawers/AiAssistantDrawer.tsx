@@ -6,19 +6,12 @@ import {
   Bot,
   User,
   ShieldAlert,
-  LockKeyhole,
   RotateCcw,
-  Wrench,
-  FileCheck2,
   MapPin,
   HelpCircle,
   ChevronDown,
   ChevronUp,
   Activity,
-  Compass,
-  Flame,
-  Volume2,
-  Thermometer,
   Zap,
 } from "lucide-react";
 import { api } from "../../api/client";
@@ -42,17 +35,13 @@ interface ChatMessage {
   summary?: string;
   details?: string;
   intent?: string;
-  map_intent?: string;
   time_context?: any;
-  data_mode?: "simulator" | "realtime" | "live" | "forecast";
+  data_mode?: "live" | "forecast";
   evidence?: any;
   map_actions?: MapAction[];
+  follow_up_actions?: string[];
   used_tools?: string[];
   proposal_created?: Proposal | null;
-  quality?: "fresh" | "stale" | "offline" | "invalid" | null;
-  failure_reason?: string | null;
-  clarification?: string | null;
-  pending?: boolean;
   isError?: boolean;
   retryQuery?: string;
   showEvidence?: boolean;
@@ -83,11 +72,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   onClose,
   mapContext,
 }) => {
-  const { role, userId, navigateTo, setPendingApprovalsCount, selectedStationId } = useAuth();
+  const { role, userId, navigateTo, setPendingApprovalsCount } = useAuth();
   const { containerProps, handleProps } = useDraggableFloatingPanel({
     panelId: "ai-chat",
     group: "drawer",
   });
+  const [conversationId, setConversationId] = useState<string>(() => `conv_${Date.now()}`);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "msg-welcome",
@@ -98,7 +88,6 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
   ]);
   const [inputVal, setInputVal] = useState(initialPrompt || "");
   const [isTyping, setIsTyping] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialPromptSentRef = useRef<string | null>(null);
 
@@ -131,6 +120,19 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   }, [initialPrompt]);
 
+  const handleResetConversation = () => {
+    mapActionController.clearAIOverlay();
+    setConversationId(`conv_${Date.now()}`);
+    setMessages([
+      {
+        id: "msg-welcome",
+        sender: "ai",
+        text: "Xin chào! Tôi là AirGuard Geospatial AI Agent. Phiên hội thoại mới đã được thiết lập. Hãy hỏi tôi về không khí, đường chạy hoặc địa điểm tại Ocean Park 1.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
+  };
+
   const handleSend = async (textToSend?: string) => {
     const query = (textToSend || inputVal).trim();
     if (!query || isTyping) return;
@@ -151,14 +153,11 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setIsTyping(true);
 
     try {
-      const res: AgentResponse = await api.sendAgentMessage(
-        query,
-        selectedStationId,
-        userId,
-        mapContext,
-        conversationId,
-      );
-      if (res.conversation_id) setConversationId(res.conversation_id);
+      const selectedSensor = mapContext?.selected_sensor;
+      const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
+        ? selectedSensor
+        : null;
+      const res: AgentResponse = await api.sendAgentMessage(query, contextStationId, userId, mapContext, conversationId);
       
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
@@ -171,22 +170,18 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const aiMsg: ChatMessage = {
         id: `msg-ai-${Date.now()}`,
         sender: "ai",
-        text: answerObj.summary || aiReply,
+        text: aiReply,
         summary: answerObj.summary,
         details: answerObj.details,
         intent: res.intent,
-        map_intent: res.map_intent,
         time_context: res.time_context,
         data_mode: res.data_mode,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         used_tools: res.used_tools,
         evidence: res.evidence,
         map_actions: res.map_actions as MapAction[],
+        follow_up_actions: res.follow_up_actions,
         proposal_created: res.proposal_created,
-        quality: res.quality,
-        failure_reason: res.failure_reason,
-        clarification: res.clarification,
-        pending: res.pending,
         showEvidence: false,
       };
 
@@ -210,25 +205,16 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   };
 
-  const handleRetry = async (errorMsgId: string, retryQuery?: string) => {
-    const query = (retryQuery || "").trim();
-    if (!query || isTyping) return;
-
-    mapActionController.clearAIOverlay();
-
-    // Remove the error bubble from chat state during retry
-    setMessages((prev) => prev.filter((m) => m.id !== errorMsgId));
+  const handleRetry = async (queryToRetry: string) => {
+    if (isTyping) return;
     setIsTyping(true);
 
     try {
-      const res: AgentResponse = await api.sendAgentMessage(
-        query,
-        selectedStationId,
-        userId,
-        mapContext,
-        conversationId,
-      );
-      if (res.conversation_id) setConversationId(res.conversation_id);
+      const selectedSensor = mapContext?.selected_sensor;
+      const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
+        ? selectedSensor
+        : null;
+      const res: AgentResponse = await api.sendAgentMessage(queryToRetry, contextStationId, userId, mapContext, conversationId);
 
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
@@ -240,22 +226,18 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const aiMsg: ChatMessage = {
         id: `msg-ai-${Date.now()}`,
         sender: "ai",
-        text: answerObj.summary || aiReply,
+        text: aiReply,
         summary: answerObj.summary,
         details: answerObj.details,
         intent: res.intent,
-        map_intent: res.map_intent,
         time_context: res.time_context,
         data_mode: res.data_mode,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         used_tools: res.used_tools,
         evidence: res.evidence,
         map_actions: res.map_actions as MapAction[],
+        follow_up_actions: res.follow_up_actions,
         proposal_created: res.proposal_created,
-        quality: res.quality,
-        failure_reason: res.failure_reason,
-        clarification: res.clarification,
-        pending: res.pending,
         showEvidence: false,
       };
 
@@ -263,7 +245,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         setPendingApprovalsCount((count) => count + 1);
       }
 
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) => [...prev.filter((m) => !m.isError), aiMsg]);
     } catch (err: any) {
       const newErrorMsg: ChatMessage = {
         id: `msg-err-${Date.now()}`,
@@ -271,7 +253,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         text: formatAgentRequestError(err),
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         isError: true,
-        retryQuery: query,
+        retryQuery: queryToRetry,
       };
       setMessages((prev) => [...prev, newErrorMsg]);
     } finally {
@@ -299,12 +281,24 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </div>
           <div style={{ minWidth: 0 }}>
             <h2 className="drawer-main-title">AirGuard Geospatial AI</h2>
-            <span className="drawer-sub-meta">Tương tác thực & vẽ lộ trình trực tiếp trên bản đồ</span>
+            <span className="drawer-sub-meta">Tương tác thực & nhớ ngữ cảnh hội thoại OCP1</span>
           </div>
         </div>
-        <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng">
-          <X size={18} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <button
+            className="no-drag drawer-close-btn"
+            data-no-drag="true"
+            onClick={handleResetConversation}
+            title="Bắt đầu cuộc trò chuyện mới"
+            aria-label="Cuộc trò chuyện mới"
+            style={{ width: "32px", height: "32px" }}
+          >
+            <RotateCcw size={15} />
+          </button>
+          <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng" style={{ width: "32px", height: "32px" }}>
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       {/* Suggested Quick Questions with Icons */}
@@ -337,11 +331,6 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       <div className="ai-chat-messages-container" style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
         {messages.map((msg) => {
           const routeAction = getRouteAction(msg.map_actions);
-          const presentationIntent = msg.map_intent || msg.intent;
-          const isRoutePresentation = presentationIntent === "recommend_running_route"
-            || presentationIntent === "recommend_personalized_running_route";
-          const isIndoorPresentation = presentationIntent === "recommend_indoor_activity";
-          const hasDedicatedMapCard = isRoutePresentation || isIndoorPresentation;
 
           return (
             <div key={msg.id} className={`chat-bubble-wrap ${msg.sender} ${msg.isError ? "error" : ""}`} {...(msg.isError ? { role: "alert", "data-testid": "ai-error-message" } : {})}>
@@ -356,8 +345,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   </div>
                 )}
 
-                {/* If it's a running route recommendation (Personalized or General), render the Rich Visual Route Card */}
-                {isRoutePresentation && routeAction ? (
+                {/* If it's a running route recommendation, render the Rich Visual Route Card */}
+                {(msg.intent === "recommend_running_route" || msg.intent === "recommend_personalized_running_route") && routeAction ? (
                   <div className="ai-route-rich-card">
                     <div className="ai-route-header-banner">
                       <div className="ai-route-header-title">
@@ -375,9 +364,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         </div>
                         <div className="ai-metric-stat-box">
                           <div className="ai-metric-stat-label">AQI</div>
-                          <div className="ai-metric-stat-val" style={{ color: "#10b981" }}>
-                            {routeAction.aqi != null ? routeAction.aqi : "--"}
-                          </div>
+                          <div className="ai-metric-stat-val" style={{ color: "#10b981" }}>Tốt</div>
                         </div>
                         <div className="ai-metric-stat-box">
                           <div className="ai-metric-stat-label">Thời gian</div>
@@ -392,7 +379,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       <div className="ai-route-timeline">
                         <div className="ai-timeline-row">
                           <div className="ai-timeline-dot"></div>
-                          <span><strong>Xuất phát:</strong> {presentationIntent === "recommend_personalized_running_route" ? "Vị trí của bạn" : "Điểm xuất phát tối ưu"}</span>
+                          <span><strong>Xuất phát:</strong> {msg.intent === "recommend_personalized_running_route" ? "Vị trí của bạn" : "Điểm xuất phát tối ưu"}</span>
                         </div>
                         <div className="ai-timeline-row">
                           <div className="ai-timeline-dot" style={{ background: "#06b6d4" }}></div>
@@ -411,7 +398,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       </button>
                     </div>
                   </div>
-                ) : isIndoorPresentation ? (
+                ) : msg.intent === "recommend_indoor_activity" ? (
                   /* Indoor Activity Pivot Card */
                   <div className="ai-route-rich-card" style={{ border: "1px solid #fecaca" }}>
                     <div className="ai-route-header-banner" style={{ background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)" }}>
@@ -452,10 +439,36 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   </div>
                 )}
 
+                {/* Interactive Follow-up Action Chips */}
+                {msg.follow_up_actions && msg.follow_up_actions.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                    {msg.follow_up_actions.map((actionText, idx) => (
+                      <button
+                        key={`action-${idx}`}
+                        onClick={() => handleSend(actionText.replace(/^[^\w\s]+\s*/, ""))}
+                        disabled={isTyping}
+                        style={{
+                          padding: "5px 10px",
+                          background: "#f1f5f9",
+                          color: "#0f172a",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "14px",
+                          fontSize: "12px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {actionText}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Interactive Map Actions Trigger Button for other inquiries */}
-                {((msg.map_actions && msg.map_actions.length > 0 && !hasDedicatedMapCard) || msg.details) && (
+                {msg.map_actions && msg.map_actions.length > 0 && msg.intent !== "recommend_running_route" && (
                   <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                    {msg.map_actions && msg.map_actions.length > 0 && !hasDedicatedMapCard && <button
+                    <button
                       onClick={() => {
                         mapActionController.clearAIOverlay();
                         mapActionController.executeAll(msg.map_actions);
@@ -475,9 +488,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       }}
                     >
                       <MapPin size={13} /> Xem trực tiếp trên bản đồ
-                    </button>}
+                    </button>
 
-                    {(msg.evidence || msg.details) && (
+                    {msg.evidence && (
                       <button
                         onClick={() => toggleEvidence(msg.id)}
                         style={{
@@ -495,23 +508,48 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         }}
                       >
                         <HelpCircle size={13} />
-                        {msg.showEvidence ? "Ẩn chi tiết" : "Xem chi tiết"}
+                        {msg.showEvidence ? "Ẩn số liệu" : "Tại sao? (Bằng chứng)"}
                         {msg.showEvidence ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                       </button>
                     )}
                   </div>
                 )}
 
-                {/* Collapsible Evidence Inspector */}
-                {msg.showEvidence && (msg.details || msg.evidence) && (
-                  <div style={{ marginTop: 10, padding: 10, background: "#f8fafc", borderRadius: 10, fontSize: "11px", color: "#334155", border: "1px dashed #cbd5e1" }}>
-                    {msg.details && <div style={{ whiteSpace: "pre-line", lineHeight: 1.5, marginBottom: msg.evidence ? 8 : 0 }}>{renderInlineMarkdown(msg.details)}</div>}
-                    {msg.evidence && <>
-                      <div style={{ fontWeight: 700, marginBottom: 4, color: "#0f172a" }}>📊 Dữ liệu Grounded từ Trạm / Forecast:</div>
-                      <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "10.5px", whiteSpace: "pre-wrap", maxHeight: 160, overflowY: "auto" }}>
+                {/* Collapsible Evidence Inspector (Task 11) */}
+                {msg.showEvidence && msg.evidence && (
+                  <div style={{ marginTop: 10, padding: 10, background: "#f8fafc", borderRadius: 10, fontSize: "11px", color: "#334155", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6, color: "#0f172a", display: "flex", alignItems: "center", gap: 5 }}>
+                      <span>📊</span> Nguồn dữ liệu quan trắc & mô phỏng:
+                    </div>
+                    {Array.isArray(msg.evidence) && msg.evidence.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 6 }}>
+                        {msg.evidence.map((ev: any, evIdx: number) => {
+                          const name = ev.location_name || ev.name || ev.station_id || ev.poi_id || `Dữ liệu #${evIdx + 1}`;
+                          const aqiVal = ev.aqi !== undefined ? ev.aqi : ev.value;
+                          const pm25Val = ev.pm25;
+                          const src = ev.source || "simulator";
+                          const time = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "vừa xong";
+
+                          return (
+                            <div key={`ev-${evIdx}`} style={{ background: "#ffffff", padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1" }}>
+                              <div style={{ fontWeight: 600, color: "#1e293b" }}>{name}</div>
+                              <div style={{ display: "flex", gap: 10, marginTop: 2, color: "#475569" }}>
+                                {aqiVal !== undefined && <span>AQI: <strong>{aqiVal}</strong></span>}
+                                {pm25Val !== undefined && <span>PM2.5: <strong>{pm25Val} µg/m³</strong></span>}
+                                <span>Cập nhật: {time}</span>
+                                <span>Nguồn: <em>{src}</em></span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    <details style={{ marginTop: 4, cursor: "pointer" }}>
+                      <summary style={{ color: "#64748b", fontSize: "10.5px" }}>Xem JSON kỹ thuật (Developer)</summary>
+                      <pre style={{ margin: "6px 0 0", fontFamily: "monospace", fontSize: "10px", whiteSpace: "pre-wrap", maxHeight: 120, overflowY: "auto", background: "#f1f5f9", padding: 6, borderRadius: 4 }}>
                         {JSON.stringify(msg.evidence, null, 2)}
                       </pre>
-                    </>}
+                    </details>
                   </div>
                 )}
 
@@ -521,7 +559,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                     className="retry-send-btn"
                     data-testid="ai-retry-button"
                     style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, fontSize: "11px", cursor: "pointer" }}
-                    onClick={() => handleRetry(msg.id, msg.retryQuery)}
+                    onClick={() => handleRetry(msg.retryQuery || "")}
                   >
                     <RotateCcw size={12} /> Thử lại
                   </button>

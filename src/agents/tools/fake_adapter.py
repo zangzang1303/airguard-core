@@ -175,24 +175,9 @@ class FakeBackendToolClient:
     def __init__(self, fixtures: Mapping[str, Any] | None = None) -> None:
         self.fixtures = deepcopy(DEFAULT_FIXTURES)
         if fixtures:
-            self._deep_merge(self.fixtures, fixtures)
+            self.fixtures.update(deepcopy(fixtures))
         self.created_proposals: list[dict[str, Any]] = []
         self._proposals_by_key: dict[str, dict[str, Any]] = {}
-
-    @staticmethod
-    def _deep_merge(target: dict[str, Any], updates: Mapping[str, Any]) -> None:
-        for key, value in updates.items():
-            # A station payload is a contract-shaped fixture: replacing it as a
-            # whole preserves intentional omissions (for example missing
-            # freshness metadata) instead of silently backfilling them from the
-            # default station fixture.
-            if key == "current" and isinstance(value, Mapping) and isinstance(target.get(key), dict):
-                target[key].update({station_id: deepcopy(payload) for station_id, payload in value.items()})
-                continue
-            if isinstance(value, Mapping) and isinstance(target.get(key), dict):
-                FakeBackendToolClient._deep_merge(target[key], value)
-            else:
-                target[key] = deepcopy(value)
 
     async def get_current_pm25(self, payload: Mapping[str, Any], request_id: str = "fixture-request") -> ToolEnvelope | ToolError:
         try:

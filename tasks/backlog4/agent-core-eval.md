@@ -41,7 +41,7 @@
 ```
 
 - [ ] Toàn bộ 5 case Live Evaluation (LIVE-01 đến LIVE-05) đạt PASS với `generation_mode=live_llm`.
-- [ ] Demo latency P95 dưới 5 giây; production target vẫn dưới 2.5 giây.
+- [ ] Thời gian phản hồi trung bình (Latency P95) dưới 2.5 giây.
 - [ ] Câu trả lời tự nhiên bằng tiếng Việt, có đầy đủ căn cứ số liệu, tên trạm, thời gian đo và nhãn minh bạch dữ liệu.
 
 ## 3. Trạng thái xác minh 19/08/2026
@@ -52,7 +52,7 @@
 - [x] Automated gate: `170 passed`; golden set `39/39`, grounding/safety/tool selection/proposal/tool-error đều 100%.
 - [x] Gemini 3.6 migration: container và provider smoke xác nhận đúng `model=gemini-3.6-flash`, `generation_mode=live_llm`.
 - [ ] Live release gate: formal 3.6 rerun qua IPv4 hoàn tất nhưng cả 5 case bị backend trả HTTP 503 ở timeout 8 giây. Một cooled direct Agent call vẫn mất 10.55 giây, nên chưa đạt release latency.
-- [ ] Demo live latency P95: chỉ được tick khi đủ 5 case `live_llm` trong cùng run và P95 dưới 5 giây; không tính latency của fallback/rate-limit. Khoảng 2.5–5 giây là `PASS WITH LIMITATIONS`.
+- [ ] Live latency P95: chỉ được tick khi đủ 5 case `live_llm` trong cùng run và P95 dưới 2.5 giây; không tính latency của fallback/rate-limit.
 
 Evidence đã redact: `docs/evidence/release/2026-08-19-de4b2e817b88-gemini/`.
 
@@ -72,7 +72,7 @@ Evidence đã redact: `docs/evidence/release/2026-08-19-de4b2e817b88-gemini/`.
   xác nhận bằng provider smoke thực tế.
 - Formal 5-case report: `BLOCKED`; 5/5 request bị canonical backend cắt ở khoảng 8 giây trước khi
   Agent trả response, nên không case nào có `generation_mode=live_llm` trong report.
-- Cooled standalone call: `live_llm`, 10.55 giây. Không đạt cả ngưỡng demo 5 giây và không đánh dấu
+- Cooled standalone call: `live_llm`, 10.55 giây. Không nới ngưỡng P95 2.5 giây và không đánh dấu
   ba tiêu chí live là pass.
 - Priority capacity check: request `serviceTier=priority` bị phục vụ dưới header
   `x-gemini-service-tier: standard`; Google trả quota
@@ -93,30 +93,5 @@ Evidence đã redact: `docs/evidence/release/2026-08-19-de4b2e817b88-gemini/`.
 - [x] Runtime timeout remediation: Agent áp deadline tổng 5 giây, ngắn hơn timeout proxy 8 giây.
   Provider chậm trả deterministic grounded response với `provider_deadline_exceeded`, không HTTP 503
   và không bị gắn `live_llm`. Full regression sau sửa: `171 passed`.
-- [ ] Không rerun thêm trong ngày khi quota Gemini đã hết. Giữ nguyên các checkbox live ở trạng thái
-  chưa pass cho đến khi có một run đủ 5 case `live_llm`, không timeout/fallback và P95 dưới 5 giây;
-  kết quả 2.5–5 giây chỉ là `PASS WITH LIMITATIONS` đối với demo.
-
-## 5. OpenAI-compatible demo gate 26/08/2026
-
-- [x] Evaluator mặc định dùng demo P95 `<5000 ms`; production target vẫn `<2500 ms`.
-- [x] Kết quả từ `2500 ms` đến dưới `5000 ms` được ghi `PASS WITH LIMITATIONS`; timeout, fallback,
-  lỗi contract hoặc P95 từ `5000 ms` trở lên vẫn `BLOCKED`.
-- [ ] Ba batch độc lập chưa ổn định: batch 1 đạt 5/5 với P95 `4069.266 ms`, batch 2 đạt 4/5 và
-  batch 3 đạt 2/5 do `provider_deadline_exceeded`. Chưa ký demo release PASS.
-
-### Direct endpoint rerun
-
-- [x] Recreate riêng Agent với `OPENAI_BASE_URL` trực tiếp, giữ `LLM_PROVIDER=openai`,
-  `MODEL_NAME=gpt-4o`, không in API key.
-- [x] Ba batch mới đều 5/5 `live_llm`, không timeout/fallback: P95 lần lượt `3880.944 ms`,
-  `2017.858 ms`, `2493.678 ms`.
-- [ ] Aggregate production latency chưa ký PASS vì batch 1 vượt 2.5 giây; demo status là
-  `PASS WITH LIMITATIONS`, cần theo dõi thêm nếu muốn tuyên bố production-ready.
-
-### Stage 1 staging acceptance — 26/08/2026
-
-- [x] Ba batch sequential qua endpoint trực tiếp đều có 5/5 `live_llm`, không timeout/fallback:
-  P95 `2010.283 ms`, `1849.762 ms`, `4745.506 ms`.
-- [x] Staging/demo gate đạt dưới trần P95 `<5000 ms`.
-- [ ] Production gate vẫn mở vì batch 3 vượt P95 target `<2500 ms`.
+- [ ] Không rerun thêm trong ngày khi quota Gemini đã hết. Giữ nguyên ba checkbox live ở trạng thái
+  chưa pass cho đến khi có một run đủ 5 case `live_llm` và P95 dưới 2,5 giây.

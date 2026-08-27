@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.agents.policies.spatial_response import (
     SpatialAnalysisMode,
@@ -17,7 +16,7 @@ from src.agents.policies.spatial_response import (
 )
 from src.agents.tools.contracts import ToolName
 
-GROUNDING_POLICY_VERSION = "airguard-chat-routing-v1.3-semantic-fallback"
+GROUNDING_POLICY_VERSION = "2026-08-24.social-3e"
 
 SYSTEM_PROMPT = """You are the AirGuard AI Assistant for environmental monitoring in Ocean Park.
 Use only authorized backend tool results from the current request. You are not a certified
@@ -68,55 +67,16 @@ class Intent(StrEnum):
     COMPARE = "compare"
     WEATHER = "weather"
     FORECAST = "forecast"
-    ACTIVE_ALERTS = "active_alerts"
-    ALERT = "active_alerts"
+    ALERT = "alert"
     USER_PROFILE = "user_profile"
     RECOMMENDATION = "recommendation"
     IMPACT = "impact"
     SPATIAL = "spatial"
-    WARNING_PROPOSAL = "warning_proposal"
-    PROPOSAL = "warning_proposal"
-    SAFETY_REFUSAL = "safety_refusal"
-    GREETING = "social"
+    PROPOSAL = "proposal"
+    GREETING = "greeting"
     SOCIAL = "social"
     CLARIFICATION = "clarification"
     OUT_OF_SCOPE = "out_of_scope"
-
-
-# Routing is deterministic, but this table is the final contract boundary for
-# every route.  It prevents future branches or model-assisted adapters from
-# adding speculative tools to an otherwise valid intent.
-INTENT_TOOL_ALLOWLIST: dict[Intent, frozenset[ToolName]] = {
-    Intent.CURRENT: frozenset({ToolName.GET_CURRENT_PM25}),
-    Intent.COMPARE: frozenset({ToolName.COMPARE_STATIONS}),
-    Intent.HISTORY: frozenset({ToolName.GET_STATION_HISTORY}),
-    Intent.FORECAST: frozenset({ToolName.GET_PM25_FORECAST}),
-    Intent.ACTIVE_ALERTS: frozenset({ToolName.GET_ACTIVE_ALERTS}),
-    Intent.WEATHER: frozenset({ToolName.GET_WEATHER_CONTEXT}),
-    Intent.USER_PROFILE: frozenset({ToolName.GET_USER_PROFILE}),
-    Intent.RECOMMENDATION: frozenset(
-        {
-            ToolName.GET_USER_PROFILE,
-            ToolName.GET_CURRENT_PM25,
-            ToolName.GET_WEATHER_CONTEXT,
-            ToolName.GET_PM25_FORECAST,
-            ToolName.GET_ACTIVE_ALERTS,
-            ToolName.COMPARE_STATIONS,
-        }
-    ),
-    # Proposal creation is a separate backend-validated workflow.  The route
-    # itself may only collect the read-only evidence needed by that workflow.
-    Intent.WARNING_PROPOSAL: frozenset(
-        {ToolName.GET_CURRENT_PM25, ToolName.GET_ACTIVE_ALERTS}
-    ),
-    Intent.IMPACT: frozenset({ToolName.GET_CURRENT_PM25}),
-    Intent.SPATIAL: frozenset({ToolName.GET_SPATIAL_AIR_QUALITY}),
-    Intent.SOCIAL: frozenset(),
-    Intent.GREETING: frozenset(),
-    Intent.CLARIFICATION: frozenset(),
-    Intent.SAFETY_REFUSAL: frozenset(),
-    Intent.OUT_OF_SCOPE: frozenset(),
-}
 
 
 class SafetyCategory(StrEnum):
@@ -156,22 +116,6 @@ class RouteDecision(BaseModel):
     station_entity_name: str | None = None
     recommendation_window_limited: bool = False
     conversation_kind: str | None = None
-    routing_mode: Literal["deterministic", "semantic"] = "deterministic"
-    semantic_confidence: float | None = Field(default=None, ge=0, le=1)
-
-    @model_validator(mode="after")
-    def tool_plan_matches_intent(self) -> RouteDecision:
-        if len(self.tool_calls) != len(self.tool_arguments):
-            raise ValueError("tool_calls and tool_arguments must have equal length")
-        allowed = INTENT_TOOL_ALLOWLIST.get(self.intent, frozenset())
-        unexpected = [tool.value for tool in self.tool_calls if tool not in allowed]
-        if unexpected:
-            raise ValueError(
-                f"tools not allowed for intent {self.intent.value}: {', '.join(unexpected)}"
-            )
-        if not self.tool_calls and self.tool_arguments:
-            raise ValueError("tool_arguments cannot be set when tool_calls is empty")
-        return self
 
     @property
     def requires_tools(self) -> bool:
@@ -179,7 +123,6 @@ class RouteDecision(BaseModel):
 
 
 def _plain(value: str) -> str:
-    value = value.lower().replace("đ", "d")
     normalized = unicodedata.normalize(
         "NFD", unicodedata.normalize("NFKC", value).lower().replace("đ", "d")
     )
@@ -188,172 +131,6 @@ def _plain(value: str) -> str:
 
 def _contains_any(query: str, phrases: tuple[str, ...]) -> bool:
     return any(phrase in query for phrase in phrases)
-
-
-# Phase 1 deterministic intent lexicon. These phrases only select an
-# allow-listed route; they never provide environmental facts or tool output.
-_CURRENT_COMPONENT_SIGNALS = (
-    "aqi",
-    "pm2.5",
-    "pm25",
-    "co2",
-    "co₂",
-    "khong khi",
-    "chat luong khong khi",
-    "chat luong moi truong",
-    "moi truong",
-    "bui min",
-    "tieng on",
-    "noise",
-    "nhiet do",
-    "temperature",
-    "tram",
-    "chi so",
-    "tinh hinh",
-)
-_CURRENT_REQUEST_SIGNALS = (
-    "hien tai",
-    "bay gio",
-    "luc nay",
-    "the nao",
-    "ra sao",
-    "dang the nao",
-    "dang ra sao",
-    "on khong",
-    "co tot khong",
-    "cho xem",
-    "xem tram",
-    "chi so",
-    "tinh hinh",
-    "khong khi",
-    "thi sao",
-    "tram do",
-    "tram nay",
-)
-_HISTORY_SIGNALS = (
-    "lich su",
-    "history",
-    "truoc day",
-    "qua khu",
-    "xu huong",
-    "trend",
-    "dien bien",
-    "thay doi",
-    "gan day",
-    "vua qua",
-    "gio qua",
-)
-_FORECAST_SIGNALS = (
-    "du bao",
-    "forecast",
-    "gio toi",
-    "sap toi",
-    "gio nua",
-    "tiep theo",
-    "du kien",
-    "tuong lai gan",
-)
-_ALERT_SIGNALS = (
-    "canh bao",
-    "alert",
-    "vuot nguong",
-    "bat thuong",
-    "co van de",
-)
-_WEATHER_SIGNALS = (
-    "thoi tiet",
-    "weather",
-    "do am",
-    "gio manh",
-    "toc do gio",
-    "luong mua",
-    "troi mua",
-    "troi nang",
-)
-_COMPARE_SIGNALS = (
-    "so sanh",
-    "compare",
-    "khac nhau",
-    "doi chieu",
-    "so voi",
-    "giua",
-)
-_BEST_STATION_SIGNALS = (
-    "chi so tot nhat",
-    "chi so nao tot nhat",
-    "tram tot nhat",
-    "tram nao tot nhat",
-    "tram nao dang co chi so tot nhat",
-    "tram on nhat",
-    "tram nao on nhat",
-    "chi so on nhat",
-    "tram sach nhat",
-    "tram nao sach nhat",
-    "tram it o nhiem nhat",
-    "tram nao it o nhiem nhat",
-    "tram nao do o nhiem nhat",
-    "khong khi tram nao tot nhat",
-    "aqi thap nhat",
-    "aqi nho nhat",
-    "lowest aqi",
-    "best aqi",
-)
-_WORST_STATION_SIGNALS = (
-    "aqi cao nhat",
-    "aqi lon nhat",
-    "highest aqi",
-    "worst aqi",
-    "tram o nhiem nhat",
-    "tram nao o nhiem nhat",
-    "tram te nhat",
-    "tram nao te nhat",
-    "tram xau nhat",
-    "tram nao xau nhat",
-    "chi so xau nhat",
-    "chi so cao nhat",
-)
-_BETTER_COMPARISON_SIGNALS = (
-    "tot hon",
-    "sach hon",
-    "on hon",
-    "it o nhiem hon",
-    "aqi thap hon",
-)
-_WORSE_COMPARISON_SIGNALS = (
-    "xau hon",
-    "te hon",
-    "o nhiem hon",
-    "aqi cao hon",
-)
-_RECOMMENDATION_SIGNALS = (
-    "co nen",
-    "khuyen",
-    "khuyen nghi",
-    "should",
-    "chay bo",
-    "run",
-    "exercise",
-    "work out",
-    "workout",
-    "jog",
-    "jogging",
-    "tap the thao",
-    "hoat dong ngoai troi",
-    "ngoai troi",
-    "outdoor",
-    "recommend",
-    "nhom nhay cam",
-    "nhay cam",
-    "sensitive group",
-    "nen lam gi",
-    "co an toan de",
-    "co phu hop de",
-    "phu hop de",
-    "nen tranh",
-    "di dao",
-    "dap xe",
-    "ra ngoai",
-)
 
 
 def _social_decision(query: str) -> RouteDecision | None:
@@ -447,71 +224,21 @@ def _social_decision(query: str) -> RouteDecision | None:
 
 def _has_explicit_domain_request(query: str) -> bool:
     """Recognize an environmental request without treating UI context as one."""
-    domain_signals = (
-        *_CURRENT_COMPONENT_SIGNALS,
-        *_HISTORY_SIGNALS,
-        *_FORECAST_SIGNALS,
-        *_ALERT_SIGNALS,
-        *_WEATHER_SIGNALS,
-        *_COMPARE_SIGNALS,
-        *_BEST_STATION_SIGNALS,
-        *_WORST_STATION_SIGNALS,
-        *_RECOMMENDATION_SIGNALS,
-        "o nhiem",
-        "sensor",
-        "chay bo",
-        "ngoai troi",
-        "cung duong",
-        "lo trinh",
+    return bool(re.search(r"\bS0[1-5]\b", query.upper())) or _contains_any(
+        query,
+        (
+            "aqi", "pm2.5", "pm25", "co2", "co₂", "chat luong khong khi", "moi truong",
+            "o nhiem", "bui min", "tieng on", "nhiet do", "thoi tiet", "canh bao", "du bao",
+            "so sanh", "tram", "sensor", "chay bo", "ngoai troi", "cung duong", "lo trinh",
+        ),
     )
-    return bool(re.search(r"\bS0[1-5]\b", query.upper())) or _contains_any(query, domain_signals)
 
 
 def _stations(query: str) -> list[str]:
-    return list(dict.fromkeys(re.findall(r"\bS0[1-5]\b", query.upper())))
-
-
-def _conversation_station_ids(context: Mapping[str, Any] | None) -> list[str]:
-    if not isinstance(context, Mapping):
-        return []
-    values = context.get("station_ids")
-    if not isinstance(values, list):
-        return []
-    return list(
-        dict.fromkeys(
-            value.upper()
-            for value in values
-            if isinstance(value, str)
-            and value.upper() in {"S01", "S02", "S03", "S04", "S05"}
-        )
-    )[:5]
-
-
-def _is_memory_follow_up(query: str, memory_stations: list[str]) -> bool:
-    if not memory_stations:
-        return False
-    if _contains_any(
-        query,
-        (
-            "thi sao",
-            "tram do",
-            "tram nay",
-            "tram kia",
-            "o do",
-            "cho do",
-            "same station",
-            "that station",
-            "the other station",
-            "so voi",
-        ),
-    ):
-        return True
-    if re.search(r"\b(?:con|no|do|kia)\b", query):
-        return True
-    return len(memory_stations) >= 2 and _contains_any(
-        query,
-        (*_BETTER_COMPARISON_SIGNALS, *_WORSE_COMPARISON_SIGNALS, "tram nao"),
-    )
+    # Accept both the canonical IDs (S01-S05) and the short form users type
+    # in conversation (S1-S5), while passing only canonical IDs to tools.
+    matches = re.findall(r"\bS0?([1-5])\b", query.upper())
+    return list(dict.fromkeys(f"S0{station_number}" for station_number in matches))
 
 
 # Product entity aliases are deliberately small and exact.  This entry is
@@ -541,7 +268,6 @@ def _user_id(query: str) -> str | None:
 
 
 def _safety_decision(query: str) -> RouteDecision | None:
-    compact = re.sub(r"[^a-z0-9]", "", query)
     if _contains_any(
         query,
         (
@@ -557,19 +283,9 @@ def _safety_decision(query: str) -> RouteDecision | None:
             "run sql",
             "mqtt credential",
         ),
-    ) or _contains_any(
-        compact,
-        (
-            "ignoreprevious",
-            "ignoreallprevious",
-            "boquachidan",
-            "boquasystem",
-            "revealsystemprompt",
-            "showsystemprompt",
-        ),
     ):
         return RouteDecision(
-            intent=Intent.SAFETY_REFUSAL,
+            intent=Intent.OUT_OF_SCOPE,
             safety_category=SafetyCategory.PROMPT_INJECTION,
             direct_response=(
                 "Mình không thể bỏ qua chính sách, tiết lộ chỉ dẫn nội bộ hoặc truy cập trực tiếp DB/MQTT. "
@@ -594,7 +310,7 @@ def _safety_decision(query: str) -> RouteDecision | None:
         ),
     ):
         return RouteDecision(
-            intent=Intent.SAFETY_REFUSAL,
+            intent=Intent.PROPOSAL,
             safety_category=SafetyCategory.HITL_BYPASS,
             direct_response=(
                 "Mình không thể phê duyệt, từ chối hoặc bỏ qua Human-in-the-Loop. "
@@ -603,20 +319,10 @@ def _safety_decision(query: str) -> RouteDecision | None:
         )
     if _contains_any(
         query,
-        (
-            "turn on device",
-            "turn off device",
-            "bat thiet bi",
-            "tat thiet bi",
-            "bat may loc",
-            "kich hoat quat loc",
-            "kich hoat may loc",
-            "gui mqtt",
-            "device command",
-        ),
+        ("turn on device", "turn off device", "bat thiet bi", "tat thiet bi", "bat may loc", "gui mqtt", "device command"),
     ):
         return RouteDecision(
-            intent=Intent.SAFETY_REFUSAL,
+            intent=Intent.OUT_OF_SCOPE,
             safety_category=SafetyCategory.DEVICE_CONTROL,
             direct_response=(
                 "Mình không thể điều khiển thiết bị hoặc gửi lệnh MQTT. Mọi command phải đi qua proposal, "
@@ -628,7 +334,7 @@ def _safety_decision(query: str) -> RouteDecision | None:
         ("chan doan", "toi bi benh", "ke don", "thuoc gi", "diagnose", "diagnosis", "prescribe", "treatment"),
     ):
         return RouteDecision(
-            intent=Intent.SAFETY_REFUSAL,
+            intent=Intent.OUT_OF_SCOPE,
             safety_category=SafetyCategory.MEDICAL,
             direct_response=(
                 "Mình không thể chẩn đoán hoặc kê đơn. Nếu bạn có triệu chứng hay lo ngại sức khỏe, "
@@ -637,7 +343,7 @@ def _safety_decision(query: str) -> RouteDecision | None:
         )
     if _contains_any(query, ("declare emergency", "evacuate now", "tuyen bo khan cap", "so tan ngay")):
         return RouteDecision(
-            intent=Intent.SAFETY_REFUSAL,
+            intent=Intent.OUT_OF_SCOPE,
             safety_category=SafetyCategory.EMERGENCY,
             direct_response=(
                 "Mình không thể tự tuyên bố tình trạng khẩn cấp hoặc ra lệnh sơ tán từ dữ liệu MVP mô phỏng. "
@@ -652,7 +358,6 @@ def route_query(
     *,
     context_station_id: str | None = None,
     user_id: str | None = None,
-    conversation_context: Mapping[str, Any] | None = None,
 ) -> RouteDecision:
     """Route a user query and derive only allow-listed, validated tool arguments."""
     stripped = query.strip()
@@ -673,35 +378,14 @@ def route_query(
     for station_id in entity_stations:
         if station_id not in stations:
             stations.append(station_id)
-    explicit_station_count = len(stations)
-    memory_stations = _conversation_station_ids(conversation_context)
-    memory_follow_up = _is_memory_follow_up(plain, memory_stations)
     normalized_context = (context_station_id or "").upper()
-    if not stations and memory_follow_up:
-        stations = list(memory_stations)
-    used_context_station = (
-        not stations
-        and normalized_context in {"S01", "S02", "S03", "S04", "S05"}
-    )
-    if used_context_station:
-        stations = [normalized_context]
+    is_ocean_park_area_query = _contains_any(plain, ("ocean park", "oceanpark", "ocp1", "ocp 1"))
     if (
-        explicit_station_count == 1
-        and memory_follow_up
-        and _contains_any(
-            plain,
-            (*_COMPARE_SIGNALS, *_BETTER_COMPARISON_SIGNALS, *_WORSE_COMPARISON_SIGNALS),
-        )
+        not stations
+        and not is_ocean_park_area_query
+        and normalized_context in {"S01", "S02", "S03", "S04", "S05"}
     ):
-        primary = (
-            str(conversation_context.get("primary_station_id") or "").upper()
-            if isinstance(conversation_context, Mapping)
-            else ""
-        )
-        if primary not in memory_stations:
-            primary = memory_stations[0] if memory_stations else ""
-        if primary and primary not in stations:
-            stations.insert(0, primary)
+        stations = [normalized_context]
     if _contains_any(
         plain,
         (
@@ -735,35 +419,13 @@ def route_query(
             ),
         )
 
-    # AQI superlatives are bounded all-station comparisons, not five separate
-    # current calls. "Tốt nhất/sạch nhất" means the lowest AQI because AQI is
-    # the product's primary overall index. The composer derives the winning
-    # station from this one validated payload.
-    if _contains_any(plain, (*_BEST_STATION_SIGNALS, *_WORST_STATION_SIGNALS)):
-        comparison_mode = "highest_aqi" if _contains_any(plain, _WORST_STATION_SIGNALS) else "lowest_aqi"
-        return RouteDecision(
-            intent=Intent.COMPARE,
-            tool_calls=[ToolName.COMPARE_STATIONS],
-            tool_arguments=[{"station_ids": ["S01", "S02", "S03", "S04", "S05"]}],
-            comparison_mode=comparison_mode,
-        )
-
     # A station-scoped request for current environmental components takes
     # precedence over the broad weather keyword (notably "nhiệt độ").  The
-    # legacy current tool returns the complete same-request snapshot. A bare
-    # station id is also an unambiguous request for that station's snapshot.
-    current_request = _contains_any(plain, _CURRENT_REQUEST_SIGNALS)
-    specific_non_current_request = _contains_any(
-        plain,
-        (
-            *_HISTORY_SIGNALS,
-            *_FORECAST_SIGNALS,
-            *_ALERT_SIGNALS,
-            *_WEATHER_SIGNALS,
-            *_RECOMMENDATION_SIGNALS,
-        ),
-    )
-    if len(stations) == 1 and current_request and not specific_non_current_request:
+    # legacy current tool returns the complete same-request snapshot.
+    current_components = ("aqi", "pm2.5", "pm25", "co2", "co₂", "tieng on", "noise", "nhiet do", "temperature")
+    if stations and _contains_any(plain, current_components) and _contains_any(
+        plain, ("hien tai", "bay gio", "luc nay", "the nao")
+    ) and not _contains_any(plain, ("du bao", "forecast", "gio toi", "sap toi")):
         return RouteDecision(
             intent=Intent.CURRENT,
             tool_calls=[ToolName.GET_CURRENT_PM25],
@@ -771,11 +433,30 @@ def route_query(
             station_entity_name="Khuôn viên VinUni" if "S04" in entity_stations else None,
         )
 
-    if len(stations) == 1 and re.fullmatch(r"(?:tram\s+)?s0[1-5]", plain.strip()):
+    # AQI superlatives are a bounded all-station comparison, not five separate
+    # current calls.  The composer derives the winning station from this one
+    # validated payload.
+    if _contains_any(
+        plain,
+        (
+            "aqi cao nhat",
+            "aqi lon nhat",
+            "highest aqi",
+            "worst aqi",
+            "khu nao o nhiem nhat",
+            "khu nao dang o nhiem nhat",
+            "cho nao o nhiem nhat",
+            "diem o nhiem nhat",
+        ),
+    ) or (
+        _contains_any(plain, ("o nhiem nhat",))
+        and not _contains_any(plain, ("chay", "chay bo", "cung duong", "lo trinh", "tuyen", "duong"))
+    ):
         return RouteDecision(
-            intent=Intent.CURRENT,
-            tool_calls=[ToolName.GET_CURRENT_PM25],
-            tool_arguments=[{"station_id": stations[0]}],
+            intent=Intent.COMPARE,
+            tool_calls=[ToolName.COMPARE_STATIONS],
+            tool_arguments=[{"station_ids": ["S01", "S02", "S03", "S04", "S05"]}],
+            comparison_mode="highest_aqi",
         )
 
     if _contains_any(plain, ("proposal", "de xuat canh bao", "tao canh bao", "warning proposal")):
@@ -818,6 +499,23 @@ def route_query(
             ),
         )
 
+    # Ocean Park 1 is the monitored area, not a station alias. A question
+    # about the whole development must use the map-wide grounded grid instead
+    # of inheriting a previously selected station such as S01.
+    is_ocean_park_overview = (
+        not stations
+        and is_ocean_park_area_query
+        and _contains_any(plain, ("chat luong khong khi", "khong khi", "moi truong", "o nhiem", "aqi", "pm25", "pm2.5"))
+    )
+    if is_ocean_park_overview:
+        return RouteDecision(
+            intent=Intent.SPATIAL,
+            tool_calls=[ToolName.GET_SPATIAL_AIR_QUALITY],
+            tool_arguments=[{"metric": _spatial_metric(plain), "forecast_hour": _hours(plain, 0)}],
+            spatial_analysis="overview",
+            spatial_location_ids=[],
+        )
+
     route_or_area_recommendation = _contains_any(
         plain,
         (
@@ -844,9 +542,33 @@ def route_query(
             spatial_location_ids=explicit_spatial_locations,
         )
 
-    recommendation_signal = _contains_any(plain, _RECOMMENDATION_SIGNALS)
+    recommendation_signal = _contains_any(
+        plain,
+        (
+            "co nen",
+            "khuyen",
+            "khuyen nghi",
+            "should",
+            "chay bo",
+            "run",
+            "exercise",
+            "work out",
+            "workout",
+            "jog",
+            "jogging",
+            "tap the thao",
+            "hoat dong ngoai troi",
+            "ngoai troi",
+            "outdoor",
+            "recommend",
+            "nhom nhay cam",
+            "nhay cam",
+            "sensitive group",
+            "nen lam gi",
+        ),
+    )
     if recommendation_signal:
-        if len(stations) != 1:
+        if not stations:
             return _clarify("Bạn muốn nhận khuyến nghị cho trạm nào (S01-S05)?")
         if not user_id:
             return _clarify(
@@ -856,18 +578,20 @@ def route_query(
         return RouteDecision(
             intent=Intent.RECOMMENDATION,
             tool_calls=[
-                ToolName.GET_USER_PROFILE,
                 ToolName.GET_CURRENT_PM25,
                 ToolName.GET_WEATHER_CONTEXT,
                 ToolName.GET_PM25_FORECAST,
                 ToolName.GET_ACTIVE_ALERTS,
+                ToolName.GET_USER_PROFILE,
+                ToolName.COMPARE_STATIONS,
             ],
             tool_arguments=[
-                {"user_id": user_id},
                 {"station_id": stations[0]},
                 {},
                 {"station_id": stations[0], "hours": hours, "metric": "pm25"},
                 {"station_id": stations[0]},
+                {"user_id": user_id},
+                {"station_ids": ["S01", "S02", "S03", "S04", "S05"]},
             ],
             # "Hôm nay" is broader than the approved forecast contract.  We
             # can still answer for the evidence-backed next 1--3 hours, but
@@ -875,32 +599,17 @@ def route_query(
             recommendation_window_limited=_contains_any(plain, ("hom nay", "ca ngay", "today", "all day")),
         )
 
-    implicit_multi_station_compare = (
-        len(stations) >= 2
-        and bool(re.search(r"\b(?:va|hay|voi)\b", plain))
-        and not _contains_any(plain, (*_HISTORY_SIGNALS, *_FORECAST_SIGNALS, *_ALERT_SIGNALS))
-    )
-    comparative_signal = implicit_multi_station_compare or _contains_any(
-        plain,
-        (*_COMPARE_SIGNALS, *_BETTER_COMPARISON_SIGNALS, *_WORSE_COMPARISON_SIGNALS),
-    )
-    if comparative_signal:
+    if _contains_any(plain, ("so sanh", "compare", "khac nhau")):
         if len(stations) < 2:
             return _clarify("Hãy cung cấp từ 2 đến 5 trạm trong S01-S05 để so sánh.")
-        comparison_mode = None
-        if _contains_any(plain, _BETTER_COMPARISON_SIGNALS):
-            comparison_mode = "lowest_aqi"
-        elif _contains_any(plain, _WORSE_COMPARISON_SIGNALS):
-            comparison_mode = "highest_aqi"
         return RouteDecision(
             intent=Intent.COMPARE,
             tool_calls=[ToolName.COMPARE_STATIONS],
             tool_arguments=[{"station_ids": stations}],
-            comparison_mode=comparison_mode,
         )
 
-    if _contains_any(plain, _HISTORY_SIGNALS) and not _contains_any(plain, _FORECAST_SIGNALS):
-        if len(stations) != 1:
+    if _contains_any(plain, ("lich su", "history", "truoc day", "qua khu", "xu huong")):
+        if not stations:
             return _clarify("Bạn muốn xem lịch sử của trạm nào (S01-S05)?")
         return RouteDecision(
             intent=Intent.HISTORY,
@@ -908,24 +617,16 @@ def route_query(
             tool_arguments=[{"station_id": stations[0], "hours": _hours(plain, 24)}],
         )
 
-    if _contains_any(plain, _FORECAST_SIGNALS):
-        if len(stations) != 1:
+    if _contains_any(plain, ("du bao", "forecast", "gio toi", "sap toi")):
+        if not stations:
             return _clarify("Bạn muốn xem dự báo của trạm nào (S01-S05)?")
-        if re.search(r"\bluc\s+\d{1,2}\s*gio\b", plain):
-            return _clarify(
-                "Bạn đang hỏi dự báo tại một giờ trong ngày hay trong bao nhiêu giờ tới? "
-                "AirGuard hiện hỗ trợ horizon 1-3 giờ."
-            )
         hours = _hours(plain, 3)
         if not 1 <= hours <= 3 or "ca ngay" in plain:
             return RouteDecision(
                 intent=Intent.FORECAST,
                 refusal_category=RefusalCategory.CONTRACT_REFUSAL,
                 reason_code=RefusalReasonCode.FORECAST_HORIZON_UNSUPPORTED,
-                direct_response=(
-                    "AirGuard chỉ hỗ trợ dự báo baseline 1–3 giờ cho MVP; "
-                    "yêu cầu vượt quá 3 giờ, bao gồm 13 giờ, không được hỗ trợ."
-                ),
+                direct_response="AirGuard chỉ hỗ trợ dự báo baseline 1–3 giờ cho MVP; không có dự báo 24 giờ hoặc cả ngày.",
             )
         return RouteDecision(
             intent=Intent.FORECAST,
@@ -933,7 +634,7 @@ def route_query(
             tool_arguments=[{"station_id": stations[0], "hours": hours, "metric": _forecast_metric(plain)}],
         )
 
-    if _contains_any(plain, _ALERT_SIGNALS):
+    if _contains_any(plain, ("canh bao", "alert")):
         arguments: dict[str, Any] = {"station_id": stations[0]} if stations else {}
         return RouteDecision(
             intent=Intent.ALERT,
@@ -941,9 +642,7 @@ def route_query(
             tool_arguments=[arguments],
         )
 
-    if _contains_any(plain, _WEATHER_SIGNALS) or (
-        not stations and _contains_any(plain, ("nhiet do", "mua"))
-    ):
+    if _contains_any(plain, ("thoi tiet", "weather", "nhiet do", "do am", "gio manh", "mua")):
         return RouteDecision(
             intent=Intent.WEATHER,
             tool_calls=[ToolName.GET_WEATHER_CONTEXT],
@@ -960,48 +659,14 @@ def route_query(
             tool_arguments=[{"user_id": user_id}],
         )
 
-    if _contains_any(
-        plain,
-        (
-            "aqi",
-            "pm2.5",
-            "pm25",
-            "co2",
-            "co₂",
-            "chat luong khong khi",
-            "moi truong",
-            "tieng on",
-            "nhiet do",
-            "hien tai",
-            "bay gio",
-        ),
-    ):
+    if stations or _contains_any(plain, ("pm2.5", "pm25", "chat luong khong khi", "hien tai", "bay gio")):
         if not stations:
             return _clarify("Bạn muốn kiểm tra AQI và các chỉ số môi trường tại trạm nào (S01-S05)?")
-        if len(stations) > 1:
-            return _clarify(
-                "Bạn đang nêu nhiều trạm. Hãy nói rõ muốn so sánh các trạm hay hỏi riêng một trạm."
-            )
         return RouteDecision(
             intent=Intent.CURRENT,
             tool_calls=[ToolName.GET_CURRENT_PM25],
             tool_arguments=[{"station_id": stations[0]}],
             station_entity_name="Khuôn viên VinUni" if "S04" in entity_stations else None,
-        )
-
-    if _contains_any(plain, ("tram kia", "tram con lai", "con tram", "the other station")):
-        return _clarify(
-            "Bạn muốn hỏi trạm nào? Hãy nêu station_id trong S01-S05 vì request này không có antecedent đã xác thực."
-        )
-
-    if used_context_station:
-        return _clarify(
-            "Bạn muốn hỏi dữ liệu hiện tại, lịch sử, dự báo, cảnh báo hay khuyến nghị cho trạm đang chọn?"
-        )
-
-    if _has_explicit_domain_request(plain):
-        return _clarify(
-            "Bạn muốn hỏi chức năng nào của AirGuard và cho trạm nào (nếu chức năng đó cần station_id)?"
         )
 
     return RouteDecision(
