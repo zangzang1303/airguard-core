@@ -13,6 +13,88 @@ def demo_agent() -> GeospatialAgentService:
     return GeospatialAgentService(telemetry_engine=live_engine)
 
 
+def _authoritative_spatial_result() -> dict:
+    return {
+        "answer": "Canonical Agent answer",
+        "intent": "spatial",
+        "outcome": "answered",
+        "used_tools": ["get_spatial_air_quality"],
+        "sources": [
+            {
+                "tool_name": "get_spatial_air_quality",
+                "observed_at": "2026-08-27T08:00:00Z",
+                "source": "spatial_idw_dispersion_model",
+            }
+        ],
+        "trace": {"intent": "spatial", "final_outcome": "answered"},
+    }
+
+
+def test_map_planning_boundary_rejects_unvalidated_agent_result() -> None:
+    agent = GeospatialAgentService()
+
+    with pytest.raises(ServiceError) as exc_info:
+        agent.plan_map_actions(
+            authoritative_agent_result={
+                "intent": "spatial",
+                "outcome": "answered",
+                "used_tools": [],
+                "sources": [],
+            },
+            message="Gợi ý cung đường chạy bộ",
+            user_id="demo-user",
+            station_id=None,
+            map_context=None,
+            request_id="map-source-gate",
+            user_group="normal",
+            station_snapshots={},
+            station_histories={},
+        )
+
+    assert exc_info.value.code == "map_planner_not_eligible"
+
+
+def test_map_planning_boundary_exports_only_declarative_ui_fields(monkeypatch) -> None:
+    agent = GeospatialAgentService()
+    received: dict = {}
+
+    def legacy_planner(**kwargs):
+        received.update(kwargs)
+        return {
+            "answer": {"summary": "Legacy answer must not escape"},
+            "intent": "recommend_running_route",
+            "evidence": [{"aqi": 999}],
+            "used_tools": ["legacy_tool"],
+            "map_actions": [
+                {"type": "highlight_route", "coordinates": [[20.99, 105.94], [21.0, 105.95]]}
+            ],
+            "time_context": {"type": "live"},
+            "data_mode": "current",
+        }
+
+    monkeypatch.setattr(agent, "process_query", legacy_planner)
+
+    planned = agent.plan_map_actions(
+        authoritative_agent_result=_authoritative_spatial_result(),
+        message="Gợi ý cung đường chạy bộ",
+        user_id="demo-user",
+        station_id=None,
+        map_context={"selected_location": "Hồ Ngọc Trai"},
+        request_id="map-output-boundary",
+        user_group="normal",
+        station_snapshots={"S01": {"station_id": "S01"}},
+        station_histories={},
+    )
+
+    assert set(planned) == {"map_actions", "map_intent", "time_context", "data_mode"}
+    assert planned["map_intent"] == "recommend_running_route"
+    assert planned["map_actions"][0]["type"] == "highlight_route"
+    assert "answer" not in planned
+    assert "evidence" not in planned
+    assert "used_tools" not in planned
+    assert received["authoritative_intent"] == "spatial"
+
+
 def test_greeting_does_not_fall_through_to_environmental_recommendation():
     agent = demo_agent()
 

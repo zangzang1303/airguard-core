@@ -12,6 +12,24 @@ from .temporal_resolver import temporal_resolver
 
 logger = logging.getLogger(__name__)
 
+_ALLOWED_MAP_ACTION_TYPES = frozenset(
+    {
+        "clear_ai_layer",
+        "fly_to",
+        "fit_bounds",
+        "highlight_area",
+        "highlight_route",
+        "highlight_sensor",
+        "highlight_point",
+        "add_annotation",
+        "remove_annotation",
+        "show_radius",
+        "dim_other_markers",
+        "set_environment_layer",
+        "show_heatmap",
+    }
+)
+
 
 class GeospatialAgentService:
     """
@@ -24,6 +42,88 @@ class GeospatialAgentService:
     def __init__(self, telemetry_engine: Any | None = None) -> None:
         self.telemetry_engine = telemetry_engine
 
+    def plan_map_actions(
+        self,
+        *,
+        authoritative_agent_result: dict[str, Any],
+        message: str,
+        user_id: str,
+        station_id: str | None,
+        map_context: dict[str, Any] | None,
+        request_id: str,
+        user_group: str,
+        station_snapshots: dict[str, dict[str, Any]],
+        station_histories: dict[str, list[dict[str, Any]]],
+    ) -> dict[str, Any]:
+        """Return UI-only map output after the canonical Agent source gate.
+
+        The legacy geospatial implementation still owns route geometry, but this
+        boundary prevents its answer, intent, evidence, or tool labels from being
+        merged into the canonical Agent response.
+        """
+
+        trace = authoritative_agent_result.get("trace")
+        trace = trace if isinstance(trace, dict) else {}
+        intent = authoritative_agent_result.get("intent") or trace.get("intent")
+        outcome = authoritative_agent_result.get("outcome") or trace.get("final_outcome")
+        sources = authoritative_agent_result.get("sources")
+        used_tools = authoritative_agent_result.get("used_tools")
+        has_spatial_source = (
+            isinstance(sources, list)
+            and isinstance(used_tools, list)
+            and "get_spatial_air_quality" in used_tools
+            and any(
+                isinstance(source, dict)
+                and source.get("tool_name") == "get_spatial_air_quality"
+                and isinstance(source.get("source"), str)
+                and bool(source["source"].strip())
+                for source in sources
+            )
+        )
+        if intent != "spatial" or outcome != "answered" or not has_spatial_source:
+            raise ServiceError(
+                "map_planner_not_eligible",
+                "Map planning requires an answered canonical spatial result with validated source",
+                422,
+            )
+
+        planned = self.process_query(
+            message=message,
+            user_id=user_id,
+            station_id=station_id,
+            map_context=map_context,
+            request_id=request_id,
+            user_group=user_group,
+            station_snapshots=station_snapshots,
+            station_histories=station_histories,
+            authoritative_intent="spatial",
+        )
+        raw_actions = planned.get("map_actions")
+        if not isinstance(raw_actions, list):
+            raise ServiceError(
+                "map_planner_contract_invalid",
+                "Map planner returned an invalid actions collection",
+                503,
+            )
+        actions: list[dict[str, Any]] = []
+        for action in raw_actions:
+            if (
+                not isinstance(action, dict)
+                or action.get("type") not in _ALLOWED_MAP_ACTION_TYPES
+            ):
+                raise ServiceError(
+                    "map_planner_contract_invalid",
+                    "Map planner returned an unsupported declarative action",
+                    503,
+                )
+            actions.append(dict(action))
+        return {
+            "map_actions": actions,
+            "map_intent": planned.get("intent"),
+            "time_context": planned.get("time_context"),
+            "data_mode": planned.get("data_mode"),
+        }
+
     def process_query(
         self,
         message: str,
@@ -35,17 +135,25 @@ class GeospatialAgentService:
         user_group: str = "normal",
         station_snapshots: dict[str, dict[str, Any]] | None = None,
         station_histories: dict[str, list[dict[str, Any]]] | None = None,
+        authoritative_intent: str | None = None,
     ) -> dict[str, Any]:
         map_context = map_context or {}
         q = message.lower().strip()
 
-        conversation = conversational_agent.classify(
-            message,
-            station_id=station_id,
-            map_context=map_context,
-        )
-        if conversation.intent != "domain":
-            return conversational_agent.deterministic_response(conversation, request_id=request_id)
+        if authoritative_intent is None:
+            conversation = conversational_agent.classify(
+                message,
+                station_id=station_id,
+                map_context=map_context,
+            )
+            if conversation.intent != "domain":
+                return conversational_agent.deterministic_response(conversation, request_id=request_id)
+        elif authoritative_intent != "spatial":
+            raise ServiceError(
+                "map_planner_not_eligible",
+                "Only the canonical spatial intent may bypass the legacy conversational gate",
+                422,
+            )
 
         # 1. Resolve Time Context (Live vs Forecast)
         time_ctx = temporal_resolver.resolve(q)

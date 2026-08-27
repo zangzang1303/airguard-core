@@ -12,6 +12,15 @@
 > automatic proposal worker likewise invokes one deterministic grounded proposal workflow, replacing
 > the former provider-preflight plus proposal double invocation.
 
+> **PR1 verification — 2026-08-27:** ISSUE-01 described the pre-PR1 implementation and is now
+> resolved. `POST /api/v1/agent/chat` invokes the isolated Agent exactly once and treats it as the
+> sole authority for the answer, intent, tools, sources and outcome. Non-spatial and terminal
+> outcomes no longer load profile/all-station/forecast dependencies or execute the geospatial
+> engine. An answered spatial request may invoke a UI-only map planner only after a validated
+> `get_spatial_air_quality` source; planner failure preserves the grounded answer and returns no map
+> action. Verification passed 623 repository tests and 70/70 golden evaluation cases with the
+> release gate enabled. The decision and boundary are recorded in ADR 0019.
+
 ---
 
 ## Danh mục Tài liệu & Mã nguồn Tham chiếu
@@ -80,7 +89,7 @@ User Input / Map Context / Selected Station
 
 | ID | Vấn đề / Nút thắt kỹ thuật | Phân tích chi tiết lỗi logic / Rủi ro hiệu năng & bảo mật | Mức độ nghiêm trọng |
 |---|---|---|:---:|
-| **ISSUE-01** | **Xử lý kép dư thừa (Dual Agent Execution Overhead)** | Tại [`backend/app/main.py:L1027-L1042`](file:///d:/Ai_Thuc_Chien/P-074/backend/app/main.py#L1027-L1042), hệ thống thực thi **cả 2 lệnh**: `await agent_service.chat()` (HTTP proxy sang LangGraph service) **VÀ** `geospatial_agent.process_query()` (gọi service nội bộ). Việc chạy song song/nối tiếp cả 2 engine gây lãng phí CPU/Memory và tăng Latency không cần thiết. | **Cao** |
+| **ISSUE-01 (pre-PR1)** | **Xử lý kép dư thừa (Dual Agent Execution Overhead)** | Chẩn đoán ban đầu là đúng: endpoint từng gọi cả `agent_service.chat()` và `geospatial_agent.process_query()` cho mọi domain request rồi trộn hai kết quả. PR1 đã sửa bằng một Agent authority và map planner có điều kiện, chỉ xuất UI actions sau source gate. | ✅ **Đã sửa** |
 | **ISSUE-02 (pre-P0)** | **Độ trễ do HTTP Hop & Synchronous LLM Call** | Mô tả này là lịch sử trước P0. Production answer hiện không có synchronous explanation call; semantic fallback tùy chọn chỉ có một invocation và fail-closed về clarification. | **Đã giảm** |
 | **ISSUE-03** | **Thiếu Memory State cho Hội thoại Đa lượt (Multi-turn Context Drift)** | Agent dựa vào `map_context` và `station_id` gửi kèm theo từng HTTP Request payload. Chưa tích hợp LangGraph Checkpointer (Postgres/Redis Persistence) để lưu trữ state hội thoại dài hạn, dẫn đến việc xử lý các câu hỏi tiếp nối nâng cao hoàn toàn phụ thuộc vào thông tin Client tự truyền. | **Trung bình** |
 | **ISSUE-04** | **Phụ thuộc vào Polling trên Frontend** | Frontend [`AgentChat.tsx`](file:///d:/Ai_Thuc_Chien/P-074/frontend/src/features/agent/AgentChat.tsx) sử dụng REST POST đơn lẻ và Polling định kỳ thay vì WebSockets / Server-Sent Events (SSE). Do đó, câu trả lời từ AI Agent xuất hiện dạng block hoàn chỉnh thay vì hiển thị hiệu ứng stream từng từ (streaming response). | **Trung bình** |
@@ -108,9 +117,9 @@ User Input / Map Context / Selected Station
 
 ### 4. Đề xuất cải tiến kỹ thuật (Actionable Recommendations)
 
-1. **Hợp nhất luồng xử lý Agent Execution (Unify Agent Pipeline)**
-   - *Giải pháp:* Loại bỏ việc gọi song song `geospatial_agent.process_query()` tại [`backend/app/main.py`](file:///d:/Ai_Thuc_Chien/P-074/backend/app/main.py#L1033) khi `agent_service.chat()` đã xử lý xong. Tích hợp trực tiếp logic sinh Map Actions vào LangGraph node (`compose_node`) của Agent microservice.
-   - *Lợi ích:* Giảm từ **40% – 50% Latency** xử lý backend và triệt tiêu nguy cơ bất đồng bộ Intent giữa 2 engine.
+1. **Hợp nhất luồng xử lý Agent Execution (Unify Agent Pipeline) — đã hoàn thành trong PR1**
+   - *Giải pháp đã áp dụng:* `agent_service.chat()` là authority duy nhất. Geospatial không còn là pipeline hội thoại thứ hai; nó chỉ là map planner tùy chọn cho kết quả `spatial` đã có source hợp lệ và không được ghi đè answer/intent/evidence/tool trace.
+   - *Kết quả:* Domain request thông thường chỉ chạy một pipeline Agent; lỗi phụ thuộc map không còn làm hỏng câu trả lời đã grounded. Không tuyên bố phần trăm giảm latency nếu chưa có benchmark production trước/sau.
 
 2. **Triển khai Server-Sent Events (SSE) Streaming Response**
    - *Giải pháp:* Nâng cấp API `/api/v1/agent/chat` hỗ trợ HTTP Response Streaming (SSE) kết hợp với `async generator` từ Gemini / OpenAI SDK. Cập nhật frontend [`AgentChat.tsx`](file:///d:/Ai_Thuc_Chien/P-074/frontend/src/features/agent/AgentChat.tsx) để tiêu thụ stream.

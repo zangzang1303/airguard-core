@@ -245,10 +245,12 @@ contain prompts, user IDs, request IDs, station evidence, sources, tokens, crede
 current in-process window is diagnostic for a single Agent process and resets when that process is
 restarted; production multi-replica aggregation belongs in the deployment metrics backend.
 
-The geospatial response path receives fresh station snapshots and forecast histories from the
-backend request scope. It must return structured `503` when grounded inputs are unavailable and
+The direct geospatial response path receives fresh station snapshots and forecast histories from
+the backend request scope. It must return structured `503` when grounded inputs are unavailable and
 must not synthesize AQI, PM2.5, CO₂, noise, temperature, timestamp or a default user profile in an
-exception handler.
+exception handler. Within `POST /agent/chat`, geospatial planning is optional UI post-processing:
+planner unavailability returns the already-grounded Agent answer with `map_actions=[]` and a
+sanitized planner status instead of converting that answer into a `503`.
 
 Basic social messages are intercepted before profile, geospatial, telemetry or LLM access. Their
 response adds `conversation_kind`, has empty `used_tools`, `tool_arguments`, `sources`/`evidence`
@@ -262,10 +264,15 @@ the result of `get_user_profile`. Missing profile or environmental evidence prod
 or insufficient-data behavior rather than a generic personalized recommendation.
 
 The public backend proxy must use the isolated Agent response as the authority for `answer`,
-`used_tools`, `sources` and `trace`; it must not infer tool names from intent. Deterministic map
-planning may add route geometry and map actions only after the Agent returns at least one validated
-source. A map-wide running/area request without a station id uses `get_spatial_air_quality` instead
-of inventing a default station.
+`intent`, `conversation_kind`, `used_tools`, `tool_arguments`, `sources`, proposal/quality fields
+and the core `trace`; it must not infer tool names from intent. The proxy invokes the Agent exactly
+once. Deterministic map planning is skipped for non-spatial, refused, clarification,
+direct-response and insufficient-data outcomes. It may add only route geometry and declarative map
+actions after an `answered` canonical `spatial` result returns a validated
+`get_spatial_air_quality` source from the same request. Planner output must not replace the Agent
+answer, evidence, intent or tool trace. Planner dependency failure preserves the Agent answer,
+returns `map_actions=[]` and records only a sanitized planner status/reason. A map-wide running/area
+request without a station id uses `get_spatial_air_quality` instead of inventing a default station.
 
 For running-route intents, the planner resolves the request origin in this order: explicit map
 selection, named POI, current map selection, GPS user location, then the labelled demo default.
