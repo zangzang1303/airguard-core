@@ -4,21 +4,20 @@
 
 ## 1. North star
 
-AirGuard AI la MVP quan sat AQI va moi truong quanh Vinhomes Ocean Park 1. He thong dung 5 sensor gia lap (S01-S05), MQTT, PostgreSQL, FastAPI, React va AI Agent dung tool calling. AQI la chi so tong quan tren giao dien; PM2.5, CO2, tieng on va nhiet do la cac chi so thanh phan de xem chi tiet, danh gia anh huong, canh bao va du bao ngan han.
+AirGuard AI la MVP quan sat PM2.5 ngoai troi quanh VinUni/Vinhomes Ocean Park. He thong dung 5 sensor gia lap (S01-S05), MQTT, PostgreSQL, FastAPI, React va AI Agent dung tool calling. San pham giup nguoi dung xem data, alert, forecast ngan han va gui warning proposal qua Human-in-the-Loop (HITL).
 
 Day la demo hoc tap/MVP, **khong phai he thong quan trac chinh thuc**, khong dua ra chan doan y te va khong dieu khien thiet bi that.
 
-Trang thai hien tai (cap nhat 14/08/2026):
+Moc bat buoc:
 
-| Hang muc | Trang thai |
+| Moc | Ket qua |
 |---|---|
-| Pipeline cot loi | Da co simulator -> MQTT -> DB -> API cho 5 tram, 4 metric do duoc va AQI dan xuat tu PM2.5 |
-| San pham MVP | Da co dashboard polling, ban do khu vuc, lich su, du bao 1-3 gio, canh bao/khuyen nghi, Agent grounded, HITL va audit |
-| Gioi han | AQI la PM2.5 concentration sub-index, du bao la baseline; ban do nhiet khong phai mo hinh lan truyen; auth va notification can cau hinh production |
+| Thu Tu 05/08/2026 | Core modules chay doc lap, data/API contracts ro rang, 5 tram hien thi duoc |
+| Thu Bay 08/08/2026 | MVP end-to-end: simulator -> MQTT -> DB -> API -> dashboard -> alert/forecast/Agent/HITL/audit |
 
 ## 2. Nguyen tac bat buoc
 
-1. **Grounding truoc fluency.** Agent khong duoc tu tao AQI, PM2.5, CO2, tieng on, nhiet do, forecast, weather, alert, timestamp, station status hay chi tiet user. Moi environmental fact phai den tu backend tool result cua cung request.
+1. **Grounding truoc fluency.** Agent khong duoc tu tao PM2.5, forecast, weather, alert, timestamp, station status hay chi tiet user. Moi environmental fact phai den tu backend tool result cua cung request.
 2. **Backend la system of record.** Frontend khong ket noi MQTT truc tiep va khong tu tinh business alert. Agent khong truy cap PostgreSQL truc tiep.
 3. **HITL khong duoc bypass.** Agent chi tao proposal `pending`; chi manager role duoc approve/reject. Command device chi duoc dispatcher publish sau approval server-side.
 4. **Data quality la gate.** Data invalid, stale hoac station offline khong duoc dung cho current value, alert, forecast hoac warning proposal.
@@ -41,7 +40,6 @@ FastAPI tool endpoints -> AI Agent (LangGraph/tool calling)
 AI Agent -> warning proposal -> manager HITL -> audit -> optional device dispatcher/simulator
 
 Weather provider/fallback -> weather context -> forecast + Agent
-Alert/approval worker -> SMTP (neu duoc cau hinh) + device simulator
 ```
 
 ### Bien gioi ownership
@@ -58,10 +56,10 @@ Alert/approval worker -> SMTP (neu duoc cau hinh) + device simulator
 ## 4. Domain nhanh
 
 - `Station`: S01-S05, immutable id, name, lat/lon, location type, active status.
-- `Measurement`: `message_id`, station, PM2.5, CO2, noise, temperature, weather fields, `measured_at`, `received_at`, source, validation state.
+- `Measurement`: `message_id`, station, PM2.5, weather fields, `measured_at`, `received_at`, source, validation state.
 - `StationStatus`: online/offline/stale/invalid, `last_seen`.
-- `Alert`: metric (AQI/PM2.5/CO2/noise/temperature/offline), rule version, severity, recommendation, observed/threshold value, `active/resolved`.
-- `Forecast`: station, metric, horizon 1-3h, values/range, baseline model/source/confidence/freshness.
+- `Alert`: rule version, severity, observed/threshold value, `active/resolved`.
+- `Forecast`: station, horizon 1-3h, values/range, model/source/confidence/freshness.
 - `WarningProposal`: evidence, target/action, rationale, policy version, `pending/approved/rejected`.
 - `AuditLog`: append-only actor/action/target/outcome/correlation id/time.
 - User groups: `normal`, `sensitive`, `outdoor_sport`.
@@ -79,11 +77,11 @@ airguard/devices/{device_id}/command
 airguard/devices/{device_id}/status
 ```
 
-Measurement toi thieu: `message_id`, `station_id`, `pm25`, `co2`, `noise_db`, `temperature`, `timestamp` timezone-aware, `source=simulator`. AQI duoc backend tinh tu PM2.5 theo `US_EPA_PM25_24H_2012`; day la concentration sub-index cho demo, khong phai AQI chinh thuc/NowCast. Dung schema chinh thuc trong [specs/data-contracts.md](specs/data-contracts.md).
+Measurement toi thieu: `message_id`, `station_id`, `pm25`, `timestamp` timezone-aware, `source=simulator`. Dung schema chinh thuc trong [specs/data-contracts.md](specs/data-contracts.md).
 
 ### REST va Agent tools
 
-REST contract o [specs/api-contracts.md](specs/api-contracts.md). Tool registry hien tai giu ten legacy de tuong thich, nhung response current/forecast phai ho tro AQI-first va cac metric thanh phan:
+REST contract o [specs/api-contracts.md](specs/api-contracts.md). Tool registry bat buoc:
 
 - `get_current_pm25`
 - `get_station_history`
@@ -94,7 +92,7 @@ REST contract o [specs/api-contracts.md](specs/api-contracts.md). Tool registry 
 - `get_user_profile`
 - `create_warning_proposal`
 
-Neu tool loi: tra structured error, Agent noi khong du du lieu. LLM chi duoc dien giai evidence da grounded; khi khong co key hoac LLM loi, Agent dung deterministic composer, khong fallback hallucination.
+Neu tool loi: tra structured error, Agent noi khong du du lieu. Khong co fallback hallucination.
 
 ## 6. Hien trang va cach lam viec voi repo
 
@@ -120,11 +118,12 @@ Khong reset/revert/xoa thay doi khong phai cua minh. Khong dung destructive git 
 
 ### Thu tu khoi dong muc tieu
 
-1. Copy `.env.example` thanh `.env`; chi dien secret cuc bo can dung.
-2. Chay `docker compose up --build -d`; Compose khoi dong PostgreSQL, Mosquitto, backend, Agent, consumer, simulator, device simulator va frontend.
-3. Neu can Celery/notification async, chay them profile `async-jobs`.
-4. Kiem tra frontend `http://localhost:5173`, backend `/health`, Agent `:8001/health` va `/api/v1/stations`.
-5. Cho it nhat mot chu ky simulator, sau do kiem tra 5 metric, freshness, forecast, alert va Agent.
+1. Start PostgreSQL va Mosquitto; cho healthy.
+2. Chay migration/seed S01-S05.
+3. Start backend, consumer va worker (neu feature can queue).
+4. Start sensor simulator.
+5. Start frontend.
+6. Kiem tra health, stations API, MQTT logs, database row va map.
 
 Lenh chinh xac va troubleshooting: [docs/environment-setup.md](docs/environment-setup.md), [docs/demo-runbook.md](docs/demo-runbook.md). Neu code hien tai chua ho tro mot buoc, ghi no vao known limitation thay vi tao ket qua gia.
 
@@ -148,8 +147,7 @@ Chi tiet: [docs/test-plan.md](docs/test-plan.md), [docs/definition-of-done.md](d
 | API request/response/status code | `specs/api-contracts.md`, tests, frontend/tool adapter |
 | MQTT field/topic/QoS | `specs/data-contracts.md`, simulator, consumer, tests |
 | Entity/migration | `specs/domain-model.md`, migration, repository tests |
-| AQI formula/metric set | data/API/domain specs, simulator, consumer, frontend, Agent tests |
-| Alert threshold/HITL | ADR 0003 va ADR 0009, acceptance criteria, config/test matrix |
+| Alert threshold/HITL | ADR 0003, acceptance criteria, config/test matrix |
 | Agent graph/tool/policy | ADR 0004, `docs/agent-evaluation.md`, golden cases |
 | Forecast method | ADR 0006, API/tool contract, evaluation |
 | Architecture/technology decision | ADR moi hoac cap nhat ADR, README, dependencies/risks |
@@ -169,13 +167,12 @@ Khong sua ADR da accepted de doi lich su; tao ADR moi de supersede no.
 
 ## 11. Quyet dinh can xac nhan voi Mentor/nhom
 
-- Nguong AQI/PM2.5/CO2/noise/temperature, severity, cooldown va resolution policy chinh thuc; nguong hien tai la provisional demo.
-- Toa do/ten chinh thuc cua S01-S05 va ranh gioi Ocean Park 1; polygon hien tai la hinh hoc OSM don gian hoa, khong phai ranh gioi phap ly.
+- PM2.5 threshold, severity labels, cooldown va alert resolution policy.
+- Toa do/ten chinh thuc cua S01-S05.
 - Nguon Weather API, key ownership, rate limit va fallback policy.
-- Authentication/RBAC provider production va danh sach manager demo.
+- Authentication/RBAC provider va danh sach manager demo.
 - Device command scope: co demo device simulator hay chi demo HITL/audit.
-- Co nang forecast baseline len Prophet/LSTM hay khong; Prophet/LSTM hien chua duoc implement.
-- SMTP provider production; UI hien dung demo identity va notification mac dinh tat.
+- Forecast model, confidence presentation va success metric sau MVP.
 
 Danh sach song: [planning/dependencies.md](planning/dependencies.md), [planning/risks.md](planning/risks.md).
 
@@ -215,8 +212,8 @@ This section is the single-file map of the repository. Read it before using broa
 |   |-- Dockerfile
 |   `-- requirements.txt
 |-- frontend/                     # current Vite/React dashboard; planned -> apps/web
-|   |-- src/App.tsx               # current dashboard entry surface
-|   |-- src/main.tsx
+|   |-- src/App.jsx               # current dashboard entry surface
+|   |-- src/main.jsx
 |   |-- src/styles.css
 |   |-- package.json
 |   `-- Dockerfile
@@ -228,18 +225,9 @@ This section is the single-file map of the repository. Read it before using broa
 |   |-- models/                   # Pydantic schemas
 |   `-- services/                 # LLM service and shared logic
 |-- services/
-|   |-- sensor-simulator/         # MQTT simulator, publishes measurements/status from data/stations.json
-|   |   |-- sensor_simulator.py
-|   |   |-- requirements.txt
-|   |   `-- Dockerfile
-|   `-- mqtt-consumer/            # MQTT consumer, validates payloads and persists to PostgreSQL
-|       |-- mqtt_consumer/
+|   `-- sensor-simulator/         # MQTT simulator, moved from simulators/sensor_simulator
+|       |-- sensor_simulator.py
 |       |-- requirements.txt
-|       `-- Dockerfile
-|   `-- device-simulator/        # approved device-command simulator and simulated ack/status publisher
-|       |-- device_simulator.py
-|       |-- requirements.txt
-|       |-- __init__.py
 |       `-- Dockerfile
 |-- infra/
 |   `-- mqtt/mosquitto.conf       # broker configuration, moved from mqtt/
@@ -271,39 +259,39 @@ This section is the single-file map of the repository. Read it before using broa
 
 ### Migration status
 
-The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`, plus shared `src/` until its own deliberate migration. At the time of this document update, `services/sensor-simulator`, `services/mqtt-consumer`, `services/device-simulator` and `infra/mqtt` are in the active Compose topology. `backend/` and `frontend/` remain at the repository root because Windows reported them locked by active processes. Do not update Compose paths to `apps/api` or `apps/web` until those moves complete in one change.
-
+The intended monorepo layout is `apps/api`, `apps/web`, `services/*`, `infra/*`, plus shared `src/` until its own deliberate migration. At the time of this document update, `services/sensor-simulator` and `infra/mqtt` have already moved. `backend/` and `frontend/` remain at the repository root because Windows reported them locked by active processes. Do not update Compose paths to `apps/api` or `apps/web` until those moves complete in one change.
 
 ### Runtime entry points
 
 | Surface | Current entry point | Runtime role | Notes |
 |---|---|---|---|
-| Main API | `backend/app/main.py` | REST API, Postgres-backed station/alert/HITL/audit/jobs | Docker Compose builds `./backend` today |
-| Dashboard | `frontend/src/main.tsx` -> `frontend/src/App.tsx` | React + Leaflet UI, AQI-first, polling 30 giay | Docker Compose builds `./frontend` today |
-| Sensor simulator | `services/sensor-simulator/sensor_simulator.py` | MQTT measurement/status publisher | Reads `data/stations.json`; supports `SENSOR_SCENARIO` |
+| Main API | `backend/app/main.py` | REST API, current mock/business endpoints, jobs | Docker Compose builds `./backend` today |
+| Dashboard | `frontend/src/main.jsx` -> `frontend/src/App.jsx` | React + Leaflet UI | Docker Compose builds `./frontend` today |
+| Sensor simulator | `services/sensor-simulator/sensor_simulator.py` | MQTT measurement/status publisher | Compose must be updated from the old path before next run |
 | Agent package | `src/main.py`, `src/agents/graph.py` | legacy/Agent FastAPI and LangGraph flow | tests import `src.*` |
-| MQTT broker | `infra/mqtt/mosquitto.conf` | Mosquitto config | Compose uses the current `infra/mqtt` path |
-| MQTT consumer | `services/mqtt-consumer/mqtt_consumer/main.py` | validates measurements/status and writes Postgres | Compose builds `./services/mqtt-consumer` today |
-| Device simulator | `services/device-simulator/device_simulator.py` | receives approved command payloads and publishes simulated ack/status | Compose builds `./services/device-simulator` today |
-| DB schema | `backend/db/schema.sql` | PostgreSQL initialization | includes environmental measurements, alerts, proposals, audit and delivery/device records |
+| MQTT broker | `infra/mqtt/mosquitto.conf` | Mosquitto config | Compose must be updated from the old path before next run |
+| DB schema | `backend/db/schema.sql` | Postgres initialization | planned to move together with backend |
 
 ### Immediate post-move repair checklist
 
-The partial folder migration has already been repaired for MQTT broker, sensor simulator and MQTT consumer in `docker-compose.yml`. After backend/frontend locks are released: `./backend` -> `./apps/api`, `./frontend` -> `./apps/web`, and database schema mount `./backend/db/schema.sql` -> `./apps/api/db/schema.sql`.
-- Update README, repository structure docs and any CI paths in the same change.
-- Run `docker compose config`, then build/start and verify health, MQTT publishing, consumer persistence, station API and UI.
+The partial folder migration means `docker-compose.yml` still has old paths for simulator and MQTT. Before running Compose again, update only these references after validating all target folders:
 
+- `./mqtt/mosquitto.conf` -> `./infra/mqtt/mosquitto.conf`
+- `./simulators/sensor_simulator` -> `./services/sensor-simulator`
+- After backend/frontend locks are released: `./backend` -> `./apps/api`, `./frontend` -> `./apps/web`, and database schema mount `./backend/db/schema.sql` -> `./apps/api/db/schema.sql`.
+- Update README, repository structure docs and any CI paths in the same change.
+- Run `docker compose config`, then build/start and verify health, MQTT publishing, station API and UI.
 
 ### Files to edit by concern
 
 | Concern | Primary files | Required paired updates |
 |---|---|---|
-| REST endpoint | `backend/app/main.py`, `backend/app/services/`, `backend/app/schemas/` | API spec, tests, frontend/Agent client |
+| REST endpoint | `backend/app/main.py`, backend services | API spec, tests, frontend/Agent client |
 | Database/schema | `backend/db/schema.sql` | domain model, migration/seed tests |
 | Dashboard UI | `frontend/src/` | API contract, UI test/screenshot, task status |
-| MQTT payload | simulator + `services/mqtt-consumer` | data contract, validator, integration tests |
+| MQTT payload | simulator + future consumer | data contract, validator, integration tests |
 | Agent behavior | `src/agents/`, `src/api/` | ADR 0004, evaluation cases, safety tests |
-| Alert/HITL/notification | backend services/routes/tasks | ADR 0003/0009, acceptance criteria, audit and delivery tests |
+| Alert/HITL | backend services/routes | ADR 0003, acceptance criteria, audit tests |
 | Compose/infrastructure | `docker-compose.yml`, `infra/` | environment setup, demo runbook |
 | Docs/planning | relevant `specs/`, `adrs/`, `planning/`, `tasks/` | AGENTS navigation if ownership changes |
 
