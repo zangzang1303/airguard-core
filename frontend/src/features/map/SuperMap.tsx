@@ -198,11 +198,11 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           onMapClickLocation={onMapClickLocation}
         />
 
-        {/* Base Map Tiles — CartoDB Voyager Clean High-Contrast */}
+        {/* Base Map Tiles — OpenStreetMap Standard */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
-          maxZoom={20}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
         />
 
         {/* Spatial Dispersion Heatmap Canvas Layer */}
