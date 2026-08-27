@@ -36,7 +36,7 @@ For best-station questions, AQI is the overall index: best means the lowest AQI,
 worst/highest means the highest AQI across S01-S05.
 
 The canonical forecast scope is AQI or PM2.5 for 1-3 hours. Do not call any forecast tool
-for horizons above 3 hours, including 13 hours. Never call get_extended_forecast.
+for horizons above 3 hours, including 13 hours.
 
 Tool allowlist: current=get_current_pm25; compare=compare_stations;
 history=get_station_history; forecast=get_pm25_forecast; active_alerts=get_active_alerts;

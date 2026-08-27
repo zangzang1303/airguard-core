@@ -189,7 +189,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
         minZoom={13}
         maxZoom={18}
         zoomControl={false}
-        attributionControl={false}
+        attributionControl
         style={{ width: "100%", height: "100%" }}
       >
         <MapActionBinder />
@@ -198,11 +198,11 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           onMapClickLocation={onMapClickLocation}
         />
 
-        {/* Base Map Tiles — CartoDB Voyager Clean High-Contrast */}
+        {/* Keep local and deployed builds on the same keyless OpenStreetMap tiles. */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
-          maxZoom={20}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
         />
 
         {/* Spatial Dispersion Heatmap Canvas Layer */}
@@ -233,7 +233,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           selectedStationId={selectedStationId}
           criticalStationIds={criticalStationIds}
           onSelectStation={onSelectStation}
-          showSensors={layerConfig.showSensors && viewMode !== "heatmap"}
+          showSensors={layerConfig.showSensors}
           activeMetric={layerConfig.activeEnvironmentalLayer}
         />
 

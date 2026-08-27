@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-TOOL_REGISTRY_VERSION = "2026-08-24.forecast-baseline-3c"
+TOOL_REGISTRY_VERSION = "2026-08-27.forecast-baseline-only"
 TOOL_REGISTRY_OWNER = "ai-agent"
 STATION_IDS = {"S01", "S02", "S03", "S04", "S05"}
 
@@ -25,7 +25,6 @@ class ToolName(StrEnum):
     COMPARE_STATIONS = "compare_stations"
     GET_WEATHER_CONTEXT = "get_weather_context"
     GET_PM25_FORECAST = "get_pm25_forecast"
-    GET_EXTENDED_FORECAST = "get_extended_forecast"
     GET_ACTIVE_ALERTS = "get_active_alerts"
     GET_USER_PROFILE = "get_user_profile"
     CREATE_WARNING_PROPOSAL = "create_warning_proposal"
@@ -306,35 +305,6 @@ class Pm25Forecast(BackendOutputModel):
         return self
 
 
-class ExtendedForecastHorizon(BackendOutputModel):
-    hours_ahead: int = Field(..., ge=1, le=24)
-    timestamp: AwareDatetime
-    predicted_value: float
-    lower_bound: float
-    upper_bound: float
-    confidence: float | None = None
-
-
-class ExtendedForecast(BackendOutputModel):
-    station_id: str
-    metric: str
-    model: str
-    trend_summary: str
-    confidence: str
-    horizons: list[ExtendedForecastHorizon]
-
-
-class ExtendedForecastInput(StrictModel):
-    station_id: str
-    hours: int = Field(default=24, ge=1, le=24)
-    metric: Literal["pm25", "aqi", "co2", "noise_db", "temperature"] = "pm25"
-
-    @field_validator("station_id")
-    @classmethod
-    def check_station(cls, value: str) -> str:
-        return validate_station_id(value)
-
-
 class ActiveAlert(BackendOutputModel):
     alert_id: str
     station_id: str
@@ -535,14 +505,6 @@ TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
         output_schema=Pm25Forecast,
         method="GET",
         endpoint="/api/v1/stations/{station_id}/forecast",
-    ),
-    ToolName.GET_EXTENDED_FORECAST: ToolSpec(
-        name=ToolName.GET_EXTENDED_FORECAST,
-        description="Fetch a 1 to 24 hour multi-step ML time-series forecast for one station with confidence bounds and trend summary.",
-        input_schema=ExtendedForecastInput,
-        output_schema=ExtendedForecast,
-        method="GET",
-        endpoint="/api/v1/stations/{station_id}/forecast?model=prophet&hours={hours}",
     ),
     ToolName.GET_ACTIVE_ALERTS: ToolSpec(
         name=ToolName.GET_ACTIVE_ALERTS,

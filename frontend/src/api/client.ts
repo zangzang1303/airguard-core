@@ -639,20 +639,23 @@ export const api = {
     stationId: string,
     metric: ForecastData["metric"] = "pm25",
     hours = 3,
-    model: "prophet" | "baseline" = "prophet",
+    model: "baseline" = "baseline",
   ): Promise<ForecastData> => {
     try {
       const data = await apiFetch<any>(
         `/api/v1/stations/${stationId}/forecast?metric=${metric}&hours=${hours}&model=${model}`,
       );
+      if (!data.source || !data.model_name) {
+        throw new Error("Forecast response is missing provenance");
+      }
       const items = data.horizons ?? data.items ?? [];
       return {
         station_id: data.station_id,
         horizon_hours: items.length,
         metric: data.metric ?? metric,
-        source: data.source ?? data.model ?? "prophet_time_series_v1",
+        source: data.source,
         confidence: typeof data.confidence === "number" ? `${Math.round(data.confidence * 100)}%` : data.confidence,
-        model_name: data.model_name ?? "Prophet Time-Series ML v1.0",
+        model_name: data.model_name,
         limitations: data.limitations ?? data.trend_summary,
         forecasts: items.map((item: any) => {
           const predicted = item.predicted_value ?? item.value ?? item.pm25 ?? null;

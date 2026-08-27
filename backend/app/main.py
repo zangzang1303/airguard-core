@@ -43,7 +43,6 @@ from .services.geospatial_agent_service import geospatial_agent
 from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.live_telemetry_engine import live_engine
-from .services.prophet_forecast_service import prophet_service
 from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
 from .services.report_repository import PostgresReportRepository
@@ -947,12 +946,9 @@ def get_station_forecast(
     station_id: str,
     hours: int = Query(default=3, ge=1, le=3),
     metric: Literal["pm25", "aqi", "co2", "noise_db", "temperature"] = Query(default="pm25"),
-    model: Literal["prophet", "baseline"] = Query(default="baseline"),
+    model: Literal["baseline"] = Query(default="baseline"),
 ) -> dict:
     history = station_service.get_forecast_history(station_id)
-    if model == "prophet":
-        return prophet_service.forecast(station_id, history, hours=hours, metric=metric)
-
     try:
         forecast = trend_forecast(history, hours, metric=metric)
     except InsufficientForecastHistory as exc:
@@ -1139,7 +1135,7 @@ async def agent_chat(
                 "trace": agent_result.get("trace", {}),
             }
 
-        evidence_source = "prophet_time_series_v1" if time_context["is_forecast"] else None
+        evidence_source = "simulator_history_spatial_fourier_v2" if time_context["is_forecast"] else None
         for evidence_item in result.get("evidence", []):
             evidence_station_id = evidence_item.get("station_id")
             evidence_snapshot = snapshots.get(evidence_station_id)

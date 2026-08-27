@@ -12,8 +12,6 @@ from src.agents.tools.contracts import (
     ActiveAlertsInput,
     CompareStationsInput,
     CurrentPm25Input,
-    ExtendedForecast,
-    ExtendedForecastInput,
     Pm25Forecast,
     Pm25ForecastInput,
     SpatialAirQuality,
@@ -269,36 +267,6 @@ class FakeBackendToolClient:
         except ValidationError as exc:
             return self._validation_error(ToolName.GET_PM25_FORECAST, request_id, exc)
         return ToolEnvelope(tool_name=ToolName.GET_PM25_FORECAST, request_id=request_id, data=data)
-
-    async def get_extended_forecast(self, payload: Mapping[str, Any], request_id: str = "fixture-request") -> ToolEnvelope | ToolError:
-        try:
-            args = ExtendedForecastInput.model_validate(payload)
-            current = self.fixtures["current"][args.station_id]
-            base = float(current.get("pm25") or 40.0)
-            horizons = [
-                {
-                    "hours_ahead": h,
-                    "timestamp": (FIXED_NOW + timedelta(hours=h)).isoformat(),
-                    "predicted_value": round(base + (h % 5 - 2) * 1.5, 1),
-                    "lower_bound": round(base * 0.85, 1),
-                    "upper_bound": round(base * 1.15, 1),
-                    "confidence": 0.88,
-                }
-                for h in range(1, args.hours + 1)
-            ]
-            data = ExtendedForecast.model_validate({
-                "station_id": args.station_id,
-                "metric": args.metric,
-                "model": "prophet_time_series_v1",
-                "trend_summary": "Dự kiến chất lượng không khí duy trì ổn định.",
-                "confidence": "high",
-                "horizons": horizons,
-            }).model_dump(mode="json")
-        except KeyError:
-            return self._error(ToolName.GET_EXTENDED_FORECAST, request_id, ToolErrorCode.NOT_FOUND, "Station fixture not found.")
-        except ValidationError as exc:
-            return self._validation_error(ToolName.GET_EXTENDED_FORECAST, request_id, exc)
-        return ToolEnvelope(tool_name=ToolName.GET_EXTENDED_FORECAST, request_id=request_id, data=data)
 
     async def get_active_alerts(self, payload: Mapping[str, Any], request_id: str = "fixture-request") -> ToolEnvelope | ToolError:
         try:

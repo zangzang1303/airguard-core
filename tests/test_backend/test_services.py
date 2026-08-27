@@ -227,6 +227,22 @@ def test_short_term_forecast_preserves_canonical_aqi_metadata() -> None:
     assert [item["hour_offset"] for item in result["items"]] == [1, 2, 3]
 
 
+def test_short_term_forecast_responds_to_latest_spike_without_cache() -> None:
+    start = datetime(2026, 8, 13, 10, tzinfo=UTC)
+    result = trend_forecast(
+        [
+            {"measured_at": start, "pm25": 40},
+            {"measured_at": start + timedelta(minutes=10), "pm25": 40},
+            {"measured_at": start + timedelta(minutes=20), "pm25": 190},
+        ],
+        1,
+        generated_at=start + timedelta(minutes=20),
+    )
+
+    assert result["items"][0]["pm25"] > 190
+    assert result["source"] == "simulator_history_damped_linear_v1"
+
+
 def test_manager_guard_rejects_non_manager() -> None:
     try:
         ApprovalService._require_manager("viewer")

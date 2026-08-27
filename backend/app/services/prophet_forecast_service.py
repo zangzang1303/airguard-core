@@ -9,7 +9,10 @@ from .air_quality import pm25_aqi
 
 class ProphetForecastService:
     """
-    Additive Fourier Time-Series & Statistical ML Forecasting Engine (Prophet-inspired).
+    Legacy-named Fourier heuristic used only by the spatial forecast timeline.
+
+    This is not Prophet or a trained ML model. The canonical station/Agent
+    forecast is the 1-3 hour damped baseline in forecast_service.py.
     Decomposes environmental time series into:
       y(t) = Trend(t) + Seasonality(t) + TrafficRush(t) + Regressors(t) + e(t)
     Produces point predictions with calibrated confidence bounds across 1h to 24h horizons.
@@ -45,10 +48,17 @@ class ProphetForecastService:
             if val is None and metric == "aqi" and p.get("pm25") is not None:
                 val = float(pm25_aqi(p["pm25"]))
             if val is not None:
-                ts_str = p.get("measured_at") or p.get("timestamp")
-                if ts_str:
+                raw_timestamp = p.get("measured_at") or p.get("timestamp")
+                if raw_timestamp:
                     try:
-                        dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        if isinstance(raw_timestamp, datetime):
+                            dt = raw_timestamp
+                        else:
+                            dt = datetime.fromisoformat(
+                                str(raw_timestamp).replace("Z", "+00:00")
+                            )
+                        if dt.tzinfo is None or dt.utcoffset() is None:
+                            continue
                         extracted.append((dt, float(val)))
                     except Exception:
                         pass
@@ -56,29 +66,25 @@ class ProphetForecastService:
         # Sort chronologically
         extracted.sort(key=lambda x: x[0])
 
+        if len(extracted) < 3:
+            raise ValueError("at least three timestamped measurements are required")
+
         # 2. Compute Base Level and Recent Velocity (Trend)
-        if extracted:
-            recent_vals = [v for _, v in extracted[-12:]]
-            # Exponentially weighted base value
-            weights = [1.1 ** i for i in range(len(recent_vals))]
-            sum_w = sum(weights)
-            base_level = sum(v * w for v, w in zip(recent_vals, weights)) / sum_w
+        recent_vals = [v for _, v in extracted[-12:]]
+        weights = [1.1 ** i for i in range(len(recent_vals))]
+        sum_w = sum(weights)
+        weighted_base = sum(v * w for v, w in zip(recent_vals, weights)) / sum_w
+        # Anchor the spatial heuristic to the newest valid measurement so an
+        # abrupt local spike is visible immediately instead of being averaged
+        # almost entirely into the preceding window.
+        base_level = recent_vals[-1] * 0.65 + weighted_base * 0.35
 
-            if len(recent_vals) >= 3:
-                # Damped linear trend slope per hour
-                raw_slope = (recent_vals[-1] - recent_vals[0]) / max(1, len(recent_vals) - 1)
-                trend_slope = max(-3.0, min(3.0, raw_slope * 0.4))
-            else:
-                trend_slope = 0.0
+        raw_slope = (recent_vals[-1] - recent_vals[0]) / max(1, len(recent_vals) - 1)
+        trend_slope = max(-3.0, min(3.0, raw_slope * 0.4))
 
-            # Residual variance for confidence bound calibration
-            diffs = [abs(recent_vals[i] - recent_vals[i - 1]) for i in range(1, len(recent_vals))]
-            sigma_base = sum(diffs) / len(diffs) if diffs else 2.5
-        else:
-            default_base_map = {"pm25": 42.0, "aqi": 118.0, "co2": 650.0, "noise_db": 58.0, "temperature": 31.0}
-            base_level = default_base_map.get(metric, 40.0)
-            trend_slope = 0.0
-            sigma_base = 3.0
+        # Residual variance for confidence bound calibration
+        diffs = [abs(recent_vals[i] - recent_vals[i - 1]) for i in range(1, len(recent_vals))]
+        sigma_base = sum(diffs) / len(diffs) if diffs else 2.5
 
         min_val, max_val = self.METRIC_RANGES[metric]
 
@@ -147,9 +153,9 @@ class ProphetForecastService:
         return {
             "station_id": station_id,
             "metric": metric,
-            "model": "prophet_time_series_v1",
-            "model_name": "Prophet Time-Series Additive Fourier ML v1.0",
-            "source": "prophet_time_series_v1",
+            "model": "spatial_fourier_heuristic_v2",
+            "model_name": "Spatial Fourier heuristic v2",
+            "source": "simulator_history_spatial_fourier_v2",
             "horizon_hours": hours,
             "generated_at": now.isoformat(),
             "timestamp": now.isoformat(),
@@ -157,7 +163,7 @@ class ProphetForecastService:
             "horizons": horizons,
             "items": horizons,
             "trend_summary": trend_summary,
-            "limitations": "Mô hình chuỗi thời gian dựa trên phân rã Fourier và chu kỳ giờ cao điểm giả lập tại Ocean Park 1.",
+            "limitations": "Heuristic Fourier từ dữ liệu simulator và chu kỳ giờ cao điểm giả định; không phải Prophet, mô hình đã huấn luyện hay dự báo quan trắc chính thức.",
         }
 
     def _generate_trend_summary(
