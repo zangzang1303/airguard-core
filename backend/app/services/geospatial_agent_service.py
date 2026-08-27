@@ -124,6 +124,146 @@ class GeospatialAgentService:
             "data_mode": planned.get("data_mode"),
         }
 
+    @staticmethod
+    def validated_comparison_station_ids(
+        authoritative_agent_result: dict[str, Any],
+    ) -> list[str]:
+        """Return station IDs only when the canonical compare result proves them."""
+        trace = authoritative_agent_result.get("trace")
+        trace = trace if isinstance(trace, dict) else {}
+        intent = authoritative_agent_result.get("intent") or trace.get("intent")
+        outcome = authoritative_agent_result.get("outcome") or trace.get("final_outcome")
+        used_tools = authoritative_agent_result.get("used_tools")
+        tool_arguments = authoritative_agent_result.get("tool_arguments")
+        sources = authoritative_agent_result.get("sources")
+        if (
+            intent != "compare"
+            or outcome != "answered"
+            or not isinstance(used_tools, list)
+            or "compare_stations" not in used_tools
+            or not isinstance(tool_arguments, list)
+            or not isinstance(sources, list)
+        ):
+            raise ServiceError(
+                "comparison_map_not_eligible",
+                "Comparison map output requires an answered canonical comparison",
+                422,
+            )
+
+        comparison_index = used_tools.index("compare_stations")
+        if comparison_index >= len(tool_arguments):
+            raise ServiceError(
+                "comparison_map_contract_invalid",
+                "Comparison tool arguments are unavailable",
+                503,
+            )
+        arguments = tool_arguments[comparison_index]
+        raw_ids = arguments.get("station_ids") if isinstance(arguments, dict) else None
+        if not isinstance(raw_ids, list):
+            raise ServiceError(
+                "comparison_map_contract_invalid",
+                "Comparison station ids are unavailable",
+                503,
+            )
+        station_ids = list(
+            dict.fromkeys(
+                station_id.upper()
+                for station_id in raw_ids
+                if isinstance(station_id, str)
+                and re.fullmatch(r"S0[1-5]", station_id.upper())
+            )
+        )
+        if len(station_ids) < 2 or len(station_ids) > 5:
+            raise ServiceError(
+                "comparison_map_contract_invalid",
+                "Comparison map output requires between 2 and 5 stations",
+                503,
+            )
+
+        validated_source_ids = {
+            source.get("station_id")
+            for source in sources
+            if isinstance(source, dict)
+            and source.get("tool_name") == "compare_stations"
+            and isinstance(source.get("station_id"), str)
+            and isinstance(source.get("source"), str)
+            and bool(source["source"].strip())
+        }
+        if any(station_id not in validated_source_ids for station_id in station_ids):
+            raise ServiceError(
+                "missing_validated_comparison_source",
+                "Every compared station requires a validated same-request source",
+                422,
+            )
+        return station_ids
+
+    def plan_comparison_map_actions(
+        self,
+        *,
+        authoritative_agent_result: dict[str, Any],
+        station_locations: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Project a grounded station comparison into declarative UI actions."""
+        station_ids = self.validated_comparison_station_ids(authoritative_agent_result)
+        locations_by_id = {
+            location.get("station_id"): location
+            for location in station_locations
+            if isinstance(location, dict)
+        }
+        if any(station_id not in locations_by_id for station_id in station_ids):
+            raise ServiceError(
+                "comparison_map_contract_invalid",
+                "Station coordinates do not cover the canonical comparison",
+                503,
+            )
+
+        actions: list[dict[str, Any]] = [{"type": "clear_ai_layer"}]
+        coordinates: list[list[float]] = []
+        for station_id in station_ids:
+            location = locations_by_id[station_id]
+            try:
+                lat = float(location["latitude"])
+                lng = float(location["longitude"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ServiceError(
+                    "comparison_map_contract_invalid",
+                    "A compared station has invalid coordinates",
+                    503,
+                ) from exc
+            coordinates.append([lat, lng])
+            station_name = location.get("station_name") or station_id
+            actions.extend(
+                [
+                    {
+                        "type": "highlight_sensor",
+                        "sensor_id": station_id,
+                        "lat": lat,
+                        "lng": lng,
+                        "severity": "normal",
+                    },
+                    {
+                        "type": "add_annotation",
+                        "target_id": f"comparison_{station_id}",
+                        "lat": lat,
+                        "lng": lng,
+                        "title": f"{station_id} · {station_name}",
+                        "badge": "Đang so sánh",
+                        "style": "info",
+                    },
+                ]
+            )
+
+        lats = [coordinate[0] for coordinate in coordinates]
+        lngs = [coordinate[1] for coordinate in coordinates]
+        actions.append(
+            {
+                "type": "fit_bounds",
+                "bounds": [[min(lats), min(lngs)], [max(lats), max(lngs)]],
+                "padding": [80, 80],
+            }
+        )
+        return {"map_actions": actions, "map_intent": "compare_stations"}
+
     def process_query(
         self,
         message: str,
@@ -972,6 +1112,7 @@ class GeospatialAgentService:
                 "radius_m": 250,
                 "style": "recommended",
                 "score": best["score"],
+                "aqi": best["aqi"],
                 "rank": 1,
             },
             {

@@ -348,9 +348,88 @@ async def test_spatial_answer_runs_ui_only_map_planner_after_source_gate(
     ]
     assert response["trace"]["map_planner_status"] == "completed"
     assert response["trace"]["map_intent"] == "recommend_running_route"
+    assert response["map_intent"] == "recommend_running_route"
     agent_chat.assert_awaited_once()
     planner.assert_called_once()
     assert planner.call_args.kwargs["authoritative_agent_result"] is agent_result
+
+
+@pytest.mark.asyncio
+async def test_compare_answer_projects_validated_stations_without_changing_intent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_conversation_memory(monkeypatch)
+    sources = [
+        {
+            "tool_name": "compare_stations",
+            "station_id": station_id,
+            "observed_at": "2026-08-27T08:00:00Z",
+            "source": "simulator",
+        }
+        for station_id in ("S01", "S02")
+    ]
+    agent_result = {
+        "answer": "Canonical S01/S02 comparison",
+        "intent": "compare",
+        "used_tools": ["compare_stations"],
+        "tool_arguments": [{"station_ids": ["S01", "S02"]}],
+        "sources": sources,
+        "outcome": "answered",
+        "trace": {"intent": "compare", "final_outcome": "answered"},
+    }
+    locations = [
+        {
+            "station_id": "S01",
+            "station_name": "Trục Đa Tốn",
+            "latitude": 21.0008,
+            "longitude": 105.9428,
+        },
+        {
+            "station_id": "S02",
+            "station_name": "Khu Sapphire",
+            "latitude": 20.9975,
+            "longitude": 105.943,
+        },
+    ]
+    location_lookup = Mock(return_value=locations)
+    monkeypatch.setattr(
+        main_module.agent_service,
+        "chat",
+        AsyncMock(return_value=agent_result),
+    )
+    monkeypatch.setattr(
+        main_module.station_service,
+        "get_station_locations",
+        location_lookup,
+    )
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/agent/chat",
+            "headers": [(b"x-request-id", b"compare-map-projection")],
+        }
+    )
+    response = await main_module.agent_chat(
+        request,
+        main_module.AgentChatRequest(
+            message="So sánh S01 và S02 hiện tại",
+            user_id="demo-user",
+        ),
+        None,
+    )
+
+    assert response["intent"] == "compare"
+    assert response["map_intent"] == "compare_stations"
+    assert response["sources"] == sources
+    assert [
+        action["sensor_id"]
+        for action in response["map_actions"]
+        if action["type"] == "highlight_sensor"
+    ] == ["S01", "S02"]
+    assert response["trace"]["map_planner_status"] == "completed"
+    location_lookup.assert_called_once_with(["S01", "S02"])
 
 
 @pytest.mark.asyncio

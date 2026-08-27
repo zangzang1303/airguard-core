@@ -721,6 +721,7 @@ export const api = {
       reply: textReply,
       answer: { summary: summaryStr, details: detailsStr },
       intent: response.intent,
+      map_intent: response.map_intent,
       time_context: response.time_context,
       data_mode: response.data_mode,
       evidence: response.evidence || response.sources || {},

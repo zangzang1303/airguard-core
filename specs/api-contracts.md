@@ -236,7 +236,7 @@ results from the current request. Unknown, expired or cross-owner IDs fail with 
 read or write conversation storage.
 
 The response contains `answer`, `intent`, `conversation_kind`, `conversation_id`, `used_tools`, `tool_arguments`,
-`sources`, `map_actions`, `request_id`, `trace`, and optional
+`sources`, `map_actions`, `request_id`, `trace`, and optional `map_intent`,
 `proposal_id`, `recommendation_policy_version`, and `impact_policy_version`. The impact intent
 uses a fresh station snapshot and rates operational environmental impact with AQI as the primary
 index; PM2.5, CO₂, noise and temperature are supporting evidence only. It is not a medical
@@ -276,13 +276,20 @@ or insufficient-data behavior rather than a generic personalized recommendation.
 The public backend proxy must use the isolated Agent response as the authority for `answer`,
 `intent`, `conversation_kind`, `used_tools`, `tool_arguments`, `sources`, proposal/quality fields
 and the core `trace`; it must not infer tool names from intent. The proxy invokes the Agent exactly
-once. Deterministic map planning is skipped for non-spatial, refused, clarification,
+once. Deterministic route planning is skipped for non-spatial, refused, clarification,
 direct-response and insufficient-data outcomes. It may add only route geometry and declarative map
 actions after an `answered` canonical `spatial` result returns a validated
 `get_spatial_air_quality` source from the same request. Planner output must not replace the Agent
 answer, evidence, intent or tool trace. Planner dependency failure preserves the Agent answer,
 returns `map_actions=[]` and records only a sanitized planner status/reason. A map-wide running/area
 request without a station id uses `get_spatial_air_quality` instead of inventing a default station.
+
+As a separate bounded presentation projection, an `answered` canonical `compare` result may emit
+`highlight_sensor`, `add_annotation` and `fit_bounds` actions for two-to-five stations. Every
+station must be present in both the same-request `compare_stations` tool arguments and a validated
+`compare_stations` source. Coordinates come from the backend station catalog; the projector must
+not load all environmental snapshots or change the canonical answer. `map_intent` is optional
+UI-only metadata for route, indoor or comparison rendering and is never answer evidence.
 
 For running-route intents, the planner resolves the request origin in this order: explicit map
 selection, named POI, current map selection, GPS user location, then the labelled demo default.

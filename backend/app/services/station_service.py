@@ -114,6 +114,53 @@ class StationService:
                 {"station_id": station_id},
             ) from exc
 
+    def get_station_locations(self, station_ids: list[str]) -> list[dict[str, Any]]:
+        """Load immutable map metadata for a bounded set of stations.
+
+        Comparison visualization must not load every environmental snapshot or
+        reuse duplicated frontend coordinates. The station catalog in Postgres
+        remains the system of record for marker placement.
+        """
+        ids = list(dict.fromkeys(station_ids))
+        if len(ids) < 2 or len(ids) > 5:
+            raise ServiceError(
+                "invalid_station_ids",
+                "Provide between 2 and 5 station ids for map comparison",
+                422,
+            )
+        try:
+            with self.db.connection() as conn:
+                with dict_cursor(conn) as cur:
+                    cur.execute(
+                        """
+                        SELECT station_id, station_name, latitude, longitude
+                        FROM stations
+                        WHERE station_id = ANY(%s)
+                          AND active = TRUE
+                        """,
+                        (ids,),
+                    )
+                    rows = cur.fetchall()
+        except ServiceError:
+            raise
+        except Exception as exc:
+            raise ServiceError(
+                "station_catalog_unavailable",
+                "Station map metadata is unavailable",
+                503,
+            ) from exc
+
+        by_id = {row["station_id"]: row for row in rows}
+        missing = [station_id for station_id in ids if station_id not in by_id]
+        if missing:
+            raise ServiceError(
+                "station_not_found",
+                "One or more stations were not found",
+                404,
+                {"station_id": missing},
+            )
+        return [dict(by_id[station_id]) for station_id in ids]
+
     def get_history(self, station_id: str, hours: int) -> dict[str, Any]:
         try:
             self.ensure_station(station_id)

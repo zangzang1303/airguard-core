@@ -446,6 +446,7 @@ export interface AgentResponse {
   reply: string;
   answer?: AgentResponseAnswer | string;
   intent?: string;
+  map_intent?: string;
   time_context?: {
     type: "live" | "forecast";
     is_forecast?: boolean;

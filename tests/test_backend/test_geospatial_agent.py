@@ -30,6 +30,26 @@ def _authoritative_spatial_result() -> dict:
     }
 
 
+def _authoritative_compare_result() -> dict:
+    return {
+        "answer": "Canonical comparison answer",
+        "intent": "compare",
+        "outcome": "answered",
+        "used_tools": ["compare_stations"],
+        "tool_arguments": [{"station_ids": ["S01", "S02"]}],
+        "sources": [
+            {
+                "tool_name": "compare_stations",
+                "station_id": station_id,
+                "observed_at": "2026-08-27T08:00:00Z",
+                "source": "simulator",
+            }
+            for station_id in ("S01", "S02")
+        ],
+        "trace": {"intent": "compare", "final_outcome": "answered"},
+    }
+
+
 def test_map_planning_boundary_rejects_unvalidated_agent_result() -> None:
     agent = GeospatialAgentService()
 
@@ -93,6 +113,51 @@ def test_map_planning_boundary_exports_only_declarative_ui_fields(monkeypatch) -
     assert "evidence" not in planned
     assert "used_tools" not in planned
     assert received["authoritative_intent"] == "spatial"
+
+
+def test_comparison_map_projector_highlights_only_validated_stations() -> None:
+    agent = GeospatialAgentService()
+
+    planned = agent.plan_comparison_map_actions(
+        authoritative_agent_result=_authoritative_compare_result(),
+        station_locations=[
+            {
+                "station_id": "S01",
+                "station_name": "Trục Đa Tốn",
+                "latitude": 21.0008,
+                "longitude": 105.9428,
+            },
+            {
+                "station_id": "S02",
+                "station_name": "Khu Sapphire",
+                "latitude": 20.9975,
+                "longitude": 105.943,
+            },
+        ],
+    )
+
+    assert planned["map_intent"] == "compare_stations"
+    highlighted = [
+        action["sensor_id"]
+        for action in planned["map_actions"]
+        if action["type"] == "highlight_sensor"
+    ]
+    assert highlighted == ["S01", "S02"]
+    assert planned["map_actions"][-1] == {
+        "type": "fit_bounds",
+        "bounds": [[20.9975, 105.9428], [21.0008, 105.943]],
+        "padding": [80, 80],
+    }
+
+
+def test_comparison_map_projector_rejects_station_without_same_request_source() -> None:
+    agent_result = _authoritative_compare_result()
+    agent_result["sources"] = agent_result["sources"][:1]
+
+    with pytest.raises(ServiceError) as exc_info:
+        GeospatialAgentService.validated_comparison_station_ids(agent_result)
+
+    assert exc_info.value.code == "missing_validated_comparison_source"
 
 
 def test_greeting_does_not_fall_through_to_environmental_recommendation():

@@ -1156,11 +1156,46 @@ async def agent_chat(
                 map_actions = planned["map_actions"]
                 planner_fields = {
                     key: planned[key]
-                    for key in ("time_context", "data_mode")
+                    for key in ("map_intent", "time_context", "data_mode")
                     if planned.get(key) is not None
                 }
                 planner_trace = {
                     "map_planner": "deterministic_grounded_geospatial",
+                    "map_planner_status": "completed",
+                    "map_planner_reason": None,
+                    "map_intent": planned.get("map_intent"),
+                }
+            except ServiceError as exc:
+                planner_trace = {
+                    "map_planner_status": "unavailable",
+                    "map_planner_reason": exc.code,
+                }
+            except Exception:
+                planner_trace = {
+                    "map_planner_status": "unavailable",
+                    "map_planner_reason": "map_planner_failed",
+                }
+        elif canonical_intent == "compare":
+            # A comparison is already answered by the canonical Agent. This
+            # projector reads only the two-to-five validated station IDs and
+            # their catalog coordinates; it cannot change answer semantics.
+            try:
+                comparison_station_ids = (
+                    geospatial_agent.validated_comparison_station_ids(agent_result)
+                )
+                station_locations = station_service.get_station_locations(
+                    comparison_station_ids
+                )
+                planned = geospatial_agent.plan_comparison_map_actions(
+                    authoritative_agent_result=agent_result,
+                    station_locations=station_locations,
+                )
+                map_actions = planned["map_actions"]
+                planner_fields = {
+                    "map_intent": planned.get("map_intent"),
+                }
+                planner_trace = {
+                    "map_planner": "validated_station_comparison_projector",
                     "map_planner_status": "completed",
                     "map_planner_reason": None,
                     "map_intent": planned.get("map_intent"),
@@ -1217,6 +1252,8 @@ async def agent_chat(
         }
         if planner_fields.get("time_context") is not None:
             response["time_context"] = planner_fields["time_context"]
+        if planner_fields.get("map_intent") is not None:
+            response["map_intent"] = planner_fields["map_intent"]
         return response
     except ServiceError:
         raise
