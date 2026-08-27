@@ -18,10 +18,9 @@ class ConversationDecision:
 class ConversationalAgentService:
     """Fail-closed conversation gate in front of the geospatial engine.
 
-    Social messages never read telemetry. Unknown messages request clarification
-    instead of falling through to an environmental recommendation. A separate
-    Agent service may rewrite a social fallback, but this class validates that
-    response before it reaches the public API.
+    Social messages never read telemetry or invoke the Agent/LLM. Unknown messages
+    request clarification instead of falling through to an environmental
+    recommendation.
     """
 
     _GREETINGS = {
@@ -44,6 +43,10 @@ class ConversationalAgentService:
     _THANKS_AND_ACKS = {
         "cam on",
         "cam on ban",
+        "cam on nhe",
+        "cam on ban nhe",
+        "xin cam on",
+        "xin cam on ban",
         "thanks",
         "thank you",
         "ok",
@@ -60,8 +63,10 @@ class ConversationalAgentService:
     _WELLBEING = {
         "khoe khong",
         "ban khoe khong",
+        "ban co khoe khong",
         "hom nay ban the nao",
         "airguard khoe khong",
+        "airguard co khoe khong",
     }
     _CAPABILITIES = {
         "ban la ai",
@@ -71,6 +76,9 @@ class ConversationalAgentService:
         "ban co the lam gi",
         "ban co the lam duoc gi",
         "ban co the lam duoc nhung gi",
+        "ban co the giup gi cho toi",
+        "ban giup toi duoc gi",
+        "ban co the ho tro gi",
         "ban giup duoc gi",
         "ban giup gi",
         "lam duoc gi",
@@ -100,8 +108,20 @@ class ConversationalAgentService:
         "tram",
         "sensor",
         "canh bao",
+        "vuot nguong",
+        "bat thuong",
+        "co van de",
         "du bao",
+        "du kien",
+        "sap toi",
+        "gio nua",
+        "tiep theo",
         "hien tai",
+        "ra sao",
+        "tinh hinh",
+        "gan day",
+        "dien bien",
+        "thay doi",
         "toi nay",
         "chieu nay",
         "sang nay",
@@ -117,6 +137,15 @@ class ConversationalAgentService:
         "lo trinh",
         "tuyen duong",
         "so sanh",
+        "doi chieu",
+        "tot hon",
+        "sach hon",
+        "on hon",
+        "it o nhiem hon",
+        "tram tot nhat",
+        "tram on nhat",
+        "tram sach nhat",
+        "tram o nhiem nhat",
         "khu vuc",
         "dia diem",
         "sapphire",
@@ -143,6 +172,14 @@ class ConversationalAgentService:
         "phe duyet",
         "manager",
         "thong gio",
+        # A person can ask for cautious advice by naming their group without
+        # repeating an AQI/running keyword.  This only admits the request to
+        # the Agent; the Agent still obtains the authoritative group from the
+        # backend profile in the same request.
+        "nhom nhay cam",
+        "nhay cam",
+        "sensitive group",
+        "nen lam gi",
     )
     _CONTEXT_FOLLOW_UPS = (
         "o day",
@@ -208,7 +245,13 @@ class ConversationalAgentService:
         map_context: dict[str, Any] | None = None,
     ) -> ConversationDecision:
         plain = cls._plain(message)
-        if plain in cls._GREETINGS:
+        social_plain = cls._social_plain(message)
+        # A concrete environmental request always wins over a social prefix.
+        # Do this before exact social matching so, for example, "Cảm ơn, AQI
+        # S03 hiện tại thế nào?" cannot be swallowed by an acknowledgement.
+        if cls._has_explicit_domain_request(plain):
+            return ConversationDecision(intent="domain", kind="domain", fallback_response="")
+        if social_plain in cls._GREETINGS:
             return ConversationDecision(
                 intent="greeting",
                 kind="greeting",
@@ -217,37 +260,34 @@ class ConversationalAgentService:
                     "hay tìm cung đường chạy bộ?"
                 ),
             )
-        if plain in cls._THANKS_AND_ACKS:
+        if social_plain in cls._THANKS_AND_ACKS:
             return ConversationDecision(
                 intent="social",
                 kind="acknowledgement",
-                fallback_response=(
-                    "Rất vui được hỗ trợ bạn. Khi cần, bạn có thể hỏi AirGuard về AQI, "
-                    "khu vực hoặc cung đường hoạt động ngoài trời."
-                ),
+                fallback_response="Cảm ơn bạn. Rất vui được hỗ trợ trong phạm vi AirGuard.",
             )
-        if plain in cls._FAREWELLS:
+        if social_plain in cls._FAREWELLS:
             return ConversationDecision(
                 intent="social",
                 kind="farewell",
                 fallback_response="Tạm biệt bạn! Hẹn gặp lại khi bạn cần hỗ trợ từ AirGuard.",
             )
-        if plain in cls._WELLBEING:
+        if social_plain in cls._WELLBEING:
             return ConversationDecision(
                 intent="social",
                 kind="wellbeing",
                 fallback_response=(
-                    "Mình đang hoạt động ổn và sẵn sàng hỗ trợ trong phạm vi AirGuard. "
-                    "Bạn muốn xem chất lượng môi trường ở đâu?"
+                    "Mình là trợ lý AI nên không có sức khỏe hay cảm xúc, nhưng có thể hỗ trợ về AirGuard."
                 ),
             )
-        if plain in cls._CAPABILITIES or any(c in plain for c in cls._CAPABILITIES):
+        if social_plain in cls._CAPABILITIES:
             return ConversationDecision(
                 intent="social",
                 kind="capabilities",
                 fallback_response=(
-                    "Mình có thể hỗ trợ xem AQI và các chỉ số môi trường, so sánh khu vực, "
-                    "xem dự báo ngắn hạn, cảnh báo và đề xuất cung đường chạy bộ dựa trên dữ liệu AirGuard."
+                    "Mình hỗ trợ AQI/trạm hiện tại, so sánh trạm, dự báo baseline 1–3 giờ, cảnh báo và "
+                    "khuyến nghị grounded từ dữ liệu demo/mô phỏng. Mình không dự báo dài hạn, chẩn đoán "
+                    "hay điều khiển thiết bị."
                 ),
             )
 
@@ -291,6 +331,11 @@ class ConversationalAgentService:
                 "intent": decision.intent,
                 "conversation_kind": decision.kind,
                 "generation_mode": "deterministic_grounded",
+                "conversation_mode": (
+                    "deterministic_social"
+                    if decision.intent in {"greeting", "social"}
+                    else None
+                ),
                 "final_outcome": "clarification" if decision.intent == "clarification" else "direct_response",
             },
         )
@@ -303,22 +348,11 @@ class ConversationalAgentService:
         *,
         request_id: str,
     ) -> dict[str, Any]:
-        answer = agent_result.get("answer")
-        used_tools = agent_result.get("used_tools")
-        sources = agent_result.get("sources")
-        trace = agent_result.get("trace")
-        agent_intent = trace.get("intent") if isinstance(trace, dict) else None
-        if (
-            not isinstance(answer, str)
-            or not cls._social_text_is_safe(answer)
-            or used_tools != []
-            or sources != []
-            or agent_intent not in {"greeting", "social"}
-        ):
-            return cls.deterministic_response(decision, request_id=request_id)
-        safe_trace = dict(trace)
-        safe_trace["conversation_kind"] = decision.kind
-        return cls._response(decision, answer=answer.strip(), request_id=request_id, trace=safe_trace)
+        # Compatibility-only lock: no caller may re-introduce an Agent/LLM
+        # rewrite for a social decision. The public endpoint short-circuits
+        # before this helper; direct calls still fail closed deterministically.
+        del agent_result
+        return cls.deterministic_response(decision, request_id=request_id)
 
     @classmethod
     def _response(
@@ -338,6 +372,8 @@ class ConversationalAgentService:
             "sources": [],
             "map_actions": [],
             "used_tools": [],
+            "tool_arguments": [],
+            "proposal_id": None,
             "request_id": request_id,
             "trace": trace,
         }
@@ -377,20 +413,25 @@ class ConversationalAgentService:
         return has_context and any(signal in plain for signal in cls._CONTEXT_FOLLOW_UPS)
 
     @classmethod
-    def _social_text_is_safe(cls, text: str) -> bool:
-        cleaned = text.strip()
-        if not cleaned or len(cleaned) > 500:
-            return False
-        return not any(re.search(pattern, cleaned, flags=re.IGNORECASE) for pattern in cls._UNSAFE_SOCIAL_PATTERNS)
+    def _has_explicit_domain_request(cls, plain: str) -> bool:
+        return cls._is_domain_query(plain, station_id=None, map_context=None)
 
     @staticmethod
     def _plain(value: str) -> str:
-        normalized = unicodedata.normalize("NFD", value.lower().replace("đ", "d"))
+        normalized = unicodedata.normalize(
+            "NFD", unicodedata.normalize("NFKC", value).lower().replace("đ", "d")
+        )
         without_accents = "".join(
             character for character in normalized if unicodedata.category(character) != "Mn"
         )
         without_punctuation = re.sub(r"[^a-z0-9.\s]", " ", without_accents)
         return re.sub(r"\s+", " ", without_punctuation).strip()
+
+    @classmethod
+    def _social_plain(cls, value: str) -> str:
+        # Strip all punctuation only after the domain-safe normalization. This
+        # accepts trailing dots/ellipsis while leaving PM2.5 intact for routing.
+        return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", cls._plain(value))).strip()
 
 
 conversational_agent = ConversationalAgentService()

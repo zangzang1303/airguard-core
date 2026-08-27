@@ -92,6 +92,7 @@ class LiveTelemetryEngine:
     def __init__(self) -> None:
         self._history: dict[str, list[dict[str, Any]]] = {s["station_id"]: [] for s in self.STATION_DEFINITIONS}
         self._demo_overrides: dict[str, dict[str, float]] = {}
+        self._demo_override_started_at: dict[str, datetime] = {}
         self._bootstrap_history()
 
     def _bootstrap_history(self) -> None:
@@ -234,15 +235,28 @@ class LiveTelemetryEngine:
         if station_id not in self._history:
             raise KeyError(station_id)
         self._demo_overrides[station_id] = dict(values)
+        self._demo_override_started_at[station_id] = datetime.now(UTC)
         self.tick()
         return self.get_latest(station_id)
 
     def clear_demo_override(self, station_id: str) -> None:
         self._demo_overrides.pop(station_id, None)
+        self._demo_override_started_at.pop(station_id, None)
         self.tick()
 
     def get_demo_overrides(self) -> dict[str, dict[str, float]]:
         return {station_id: dict(values) for station_id, values in self._demo_overrides.items()}
+
+    def get_demo_override_evidence(self, station_id: str) -> dict[str, Any] | None:
+        values = self._demo_overrides.get(station_id)
+        started_at = self._demo_override_started_at.get(station_id)
+        if values is None or started_at is None:
+            return None
+        return {
+            **values,
+            "started_at": started_at,
+            "source": "demo_override",
+        }
 
     def apply_demo_override(self, station: dict[str, Any]) -> dict[str, Any]:
         override = self._demo_overrides.get(str(station.get("station_id")))

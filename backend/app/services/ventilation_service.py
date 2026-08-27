@@ -25,6 +25,7 @@ class VentilationAssessment:
     triggered_metrics: tuple[str, ...] = ()
     source_command_intent_id: str | None = None
     device_id: str | None = None
+    evidence_source: str = "measurements"
 
     def as_evidence(self) -> dict[str, Any]:
         evidence = asdict(self)
@@ -55,6 +56,7 @@ class VentilationService:
         max_gap_seconds: int = 60,
         default_duration_minutes: int = 45,
         default_intensity_percent: int = 80,
+        demo_override_provider: Callable[[str], dict[str, Any] | None] | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.db = db
@@ -70,6 +72,7 @@ class VentilationService:
             raise ValueError("default_intensity_percent must be between 1 and 100")
         self.default_duration_minutes = int(default_duration_minutes)
         self.default_intensity_percent = int(default_intensity_percent)
+        self.demo_override_provider = demo_override_provider
         self._clock = clock or (lambda: datetime.now(UTC))
 
     def assess_trigger(
@@ -87,6 +90,9 @@ class VentilationService:
                 policy_version=VENTILATION_POLICY_VERSION,
                 required_duration_seconds=self.trigger_duration_seconds,
             )
+        demo_assessment = self._assess_demo_override(station_id, reference_at=reference_at)
+        if demo_assessment is not None:
+            return demo_assessment
         rows = self._measurements(
             station_id,
             reference_at=reference_at,
@@ -119,6 +125,59 @@ class VentilationService:
             # metric changed during the window. Keep that distinction explicit.
             metrics.append("pm25_or_co2")
         return VentilationAssessment(**{**asdict(assessment), "triggered_metrics": tuple(metrics)})
+
+    def _assess_demo_override(
+        self,
+        station_id: str,
+        *,
+        reference_at: datetime,
+    ) -> VentilationAssessment | None:
+        if self.demo_override_provider is None:
+            return None
+        override = self.demo_override_provider(station_id)
+        if not override:
+            return None
+        started_at_raw = override.get("started_at")
+        if not isinstance(started_at_raw, datetime):
+            return VentilationAssessment(
+                False,
+                "demo_override_timestamp_unavailable",
+                VENTILATION_POLICY_VERSION,
+                self.trigger_duration_seconds,
+                evidence_source="demo_override",
+            )
+        started_at = self._aware_utc(started_at_raw)
+        continuous_seconds = max(0, int((reference_at - started_at).total_seconds()))
+        triggered_metrics: list[str] = []
+        pm25 = override.get("pm25")
+        co2 = override.get("co2")
+        if pm25 is not None and float(pm25) > self.pm25_threshold:
+            triggered_metrics.append("pm25")
+        if co2 is not None and float(co2) > self.co2_threshold:
+            triggered_metrics.append("co2")
+        if not triggered_metrics:
+            return VentilationAssessment(
+                False,
+                "threshold_not_continuous",
+                VENTILATION_POLICY_VERSION,
+                self.trigger_duration_seconds,
+                continuous_seconds,
+                started_at,
+                reference_at,
+                evidence_source="demo_override",
+            )
+        eligible = continuous_seconds >= self.trigger_duration_seconds
+        return VentilationAssessment(
+            eligible,
+            "eligible" if eligible else "continuous_window_too_short",
+            VENTILATION_POLICY_VERSION,
+            self.trigger_duration_seconds,
+            continuous_seconds,
+            started_at,
+            reference_at,
+            tuple(triggered_metrics),
+            evidence_source="demo_override",
+        )
 
     def assess_recovery(
         self,

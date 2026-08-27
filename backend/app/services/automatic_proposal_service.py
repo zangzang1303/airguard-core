@@ -12,8 +12,9 @@ from .audit_service import AuditService
 class AutomaticProposalService:
     """Turns a backend-confirmed environmental alert into one Agent review request.
 
-    The alert rule remains the eligibility gate. The Agent must first complete a
-    live-LLM, tool-grounded analysis; only then may it create a pending proposal.
+    The alert rule remains the eligibility gate. The one canonical Agent proposal
+    workflow revalidates fresh current data and active alerts before it can create
+    a pending proposal; it never needs a provider preflight.
     """
 
     SYSTEM_USER_ID = "system-alert-agent"
@@ -95,26 +96,6 @@ class AutomaticProposalService:
                     correlation_id=correlation_id,
                 )
                 return
-            analysis = self.agent_service.chat_sync(
-                message=(
-                    f"Danh gia grounded canh bao {alert_id} tai {station_id}; "
-                    "chi xem xet de xuat thong gio khi backend xac nhan du 15 phut."
-                ),
-                user_id=self.SYSTEM_USER_ID,
-                station_id=station_id,
-                request_id=f"{correlation_id}:analysis",
-            )
-            generation_mode = analysis.get("trace", {}).get("generation_mode")
-            if generation_mode != "live_llm":
-                self._audit(
-                    action="agent.auto_proposal.skipped",
-                    alert_id=alert_id,
-                    correlation_id=correlation_id,
-                    outcome="skipped",
-                    details={"reason": "live_llm_required", "generation_mode": generation_mode},
-                )
-                return
-
             proposal = self.agent_service.chat_sync(
                 message=(
                     f"Tao warning proposal ventilation_boost pending cho {station_id} "
@@ -131,14 +112,18 @@ class AutomaticProposalService:
                     alert_id=alert_id,
                     correlation_id=correlation_id,
                     outcome="skipped",
-                    details={"reason": "proposal_not_created", "agent_outcome": proposal.get("trace", {}).get("final_outcome")},
+                    details={
+                        "reason": "proposal_not_created",
+                        "agent_outcome": proposal.get("outcome")
+                        or proposal.get("trace", {}).get("final_outcome"),
+                    },
                 )
                 return
             self._audit(
                 action="agent.auto_proposal.create",
                 alert_id=alert_id,
                 correlation_id=correlation_id,
-                details={"proposal_id": proposal_id, "generation_mode": generation_mode},
+                details={"proposal_id": proposal_id, "generation_mode": proposal.get("trace", {}).get("generation_mode")},
             )
             self._notify_proposal(
                 proposal_id=str(proposal_id),

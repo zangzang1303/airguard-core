@@ -75,13 +75,17 @@ async def test_outdoor_question_calls_required_tools_and_records_policy_version(
     )
 
     assert result["used_tools"] == [
+        "get_user_profile",
         "get_current_pm25",
         "get_weather_context",
         "get_pm25_forecast",
         "get_active_alerts",
-        "get_user_profile",
-        "compare_stations",
     ]
+    assert result["route"]["tool_arguments"][3] == {
+        "station_id": "S02",
+        "hours": 3,
+        "metric": "pm25",
+    }
     assert "Quan sát tại S02" in result["answer"]
     assert "Dự báo (không phải quan sát hiện tại)" in result["answer"]
     assert "Khuyến nghị cho nhóm normal" in result["answer"]
@@ -93,7 +97,7 @@ async def test_outdoor_question_calls_required_tools_and_records_policy_version(
         "get_weather_context",
         "get_pm25_forecast",
         "get_active_alerts",
-        "compare_stations",
+        "get_user_profile",
     }
 
 
@@ -108,8 +112,51 @@ async def test_dashboard_station_context_is_used_without_parsing_station_from_me
         }
     )
 
-    assert result["route"]["tool_arguments"][0] == {"station_id": "S02"}
+    assert result["route"]["tool_arguments"][1] == {"station_id": "S02"}
     assert "Quan sát tại S02" in result["answer"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Tôi thuộc nhóm nhạy cảm, nên làm gì?",
+        "Tôi nhạy cảm thì nên làm gì để hoạt động ngoài trời?",
+    ],
+)
+async def test_sensitive_self_description_routes_to_recommendation_but_backend_profile_is_authoritative(query):
+    graph = build_graph(FakeBackendToolClient())
+    result = await graph.ainvoke(
+        {"query": query, "context_station_id": "S03", "user_id": "demo-user"}
+    )
+
+    assert result["route"]["intent"] == "recommendation"
+    assert result["used_tools"] == [
+        "get_user_profile", "get_current_pm25", "get_weather_context",
+        "get_pm25_forecast", "get_active_alerts",
+    ]
+    assert result["route"]["tool_arguments"][0] == {"user_id": "demo-user"}
+    assert "Khuyến nghị cho nhóm normal" in result["answer"]
+    assert "nhóm sensitive" not in result["answer"]
+
+
+@pytest.mark.asyncio
+async def test_today_running_recommendation_is_limited_to_the_forecast_contract():
+    graph = build_graph(FakeBackendToolClient())
+    result = await graph.ainvoke(
+        {
+            "query": "Thời điểm nào hôm nay phù hợp để chạy bộ?",
+            "context_station_id": "S03",
+            "user_id": "outdoor-user",
+        }
+    )
+
+    assert result["route"]["recommendation_window_limited"] is True
+    assert result["route"]["tool_arguments"][3] == {
+        "station_id": "S03", "hours": 3, "metric": "pm25"
+    }
+    assert "khung dự báo phù hợp nhất" in result["answer"]
+    assert "không có đủ contract để đánh giá toàn bộ hôm nay" in result["answer"]
 
 
 @pytest.mark.asyncio
@@ -137,6 +184,26 @@ async def test_stale_current_blocks_recommendation_and_environmental_sources():
 
     assert result["answer"] == INSUFFICIENT_DATA_MESSAGE
     assert result["sources"] == []
+    assert "999" not in result["answer"]
+
+
+@pytest.mark.asyncio
+async def test_normal_profile_ignores_self_claim_and_does_not_compare_unrelated_stale_station():
+    stale = deepcopy(DEFAULT_FIXTURES["current"]["S01"])
+    stale.update({"is_stale": True, "status": "stale", "pm25": 999})
+    graph = build_graph(FakeBackendToolClient({"current": {"S01": stale}}))
+
+    result = await graph.ainvoke(
+        {
+            "query": "Tôi thuộc nhóm outdoor_sport, có nên ra ngoài tại S03 không?",
+            "user_id": "normal-user",
+        }
+    )
+
+    assert result["outcome"] == "answered"
+    assert result["used_tools"][0] == "get_user_profile"
+    assert "compare_stations" not in result["used_tools"]
+    assert "Khuyến nghị cho nhóm normal" in result["answer"]
     assert "999" not in result["answer"]
 
 

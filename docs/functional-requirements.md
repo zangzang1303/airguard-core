@@ -329,7 +329,7 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 
 - Proposal chỉ được tạo khi có active alert, station fresh/online và evidence không rỗng.
 - Trạng thái ban đầu bắt buộc là `pending`; có version, reason, action, target/device nếu có và thời hạn.
-- Automatic Agent proposal chỉ chạy khi LLM/evidence/policy đủ điều kiện; lỗi không được tạo proposal giả.
+- Automatic Agent proposal chạy với `live_llm` hoặc `deterministic_grounded`; cả hai đều phải revalidate evidence/policy backend, mode không grounded hoặc lỗi Agent thì fail closed.
 - Chỉ một automatic pending proposal cho mỗi station trong cùng policy window.
 - **Trạng thái:** E2E.
 
@@ -351,7 +351,7 @@ Các ngưỡng trên là policy demo có thể cấu hình, không phải giới
 ### FR-HITL-04 — Auto ventilation policy
 
 - Chỉ alert PM2.5 hoặc CO₂ đủ điều kiện mới tạo action `ventilation_boost`/`air_purifier_on`.
-- Cần cửa sổ liên tục 15 phút trên PM2.5 > 50 µg/m³ hoặc CO₂ > 1000 ppm; gap/stale/offline/invalid làm mất điều kiện.
+- Với policy demo có tính thời gian, cần cửa sổ liên tục 30 giây trên PM2.5 > 50 µg/m³ hoặc CO₂ > 1000 ppm; gap/stale/offline/invalid làm mất điều kiện.
 - Device, duration và intensity do backend policy/registry quyết định, không lấy từ LLM.
 - Sau ACK boost và 20 phút dữ liệu an toàn liên tục, backend có thể tạo proposal `eco_mode` mới; vẫn cần Manager duyệt.
 - **Trạng thái:** E2E.

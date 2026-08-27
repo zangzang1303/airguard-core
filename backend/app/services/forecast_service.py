@@ -68,6 +68,7 @@ def trend_forecast(
         "items": items,
         "metric": metric,
         "model_name": MODEL_NAME,
+        "model_version": MODEL_NAME,
         "source": FORECAST_SOURCE,
         "confidence": confidence,
         "history_points": len(points),

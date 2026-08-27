@@ -177,9 +177,24 @@ class FakeBackendToolClient:
     def __init__(self, fixtures: Mapping[str, Any] | None = None) -> None:
         self.fixtures = deepcopy(DEFAULT_FIXTURES)
         if fixtures:
-            self.fixtures.update(deepcopy(fixtures))
+            self._deep_merge(self.fixtures, fixtures)
         self.created_proposals: list[dict[str, Any]] = []
         self._proposals_by_key: dict[str, dict[str, Any]] = {}
+
+    @staticmethod
+    def _deep_merge(target: dict[str, Any], updates: Mapping[str, Any]) -> None:
+        for key, value in updates.items():
+            # A station payload is a contract-shaped fixture: replacing it as a
+            # whole preserves intentional omissions (for example missing
+            # freshness metadata) instead of silently backfilling them from the
+            # default station fixture.
+            if key == "current" and isinstance(value, Mapping) and isinstance(target.get(key), dict):
+                target[key].update({station_id: deepcopy(payload) for station_id, payload in value.items()})
+                continue
+            if isinstance(value, Mapping) and isinstance(target.get(key), dict):
+                FakeBackendToolClient._deep_merge(target[key], value)
+            else:
+                target[key] = deepcopy(value)
 
     async def get_current_pm25(self, payload: Mapping[str, Any], request_id: str = "fixture-request") -> ToolEnvelope | ToolError:
         try:
@@ -241,12 +256,13 @@ class FakeBackendToolClient:
         try:
             args = Pm25ForecastInput.model_validate(payload)
             current = self.fixtures["current"][args.station_id]
+            base = current["aqi"] if args.metric == "aqi" else current["pm25"]
             items = [
-                {"hour": hour, "pm25": round(current["pm25"] + hour * 0.8, 2), "confidence": 0.7, "source": "fixture_forecast"}
+                {"hour": hour, "forecast_at": (FIXED_NOW + timedelta(hours=hour)).isoformat(), "value": round(base + hour * 0.8, 2), "value_min": round(base + hour * 0.3, 2), "value_max": round(base + hour * 1.3, 2), "confidence": 0.7, "source": "fixture_forecast"}
                 for hour in range(1, args.hours + 1)
             ]
             data = Pm25Forecast.model_validate(
-                {"station_id": args.station_id, "is_stale": False, "items": items}
+                {"station_id": args.station_id, "metric": args.metric, "horizon_hours": args.hours, "generated_at": FIXED_NOW.isoformat(), "model_name": "damped_linear_trend_v1", "model_version": "damped_linear_trend_v1", "source": "fixture_forecast", "freshness": "fresh", "is_stale": False, "confidence": 0.7, "limitations": ["Fixture simulator forecast."], "items": items}
             ).model_dump(mode="json")
         except KeyError:
             return self._error(ToolName.GET_PM25_FORECAST, request_id, ToolErrorCode.NOT_FOUND, "Station fixture not found.")

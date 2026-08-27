@@ -27,9 +27,11 @@ class Settings(BaseSettings):
     model_name: str = "gpt-4o-mini"
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     llm_timeout_seconds: float = Field(default=12.0, gt=0, le=60)
-    llm_response_deadline_seconds: float = Field(default=5.0, gt=0, le=30)
     llm_max_tokens: int = Field(default=280, ge=64, le=1000)
     llm_max_retries: int = Field(default=1, ge=0, le=3)
+    semantic_router_enabled: bool = True
+    semantic_router_confidence_threshold: float = Field(default=0.8, ge=0.5, le=1.0)
+    semantic_router_deadline_seconds: float = Field(default=2.0, gt=0, le=10)
     agentrouter_api_key: str = ""
     agentrouter_model: str = ""
     agentrouter_base_url: str = "https://co.agentrouter.org"

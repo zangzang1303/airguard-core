@@ -38,6 +38,10 @@ data/*
 logs/
 *.log
 
+# Local temporary tooling/bootstrap files
+.tmp/
+.claude/settings.local.json
+
 # Test coverage
 htmlcov/
 .coverage

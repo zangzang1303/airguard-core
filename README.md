@@ -16,7 +16,7 @@ AirGuard AI là MVP giám sát chất lượng môi trường tại Vinhomes Oce
 | Dự báo 1–3 giờ | Damped linear trend từ tối thiểu 3 điểm fresh; hỗ trợ AQI, PM2.5, CO₂, tiếng ồn, nhiệt độ |
 | Cảnh báo | Rule Engine deterministic cho 5 chỉ số và sensor offline |
 | Khuyến nghị | Rule-owned recommendation trong alert; Agent recommendation theo profile và evidence cùng request |
-| AI Agent | Conversation gate + LangGraph/tool calling; xã giao có kiểm soát, grounded answer và deterministic fallback khi không có provider key |
+| AI Agent | Conversation gate + LangGraph/tool calling; backend-owned semantic memory có TTL cho follow-up, grounded answer và deterministic fallback khi không có provider key |
 | HITL | Proposal bắt đầu `pending`; chỉ Manager approve/reject; có audit và device simulator |
 | Notification | Resend Email API khi cấu hình; proposal báo Manager/Admin và environmental alert báo cư dân theo nhóm hồ sơ; mặc định provider `disabled` |
 | Prophet/LSTM | Chưa triển khai |
@@ -61,7 +61,7 @@ Ranh giới trách nhiệm:
 
 - Docker Desktop có Docker Compose.
 - Tối thiểu 4 GB RAM trống cho stack cơ bản.
-- OpenAI API key chỉ cần khi muốn dùng phần giải thích LLM thật.
+- Provider key chỉ cần cho semantic-router fallback tùy chọn; không cần cho câu trả lời production hoặc automatic proposal.
 
 ### 1. Tạo cấu hình local
 
@@ -87,7 +87,7 @@ GEMINI_THINKING_LEVEL=minimal
 
 Không commit `.env` hoặc đưa key vào log/screenshot.
 
-> Không có provider key hợp lệ, dashboard, pipeline MQTT và API vẫn chạy; Agent trả lời bằng deterministic composer. Để demo automatic proposal do Agent tạo, cần cấu hình key hợp lệ.
+> Không có provider key hợp lệ, dashboard, pipeline MQTT và API vẫn chạy; Agent và automatic proposal vẫn dùng deterministic grounded workflow.
 
 ### 2. Khởi động stack
 
@@ -270,12 +270,13 @@ Tool registry:
 Luồng trả lời:
 
 1. Conversation gate tách xã giao, câu mơ hồ và yêu cầu nghiệp vụ trước khi đọc telemetry.
-2. Xã giao được LLM viết lại trong phạm vi AirGuard nếu provider hợp lệ; output vi phạm policy bị loại và dùng câu mẫu deterministic.
+2. Xã giao luôn là câu mẫu deterministic, không gọi hay rewrite bằng LLM.
 3. Câu không rõ trả clarification; không mặc định thành khuyến nghị môi trường.
 4. Với yêu cầu nghiệp vụ, router deterministic xác định intent và arguments allow-listed rồi gọi backend tools.
 5. Quality gate loại dữ liệu missing/stale/offline/invalid; response composer tạo câu trả lời grounded.
-6. LLM không được thay số liệu, ngưỡng, cảnh báo, recommendation policy hoặc quyết định HITL.
-7. Trace ghi `generation_mode=live_llm` hoặc `deterministic_grounded`; xã giao có thêm `conversation_kind`.
+6. Production answer generation thuộc deterministic composer. Provider chỉ có thể được dùng một lần cho semantic-router fallback; output đó chỉ định tuyến và không tạo facts hay answer text.
+7. Trace ghi `generation_mode=deterministic_grounded` cho answer deterministic; `llm_call_count` là logical model invocation, không phải số HTTP/provider attempt. Xã giao có thêm `conversation_kind`.
+8. `conversation_id` liên kết các lượt; backend chỉ lưu station/intent đã validate và mỗi follow-up vẫn gọi tool mới thay vì dùng số liệu cũ làm evidence.
 
 ## Sample queries
 
@@ -362,12 +363,14 @@ Sao chép `.env.example` thành `.env`; không commit file `.env`. Stack demo c�
 | Biến | Bắt buộc | Mục đích / giá trị demo |
 |---|---|---|
 | `LLM_PROVIDER` | Không | `auto` ưu tiên Gemini, sau đó AgentRouter rồi OpenAI; có thể khóa provider cụ thể. |
-| `GEMINI_API_KEY` | Không | Bật Gemini live generation; key chỉ đặt trong `.env` local. |
+| `GEMINI_API_KEY` | Không | Bật Gemini cho semantic-router fallback; key chỉ đặt trong `.env` local. |
 | `GEMINI_MODEL` | Không | Mặc định `gemini-3.6-flash`. |
-| `GEMINI_THINKING_LEVEL` | Không | Mặc định `minimal` cho câu giải thích ngắn và latency thấp. |
+| `GEMINI_THINKING_LEVEL` | Không | Mặc định `minimal` nếu Gemini được dùng cho semantic routing. |
 | `GEMINI_RETRY_BASE_SECONDS` | Không | Backoff ban đầu khi Gemini gặp lỗi tạm thời; mặc định 1 giây. |
 | `GEMINI_RETRY_MAX_SECONDS` | Không | Giới hạn chờ theo `RetryInfo`; mặc định 60 giây. Quota theo ngày fail-fast và không retry. |
-| `LLM_RESPONSE_DEADLINE_SECONDS` | Không | Deadline tổng cho bước giải thích LLM; mặc định 5 giây để Agent trả deterministic fallback trước timeout 8 giây của backend proxy. |
+| `SEMANTIC_ROUTER_ENABLED` | Không | Bật semantic routing fallback cho câu deterministic chưa rõ; mặc định `true`. |
+| `SEMANTIC_ROUTER_CONFIDENCE_THRESHOLD` | Không | Ngưỡng confidence tối thiểu để chấp nhận route semantic; mặc định `0.8`. |
+| `SEMANTIC_ROUTER_DEADLINE_SECONDS` | Không | Deadline riêng cho một semantic routing invocation; không application-level retry, lỗi sẽ fallback clarification. |
 | `OPENAI_API_KEY`, `MODEL_NAME` | Không | Provider tương thích ngược; dùng khi `LLM_PROVIDER=openai`. |
 | `DATABASE_URL` | Có khi chạy service ngoài Compose | URL PostgreSQL; Compose tự cấp URL nội bộ cho backend. |
 | `MQTT_HOST`, `MQTT_PORT`, `MQTT_QOS` | Có khi chạy service ngoài Compose | Kết nối Mosquitto; Compose tự đặt host `mqtt`. |
@@ -416,7 +419,7 @@ Có thể truyền trực tiếp tham số của Claude Code, ví dụ:
 .\scripts\claude-agentrouter.ps1 -p "Tóm tắt kiến trúc repo này"
 ```
 
-Launcher dùng `AGENTROUTER_BASE_URL` (mặc định `https://co.agentrouter.org`) và chỉ chuyển key cho tiến trình Claude Code. Agent runtime hiện ưu tiên Gemini khi `LLM_PROVIDER=auto`; AgentRouter/Claude vẫn là tùy chọn tương thích. Nếu provider lỗi, câu trả lời grounded deterministic vẫn được giữ và trace không được gắn `live_llm`. Không commit hoặc dán key vào log, screenshot hay tài liệu.
+Launcher dùng `AGENTROUTER_BASE_URL` (mặc định `https://co.agentrouter.org`) và chỉ chuyển key cho tiến trình Claude Code. Agent runtime chỉ dùng configured provider như optional semantic routing fallback. Nếu provider lỗi, câu trả lời grounded deterministic vẫn được giữ. Không commit hoặc dán key vào log, screenshot hay tài liệu.
 
 ## Chạy test
 
@@ -478,6 +481,7 @@ Runtime entry points:
 - [Demo runbook](docs/demo-runbook.md).
 - [ADR forecast](adrs/0007-short-term-trend-forecast.md).
 - [ADR multi-metric alerts](adrs/0009-multi-metric-environmental-alerts.md).
+- [ADR conversation memory](adrs/0020-backend-owned-semantic-conversation-memory.md).
 
 ## Known limitations
 

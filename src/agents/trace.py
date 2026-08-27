@@ -5,6 +5,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+from src.agents.metrics import record_trace
+
 logger = logging.getLogger("airguard.agent.trace")
 
 SENSITIVE_KEYS = {
@@ -34,4 +36,5 @@ def redact(value: Any) -> Any:
 
 
 def emit_trace(trace: Mapping[str, Any]) -> None:
+    record_trace(trace)
     logger.info("agent_trace %s", json.dumps(redact(trace), ensure_ascii=True, sort_keys=True))

@@ -18,6 +18,12 @@ class ForecastAssessment:
 
 
 def forecast_value(point: dict[str, Any]) -> float | None:
+    if point.get("value") is not None:
+        return float(point["value"])
+    if point.get("value_min") is not None and point.get("value_max") is not None:
+        return (float(point["value_min"]) + float(point["value_max"])) / 2
+    # Legacy direct-policy callers may still supply PM2.5 aliases; tool output
+    # itself is canonicalized by ForecastPoint before reaching the composer.
     if point.get("pm25") is not None:
         return float(point["pm25"])
     if point.get("pm25_min") is not None and point.get("pm25_max") is not None:
@@ -42,7 +48,7 @@ def assess_forecast(
 
     values = [value for item in items if (value := forecast_value(item)) is not None]
     if not values:
-        raise ValueError("forecast requires PM2.5 values")
+        raise ValueError("forecast requires canonical values")
 
     confidences = [float(item["confidence"]) for item in items if item.get("confidence") is not None]
     confidence = fmean(confidences) if confidences else _top_level_confidence(forecast.get("confidence"))
@@ -90,7 +96,7 @@ def assess_forecast(
 
 
 def forecast_is_fresh(assessment: ForecastAssessment) -> bool:
-    return assessment.freshness is None or assessment.freshness.lower() in {"fresh", "valid"}
+    return assessment.freshness is not None and assessment.freshness.lower() == "fresh"
 
 
 def _top_level_confidence(value: Any) -> float | None:

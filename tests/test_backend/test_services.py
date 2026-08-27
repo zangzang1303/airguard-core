@@ -38,6 +38,33 @@ def test_settings_enable_automatic_agent_proposals_by_default() -> None:
             os.environ["AUTO_PROPOSAL_ENABLED"] = previous
 
 
+def test_settings_use_thirty_second_ventilation_trigger_by_default() -> None:
+    previous_seconds = os.environ.pop("VENTILATION_TRIGGER_SECONDS", None)
+    previous_minutes = os.environ.pop("VENTILATION_TRIGGER_MINUTES", None)
+    try:
+        assert Settings.load().ventilation_trigger_seconds == 30
+    finally:
+        if previous_seconds is not None:
+            os.environ["VENTILATION_TRIGGER_SECONDS"] = previous_seconds
+        if previous_minutes is not None:
+            os.environ["VENTILATION_TRIGGER_MINUTES"] = previous_minutes
+
+
+def test_settings_keep_legacy_ventilation_minutes_compatible() -> None:
+    previous_seconds = os.environ.pop("VENTILATION_TRIGGER_SECONDS", None)
+    previous_minutes = os.environ.get("VENTILATION_TRIGGER_MINUTES")
+    try:
+        os.environ["VENTILATION_TRIGGER_MINUTES"] = "2"
+        assert Settings.load().ventilation_trigger_seconds == 120
+    finally:
+        if previous_seconds is not None:
+            os.environ["VENTILATION_TRIGGER_SECONDS"] = previous_seconds
+        if previous_minutes is None:
+            os.environ.pop("VENTILATION_TRIGGER_MINUTES", None)
+        else:
+            os.environ["VENTILATION_TRIGGER_MINUTES"] = previous_minutes
+
+
 def test_settings_allow_production_frontend_origin_by_default() -> None:
     previous = os.environ.pop("CORS_ORIGINS", None)
     try:
@@ -178,6 +205,26 @@ def test_short_term_forecast_refuses_to_repeat_current_for_insufficient_history(
         pass
     else:
         raise AssertionError("forecast should require enough history to estimate a trend")
+
+
+def test_short_term_forecast_preserves_canonical_aqi_metadata() -> None:
+    start = datetime(2026, 8, 13, 10, tzinfo=UTC)
+    result = trend_forecast(
+        [
+            {"measured_at": start, "aqi": 80},
+            {"measured_at": start + timedelta(minutes=10), "aqi": 85},
+            {"measured_at": start + timedelta(minutes=20), "aqi": 90},
+        ],
+        3,
+        metric="aqi",
+        generated_at=start + timedelta(minutes=20),
+    )
+
+    assert result["metric"] == "aqi"
+    assert result["model_version"] == result["model_name"]
+    assert result["freshness"] == "fresh"
+    assert result["items"][0]["source"] == result["source"]
+    assert [item["hour_offset"] for item in result["items"]] == [1, 2, 3]
 
 
 def test_manager_guard_rejects_non_manager() -> None:

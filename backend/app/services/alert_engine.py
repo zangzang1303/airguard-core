@@ -228,6 +228,19 @@ class AlertEngine:
         return resolved
 
     def _rule_threshold_is_qualified(self, station_id: str, rule: EnvironmentalAlertRule) -> bool:
+        if rule.alert_type in {"pm25_threshold", "co2_threshold"}:
+            try:
+                assessment = self.ventilation_service.assess_trigger(station_id)
+            except Exception:
+                assessment = None
+            metric = "pm25" if rule.alert_type == "pm25_threshold" else "co2"
+            if (
+                assessment is not None
+                and assessment.eligible
+                and assessment.evidence_source == "demo_override"
+                and metric in assessment.triggered_metrics
+            ):
+                return True
         measurement_field = "pm25" if rule.field == "aqi" else rule.field
         if measurement_field not in {"pm25", "co2", "noise_db", "temperature"}:
             return False

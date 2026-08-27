@@ -23,7 +23,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/stations/{id}` | station latest state | 200 | 404/503 |
 | GET `/stations/{id}/current` | latest valid fresh measurement | 200 | 404/503 |
 | GET `/demo/station-overrides` | active demo-only station overrides; manager/admin session required | 200 | 401/403 |
-| PUT `/demo/stations/{id}/override` | set demo-only PM2.5, CO₂, noise and temperature values; manager/admin session required | 200 | 401/403/404/422 |
+| PUT `/demo/stations/{id}/override` | set demo-only PM2.5, CO₂, noise and temperature values; manager/admin session required; the backend timestamps the override so the configured continuity gate can evaluate it without rewriting measurement history | 200 | 401/403/404/422 |
 | DELETE `/demo/stations/{id}/override` | remove a demo override and return to automatic simulation; manager/admin session required | 200 | 401/403 |
 | GET `/stations/{id}/history?hours=1..72` | ordered valid history | 200 | 404/422/503 |
 | POST `/stations/compare` | compare current fresh values for 1..5 stations | 200 | 404/422/503 |
@@ -31,7 +31,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/internal/ingestion/evaluate-alerts` | internal alert catch-up for one/all stations | 200 | 404/503 |
 | GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up for AQI, PM2.5, CO₂, noise, temperature and sensor availability | 200 | 422/503 |
 | POST `/alerts/{id}/resolve` | manager-only manual alert resolution | 200 | 403/404/503 |
-| GET `/stations/{id}/forecast?hours=1..3&metric=pm25|aqi|co2|noise_db|temperature` | damped linear-trend forecast from at least 3 fresh valid measurements of the selected metric; defaults to PM2.5 | 200 | 404/422/503 |
+| GET `/stations/{id}/forecast?hours=1..3&metric=pm25|aqi|co2|noise_db|temperature&model=baseline` | damped linear-trend forecast from at least 3 fresh valid measurements of the selected metric; defaults to PM2.5 and `model=baseline` | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
 | GET `/spatial/heatmap?metric=aqi|pm25|co2|noise_db|temperature&forecast_hour=0..24` | grounded wind-adjusted IDW grid from at least three fresh valid online stations | 200 | 422/503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
@@ -89,26 +89,39 @@ system-of-record reads with an in-memory simulator snapshot. The `timestamp` ret
 `/stations/{id}/current` is the measurement observation time, not the API request time. Frontend
 clients must show loading, empty or retryable error states instead of rendering fixture values as live.
 
+## Short-term forecast response
+
+The canonical Agent forecast is the `baseline` model only, for 1–3 hours and `metric=aqi|pm25`.
+Its response preserves `station_id`, `metric`, `horizon_hours`, timezone-aware `generated_at`,
+`model_name`, `model_version`, `source`, `freshness="fresh"`, `is_stale=false`, numeric
+`confidence`, `limitations`, and ordered `items`. Each item has `hour`/`hour_offset`, timezone-aware
+`forecast_at`, `value` (or complete `value_min`/`value_max`), numeric `confidence`, and `source`.
+The Agent may accept the legacy PM2.5 field aliases from this endpoint only during typed validation;
+it must not infer a source, timestamp, value, freshness, or metadata that is absent. A 24-hour/cả ngày
+request is refused by the Agent without a tool call because it is outside the MVP forecast contract.
+
 ## Environmental alert response
 
 Each alert includes `alert_type` (`aqi_threshold`, `pm25_threshold`, `co2_threshold`, `noise_threshold`, `temperature_threshold` or `sensor_offline`), `severity`, observed and threshold values, title/description, source and lifecycle timestamps. Environmental threshold alerts additionally expose `metric`, `unit` and a deterministic `recommendation`; UI must render these values and must not infer its own thresholds or recommendation. Rules evaluate only valid, fresh and online simulator data. AQI, PM2.5, CO2, noise and temperature require `ALERT_CONSECUTIVE_MEASUREMENTS` consecutive samples at or above the metric warning threshold (default `2`); AQI derives the sub-index for each stored PM2.5 sample. The configured thresholds are provisional MVP defaults, not health or legal limits.
 
 ## Automatic Agent proposal
 
-When `AUTO_PROPOSAL_ENABLED=true`, a newly eligible environmental alert schedules an internal
-Agent analysis. The Agent must report `generation_mode=live_llm` and revalidate fresh station data
-plus the active alert through backend tools before it creates a `pending` proposal. Only one pending
+When `AUTO_PROPOSAL_ENABLED=true`, a newly eligible environmental alert schedules exactly one
+canonical internal Agent proposal workflow. It uses `generation_mode=deterministic_grounded` with
+`llm_call_count=0`, revalidates fresh station data plus the active alert through backend tools, and
+only then may create a `pending` proposal. Only one pending
 automatic warning proposal is permitted per station; later automatic triggers are skipped until the
 Manager reviews it. Pending proposals automatically expire after `PROPOSAL_PENDING_TTL_SECONDS`
 (default: 3600 seconds); expiry preserves the proposal and writes an audit event, but it can no
-longer be approved or dispatched. No Manager decision or device command is automated. A failed/missing LLM is
-audited and leaves the alert active without a proposal.
+longer be approved or dispatched. No Manager decision or device command is automated. Tool error,
+missing/stale/offline/invalid data, an inactive alert or failed eligibility are audited and leave the
+alert active without a proposal or notification.
 
 For a focused demo, `AUTO_PROPOSAL_STATIONS=S03` matches the `spike` scenario and registered `FILTER-01` device.
 Other stations may still produce backend alerts, but their alerts do not schedule Agent proposals.
 
 For auto ventilation, only `pm25_threshold` and `co2_threshold` alerts qualify. The Rule Engine must
-also prove a continuous valid/fresh window longer than or equal to 15 minutes with PM2.5 strictly
+also prove a continuous valid/fresh window longer than or equal to 30 seconds with PM2.5 strictly
 above 50 µg/m³ or CO₂ strictly above 1000 ppm. The canonical action is
 `ventilation_boost`; the backend resolves `device_id` from its device registry and applies the
 default `duration_minutes=45` and `intensity_percent=80`. LLM output cannot choose a device,
@@ -212,7 +225,18 @@ The current frontend identity is demo-only and does not replace production backe
 service uses the same payload. The root Agent keeps the legacy `POST /api/v1/chat` alias during
 migration; its `user_id` remains optional for non-personalized requests.
 
-The response contains `answer`, `intent`, `used_tools`, `sources`, `request_id`, `trace`, and optional
+`conversation_id` is an optional UUID on the public request and is always returned by the public
+response. When omitted, the backend allocates a new conversation. Domain turns load an
+owner-scoped, TTL-bounded semantic context from PostgreSQL and send only allow-listed station IDs,
+the previous canonical intent and turn count to the isolated Agent. Raw prompts, answers,
+environmental values and profile facts are not conversation memory. A recognized follow-up may use
+that context to select tool arguments, but all environmental facts still require fresh backend tool
+results from the current request. Unknown, expired or cross-owner IDs fail with structured
+`404/410`; a cross-owner lookup must not reveal that the record exists. Social short-circuits do not
+read or write conversation storage.
+
+The response contains `answer`, `intent`, `conversation_kind`, `conversation_id`, `used_tools`, `tool_arguments`,
+`sources`, `map_actions`, `request_id`, `trace`, and optional `map_intent`,
 `proposal_id`, `recommendation_policy_version`, and `impact_policy_version`. The impact intent
 uses a fresh station snapshot and rates operational environmental impact with AQI as the primary
 index; PM2.5, CO₂, noise and temperature are supporting evidence only. It is not a medical
@@ -223,16 +247,25 @@ Facts must map to sources from the same request. Tool failure or absent/stale/in
 returns a transparent insufficient-data answer and no environmental source. The additive
 `response` field is a deprecated alias of `answer` for the original template client.
 
-The geospatial response path receives fresh station snapshots and forecast histories from the
-backend request scope. It must return structured `503` when grounded inputs are unavailable and
-must not synthesize AQI, PM2.5, CO₂, noise, temperature, timestamp or a default user profile in an
-exception handler.
+The internal Agent service exposes `GET /api/v1/metrics` for bounded operational monitoring. The
+response contains aggregate request counts, generation-mode counts, total LLM call count,
+sanitized failure-code counts, fallback rate, a rolling window of P50/P95/P99 request latency, and
+alert reason codes. It must not
+contain prompts, user IDs, request IDs, station evidence, sources, tokens, credentials or PII. The
+current in-process window is diagnostic for a single Agent process and resets when that process is
+restarted; production multi-replica aggregation belongs in the deployment metrics backend.
 
-Basic social messages are intercepted before telemetry access. Their response adds
-`conversation_kind`, has empty `used_tools`, `sources`/`evidence` and `map_actions`, and omits
-current/forecast time context. A configured LLM may rewrite only the locked social fallback; output
-that introduces environmental observations, station values/status, safety claims, health advice,
-device commands or approval decisions is rejected. Unknown messages return `clarification` instead
+The direct geospatial response path receives fresh station snapshots and forecast histories from
+the backend request scope. It must return structured `503` when grounded inputs are unavailable and
+must not synthesize AQI, PM2.5, CO₂, noise, temperature, timestamp or a default user profile in an
+exception handler. Within `POST /agent/chat`, geospatial planning is optional UI post-processing:
+planner unavailability returns the already-grounded Agent answer with `map_actions=[]` and a
+sanitized planner status instead of converting that answer into a `503`.
+
+Basic social messages are intercepted before profile, geospatial, telemetry or LLM access. Their
+response adds `conversation_kind`, has empty `used_tools`, `tool_arguments`, `sources`/`evidence`
+and `map_actions`, and omits current/forecast time context. The response is the locked deterministic
+social fallback; no configured LLM may rewrite it. Unknown messages return `clarification` instead
 of falling through to a default environmental recommendation.
 
 Recommendation intent requires current PM2.5, weather, forecast, active alerts and a backend user
@@ -241,10 +274,33 @@ the result of `get_user_profile`. Missing profile or environmental evidence prod
 or insufficient-data behavior rather than a generic personalized recommendation.
 
 The public backend proxy must use the isolated Agent response as the authority for `answer`,
-`used_tools`, `sources` and `trace`; it must not infer tool names from intent. Deterministic map
-planning may add route geometry and map actions only after the Agent returns at least one validated
-source. A map-wide running/area request without a station id uses `get_spatial_air_quality` instead
-of inventing a default station.
+`intent`, `conversation_kind`, `used_tools`, `tool_arguments`, `sources`, proposal/quality fields
+and the core `trace`; it must not infer tool names from intent. The proxy invokes the Agent exactly
+once. Deterministic route planning is skipped for non-spatial, refused, clarification,
+direct-response and insufficient-data outcomes. It may add only route geometry and declarative map
+actions after an `answered` canonical `spatial` result returns a validated
+`get_spatial_air_quality` source from the same request. Planner output must not replace the Agent
+answer, evidence, intent or tool trace. Planner dependency failure preserves the Agent answer,
+returns `map_actions=[]` and records only a sanitized planner status/reason. A map-wide running/area
+request without a station id uses `get_spatial_air_quality` instead of inventing a default station.
+
+As a separate bounded presentation projection, an `answered` canonical `compare` result may emit
+`highlight_sensor`, `add_annotation` and `fit_bounds` actions for two-to-five stations. Every
+station must be present in both the same-request `compare_stations` tool arguments and a validated
+`compare_stations` source. Coordinates come from the backend station catalog; the projector must
+not load all environmental snapshots or change the canonical answer. `map_intent` is optional
+UI-only metadata for route, indoor or comparison rendering and is never answer evidence.
+
+For running-route intents, the planner resolves the request origin in this order: explicit map
+selection, named POI, current map selection, GPS user location, then the labelled demo default.
+It evaluates candidate road-network polylines using distance-weighted environmental exposure at
+short route segments. The selected `highlight_route` action contains `coordinates`, `segments`,
+`distance_km`, `rank=1`, `data_mode`, `observed_at` and `source`. Each segment contains exactly two
+coordinates, distance, AQI, PM2.5, CO2, noise, temperature, level, source station ids and timestamp.
+The frontend colors those returned segments independently; it must not recompute pollution or
+choose a different route. Current and forecast requests produce separate segment profiles from the
+corresponding request-scoped station data. Missing grounded station coverage returns `503` and no
+route geometry.
 
 ## Administrative user mutation
 

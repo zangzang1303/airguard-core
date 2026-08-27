@@ -21,6 +21,17 @@ class EnvironmentalScoringEngine:
         "general": {"aqi": 0.40, "pm25": 0.30, "temperature": 0.15, "noise": 0.15, "distance": 0.00},
     }
 
+    # Canonical physical sensor positions from data/stations.json. A request
+    # snapshot may override these coordinates, but POI proxy coordinates must
+    # not be used to score a road segment.
+    STATION_COORDINATES = {
+        "S01": (21.0008, 105.9428),
+        "S02": (20.9975, 105.9430),
+        "S03": (20.9953, 105.9500),
+        "S04": (20.9898, 105.9467),
+        "S05": (20.9910, 105.9560),
+    }
+
     @classmethod
     def calculate_distance_m(cls, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         r = 6371000.0
@@ -76,19 +87,8 @@ class EnvironmentalScoringEngine:
         station_data_map: dict[str, dict[str, Any]],
         wind_speed_ms: float = 3.0,
         wind_direction_deg: int = 135,
-    ) -> dict[str, float]:
-        """
-        Line-integral point interpolation using wind-adjusted inverse distance weighting (IDW p=2.0).
-        Guarantees that map heatmap and route scoring use the identical source of truth.
-        """
-        station_coords = {
-            "S01": (20.9935, 105.9405),  # Công viên San Hô
-            "S02": (20.9975, 105.9430),  # Sapphire
-            "S03": (20.9945, 105.9525),  # Hồ Ngọc Trai
-            "S04": (20.9898, 105.9467),  # VinUni
-            "S05": (20.9945, 105.9585),  # Biển Hồ
-        }
-
+    ) -> dict[str, Any]:
+        """Wind-adjusted IDW interpolation from request-scoped station facts."""
         wind_radians = math.radians(wind_direction_deg)
         wind_x = math.sin(wind_radians)
         wind_y = math.cos(wind_radians)
@@ -103,10 +103,13 @@ class EnvironmentalScoringEngine:
             "temperature": 0.0,
         }
 
-        for st_id, (st_lat, st_lon) in station_coords.items():
+        source_weights: list[tuple[float, str]] = []
+        for st_id, canonical_coords in cls.STATION_COORDINATES.items():
             st_data = station_data_map.get(st_id)
             if not st_data:
                 continue
+            st_lat = float(st_data.get("latitude", canonical_coords[0]))
+            st_lon = float(st_data.get("longitude", canonical_coords[1]))
 
             lat_dist_km = (lat - st_lat) * 111.0
             lon_dist_km = (lon - st_lon) * 103.0
@@ -119,6 +122,7 @@ class EnvironmentalScoringEngine:
                     "co2": float(st_data.get("co2", 420.0)),
                     "noise_db": float(st_data.get("noise_db", 55.0)),
                     "temperature": float(st_data.get("temperature", 28.0)),
+                    "source_station_ids": [st_id],
                 }
 
             direction_cosine = (lon_dist_km / dist_km * wind_x + lat_dist_km / dist_km * wind_y)
@@ -127,6 +131,7 @@ class EnvironmentalScoringEngine:
 
             w = 1.0 / (effective_dist_km ** 2.0)
             total_weight += w
+            source_weights.append((w, st_id))
 
             weighted_metrics["pm25"] += w * float(st_data.get("pm25", 25.0))
             weighted_metrics["aqi"] += w * float(st_data.get("aqi", 50.0))
@@ -135,9 +140,95 @@ class EnvironmentalScoringEngine:
             weighted_metrics["temperature"] += w * float(st_data.get("temperature", 28.0))
 
         if total_weight <= 0:
-            return {"pm25": 25.0, "aqi": 50.0, "co2": 420.0, "noise_db": 55.0, "temperature": 28.0}
+            raise ValueError("route exposure requires at least one grounded station")
 
-        return {k: v / total_weight for k, v in weighted_metrics.items()}
+        result = {k: v / total_weight for k, v in weighted_metrics.items()}
+        result["source_station_ids"] = [
+            station_id for _, station_id in sorted(source_weights, reverse=True)[:3]
+        ]
+        return result
+
+    @staticmethod
+    def _segment_level(aqi: float, pm25: float) -> str:
+        if aqi <= 50.0 and pm25 <= 25.0:
+            return "good"
+        if aqi <= 100.0 and pm25 <= 50.0:
+            return "moderate"
+        if aqi <= 150.0 and pm25 <= 75.0:
+            return "unhealthy_sensitive"
+        return "unhealthy"
+
+    @classmethod
+    def build_route_environment_segments(
+        cls,
+        route_coords: list[list[float]],
+        station_data_map: dict[str, dict[str, Any]],
+        wind_speed_ms: float = 3.0,
+        wind_direction_deg: int = 135,
+        step_m: float = 35.0,
+    ) -> list[dict[str, Any]]:
+        """Split a route into short drawable sections and score each midpoint."""
+        if len(route_coords) < 2:
+            return []
+
+        timestamps = [
+            str(item.get("timestamp"))
+            for item in station_data_map.values()
+            if item.get("timestamp")
+        ]
+        observed_at = max(timestamps) if timestamps else None
+        segments: list[dict[str, Any]] = []
+
+        for index in range(len(route_coords) - 1):
+            start = route_coords[index]
+            end = route_coords[index + 1]
+            distance_m = cls.calculate_distance_m(start[0], start[1], end[0], end[1])
+            divisions = max(1, math.ceil(distance_m / max(5.0, step_m)))
+
+            for division in range(divisions):
+                start_fraction = division / divisions
+                end_fraction = (division + 1) / divisions
+                sub_start = [
+                    start[0] + (end[0] - start[0]) * start_fraction,
+                    start[1] + (end[1] - start[1]) * start_fraction,
+                ]
+                sub_end = [
+                    start[0] + (end[0] - start[0]) * end_fraction,
+                    start[1] + (end[1] - start[1]) * end_fraction,
+                ]
+                midpoint = [
+                    (sub_start[0] + sub_end[0]) / 2.0,
+                    (sub_start[1] + sub_end[1]) / 2.0,
+                ]
+                environment = cls.interpolate_environment_at_coord(
+                    lat=midpoint[0],
+                    lon=midpoint[1],
+                    station_data_map=station_data_map,
+                    wind_speed_ms=wind_speed_ms,
+                    wind_direction_deg=wind_direction_deg,
+                )
+                aqi = round(float(environment["aqi"]), 1)
+                pm25 = round(float(environment["pm25"]), 1)
+                segments.append(
+                    {
+                        "segment_index": len(segments),
+                        "coordinates": [
+                            [round(sub_start[0], 6), round(sub_start[1], 6)],
+                            [round(sub_end[0], 6), round(sub_end[1], 6)],
+                        ],
+                        "distance_m": round(distance_m / divisions, 1),
+                        "aqi": aqi,
+                        "pm25": pm25,
+                        "co2": round(float(environment["co2"]), 1),
+                        "noise_db": round(float(environment["noise_db"]), 1),
+                        "temperature": round(float(environment["temperature"]), 1),
+                        "level": cls._segment_level(aqi, pm25),
+                        "source": "spatial_idw_route_segment",
+                        "source_station_ids": environment.get("source_station_ids", []),
+                        "observed_at": observed_at,
+                    }
+                )
+        return segments
 
     @classmethod
     def evaluate_route_spatial_exposure(
@@ -155,8 +246,13 @@ class EnvironmentalScoringEngine:
         Calculates exact line-integral environmental exposure along the entire route polyline.
         Computes Mean AQI/PM2.5, P90 percentiles, pollution hotspots, and composite suitability score.
         """
-        samples = cls.sample_polyline_points(route_coords, step_m=35.0)
-        if not samples:
+        segments = cls.build_route_environment_segments(
+            route_coords=route_coords,
+            station_data_map=station_data_map,
+            wind_speed_ms=wind_speed_ms,
+            wind_direction_deg=wind_direction_deg,
+        )
+        if not segments:
             return {
                 "mean_aqi": 50.0,
                 "mean_pm25": 25.0,
@@ -169,6 +265,8 @@ class EnvironmentalScoringEngine:
                 "hotspot_ratio": 0.0,
                 "exposure_score": 75.0,
                 "total_distance_m": 0.0,
+                "environment_segments": [],
+                "segment_count": 0,
             }
 
         total_dist_m = 0.0
@@ -185,26 +283,19 @@ class EnvironmentalScoringEngine:
         moderate_dist_m = 0.0
         unhealthy_dist_m = 0.0
 
-        for lat, lon, dist_m in samples:
-            env = cls.interpolate_environment_at_coord(
-                lat=lat,
-                lon=lon,
-                station_data_map=station_data_map,
-                wind_speed_ms=wind_speed_ms,
-                wind_direction_deg=wind_direction_deg,
-            )
-            aqi_val = env["aqi"]
-            pm25_val = env["pm25"]
+        for segment in segments:
+            aqi_val = float(segment["aqi"])
+            pm25_val = float(segment["pm25"])
             all_aqis.append(aqi_val)
             all_pm25s.append(pm25_val)
 
-            effective_d = max(1.0, dist_m)
+            effective_d = max(1.0, float(segment["distance_m"]))
             total_dist_m += effective_d
             weighted_aqi += aqi_val * effective_d
             weighted_pm25 += pm25_val * effective_d
-            weighted_temp += env["temperature"] * effective_d
-            weighted_noise += env["noise_db"] * effective_d
-            weighted_co2 += env["co2"] * effective_d
+            weighted_temp += float(segment["temperature"]) * effective_d
+            weighted_noise += float(segment["noise_db"]) * effective_d
+            weighted_co2 += float(segment["co2"]) * effective_d
 
             # Environmental zone classification (Good <= 50, Moderate 51..100, Unhealthy > 100)
             if aqi_val <= 50.0 and pm25_val <= 25.0:
@@ -304,6 +395,8 @@ class EnvironmentalScoringEngine:
                 "moderate_distance_m": round(moderate_dist_m),
                 "unhealthy_distance_m": round(unhealthy_dist_m),
             },
+            "environment_segments": segments,
+            "segment_count": len(segments),
             "breakdown": {
                 "aqi_sub": round(aqi_sub, 1),
                 "pm25_sub": round(pm25_sub, 1),
@@ -333,6 +426,8 @@ class EnvironmentalScoringEngine:
 
         for cand in candidates:
             coords = cand.get("coordinates", [])
+            if not isinstance(coords, list) or len(coords) < 2:
+                continue
             exposure = cls.evaluate_route_spatial_exposure(
                 route_coords=coords,
                 station_data_map=station_data_map,
@@ -370,6 +465,13 @@ class EnvironmentalScoringEngine:
                 "distance_m": exposure["total_distance_m"],
                 "total_pm25_exposure": total_pm25_exposure,
                 "environment_distribution": exposure["environment_distribution"],
+                "environment_segments": exposure["environment_segments"],
+                "segment_count": exposure["segment_count"],
+                "timestamp": (
+                    exposure["environment_segments"][0].get("observed_at")
+                    if exposure["environment_segments"]
+                    else None
+                ),
                 "exposure_breakdown": exposure["breakdown"],
             }
             evaluated.append(cand_updated)
