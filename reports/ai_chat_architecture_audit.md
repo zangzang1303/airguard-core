@@ -85,7 +85,7 @@ User Input / Map Context / Selected Station
 
 #### 1.2 Các Module, Service & API Bên ngoài Tích hợp
 - **Multi-provider LLM Adapter** ([`src/services/llm.py`](file:///d:/Ai_Thuc_Chien/P-074/src/services/llm.py)): optional semantic-router adapter; production answer/proposal generation không dùng provider.
-- **Prophet Time-Series ML Engine** ([`backend/app/services/prophet_forecast_service.py`](file:///d:/Ai_Thuc_Chien/P-074/backend/app/services/prophet_forecast_service.py)): Dự báo chuỗi thời gian 1h–3h vi khí hậu.
+- **Spatial Fourier heuristic** ([`backend/app/services/prophet_forecast_service.py`](file:///d:/Ai_Thuc_Chien/P-074/backend/app/services/prophet_forecast_service.py)): module tên legacy chỉ phục vụ timeline heatmap không gian 1–24h; đây không phải Prophet/ML đã huấn luyện. Forecast canonical của API/Agent là damped linear baseline 1–3h.
 - **Geospatial & Road Routing Engine** ([`backend/app/services/real_road_routing_service.py`](file:///d:/Ai_Thuc_Chien/P-074/backend/app/services/real_road_routing_service.py)): Đồ thị giao thông thực tế OpenStreetMap tại Vinhomes Ocean Park 1 để sinh tuyến chạy bộ theo km.
 - **Weather Provider** ([`backend/app/services/weather_service.py`](file:///d:/Ai_Thuc_Chien/P-074/backend/app/services/weather_service.py)): Tích hợp dữ liệu vi khí hậu thực tế.
 - **PostgreSQL & Mosquitto MQTT Broker**: Lưu trữ trạm, phép đo, cảnh báo, lượt phê duyệt HITL và chuyển phát lệnh điều khiển thiết bị mô phỏng.
@@ -98,9 +98,9 @@ User Input / Map Context / Selected Station
 |---|---|---|:---:|
 | **ISSUE-01 (pre-PR1)** | **Xử lý kép dư thừa (Dual Agent Execution Overhead)** | Chẩn đoán ban đầu là đúng: endpoint từng gọi cả `agent_service.chat()` và `geospatial_agent.process_query()` cho mọi domain request rồi trộn hai kết quả. PR1 đã sửa bằng một Agent authority và map planner có điều kiện, chỉ xuất UI actions sau source gate. | ✅ **Đã sửa** |
 | **ISSUE-02 (pre-P0)** | **Độ trễ do HTTP Hop & Synchronous LLM Call** | Mô tả này là lịch sử trước P0. Production answer hiện không có synchronous explanation call; semantic fallback tùy chọn chỉ có một invocation và fail-closed về clarification. | **Đã giảm** |
-| **ISSUE-03 (pre-PR2)** | **Thiếu Memory State cho Hội thoại Đa lượt (Multi-turn Context Drift)** | Chẩn đoán mất ngữ cảnh là đúng, nhưng nguyên nhân đầy đủ là request/frontend/backend đều không có `conversation_id`; mỗi graph invocation chỉ nhận message và UI context hiện tại. PR2 sửa bằng backend-owned semantic memory có owner isolation và TTL, không cho Agent truy cập DB trực tiếp hoặc dùng lịch sử làm environmental evidence. | ✅ **Đã sửa** |
-| **ISSUE-04** | **Phụ thuộc vào Polling trên Frontend** | Frontend [`AgentChat.tsx`](file:///d:/Ai_Thuc_Chien/P-074/frontend/src/features/agent/AgentChat.tsx) sử dụng REST POST đơn lẻ và Polling định kỳ thay vì WebSockets / Server-Sent Events (SSE). Do đó, câu trả lời từ AI Agent xuất hiện dạng block hoàn chỉnh thay vì hiển thị hiệu ứng stream từng từ (streaming response). | **Trung bình** |
-| **ISSUE-05** | **Nguy cơ Stale Cache khi Telemetry Ô nhiễm Đột biến** | Khi trạm đo ghi nhận sự gia tăng ô nhiễm đột ngột (ví dụ S01 tăng từ 40 lên 190 $\mu\text{g/m}^3$), mặc dù `LiveTelemetryEngine` đã sync 5 điểm gần nhất nhưng mô hình dự báo Prophet baseline vẫn có thể bị pha loãng nhẹ nếu không có cơ chế invalidate cache tức thì. | **Thấp** |
+| **ISSUE-03** | **Thiếu Memory State cho Hội thoại Đa lượt (Multi-turn Context Drift)** | Agent dựa vào `map_context` và `station_id` gửi kèm theo từng HTTP Request payload. Chưa tích hợp LangGraph Checkpointer (Postgres/Redis Persistence) để lưu trữ state hội thoại dài hạn, dẫn đến việc xử lý các câu hỏi tiếp nối nâng cao hoàn toàn phụ thuộc vào thông tin Client tự truyền. | **Trung bình** |
+| **ISSUE-04 (đã phân loại lại)** | **Chat trả response dạng block, chưa có streaming** | AI Chat gửi đúng một REST POST cho mỗi câu hỏi; polling 30 giây thuộc dashboard telemetry, không thuộc chat. Vì production answer chủ yếu deterministic và không có token stream cần truyền, đây là backlog UX chứ không phải lỗi polling. Chỉ triển khai SSE sau khi đo latency và xác định event/progress thực sự cần stream. | **Thấp / UX** |
+| **ISSUE-05 (đã sửa 27/08/2026)** | **Contract forecast bị chia đôi và nhãn mô hình gây hiểu nhầm** | Public API, Frontend và Agent nay chỉ dùng baseline 1–3h theo ADR 0007; tool extended 24h đã bị loại khỏi Agent registry. Spatial timeline 1–24h vẫn là luồng riêng, được ghi nhãn `spatial_fourier_heuristic_v2`, fail-closed khi thiếu history và neo trọng số vào phép đo mới nhất để phản ứng với spike. Không có forecast result cache/Redis cần invalidate. | **Đã giảm** |
 
 ---
 
@@ -113,7 +113,7 @@ User Input / Map Context / Selected Station
 | **AI-001** | Lược đồ công cụ & Backend Adapter (`contracts.py`, `backend_client.py`) | Đã hoàn thành 100%, bổ sung typed validation cho 8 backend tools. | ✅ **Hoàn thành** |
 | **AI-002** | Grounding & Safety Gate (`conversational_agent_service.py`, `grounding.py`) | Đã hoàn thành, pass 344/344 unit/integration tests. Ngăn chặn Prompt Injection & Medical Claims. | ✅ **Hoàn thành** |
 | **AI-003** | Recommendation Policy v2 theo 3 nhóm người dùng (`normal`, `sensitive`, `outdoor_sport`) | Đã triển khai tại `recommendations.py`, phân biệt rõ ngưỡng AQI 100/150 và gợi ý pivot sang tập trong nhà. | ✅ **Hoàn thành** |
-| **AI-004** | Dự báo môi trường 1–3h kết hợp Prophet ML (`prophet_forecast_service.py`) | Đã tích hợp mô hình Fourier Additive với cờ `is_forecast` minh bạch. | ✅ **Hoàn thành** |
+| **AI-004** | Dự báo môi trường canonical 1–3h | Damped linear baseline từ history fresh theo ADR 0007; không tuyên bố Prophet/LSTM. Spatial timeline dài hơn dùng heuristic có provenance riêng và không nằm trong Agent forecast contract. | ✅ **Hoàn thành** |
 | **AI-005** | Đề xuất cảnh báo & Bàn giao HITL (`automatic_proposal_service.py`, ADR 0010) | Đã triển khai luồng tạo Proposal `pending`, chặn Agent tự ý điều khiển thiết bị MQTT. | ✅ **Hoàn thành** |
 | **AI-006** | Đánh giá & Hồi quy Eval Dataset (25 Golden Test Cases) | Đạt **100% Accuracy & Grounding Compliance Rate** theo [`reports/agent_eval.json`](file:///d:/Ai_Thuc_Chien/P-074/reports/agent_eval.json). | ✅ **Hoàn thành** |
 | **Phase 2 Router** | Bounded Semantic Router sử dụng Pydantic validation (ADR 0004 Update 27/08/2026) | Đã cài đặt tại `src/agents/policies/grounding.py` hỗ trợ câu hỏi phức tạp. | ✅ **Hoàn thành** |
@@ -128,17 +128,17 @@ User Input / Map Context / Selected Station
    - *Giải pháp đã áp dụng:* `agent_service.chat()` là authority duy nhất. Geospatial không còn là pipeline hội thoại thứ hai; nó chỉ là map planner tùy chọn cho kết quả `spatial` đã có source hợp lệ và không được ghi đè answer/intent/evidence/tool trace.
    - *Kết quả:* Domain request thông thường chỉ chạy một pipeline Agent; lỗi phụ thuộc map không còn làm hỏng câu trả lời đã grounded. Không tuyên bố phần trăm giảm latency nếu chưa có benchmark production trước/sau.
 
-2. **Triển khai Server-Sent Events (SSE) Streaming Response**
-   - *Giải pháp:* Nâng cấp API `/api/v1/agent/chat` hỗ trợ HTTP Response Streaming (SSE) kết hợp với `async generator` từ Gemini / OpenAI SDK. Cập nhật frontend [`AgentChat.tsx`](file:///d:/Ai_Thuc_Chien/P-074/frontend/src/features/agent/AgentChat.tsx) để tiêu thụ stream.
-   - *Lợi ích:* Mang lại trải nghiệm phản hồi tức thì (Perceived Latency $< 500\text{ms}$), câu trả lời xuất hiện mượt mà từng chữ.
+2. **Đo latency trước khi quyết định SSE**
+   - *Giải pháp:* Dùng metrics hiện có để đo P50/P95/P99 cho `/api/v1/agent/chat`, tách thời gian Agent HTTP, backend tools và geospatial planning. Chỉ bổ sung SSE nếu có event tiến trình có ý nghĩa; không stream từng chữ giả khi response deterministic đã hoàn chỉnh.
+   - *Lợi ích:* Tránh thêm protocol, reconnect và state management khi chưa có bottleneck được đo; vẫn giữ đường nâng cấp streaming nếu UX thực tế cần.
 
 3. **Hội thoại đa lượt có kiểm soát — đã hoàn thành trong PR2**
    - *Giải pháp đã áp dụng:* Backend system-of-record lưu semantic context tối thiểu theo `conversation_id`; Agent chỉ nhận station/intent đã allowlist và luôn gọi lại tool cho dữ liệu môi trường. Không dùng `AsyncPostgresSaver` trực tiếp trong Agent vì ranh giới kiến trúc cấm Agent truy cập PostgreSQL.
    - *Kết quả:* Các câu nối tiếp có antecedent rõ ràng được resolve qua memory; conversation hết hạn, khác owner hoặc thiếu context đều fail/clarify an toàn. PR2 chưa lưu transcript đầy đủ và không tuyên bố đó là chat-history feature.
 
-4. **Tối ưu Caching Telemetry & ML Forecast với Redis**
-   - *Giải pháp:* Thiết lập bộ nhớ đệm In-Memory / Redis cho kết quả truy vấn trạm và kết quả dự báo Prophet với TTL ngắn ($10 - 15\text{s}$).
-   - *Lợi ích:* Giảm tải truy vấn DB và tính toán time-series khi có nhiều người dùng đồng thời truy vấn cùng 1 trạm quan trắc.
+4. **Giữ forecast contract thống nhất và kiểm thử spike**
+   - *Giải pháp:* Giữ API/Agent ở baseline 1–3h, fail-closed khi thiếu history/source/timestamp, và duy trì regression case cho spike 40 → 190 µg/m³. Spatial heuristic phải có provenance riêng và không được tự nhận là Prophet.
+   - *Lợi ích:* Forecast phản ứng với dữ liệu mới mà không cần thêm cache invalidation hoặc Redis; tránh nhầm mô hình visualization với forecast canonical.
 
 5. **Áp dụng Circuit Breaker Pattern cho LLM External Calls**
    - *Giải pháp:* Bổ sung thư viện Circuit Breaker (như `tenacity` hoặc `pybreaker`) xung quanh các kết nối HTTP ra ngoài dịch vụ LLM.
