@@ -584,7 +584,7 @@ Lệnh này cài git pre-push hook và tạo thư mục `.ai-log/`. Sau khi ch�
 |------|--------|-------------|
 | **Claude Code** | `.claude/settings.json` hooks | Mỗi prompt + mỗi tool call |
 | **Cursor** | `.cursor/hooks.json` | Mỗi prompt + khi stop |
-| **OpenAI Codex CLI** | `.codex/hooks.json` (`scripts\\_pyrun.cmd` trên Windows) | Mỗi prompt + khi stop |
+| **OpenAI Codex CLI** | `.codex/hooks.json` | Mỗi prompt + khi stop |
 | **Gemini CLI** | `.gemini/settings.json` | BeforeAgent + AfterModel + SessionEnd |
 | **GitHub Copilot** | `.github/hooks/hooks.json` | Mỗi prompt + khi session end |
 | **Antigravity IDE** | Pre-push scan transcript | Tự động quét transcript khi `git push` |

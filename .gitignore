@@ -59,6 +59,3 @@ out/
 # AI logs — tracked structure, ignored content
 .ai-log/*.jsonl
 .ai-log/archive/
-.vercel
-.pytest-agent-cache/
-.pytest_cache/

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from ..services.job_service import get_job, mark_job_failed, mark_job_running, mark_job_succeeded
+from app.services.job_service import get_job, mark_job_failed, mark_job_running, mark_job_succeeded
 
 
 class TransientTaskError(ConnectionError):

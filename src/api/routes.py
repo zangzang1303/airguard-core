@@ -1,67 +1,25 @@
-from __future__ import annotations
-
-import re
-
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 
 from src.agents.graph import agent
-from src.agents.policies.grounding import GROUNDING_POLICY_VERSION
 from src.models.schemas import ChatRequest, ChatResponse
 
 router = APIRouter()
-REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
 
 
-async def _chat(request: ChatRequest, http_request: Request) -> ChatResponse:
-    request_id = http_request.headers.get("X-Request-ID")
-    initial_state = {
-        "query": request.message,
-        "user_id": request.user_id,
-        "context_station_id": request.station_id,
-        "conversation": [turn.model_dump() for turn in request.conversation],
-    }
-    if request_id and REQUEST_ID_PATTERN.fullmatch(request_id):
-        initial_state["request_id"] = request_id
+@router.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest) -> ChatResponse:
+    """Chat với AI agent."""
     try:
-        result = await agent.ainvoke(initial_state)
-        route = result.get("route", {})
+        result = await agent.ainvoke({"query": request.message})
         return ChatResponse(
-            answer=result["answer"],
-            intent=route.get("intent", "out_of_scope"),
-            conversation_kind=route.get("conversation_kind"),
-            response=result["answer"],
+            response=result.get("response", ""),
             analysis=result.get("analysis", ""),
-            used_tools=result.get("used_tools", []),
-            tool_arguments=route.get("tool_arguments", []),
-            sources=result.get("sources", []),
-            map_actions=[],
-            request_id=result["request_id"],
-            proposal_id=result.get("proposal_id"),
-            recommendation_policy_version=result.get("recommendation_policy_version"),
-            impact_policy_version=result.get("impact_policy_version"),
-            outcome=result.get("outcome", "unknown"),
-            refusal_category=route.get("refusal_category"),
-            reason_code=route.get("reason_code"),
-            trace=result.get("trace", {}),
         )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Agent request failed safely.") from exc
-
-
-@router.post("/agent/chat", response_model=ChatResponse)
-async def agent_chat(request: ChatRequest, http_request: Request) -> ChatResponse:
-    return await _chat(request, http_request)
-
-
-@router.post("/chat", response_model=ChatResponse, deprecated=True)
-async def legacy_chat(request: ChatRequest, http_request: Request) -> ChatResponse:
-    return await _chat(request, http_request)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/status")
-async def agent_status() -> dict[str, str]:
-    return {
-        "status": "ready",
-        "agent": "AirGuard grounded Agent",
-        "policy_version": GROUNDING_POLICY_VERSION,
-    }
+async def agent_status():
+    """Kiểm tra trạng thái agent."""
+    return {"status": "ready", "agent": "LangGraph Agent v1.0"}

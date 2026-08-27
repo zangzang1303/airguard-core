@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16
     container_name: airguard-postgres
@@ -11,35 +11,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
-      - ./backend/db/seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
-      - ./backend/db/migrations:/migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airguard -d airguard"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  db-migrate:
-    image: postgres:16
-    container_name: airguard-db-migrate
-    environment:
-      PGPASSWORD: airguard
-    volumes:
-      - ./backend/db/migrations:/migrations:ro
-    command:
-      - sh
-      - -c
-      - >-
-        psql -v ON_ERROR_STOP=1 -h postgres -U airguard -d airguard
-        -f /migrations/20260820_001_auth_foundation.sql
-        -f /migrations/20260821_002_auto_ventilation_reports.sql
-        -f /migrations/20260823_003_fix_vietnamese_station_names_and_alerts.sql
-        -f /migrations/20260823_004_fix_vietnamese_demo_user_names.sql
-        -f /migrations/20260824_005_add_demo_station_devices.sql
-        -f /migrations/20260824_005_seed_demo_health_group_residents.sql
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   mqtt:
     image: eclipse-mosquitto:2
@@ -84,128 +60,27 @@ services:
     container_name: airguard-backend
     environment:
       DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
-      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://frontend:5173
-      STALE_AFTER_SECONDS: 300
-      PM25_WARNING_THRESHOLD: 50
-      PM25_CRITICAL_THRESHOLD: 100
-      PM25_ALERT_RULE_VERSION: pm25-threshold-v1
-      ALERT_CONSECUTIVE_MEASUREMENTS: ${ALERT_CONSECUTIVE_MEASUREMENTS:-2}
-      ENVIRONMENT_ALERT_RULE_VERSION: ${ENVIRONMENT_ALERT_RULE_VERSION:-environmental-threshold-v1}
-      AQI_WARNING_THRESHOLD: ${AQI_WARNING_THRESHOLD:-101}
-      AQI_CRITICAL_THRESHOLD: ${AQI_CRITICAL_THRESHOLD:-151}
-      CO2_WARNING_THRESHOLD: ${CO2_WARNING_THRESHOLD:-1000}
-      CO2_CRITICAL_THRESHOLD: ${CO2_CRITICAL_THRESHOLD:-1500}
-      NOISE_DB_WARNING_THRESHOLD: ${NOISE_DB_WARNING_THRESHOLD:-70}
-      NOISE_DB_CRITICAL_THRESHOLD: ${NOISE_DB_CRITICAL_THRESHOLD:-85}
-      TEMPERATURE_WARNING_THRESHOLD: ${TEMPERATURE_WARNING_THRESHOLD:-35}
-      TEMPERATURE_CRITICAL_THRESHOLD: ${TEMPERATURE_CRITICAL_THRESHOLD:-39}
+      CORS_ORIGINS: http://localhost:5173,http://frontend:5173
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-memory://}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-cache+memory://}
       CELERY_TASK_ALWAYS_EAGER: ${CELERY_TASK_ALWAYS_EAGER:-true}
       JOB_PERSISTENCE_ENABLED: "true"
-      AGENT_SERVICE_URL: http://agent:8001
-      AGENT_SERVICE_TIMEOUT_SECONDS: 8
-      AUTO_PROPOSAL_ENABLED: ${AUTO_PROPOSAL_ENABLED:-true}
-      RESIDENT_ALERT_NOTIFICATIONS_ENABLED: ${RESIDENT_ALERT_NOTIFICATIONS_ENABLED:-false}
-      RESIDENT_ALERT_NOTIFICATION_COOLDOWN_SECONDS: ${RESIDENT_ALERT_NOTIFICATION_COOLDOWN_SECONDS:-3600}
-      AUTO_PROPOSAL_STATIONS: ${AUTO_PROPOSAL_STATIONS:-}
-      PROPOSAL_PENDING_TTL_SECONDS: ${PROPOSAL_PENDING_TTL_SECONDS:-3600}
-      VENTILATION_TRIGGER_SECONDS: ${VENTILATION_TRIGGER_SECONDS:-30}
-      VENTILATION_RECOVERY_MINUTES: ${VENTILATION_RECOVERY_MINUTES:-20}
-      VENTILATION_DEFAULT_DURATION_MINUTES: ${VENTILATION_DEFAULT_DURATION_MINUTES:-45}
-      VENTILATION_INTENSITY_PERCENT: ${VENTILATION_INTENSITY_PERCENT:-80}
-      VENTILATION_MAX_GAP_SECONDS: ${VENTILATION_MAX_GAP_SECONDS:-60}
-      REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Ho_Chi_Minh}
-      REPORT_NARRATIVE_ENDPOINT: ${REPORT_NARRATIVE_ENDPOINT:-}
-      REPORT_NARRATIVE_TIMEOUT_SECONDS: ${REPORT_NARRATIVE_TIMEOUT_SECONDS:-5}
-      REPORT_NARRATIVE_SERVICE_TOKEN: ${REPORT_NARRATIVE_SERVICE_TOKEN:-}
-      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-disabled}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
-      RESEND_FROM_NAME: ${RESEND_FROM_NAME:-AirGuard AI}
-      RESEND_REPLY_TO: ${RESEND_REPLY_TO:-}
-      RESEND_TIMEOUT_SECONDS: ${RESEND_TIMEOUT_SECONDS:-10}
-      VERIFICATION_TOKEN_TTL_SECONDS: ${VERIFICATION_TOKEN_TTL_SECONDS:-600}
-      AUTH_DEMO_MODE: ${AUTH_DEMO_MODE:-true}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8000/api/v1/auth/google/callback}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
-      WEATHER_API_BASE_URL: ${WEATHER_API_BASE_URL:-https://api.open-meteo.com/v1/forecast}
-      WEATHER_TIMEOUT_SECONDS: ${WEATHER_TIMEOUT_SECONDS:-3}
-      WEATHER_LATITUDE: ${WEATHER_LATITUDE:-20.993}
-      WEATHER_LONGITUDE: ${WEATHER_LONGITUDE:-105.944}
-      WEATHER_MAX_AGE_SECONDS: ${WEATHER_MAX_AGE_SECONDS:-3600}
-      MQTT_HOST: mqtt
-      MQTT_PORT: 1883
     ports:
       - "8000:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     volumes:
       - ./data:/app/data:ro
     depends_on:
       postgres:
         condition: service_healthy
-      db-migrate:
-        condition: service_completed_successfully
-
-  agent:
-    build:
-      context: .
-    container_name: airguard-agent
-    environment:
-      APP_ENV: development
-      APP_PORT: 8001
-      AGENT_BACKEND_BASE_URL: http://backend:8000
-      AGENT_TOOL_TIMEOUT_SECONDS: 3
-      AGENT_TOOL_MAX_RETRIES: 1
-      CORS_ORIGINS: http://localhost:5173
-      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      MODEL_NAME: ${MODEL_NAME:-gpt-4o-mini}
-      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
-      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-12}
-      LLM_RESPONSE_DEADLINE_SECONDS: ${LLM_RESPONSE_DEADLINE_SECONDS:-5}
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-280}
-      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
-      AGENTROUTER_API_KEY: ${AGENTROUTER_API_KEY:-}
-      AGENTROUTER_MODEL: ${AGENTROUTER_MODEL:-}
-      AGENTROUTER_BASE_URL: ${AGENTROUTER_BASE_URL:-https://co.agentrouter.org}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
-      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
-      GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-minimal}
-      GEMINI_MAX_TOKENS: ${GEMINI_MAX_TOKENS:-32}
-      GEMINI_RETRY_BASE_SECONDS: ${GEMINI_RETRY_BASE_SECONDS:-1}
-      GEMINI_RETRY_MAX_SECONDS: ${GEMINI_RETRY_MAX_SECONDS:-60}
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8001
-    ports:
-      - "8001:8001"
-    depends_on:
-      backend:
-        condition: service_started
 
   frontend:
     build:
       context: ./frontend
     container_name: airguard-frontend
     environment:
-      # Keep the browser on IPv4 loopback. On some Windows/Docker setups,
-      # localhost resolves to IPv6 first and leaves the initial auth request hanging.
-      VITE_API_BASE_URL: http://127.0.0.1:8000
+      VITE_API_BASE_URL: http://localhost:8000
     ports:
       - "5173:5173"
-    volumes:
-      # Mount only editable frontend sources/config so image-owned node_modules
-      # is not hidden by a stale anonymous volume after dependency updates.
-      - ./frontend/src:/app/src
-      - ./frontend/index.html:/app/index.html
-      - ./frontend/tsconfig.json:/app/tsconfig.json
-      - ./frontend/vite.config.ts:/app/vite.config.ts
     depends_on:
       - backend
 
@@ -216,59 +91,10 @@ services:
     environment:
       MQTT_HOST: mqtt
       MQTT_PORT: 1883
-      MQTT_QOS: 1
       SENSOR_INTERVAL_SECONDS: 10
-      SENSOR_SCENARIO: ${SENSOR_SCENARIO:-normal}
-      SENSOR_RANDOM_SEED: ${SENSOR_RANDOM_SEED:-740}
-      SENSOR_RUN_ID: ${SENSOR_RUN_ID:-}
-      STATION_CATALOG_PATH: /app/data/stations.json
-    volumes:
-      - ./data:/app/data:ro
     depends_on:
       - mqtt
     restart: unless-stopped
-
-
-  mqtt-consumer:
-    build:
-      context: ./services/mqtt-consumer
-    container_name: airguard-mqtt-consumer
-    environment:
-      DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
-      MQTT_HOST: mqtt
-      MQTT_PORT: 1883
-      MQTT_QOS: 1
-      STALE_AFTER_SECONDS: 300
-      MAX_FUTURE_SKEW_SECONDS: 60
-      BACKEND_URL: http://backend:8000
-      STATION_CATALOG_PATH: /app/data/stations.json
-    volumes:
-      - ./data:/app/data:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      mqtt:
-        condition: service_started
-      backend:
-        condition: service_started
-    restart: unless-stopped
-
-  device-simulator:
-    build:
-      context: ./services/device-simulator
-    container_name: airguard-device-simulator
-    environment:
-      MQTT_HOST: mqtt
-      MQTT_PORT: 1883
-      MQTT_QOS: 1
-      DEVICE_ID: FILTER-01
-      DEVICE_STATE_PATH: /data/processed-keys.json
-    volumes:
-      - device_state:/data
-    depends_on:
-      - mqtt
-    restart: unless-stopped
-
 
   celery-worker:
     build:
@@ -284,59 +110,16 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       CELERY_TASK_ALWAYS_EAGER: "false"
       JOB_PERSISTENCE_ENABLED: "true"
-      AGENT_SERVICE_URL: http://agent:8001
-      AGENT_SERVICE_TIMEOUT_SECONDS: 8
-      REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Ho_Chi_Minh}
-      REPORT_NARRATIVE_ENDPOINT: ${REPORT_NARRATIVE_ENDPOINT:-}
-      REPORT_NARRATIVE_TIMEOUT_SECONDS: ${REPORT_NARRATIVE_TIMEOUT_SECONDS:-5}
-      REPORT_NARRATIVE_SERVICE_TOKEN: ${REPORT_NARRATIVE_SERVICE_TOKEN:-}
-      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-disabled}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
-      RESEND_FROM_NAME: ${RESEND_FROM_NAME:-AirGuard AI}
-      RESEND_REPLY_TO: ${RESEND_REPLY_TO:-}
-      RESEND_TIMEOUT_SECONDS: ${RESEND_TIMEOUT_SECONDS:-10}
     depends_on:
       postgres:
         condition: service_healthy
-      db-migrate:
-        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
       mqtt:
         condition: service_started
-      agent:
-        condition: service_started
-
-  celery-beat:
-    build:
-      context: ./backend
-    container_name: airguard-celery-beat
-    profiles: ["async-jobs"]
-    command: celery -A app.celery_app:celery_app beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
-    environment:
-      DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
-      CELERY_BROKER_URL: amqp://airguard:airguard@rabbitmq:5672//
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      CELERY_TASK_ALWAYS_EAGER: "false"
-      JOB_PERSISTENCE_ENABLED: "true"
-      REPORT_TIMEZONE: ${REPORT_TIMEZONE:-Asia/Ho_Chi_Minh}
-      REPORT_NARRATIVE_ENDPOINT: ${REPORT_NARRATIVE_ENDPOINT:-}
-      REPORT_NARRATIVE_TIMEOUT_SECONDS: ${REPORT_NARRATIVE_TIMEOUT_SECONDS:-5}
-      REPORT_NARRATIVE_SERVICE_TOKEN: ${REPORT_NARRATIVE_SERVICE_TOKEN:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      db-migrate:
-        condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
 
 volumes:
   postgres_data:
-  device_state:
 

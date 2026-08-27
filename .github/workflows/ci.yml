@@ -2,14 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, Canh]
+    branches: [main, develop]
   pull_request:
     branches: [main]
 
 jobs:
   lint-and-test:
-    runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 15
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -21,38 +20,13 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt ruff
+        run: pip install -r requirements.txt
 
       - name: Lint with ruff
-        run: ruff check src/ tests/ --output-format=github
-        continue-on-error: true
+        run: ruff check src/ tests/
 
       - name: Run tests
         run: pytest tests/ -v --tb=short
         env:
           APP_ENV: test
           OPENAI_API_KEY: test-key
-
-  frontend-build:
-    runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 10
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build

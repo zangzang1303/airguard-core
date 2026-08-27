@@ -1,29 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import TypedDict
 
 
 class AgentState(TypedDict, total=False):
-    """Serializable state passed through the grounded LangGraph workflow."""
+    """State schema cho LangGraph agent.
+
+    Mỗi node đọc và ghi vào state này.
+    total=False cho phép tất cả fields là optional.
+    """
 
     query: str
-    user_id: str
-    context_station_id: str
-    conversation: list[dict[str, str]]
-    request_id: str
-    started_at: float
-    route: dict[str, Any]
-    tool_results: list[dict[str, Any]]
-    tool_traces: list[dict[str, Any]]
-    used_tools: list[str]
-    sources: list[dict[str, Any]]
-    answer: str
-    response: str
+    context: str
     analysis: str
-    outcome: str
-    proposal_id: str | None
-    proposal_reason_code: str | None
-    recommendation_policy_version: str
-    impact_policy_version: str
-    generation: dict[str, Any]
-    trace: dict[str, Any]
+    response: str
+    error: str
+    metadata: dict

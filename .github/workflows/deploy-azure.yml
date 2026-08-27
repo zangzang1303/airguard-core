@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   deploy:
-    if: github.repository == 'zangzang1303/airguard-core'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -28,7 +27,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -46,7 +45,6 @@ jobs:
           install -d -m 700 "$HOME/.ssh"
           install -m 600 /dev/null "$HOME/.ssh/airguard_deploy"
           printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/airguard_deploy"
-
           ssh-keyscan -t ed25519 -H "$AZURE_HOST" > "$HOME/.ssh/known_hosts.pending"
           actual_fingerprint="$(ssh-keygen -lf "$HOME/.ssh/known_hosts.pending" -E sha256 | awk '{print $2}')"
           test "$actual_fingerprint" = "$EXPECTED_HOST_FINGERPRINT"
@@ -62,12 +60,8 @@ jobs:
       - name: Deploy through restricted forced command
         run: |
           cat "$RUNNER_TEMP/airguard.bundle" | \
-            ssh \
-              -o BatchMode=yes \
-              -o IdentitiesOnly=yes \
-              -i "$HOME/.ssh/airguard_deploy" \
-              "$AZURE_USER@$AZURE_HOST" \
-              "deploy $GITHUB_SHA"
+            ssh -o BatchMode=yes -o IdentitiesOnly=yes -i "$HOME/.ssh/airguard_deploy" \
+              "$AZURE_USER@$AZURE_HOST" "deploy $GITHUB_SHA"
 
       - name: Verify public readiness
         run: curl --fail --silent --show-error --retry 6 --retry-delay 5 --retry-all-errors --max-time 10 "$PUBLIC_READY_URL"

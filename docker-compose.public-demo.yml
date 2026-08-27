@@ -1,8 +1,4 @@
-# Persistent public-demo topology.  Do not expose the database, MQTT broker,
-# backend, or agent ports directly to the Internet.
-#
-# Usage:
-#   DEMO_DOMAIN=airguard.example.com docker compose -f docker-compose.public-demo.yml up -d --build
+# Public topology: only Caddy exposes ports; all application services remain private.
 services:
   postgres:
     image: postgres:16
@@ -14,34 +10,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
-      - ./backend/db/seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
-      - ./backend/db/migrations:/migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airguard -d airguard"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  db-migrate:
-    image: postgres:16
-    restart: "no"
-    environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the server environment}
-    volumes:
-      - ./backend/db/migrations:/migrations:ro
-    command:
-      - sh
-      - -c
-      - >-
-        psql -v ON_ERROR_STOP=1 -h postgres -U airguard -d airguard
-        -f /migrations/20260820_001_auth_foundation.sql
-        -f /migrations/20260821_002_auto_ventilation_reports.sql
-        -f /migrations/20260823_003_fix_vietnamese_station_names_and_alerts.sql
-        -f /migrations/20260823_004_fix_vietnamese_demo_user_names.sql
-        -f /migrations/20260824_005_add_demo_station_devices.sql
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   mqtt:
     image: eclipse-mosquitto:2
@@ -56,48 +29,15 @@ services:
     environment:
       DATABASE_URL: postgresql://airguard:${POSTGRES_PASSWORD}@postgres:5432/airguard
       CORS_ORIGINS: ${CORS_ORIGINS:-https://${DEMO_DOMAIN}}
-      STALE_AFTER_SECONDS: ${STALE_AFTER_SECONDS:-300}
-      PM25_WARNING_THRESHOLD: ${PM25_WARNING_THRESHOLD:-50}
-      PM25_CRITICAL_THRESHOLD: ${PM25_CRITICAL_THRESHOLD:-100}
-      PM25_ALERT_RULE_VERSION: ${PM25_ALERT_RULE_VERSION:-pm25-threshold-v1}
-      PM25_ALERT_CONSECUTIVE_MEASUREMENTS: ${PM25_ALERT_CONSECUTIVE_MEASUREMENTS:-2}
-      ENVIRONMENT_ALERT_RULE_VERSION: ${ENVIRONMENT_ALERT_RULE_VERSION:-environmental-threshold-v1}
-      AQI_WARNING_THRESHOLD: ${AQI_WARNING_THRESHOLD:-101}
-      AQI_CRITICAL_THRESHOLD: ${AQI_CRITICAL_THRESHOLD:-151}
-      CO2_WARNING_THRESHOLD: ${CO2_WARNING_THRESHOLD:-1000}
-      CO2_CRITICAL_THRESHOLD: ${CO2_CRITICAL_THRESHOLD:-1500}
-      NOISE_DB_WARNING_THRESHOLD: ${NOISE_DB_WARNING_THRESHOLD:-70}
-      NOISE_DB_CRITICAL_THRESHOLD: ${NOISE_DB_CRITICAL_THRESHOLD:-85}
-      TEMPERATURE_WARNING_THRESHOLD: ${TEMPERATURE_WARNING_THRESHOLD:-35}
-      TEMPERATURE_CRITICAL_THRESHOLD: ${TEMPERATURE_CRITICAL_THRESHOLD:-39}
-      AGENT_SERVICE_URL: http://agent:8001
-      AGENT_SERVICE_TIMEOUT_SECONDS: ${AGENT_SERVICE_TIMEOUT_SECONDS:-8}
       MQTT_HOST: mqtt
       MQTT_PORT: 1883
-      FRONTEND_URL: ${FRONTEND_URL:-https://${DEMO_DOMAIN}}
-      AUTH_DEMO_MODE: ${AUTH_DEMO_MODE:-true}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-https://${DEMO_DOMAIN}/backend/api/v1/auth/google/callback}
-      COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
-      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-disabled}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
-      RESEND_FROM_NAME: ${RESEND_FROM_NAME:-AirGuard AI}
-      RESEND_REPLY_TO: ${RESEND_REPLY_TO:-}
-      VENTILATION_TRIGGER_SECONDS: ${VENTILATION_TRIGGER_SECONDS:-30}
-      VERIFICATION_TOKEN_TTL_SECONDS: ${VERIFICATION_TOKEN_TTL_SECONDS:-600}
-      WEATHER_API_BASE_URL: ${WEATHER_API_BASE_URL:-https://api.open-meteo.com/v1/forecast}
-      WEATHER_TIMEOUT_SECONDS: ${WEATHER_TIMEOUT_SECONDS:-3}
-      WEATHER_LATITUDE: ${WEATHER_LATITUDE:-20.993}
-      WEATHER_LONGITUDE: ${WEATHER_LONGITUDE:-105.944}
-      WEATHER_MAX_AGE_SECONDS: ${WEATHER_MAX_AGE_SECONDS:-3600}
+      AGENT_SERVICE_URL: http://agent:8001
     volumes:
       - ./data:/app/data:ro
     depends_on:
-      db-migrate:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
   agent:
     build:
       context: .
@@ -107,27 +47,8 @@ services:
       APP_ENV: production
       APP_PORT: 8001
       AGENT_BACKEND_BASE_URL: http://backend:8000
-      AGENT_TOOL_TIMEOUT_SECONDS: ${AGENT_TOOL_TIMEOUT_SECONDS:-3}
-      AGENT_TOOL_MAX_RETRIES: ${AGENT_TOOL_MAX_RETRIES:-1}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://${DEMO_DOMAIN}}
-      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      MODEL_NAME: ${MODEL_NAME:-gpt-4o-mini}
-      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
-      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-12}
-      LLM_RESPONSE_DEADLINE_SECONDS: ${LLM_RESPONSE_DEADLINE_SECONDS:-5}
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-280}
-      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
-      AGENTROUTER_API_KEY: ${AGENTROUTER_API_KEY:-}
-      AGENTROUTER_MODEL: ${AGENTROUTER_MODEL:-}
-      AGENTROUTER_BASE_URL: ${AGENTROUTER_BASE_URL:-https://co.agentrouter.org}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
-      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
-      GEMINI_THINKING_LEVEL: ${GEMINI_THINKING_LEVEL:-minimal}
-      GEMINI_MAX_TOKENS: ${GEMINI_MAX_TOKENS:-32}
-      GEMINI_RETRY_BASE_SECONDS: ${GEMINI_RETRY_BASE_SECONDS:-1}
-      GEMINI_RETRY_MAX_SECONDS: ${GEMINI_RETRY_MAX_SECONDS:-60}
     depends_on:
       - backend
 
@@ -146,11 +67,7 @@ services:
     environment:
       MQTT_HOST: mqtt
       MQTT_PORT: 1883
-      MQTT_QOS: 1
       SENSOR_INTERVAL_SECONDS: ${SENSOR_INTERVAL_SECONDS:-10}
-      SENSOR_SCENARIO: ${SENSOR_SCENARIO:-normal}
-      SENSOR_RANDOM_SEED: ${SENSOR_RANDOM_SEED:-740}
-      SENSOR_RUN_ID: ${SENSOR_RUN_ID:-}
       STATION_CATALOG_PATH: /app/data/stations.json
     volumes:
       - ./data:/app/data:ro
@@ -165,9 +82,6 @@ services:
       DATABASE_URL: postgresql://airguard:${POSTGRES_PASSWORD}@postgres:5432/airguard
       MQTT_HOST: mqtt
       MQTT_PORT: 1883
-      MQTT_QOS: 1
-      STALE_AFTER_SECONDS: ${STALE_AFTER_SECONDS:-300}
-      MAX_FUTURE_SKEW_SECONDS: ${MAX_FUTURE_SKEW_SECONDS:-60}
       BACKEND_URL: http://backend:8000
       STATION_CATALOG_PATH: /app/data/stations.json
     volumes:
