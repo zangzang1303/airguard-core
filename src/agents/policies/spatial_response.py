@@ -233,7 +233,7 @@ def is_spatial_query(query: str, location_ids: list[str]) -> bool:
         )
     )
     location_comparison = len(location_ids) >= 2 and any(
-        phrase in plain for phrase in ("so voi", "so sanh", "khac nhau", "khu nao")
+        phrase in plain for phrase in ("so voi", "so sanh", "khac nhau", "khu nao", "sach hon", "o nhiem hon")
     )
     wind_dispersion = (
         "gio" in plain
@@ -248,7 +248,7 @@ def spatial_analysis_mode(query: str, location_ids: list[str]) -> SpatialAnalysi
     if "gio" in plain and "o nhiem" in plain:
         return "wind"
     if len(location_ids) >= 2 or any(
-        phrase in plain for phrase in ("so voi", "so sanh", "khu nao")
+        phrase in plain for phrase in ("so voi", "so sanh", "khu nao", "sach hon", "o nhiem hon")
     ):
         return "compare"
     return "overview"

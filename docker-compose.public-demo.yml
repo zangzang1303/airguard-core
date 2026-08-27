@@ -38,6 +38,7 @@ services:
         -f /migrations/20260821_002_auto_ventilation_reports.sql
         -f /migrations/20260823_003_fix_vietnamese_station_names_and_alerts.sql
         -f /migrations/20260823_004_fix_vietnamese_demo_user_names.sql
+        -f /migrations/20260824_005_add_demo_station_devices.sql
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,12 +74,30 @@ services:
       AGENT_SERVICE_TIMEOUT_SECONDS: ${AGENT_SERVICE_TIMEOUT_SECONDS:-8}
       MQTT_HOST: mqtt
       MQTT_PORT: 1883
+      FRONTEND_URL: ${FRONTEND_URL:-https://${DEMO_DOMAIN}}
+      AUTH_DEMO_MODE: ${AUTH_DEMO_MODE:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-https://${DEMO_DOMAIN}/backend/api/v1/auth/google/callback}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-disabled}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      RESEND_FROM_NAME: ${RESEND_FROM_NAME:-AirGuard AI}
+      RESEND_REPLY_TO: ${RESEND_REPLY_TO:-}
+      VENTILATION_TRIGGER_SECONDS: ${VENTILATION_TRIGGER_SECONDS:-30}
+      VERIFICATION_TOKEN_TTL_SECONDS: ${VERIFICATION_TOKEN_TTL_SECONDS:-600}
+      WEATHER_API_BASE_URL: ${WEATHER_API_BASE_URL:-https://api.open-meteo.com/v1/forecast}
+      WEATHER_TIMEOUT_SECONDS: ${WEATHER_TIMEOUT_SECONDS:-3}
+      WEATHER_LATITUDE: ${WEATHER_LATITUDE:-20.993}
+      WEATHER_LONGITUDE: ${WEATHER_LONGITUDE:-105.944}
+      WEATHER_MAX_AGE_SECONDS: ${WEATHER_MAX_AGE_SECONDS:-3600}
     volumes:
       - ./data:/app/data:ro
     depends_on:
       db-migrate:
         condition: service_completed_successfully
-
   agent:
     build:
       context: .

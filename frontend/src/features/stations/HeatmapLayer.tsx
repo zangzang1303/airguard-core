@@ -7,7 +7,6 @@ import { AlertTriangle, RefreshCw, Layers, ChevronDown, ChevronUp } from "lucide
 import {
   MetricColorScale,
   DispersionMetadata,
-  StationStatusLegend,
   SimulationDisclaimer,
   getFriendlyBadgeLabel,
 } from "../map/AqiLegend";
@@ -25,6 +24,7 @@ export interface HeatmapLayerProps {
   viewMode?: MapViewMode;
   showHeatmap?: boolean;
   showMetadata?: boolean;
+  refreshRevision?: number;
 }
 
 const DISPERSION_BOUNDS: [[number, number], [number, number]] = [
@@ -38,6 +38,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
   viewMode = "heatmap",
   showHeatmap = true,
   showMetadata = true,
+  refreshRevision = 0,
 }) => {
   const { containerProps, handleProps } = useDraggableFloatingPanel({
     panelId: "heatmap-metadata",
@@ -62,7 +63,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
       return;
     }
 
-    const requestKey = `${activeLayer}:${forecastHour}:${reloadToken}`;
+    const requestKey = `${activeLayer}:${forecastHour}:${refreshRevision}:${reloadToken}`;
     activeRequestKeyRef.current = requestKey;
 
     const controller = new AbortController();
@@ -100,7 +101,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
     return () => {
       controller.abort();
     };
-  }, [activeLayer, forecastHour, isActive, reloadToken]);
+  }, [activeLayer, forecastHour, isActive, refreshRevision, reloadToken]);
 
   // Pure Geographic Offscreen Canvas & Data URL Generation
   // Derived strictly from geographic coordinates, stations, and wind — 100% zoom-invariant!
@@ -168,7 +169,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
             {loading && (
               <div className="unified-loading" style={{ display: "flex", alignItems: "center", gap: "8px", color: "#0284c7", padding: "4px 0" }}>
                 <RefreshCw size={14} className="spin-icon" />
-                <span>Đang tải dữ liệu lan truyền {currentMetricScale.label}...</span>
+                <span>Đang cập nhật mô hình {currentMetricScale.label}...</span>
               </div>
             )}
 
@@ -193,7 +194,6 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
               <>
                 <MetricColorScale metric={activeLayer} />
                 <DispersionMetadata data={data} forecastHour={forecastHour} />
-                <StationStatusLegend />
                 <SimulationDisclaimer text="Dữ liệu mô phỏng cho MVP · Không phải quan trắc chính thức." />
               </>
             )}

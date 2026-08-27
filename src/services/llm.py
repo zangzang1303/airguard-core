@@ -20,6 +20,17 @@ class LlmProviderError(RuntimeError):
     """A sanitized provider-boundary failure safe to expose by exception type."""
 
 
+def normalize_llm_exception(exc: Exception) -> LlmProviderError:
+    """Map provider-client failures to stable, non-sensitive failure codes."""
+    if isinstance(exc, LlmProviderError):
+        return exc
+    if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+        return LlmProviderError("provider_timeout")
+    if isinstance(exc, httpx.HTTPError):
+        return LlmProviderError("provider_network_error")
+    return LlmProviderError("provider_unexpected_error")
+
+
 @dataclass(frozen=True)
 class LlmReply:
     content: str
@@ -244,6 +255,7 @@ def get_llm(*, settings: Settings | None = None) -> Any:
         return ChatOpenAI(
             model=settings.model_name,
             api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
             temperature=settings.llm_temperature,
             timeout=settings.llm_timeout_seconds,
             max_tokens=settings.llm_max_tokens,

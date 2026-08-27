@@ -460,8 +460,10 @@ ON CONFLICT (user_id) DO UPDATE SET
 
 INSERT INTO devices (device_id, device_name, device_type, station_id, status, is_simulated)
 VALUES
+    ('FILTER-S01', 'Da Ton Air Filter S01', 'ventilation_filter', 'S01', 'offline', TRUE),
     ('FILTER-01', 'Simulated outdoor filtration unit', 'air_filter', 'S03', 'offline', TRUE),
     ('FILTER-02', 'Indoor Air Filter S02', 'ventilation_filter', 'S02', 'offline', TRUE),
+    ('FILTER-04', 'VinUni Air Filter S04', 'ventilation_filter', 'S04', 'offline', TRUE),
     ('FILTER-05', 'Hai Au Air Filter S05', 'ventilation_filter', 'S05', 'offline', TRUE)
 ON CONFLICT (device_id) DO NOTHING;
 

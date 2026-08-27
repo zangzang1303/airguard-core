@@ -1,0 +1,45 @@
+{
+  "cases": [
+    {
+      "case": "timeout",
+      "generation_mode": "deterministic_grounded",
+      "failure_code": "provider_deadline_exceeded",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "safe": true
+    },
+    {
+      "case": "provider_429",
+      "generation_mode": "deterministic_grounded",
+      "failure_code": "provider_rate_limited",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "safe": true
+    },
+    {
+      "case": "provider_5xx",
+      "generation_mode": "deterministic_grounded",
+      "failure_code": "provider_http_503",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "safe": true
+    },
+    {
+      "case": "malformed",
+      "generation_mode": "deterministic_grounded",
+      "failure_code": "provider_malformed_response",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "safe": true
+    },
+    {
+      "case": "success",
+      "generation_mode": "live_llm",
+      "failure_code": null,
+      "provider": "openai",
+      "model": "gpt-4o",
+      "safe": true
+    }
+  ],
+  "result": "PASS"
+}

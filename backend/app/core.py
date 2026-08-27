@@ -26,9 +26,11 @@ class Settings:
     agent_service_url: str
     agent_service_timeout_seconds: float
     auto_proposal_enabled: bool
+    resident_alert_notifications_enabled: bool
+    resident_alert_notification_cooldown_seconds: int
     proposal_pending_ttl_seconds: int
     auto_proposal_stations: tuple[str, ...]
-    ventilation_trigger_minutes: int
+    ventilation_trigger_seconds: int
     ventilation_recovery_minutes: int
     ventilation_default_duration_minutes: int
     ventilation_intensity_percent: int
@@ -72,9 +74,10 @@ class Settings:
         critical = float(os.getenv("PM25_CRITICAL_THRESHOLD", "100"))
         if warning <= 0 or critical <= warning:
             raise ValueError("PM25 thresholds must satisfy 0 < warning < critical")
-        consecutive = int(os.getenv("PM25_ALERT_CONSECUTIVE_MEASUREMENTS", "2"))
+        consecutive_raw = os.getenv("ALERT_CONSECUTIVE_MEASUREMENTS", "").strip()
+        consecutive = int(consecutive_raw or os.getenv("PM25_ALERT_CONSECUTIVE_MEASUREMENTS", "2"))
         if consecutive < 1 or consecutive > 20:
-            raise ValueError("PM25_ALERT_CONSECUTIVE_MEASUREMENTS must be between 1 and 20")
+            raise ValueError("ALERT_CONSECUTIVE_MEASUREMENTS must be between 1 and 20")
         def threshold_pair(prefix: str, warning_default: str, critical_default: str) -> tuple[float, float]:
             metric_warning = float(os.getenv(f"{prefix}_WARNING_THRESHOLD", warning_default))
             metric_critical = float(os.getenv(f"{prefix}_CRITICAL_THRESHOLD", critical_default))
@@ -92,6 +95,17 @@ class Settings:
         auto_proposal_raw = os.getenv("AUTO_PROPOSAL_ENABLED", "true").strip().lower()
         if auto_proposal_raw not in {"true", "false"}:
             raise ValueError("AUTO_PROPOSAL_ENABLED must be true or false")
+        resident_alert_notifications_raw = os.getenv(
+            "RESIDENT_ALERT_NOTIFICATIONS_ENABLED",
+            "false",
+        ).strip().lower()
+        if resident_alert_notifications_raw not in {"true", "false"}:
+            raise ValueError("RESIDENT_ALERT_NOTIFICATIONS_ENABLED must be true or false")
+        resident_alert_notification_cooldown_seconds = int(
+            os.getenv("RESIDENT_ALERT_NOTIFICATION_COOLDOWN_SECONDS", "3600")
+        )
+        if not 60 <= resident_alert_notification_cooldown_seconds <= 86400:
+            raise ValueError("RESIDENT_ALERT_NOTIFICATION_COOLDOWN_SECONDS must be between 60 and 86400")
         proposal_pending_ttl_seconds = int(os.getenv("PROPOSAL_PENDING_TTL_SECONDS", "3600"))
         if proposal_pending_ttl_seconds <= 0:
             raise ValueError("PROPOSAL_PENDING_TTL_SECONDS must be positive")
@@ -104,13 +118,21 @@ class Settings:
         if invalid_stations:
             raise ValueError(f"AUTO_PROPOSAL_STATIONS contains invalid station(s): {','.join(invalid_stations)}")
 
-        ventilation_trigger_minutes = int(os.getenv("VENTILATION_TRIGGER_MINUTES", "15"))
+        trigger_seconds_raw = os.getenv("VENTILATION_TRIGGER_SECONDS", "").strip()
+        legacy_trigger_minutes_raw = os.getenv("VENTILATION_TRIGGER_MINUTES", "").strip()
+        ventilation_trigger_seconds = (
+            int(trigger_seconds_raw)
+            if trigger_seconds_raw
+            else int(legacy_trigger_minutes_raw) * 60
+            if legacy_trigger_minutes_raw
+            else 30
+        )
         ventilation_recovery_minutes = int(os.getenv("VENTILATION_RECOVERY_MINUTES", "20"))
         ventilation_default_duration_minutes = int(os.getenv("VENTILATION_DEFAULT_DURATION_MINUTES", "45"))
         ventilation_intensity_percent = int(os.getenv("VENTILATION_INTENSITY_PERCENT", "80"))
         ventilation_max_gap_seconds = int(os.getenv("VENTILATION_MAX_GAP_SECONDS", "60"))
-        if not 1 <= ventilation_trigger_minutes <= 120:
-            raise ValueError("VENTILATION_TRIGGER_MINUTES must be between 1 and 120")
+        if not 10 <= ventilation_trigger_seconds <= 7200:
+            raise ValueError("VENTILATION_TRIGGER_SECONDS must be between 10 and 7200")
         if not 1 <= ventilation_recovery_minutes <= 180:
             raise ValueError("VENTILATION_RECOVERY_MINUTES must be between 1 and 180")
         if not 5 <= ventilation_default_duration_minutes <= 180:
@@ -191,9 +213,11 @@ class Settings:
             agent_service_url=os.getenv("AGENT_SERVICE_URL", "http://localhost:8001").rstrip("/"),
             agent_service_timeout_seconds=agent_timeout,
             auto_proposal_enabled=auto_proposal_raw == "true",
+            resident_alert_notifications_enabled=resident_alert_notifications_raw == "true",
+            resident_alert_notification_cooldown_seconds=resident_alert_notification_cooldown_seconds,
             proposal_pending_ttl_seconds=proposal_pending_ttl_seconds,
             auto_proposal_stations=auto_proposal_stations,
-            ventilation_trigger_minutes=ventilation_trigger_minutes,
+            ventilation_trigger_seconds=ventilation_trigger_seconds,
             ventilation_recovery_minutes=ventilation_recovery_minutes,
             ventilation_default_duration_minutes=ventilation_default_duration_minutes,
             ventilation_intensity_percent=ventilation_intensity_percent,

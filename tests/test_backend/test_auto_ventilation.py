@@ -115,6 +115,106 @@ def continuous_rows(
     ]
 
 
+def test_configured_thirty_second_trigger_requires_full_continuous_window() -> None:
+    now = datetime(2026, 8, 21, 5, tzinfo=UTC)
+    eligible_rows = [
+        measurement("S03", now - timedelta(seconds=30)),
+        measurement("S03", now - timedelta(seconds=20)),
+        measurement("S03", now - timedelta(seconds=10)),
+        measurement("S03", now),
+    ]
+    short_rows = eligible_rows[1:]
+
+    eligible = VentilationService(
+        FakeDatabase(eligible_rows),
+        trigger_duration_seconds=30,
+        max_gap_seconds=15,
+    ).assess_trigger("S03", reference_at=now)
+    too_short = VentilationService(
+        FakeDatabase(short_rows),
+        trigger_duration_seconds=30,
+        max_gap_seconds=15,
+    ).assess_trigger("S03", reference_at=now)
+
+    assert eligible.eligible is True
+    assert eligible.required_duration_seconds == 30
+    assert too_short.eligible is False
+
+
+def test_demo_override_qualifies_after_thirty_seconds_without_fabricating_db_history() -> None:
+    now = datetime(2026, 8, 21, 5, tzinfo=UTC)
+    override = {
+        "pm25": 120.0,
+        "co2": 1600.0,
+        "started_at": now - timedelta(seconds=30),
+        "source": "demo_override",
+    }
+    service = VentilationService(
+        FakeDatabase([]),
+        trigger_duration_seconds=30,
+        demo_override_provider=lambda station_id: override if station_id == "S03" else None,
+        clock=lambda: now,
+    )
+
+    result = service.assess_trigger("S03", reference_at=now)
+
+    assert result.eligible is True
+    assert result.continuous_duration_seconds == 30
+    assert result.triggered_metrics == ("pm25", "co2")
+    assert result.evidence_source == "demo_override"
+
+
+def test_demo_override_does_not_qualify_before_thirty_seconds() -> None:
+    now = datetime(2026, 8, 21, 5, tzinfo=UTC)
+    service = VentilationService(
+        FakeDatabase([]),
+        trigger_duration_seconds=30,
+        demo_override_provider=lambda _station_id: {
+            "pm25": 120.0,
+            "co2": 1600.0,
+            "started_at": now - timedelta(seconds=20),
+            "source": "demo_override",
+        },
+    )
+
+    result = service.assess_trigger("S03", reference_at=now)
+
+    assert result.eligible is False
+    assert result.reason_code == "continuous_window_too_short"
+    assert result.continuous_duration_seconds == 20
+
+
+def test_alert_gate_accepts_only_matching_metrics_from_qualified_demo_override() -> None:
+    now = datetime(2026, 8, 21, 5, tzinfo=UTC)
+    db = FakeDatabase([])
+    policy = VentilationService(
+        db,
+        trigger_duration_seconds=30,
+        demo_override_provider=lambda _station_id: {
+            "pm25": 120.0,
+            "co2": 900.0,
+            "started_at": now - timedelta(seconds=30),
+            "source": "demo_override",
+        },
+        clock=lambda: now,
+    )
+    engine = AlertEngine(
+        db=db,
+        station_service=object(),
+        audit=object(),
+        warning_threshold=50,
+        critical_threshold=100,
+        rule_version="pm25-threshold-v1",
+        ventilation_service=policy,
+    )
+
+    pm25_rule = next(rule for rule in engine.rules if rule.alert_type == "pm25_threshold")
+    co2_rule = next(rule for rule in engine.rules if rule.alert_type == "co2_threshold")
+
+    assert engine._rule_threshold_is_qualified("S03", pm25_rule) is True
+    assert engine._rule_threshold_is_qualified("S03", co2_rule) is False
+
+
 def test_trigger_requires_strict_threshold_for_full_fifteen_minutes() -> None:
     now = datetime(2026, 8, 21, 5, tzinfo=UTC)
     at_boundary = continuous_rows(now, minutes=15, pm25=50, co2=1000)

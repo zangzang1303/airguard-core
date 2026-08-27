@@ -18,7 +18,7 @@ AirGuard AI là MVP giám sát chất lượng môi trường tại Vinhomes Oce
 | Khuyến nghị | Rule-owned recommendation trong alert; Agent recommendation theo profile và evidence cùng request |
 | AI Agent | Conversation gate + LangGraph/tool calling; xã giao có kiểm soát, grounded answer và deterministic fallback khi không có provider key |
 | HITL | Proposal bắt đầu `pending`; chỉ Manager approve/reject; có audit và device simulator |
-| Notification | SMTP thật khi cấu hình `NOTIFICATION_PROVIDER=smtp`; mặc định `disabled` |
+| Notification | Resend Email API khi cấu hình; proposal báo Manager/Admin và environmental alert báo cư dân theo nhóm hồ sơ; mặc định provider `disabled` |
 | Prophet/LSTM | Chưa triển khai |
 | Mô hình lan truyền khoa học | Chưa có; vùng nhiệt chỉ trực quan hóa cường độ quanh trạm |
 
@@ -36,7 +36,7 @@ Backend tool endpoints
   -> LangGraph Agent
   -> grounded response / recommendation / warning proposal
   -> Manager HITL
-  -> audit + optional dispatcher/device simulator + optional SMTP
+  -> audit + optional dispatcher/device simulator + optional Resend email
 ```
 
 Ranh giới trách nhiệm:
@@ -61,7 +61,7 @@ Ranh giới trách nhiệm:
 
 - Docker Desktop có Docker Compose.
 - Tối thiểu 4 GB RAM trống cho stack cơ bản.
-- OpenAI API key chỉ cần khi muốn dùng phần giải thích LLM thật.
+- Provider key chỉ cần cho semantic-router fallback tùy chọn; không cần cho câu trả lời production hoặc automatic proposal.
 
 ### 1. Tạo cấu hình local
 
@@ -87,7 +87,7 @@ GEMINI_THINKING_LEVEL=minimal
 
 Không commit `.env` hoặc đưa key vào log/screenshot.
 
-> Không có provider key hợp lệ, dashboard, pipeline MQTT và API vẫn chạy; Agent trả lời bằng deterministic composer. Để demo automatic proposal do Agent tạo, cần cấu hình key hợp lệ.
+> Không có provider key hợp lệ, dashboard, pipeline MQTT và API vẫn chạy; Agent và automatic proposal vẫn dùng deterministic grounded workflow.
 
 ### 2. Khởi động stack
 
@@ -106,7 +106,7 @@ docker compose ps
 | PostgreSQL | `localhost:5432` |
 | MQTT | `localhost:1883` |
 
-Chờ ít nhất 2 chu kỳ simulator (mặc định 10 giây) trước khi đánh giá cảnh báo PM2.5 vì rule mặc định cần hai measurement liên tiếp.
+Chờ ít nhất 2 chu kỳ simulator (mặc định 10 giây) trước khi đánh giá cảnh báo vì cả năm rule AQI, PM2.5, CO₂, tiếng ồn và nhiệt độ mặc định cần hai measurement liên tiếp.
 
 ### 3. Kiểm tra pipeline
 
@@ -270,12 +270,12 @@ Tool registry:
 Luồng trả lời:
 
 1. Conversation gate tách xã giao, câu mơ hồ và yêu cầu nghiệp vụ trước khi đọc telemetry.
-2. Xã giao được LLM viết lại trong phạm vi AirGuard nếu provider hợp lệ; output vi phạm policy bị loại và dùng câu mẫu deterministic.
+2. Xã giao luôn là câu mẫu deterministic, không gọi hay rewrite bằng LLM.
 3. Câu không rõ trả clarification; không mặc định thành khuyến nghị môi trường.
 4. Với yêu cầu nghiệp vụ, router deterministic xác định intent và arguments allow-listed rồi gọi backend tools.
 5. Quality gate loại dữ liệu missing/stale/offline/invalid; response composer tạo câu trả lời grounded.
-6. LLM không được thay số liệu, ngưỡng, cảnh báo, recommendation policy hoặc quyết định HITL.
-7. Trace ghi `generation_mode=live_llm` hoặc `deterministic_grounded`; xã giao có thêm `conversation_kind`.
+6. Production answer generation thuộc deterministic composer. Provider chỉ có thể được dùng một lần cho semantic-router fallback; output đó chỉ định tuyến và không tạo facts hay answer text.
+7. Trace ghi `generation_mode=deterministic_grounded` cho answer deterministic; `llm_call_count` là logical model invocation, không phải số HTTP/provider attempt. Xã giao có thêm `conversation_kind`.
 
 ## Sample queries
 
@@ -323,7 +323,7 @@ Không cần nhập prompt tạo proposal để demo luồng tự động. Khi c
 - Proposal create/review/dispatch/failure có audit và correlation ID.
 - Sau một boost thành công và 20 phút dữ liệu an toàn liên tục, backend chỉ tạo proposal `eco_mode`
   `pending`; Manager vẫn phải duyệt trước dispatch.
-- SMTP gửi thật khi `NOTIFICATION_PROVIDER=smtp` và cấu hình SMTP hợp lệ.
+- Resend gửi thật khi `NOTIFICATION_PROVIDER=resend` và API key/sender hợp lệ. Alert môi trường gửi nội dung deterministic theo nhóm hồ sơ cho resident active đã xác minh email; proposal vẫn gửi riêng cho Manager/Admin.
 
 Auth frontend hiện là demo identity, chưa phải authentication production.
 
@@ -362,19 +362,21 @@ Sao chép `.env.example` thành `.env`; không commit file `.env`. Stack demo c�
 | Biến | Bắt buộc | Mục đích / giá trị demo |
 |---|---|---|
 | `LLM_PROVIDER` | Không | `auto` ưu tiên Gemini, sau đó AgentRouter rồi OpenAI; có thể khóa provider cụ thể. |
-| `GEMINI_API_KEY` | Không | Bật Gemini live generation; key chỉ đặt trong `.env` local. |
+| `GEMINI_API_KEY` | Không | Bật Gemini cho semantic-router fallback; key chỉ đặt trong `.env` local. |
 | `GEMINI_MODEL` | Không | Mặc định `gemini-3.6-flash`. |
-| `GEMINI_THINKING_LEVEL` | Không | Mặc định `minimal` cho câu giải thích ngắn và latency thấp. |
+| `GEMINI_THINKING_LEVEL` | Không | Mặc định `minimal` nếu Gemini được dùng cho semantic routing. |
 | `GEMINI_RETRY_BASE_SECONDS` | Không | Backoff ban đầu khi Gemini gặp lỗi tạm thời; mặc định 1 giây. |
 | `GEMINI_RETRY_MAX_SECONDS` | Không | Giới hạn chờ theo `RetryInfo`; mặc định 60 giây. Quota theo ngày fail-fast và không retry. |
-| `LLM_RESPONSE_DEADLINE_SECONDS` | Không | Deadline tổng cho bước giải thích LLM; mặc định 5 giây để Agent trả deterministic fallback trước timeout 8 giây của backend proxy. |
+| `SEMANTIC_ROUTER_ENABLED` | Không | Bật semantic routing fallback cho câu deterministic chưa rõ; mặc định `true`. |
+| `SEMANTIC_ROUTER_CONFIDENCE_THRESHOLD` | Không | Ngưỡng confidence tối thiểu để chấp nhận route semantic; mặc định `0.8`. |
+| `SEMANTIC_ROUTER_DEADLINE_SECONDS` | Không | Deadline riêng cho một semantic routing invocation; không application-level retry, lỗi sẽ fallback clarification. |
 | `OPENAI_API_KEY`, `MODEL_NAME` | Không | Provider tương thích ngược; dùng khi `LLM_PROVIDER=openai`. |
 | `DATABASE_URL` | Có khi chạy service ngoài Compose | URL PostgreSQL; Compose tự cấp URL nội bộ cho backend. |
 | `MQTT_HOST`, `MQTT_PORT`, `MQTT_QOS` | Có khi chạy service ngoài Compose | Kết nối Mosquitto; Compose tự đặt host `mqtt`. |
 | `SENSOR_SCENARIO` | Không | `normal`, `rush-hour`, `spike`, `recovery`, `duplicate`, hoặc `station-silence`; mặc định `normal`. |
 | `SENSOR_INTERVAL_SECONDS` | Không | Chu kỳ simulator, mặc định 10 giây. |
 | `STALE_AFTER_SECONDS` | Không | Đánh dấu dữ liệu cũ; mặc định 300 giây. |
-| `PM25_ALERT_CONSECUTIVE_MEASUREMENTS` | Không | Số phép đo PM2.5 liên tiếp vượt ngưỡng; mặc định 2. |
+| `ALERT_CONSECUTIVE_MEASUREMENTS` | Không | Số phép đo liên tiếp vượt ngưỡng cho AQI, PM2.5, CO₂, tiếng ồn và nhiệt độ; mặc định 2. `PM25_ALERT_CONSECUTIVE_MEASUREMENTS` chỉ còn là fallback tương thích. |
 | `*_WARNING_THRESHOLD`, `*_CRITICAL_THRESHOLD` | Không | Ngưỡng MVP cho PM2.5, AQI, CO₂, tiếng ồn và nhiệt độ. |
 | `AUTO_PROPOSAL_ENABLED` | Không | Bật/tắt automatic warning proposal; mặc định `true`. |
 | `AUTO_PROPOSAL_STATIONS` | Không | Để trống là mọi trạm; đặt `S03` cho demo `spike` vì `FILTER-01` được đăng ký tại S03. |
@@ -416,7 +418,7 @@ Có thể truyền trực tiếp tham số của Claude Code, ví dụ:
 .\scripts\claude-agentrouter.ps1 -p "Tóm tắt kiến trúc repo này"
 ```
 
-Launcher dùng `AGENTROUTER_BASE_URL` (mặc định `https://co.agentrouter.org`) và chỉ chuyển key cho tiến trình Claude Code. Agent runtime hiện ưu tiên Gemini khi `LLM_PROVIDER=auto`; AgentRouter/Claude vẫn là tùy chọn tương thích. Nếu provider lỗi, câu trả lời grounded deterministic vẫn được giữ và trace không được gắn `live_llm`. Không commit hoặc dán key vào log, screenshot hay tài liệu.
+Launcher dùng `AGENTROUTER_BASE_URL` (mặc định `https://co.agentrouter.org`) và chỉ chuyển key cho tiến trình Claude Code. Agent runtime chỉ dùng configured provider như optional semantic routing fallback. Nếu provider lỗi, câu trả lời grounded deterministic vẫn được giữ. Không commit hoặc dán key vào log, screenshot hay tài liệu.
 
 ## Chạy test
 
@@ -487,4 +489,4 @@ Runtime entry points:
 - Heat zones không phải mô hình lan truyền ô nhiễm khoa học.
 - Threshold CO₂/noise/temperature cần mentor/operations xác nhận.
 - Authentication/RBAC frontend còn ở mức demo.
-- SMTP và async worker production cần cấu hình hạ tầng/secret riêng.
+- Resend và async worker production cần cấu hình hạ tầng/secret riêng.

@@ -17,12 +17,21 @@ class AgentState(TypedDict, total=False):
     used_tools: list[str]
     sources: list[dict[str, Any]]
     answer: str
+    answer_summary: str
+    answer_details: str
     response: str
     analysis: str
     outcome: str
+    intent: str
+    data_mode: str | None
+    quality: str | None
+    failure_reason: str | None
+    clarification: str | None
+    pending: bool
     proposal_id: str | None
     proposal_reason_code: str | None
     recommendation_policy_version: str
     impact_policy_version: str
     generation: dict[str, Any]
+    llm_observation: dict[str, Any]
     trace: dict[str, Any]

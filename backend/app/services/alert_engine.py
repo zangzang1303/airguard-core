@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
+from .air_quality import pm25_aqi
 from .audit_service import AuditService
 from .database import Database, ServiceError, dict_cursor
 from .station_service import StationService
@@ -72,15 +73,43 @@ class AlertEngine:
             EnvironmentalAlertRule("temperature_threshold", "temperature", "Nhiệt độ", "°C", temperature_warning_threshold, temperature_critical_threshold, environmental_rule_version),
         )
 
-    def evaluate_all_current(self, correlation_id: str | None = None) -> None:
+    def evaluate_all_current(self, correlation_id: str | None = None) -> list[dict[str, Any]]:
+        alerts: list[dict[str, Any]] = []
         for station in self.station_service.list_stations():
-            self.evaluate_station(station["station_id"], correlation_id=correlation_id)
+            alert = self.evaluate_station(station["station_id"], correlation_id=correlation_id)
+            if alert is not None:
+                alerts.append(alert)
+        return alerts
 
     def evaluate_station(self, station_id: str, correlation_id: str | None = None) -> dict[str, Any] | None:
+        primary, _ = self.evaluate_station_with_alerts(station_id, correlation_id=correlation_id)
+        return primary
+
+    def evaluate_all_current_with_alerts(
+        self,
+        correlation_id: str | None = None,
+    ) -> list[tuple[dict[str, Any] | None, list[dict[str, Any]]]]:
+        return [
+            self.evaluate_station_with_alerts(station["station_id"], correlation_id=correlation_id)
+            for station in self.station_service.list_stations()
+        ]
+
+    def evaluate_station_with_alerts(
+        self,
+        station_id: str,
+        correlation_id: str | None = None,
+    ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+        """Return the primary automation signal and every evaluated alert.
+
+        The singular primary value preserves the ingestion/API contract and is
+        used by auto-ventilation. The complete list lets notification side
+        effects cover simultaneous metric alerts without re-evaluating rules.
+        """
         station = self.station_service.get_station(station_id)
         unavailable = station["is_stale"] or station["status"] in {"offline", "stale"} or station["pm25"] is None
         if unavailable:
-            return self._evaluate_sensor_offline(station, correlation_id=correlation_id)
+            offline = self._evaluate_sensor_offline(station, correlation_id=correlation_id)
+            return offline, [offline] if offline is not None else []
 
         self._resolve_sensor_offline(station_id, correlation_id=correlation_id)
         evaluated = [
@@ -93,18 +122,26 @@ class AlertEngine:
             if alert.get("status") == "active" and alert.get("ventilation_eligible") is True
         ]
         if ventilation_candidates:
-            return max(
-                ventilation_candidates,
-                key=lambda item: (self._severity_rank(item["severity"]), item["updated_at"]),
+            return (
+                max(
+                    ventilation_candidates,
+                    key=lambda item: (self._severity_rank(item["severity"]), item["updated_at"]),
+                ),
+                enriched,
             )
 
         recovery = self._recovery_signal(station["station_id"])
         if recovery is not None:
-            return recovery
-        return max(
-            enriched,
-            key=lambda item: (self._severity_rank(item["severity"]), item["updated_at"]),
-        ) if enriched else None
+            return recovery, enriched
+        primary = (
+            max(
+                enriched,
+                key=lambda item: (self._severity_rank(item["severity"]), item["updated_at"]),
+            )
+            if enriched
+            else None
+        )
+        return primary, enriched
 
     def _evaluate_rule(
         self,
@@ -133,7 +170,7 @@ class AlertEngine:
                 if severity is None:
                     return self._resolve_rule_alert(cur, existing, station, rule, value, correlation_id, conn)
 
-                if rule.field == "pm25" and not self._pm25_threshold_is_qualified(station["station_id"]):
+                if not self._rule_threshold_is_qualified(station["station_id"], rule):
                     return dict(existing) if existing else None
 
                 recommendation = self._recommendation(rule, severity)
@@ -190,17 +227,37 @@ class AlertEngine:
         )
         return resolved
 
-    def _pm25_threshold_is_qualified(self, station_id: str) -> bool:
+    def _rule_threshold_is_qualified(self, station_id: str, rule: EnvironmentalAlertRule) -> bool:
+        if rule.alert_type in {"pm25_threshold", "co2_threshold"}:
+            try:
+                assessment = self.ventilation_service.assess_trigger(station_id)
+            except Exception:
+                assessment = None
+            metric = "pm25" if rule.alert_type == "pm25_threshold" else "co2"
+            if (
+                assessment is not None
+                and assessment.eligible
+                and assessment.evidence_source == "demo_override"
+                and metric in assessment.triggered_metrics
+            ):
+                return True
+        measurement_field = "pm25" if rule.field == "aqi" else rule.field
+        if measurement_field not in {"pm25", "co2", "noise_db", "temperature"}:
+            return False
         with self.db.connection() as conn:
             with dict_cursor(conn) as cur:
                 cur.execute(
-                    """SELECT pm25 FROM measurements WHERE station_id = %s AND quality_flag = 'valid'
-                       AND measured_at >= NOW() - (%s * INTERVAL '1 second')
+                    f"""SELECT {measurement_field} AS value FROM measurements
+                       WHERE station_id = %s AND quality_flag = 'valid'
+                         AND {measurement_field} IS NOT NULL
+                         AND measured_at >= NOW() - (%s * INTERVAL '1 second')
                        ORDER BY measured_at DESC LIMIT %s""",
                     (station_id, self.stale_after_seconds, self.consecutive_measurements),
                 )
-                values = [float(row["pm25"]) for row in cur.fetchall()]
-        return self._threshold_is_qualified(values)
+                values = [float(row["value"]) for row in cur.fetchall()]
+        if rule.field == "aqi":
+            values = [float(aqi) for value in values if (aqi := pm25_aqi(value)) is not None]
+        return self._threshold_is_qualified(values, warning_threshold=rule.warning_threshold)
 
     def _evaluate_sensor_offline(self, station: dict[str, Any], *, correlation_id: str | None) -> dict[str, Any] | None:
         has_seen = station.get("last_seen_at") is not None or station.get("updated_at") is not None
@@ -244,9 +301,15 @@ class AlertEngine:
             return "warning"
         return None
 
-    def _threshold_is_qualified(self, values: list[float]) -> bool:
+    def _threshold_is_qualified(
+        self,
+        values: list[float],
+        *,
+        warning_threshold: float | None = None,
+    ) -> bool:
+        threshold = self.warning_threshold if warning_threshold is None else warning_threshold
         return len(values) >= self.consecutive_measurements and all(
-            value >= self.warning_threshold for value in values[:self.consecutive_measurements]
+            value >= threshold for value in values[:self.consecutive_measurements]
         )
 
     @staticmethod

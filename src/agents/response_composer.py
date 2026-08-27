@@ -35,11 +35,15 @@ def compose_response(
     data_items = [result["data"] for result in tool_results]
     if not _passes_quality_gate(decision.intent, data_items):
         return {"answer": INSUFFICIENT_DATA_MESSAGE, "sources": [], "outcome": "insufficient_data"}
+    if decision.comparison_mode in {"highest_aqi", "lowest_aqi"} and any(
+        item.get("aqi") is None for item in data_items[0].get("items", [])
+    ):
+        return {"answer": INSUFFICIENT_DATA_MESSAGE, "sources": [], "outcome": "insufficient_data"}
 
     composers = {
-        Intent.CURRENT: _compose_current,
+        Intent.CURRENT: lambda items: _compose_current(decision, items),
         Intent.HISTORY: _compose_history,
-        Intent.COMPARE: _compose_compare,
+        Intent.COMPARE: lambda items: _compose_compare(decision, items),
         Intent.WEATHER: _compose_weather,
         Intent.FORECAST: _compose_forecast,
         Intent.ALERT: _compose_alerts,
@@ -49,7 +53,10 @@ def compose_response(
     }
     if decision.intent == Intent.RECOMMENDATION:
         try:
-            answer = _compose_recommendation(data_items)
+            answer = _compose_recommendation(
+                data_items,
+                recommendation_window_limited=decision.recommendation_window_limited,
+            )
         except ValueError:
             return {"answer": INSUFFICIENT_DATA_MESSAGE, "sources": [], "outcome": "insufficient_data"}
         return {
@@ -82,6 +89,8 @@ def compose_response(
 def _direct_outcome(decision: RouteDecision) -> str:
     if decision.safety_category:
         return "refused"
+    if decision.refusal_category:
+        return "refused"
     if decision.intent == Intent.CLARIFICATION:
         return "clarification"
     return "direct_response"
@@ -95,30 +104,37 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
     if intent == Intent.HISTORY:
         items = data_items[0].get("items", [])
         return bool(items) and all(
-            item.get("measured_at") is not None and bool(item.get("source")) for item in items
+            item.get("measured_at") is not None
+            and bool(item.get("source"))
+            and str(item.get("status") or "online").lower() not in {"stale", "offline", "invalid"}
+            for item in items
         )
     if intent == Intent.COMPARE:
         items = data_items[0].get("items", [])
         return bool(items) and all(_measurement_is_usable(item) for item in items)
     if intent == Intent.WEATHER:
         weather = data_items[0]
-        return weather.get("is_stale") is False and any(
-            weather.get(field) is not None for field in ("temperature", "humidity", "wind_speed", "rainfall")
+        return (
+            weather.get("is_stale") is False
+            and weather.get("observed_at") is not None
+            and bool(weather.get("source"))
+            and any(
+                weather.get(field) is not None
+                for field in ("temperature", "humidity", "wind_speed", "rainfall")
+            )
         )
     if intent == Intent.FORECAST:
         forecast = data_items[0]
-        if forecast.get("is_stale") is not False:
+        if forecast.get("is_stale") is not False or forecast.get("freshness") != "fresh":
             return False
-        if forecast.get("freshness") not in (None, "fresh", "valid"):
+        if forecast.get("metric") not in {"aqi", "pm25"} or not all(forecast.get(field) for field in ("generated_at", "model_name", "model_version", "source")):
             return False
         items = data_items[0].get("items", [])
         return bool(items) and all(
             bool(item.get("source"))
-            and (item.get("forecast_at") is not None or item.get("hour") is not None)
-            and (
-                item.get("pm25") is not None
-                or (item.get("pm25_min") is not None and item.get("pm25_max") is not None)
-            )
+            and item.get("forecast_at") is not None
+            and item.get("hour") is not None
+            and (item.get("value") is not None or (item.get("value_min") is not None and item.get("value_max") is not None))
             for item in items
         )
     if intent == Intent.SPATIAL:
@@ -141,9 +157,19 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
             and bool(weather.get("source"))
         )
     if intent == Intent.RECOMMENDATION:
-        if len(data_items) != 6:
+        if len(data_items) not in {5, 6}:
             return False
-        current, weather, forecast, alerts, profile, comparison = data_items
+        current, weather, forecast, alerts, profile = data_items[:5]
+        comparison = data_items[5] if len(data_items) == 6 else None
+        profile_ok = profile.get("group") in {"normal", "sensitive", "outdoor_sport"}
+        comparison_ok = (
+            profile.get("group") != "outdoor_sport"
+            or (
+                comparison is not None
+                and bool(comparison.get("items"))
+                and all(_measurement_is_usable(item) for item in comparison.get("items", []))
+            )
+        )
         return (
             _measurement_is_usable(current)
             and weather.get("is_stale") is False
@@ -153,12 +179,11 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
             and forecast.get("is_stale") is False
             and forecast.get("freshness") in (None, "fresh", "valid")
             and isinstance(alerts.get("items"), list)
-            and profile.get("group") in {"normal", "sensitive", "outdoor_sport"}
-            and bool(comparison.get("items"))
-            and all(_measurement_is_usable(item) for item in comparison.get("items", []))
+            and profile_ok
+            and comparison_ok
         )
     if intent == Intent.PROPOSAL:
-        return _measurement_is_usable(data_items[0])
+        return _measurement_is_usable(data_items[0]) and bool(data_items[0].get("source"))
     return True
 
 
@@ -170,8 +195,13 @@ def _measurement_is_usable(data: Mapping[str, Any]) -> bool:
     )
 
 
-def _compose_current(data_items: list[Mapping[str, Any]]) -> str:
+def _compose_current(decision: RouteDecision, data_items: list[Mapping[str, Any]]) -> str:
     data = data_items[0]
+    entity_note = (
+        f" Số liệu này đến từ trạm {data['station_id']}, đại diện {decision.station_entity_name}."
+        if decision.station_entity_name
+        else ""
+    )
     if data.get("aqi") is not None:
         category = f" ({data['aqi_category']})" if data.get("aqi_category") else ""
         return (
@@ -180,12 +210,13 @@ def _compose_current(data_items: list[Mapping[str, Any]]) -> str:
             f"CO₂ {_format_measurement(data.get('co2'), 'ppm')}; "
             f"tiếng ồn {_format_measurement(data.get('noise_db'), 'dB')}; "
             f"nhiệt độ {_format_measurement(data.get('temperature'), '°C')}. "
-            f"Cập nhật {data['updated_at']}; trạng thái {data['status']}; nguồn {data['source']}. {SIMULATOR_NOTICE}"
+            f"Cập nhật {data['updated_at']}; trạng thái {data['status']}; nguồn {data['source']}."
+            f"{entity_note} {SIMULATOR_NOTICE}"
         )
     level = f", mức backend: {data['level']}" if data.get("level") else ""
     return (
         f"Quan sát tại {data['station_id']}: PM2.5 {data['pm25']:g} µg/m³ lúc {data['updated_at']}"
-        f"; trạng thái {data['status']}{level}. Nguồn: {data['source']}. {SIMULATOR_NOTICE}"
+        f"; trạng thái {data['status']}{level}. Nguồn: {data['source']}.{entity_note} {SIMULATOR_NOTICE}"
     )
 
 
@@ -219,8 +250,19 @@ def _compose_history(data_items: list[Mapping[str, Any]]) -> str:
     )
 
 
-def _compose_compare(data_items: list[Mapping[str, Any]]) -> str:
+def _compose_compare(decision: RouteDecision, data_items: list[Mapping[str, Any]]) -> str:
     items = data_items[0]["items"]
+    if decision.comparison_mode in {"highest_aqi", "lowest_aqi"}:
+        winner = (
+            max(items, key=lambda item: float(item["aqi"]))
+            if decision.comparison_mode == "highest_aqi"
+            else min(items, key=lambda item: float(item["aqi"]))
+        )
+        qualifier = "cao nhất" if decision.comparison_mode == "highest_aqi" else "tốt nhất (AQI thấp nhất)"
+        return (
+            f"Theo so sánh AQI cùng request, {winner['station_id']} {qualifier}: AQI {winner['aqi']:g} "
+            f"lúc {winner['updated_at']} (nguồn {winner['source']}). {SIMULATOR_NOTICE}"
+        )
     observations = "; ".join(
         f"{item['station_id']} = {item['pm25']:g} µg/m³ lúc {item['updated_at']} (nguồn {item['source']})"
         for item in items
@@ -242,9 +284,15 @@ def _compose_weather(data_items: list[Mapping[str, Any]]) -> str:
         if data["is_fallback"]
         else ""
     )
+    source_name = str(data.get("source", "")).lower()
+    simulator_notice = (
+        f" {SIMULATOR_NOTICE}"
+        if "simulator" in source_name or source_name.startswith("fixture_")
+        else ""
+    )
     return (
         f"Bối cảnh thời tiết tại {data['area_id']} lúc {data['observed_at']}: {values}. "
-        f"Nguồn: {data['source']}.{fallback_notice} {SIMULATOR_NOTICE}"
+        f"Nguồn: {data['source']}.{fallback_notice}{simulator_notice}"
     )
 
 
@@ -254,10 +302,11 @@ def _compose_forecast(data_items: list[Mapping[str, Any]]) -> str:
     points = []
     for item in data["items"]:
         horizon = item.get("forecast_at") or f"+{item.get('hour')} giờ"
-        if item.get("pm25") is not None:
-            value = f"{item['pm25']:g} µg/m³"
+        unit = "AQI" if data["metric"] == "aqi" else "µg/m³"
+        if item.get("value") is not None:
+            value = f"{item['value']:g} {unit}"
         else:
-            value = f"{item.get('pm25_min'):g}-{item.get('pm25_max'):g} µg/m³"
+            value = f"{item.get('value_min'):g}-{item.get('value_max'):g} {unit}"
         confidence = f", confidence {item['confidence']:.0%}" if item.get("confidence") is not None else ""
         source = f", nguồn {item['source']}" if item.get("source") else ""
         points.append(f"{horizon}: {value}{confidence}{source}")
@@ -265,11 +314,12 @@ def _compose_forecast(data_items: list[Mapping[str, Any]]) -> str:
     if assessment.generated_at:
         metadata.append(f"tạo lúc {assessment.generated_at}")
     if assessment.model_name:
-        metadata.append(f"mô hình {assessment.model_name}")
+        metadata.append(f"mô hình {assessment.model_name} ({data['model_version']})")
+    metadata.extend([f"nguồn {data['source']}", f"freshness {data['freshness']}"])
     metadata.append(f"confidence {assessment.confidence_label}")
     limitation = f" Giới hạn: {'; '.join(assessment.limitations)}." if assessment.limitations else ""
     return (
-        f"Dự báo PM2.5 cho {data['station_id']} (không phải quan sát hiện tại): {'; '.join(points)}. "
+        f"Dự báo {data['metric'].upper()} cho {data['station_id']} (không phải quan sát hiện tại): {'; '.join(points)}. "
         f"Metadata: {', '.join(metadata)}. Xu hướng: {assessment.trend}. "
         f"{SIMULATOR_NOTICE}{limitation}"
     )
@@ -279,6 +329,7 @@ def _compose_alerts(data_items: list[Mapping[str, Any]]) -> str:
     items = data_items[0]["items"]
     if not items:
         return "Backend không trả về cảnh báo active nào cho bộ lọc trong request này."
+    source = items[0].get("source") or "simulator"
     alerts = "; ".join(
         f"{item['alert_id']} tại {item['station_id']} ({item['alert_type']}): severity {item['severity']}, "
         f"observed {_format_alert_value(item.get('observed_value'), item.get('unit'))}, "
@@ -286,7 +337,7 @@ def _compose_alerts(data_items: list[Mapping[str, Any]]) -> str:
         f"khuyến nghị {item.get('recommendation') or 'theo dõi theo quy trình vận hành'}, tạo lúc {item['created_at']}"
         for item in items
     )
-    return f"Cảnh báo active từ backend: {alerts}. {SIMULATOR_NOTICE}"
+    return f"Cảnh báo active từ backend (nguồn simulator/{source}): {alerts}. {SIMULATOR_NOTICE}"
 
 
 def _format_alert_value(value: Any, unit: Any) -> str:
@@ -308,8 +359,11 @@ def _compose_proposal_gate(data_items: list[Mapping[str, Any]]) -> str:
     )
 
 
-def _compose_recommendation(data_items: list[Mapping[str, Any]]) -> str:
-    current, weather, forecast, alerts, profile, comparison = (dict(item) for item in data_items)
+def _compose_recommendation(
+    data_items: list[Mapping[str, Any]], *, recommendation_window_limited: bool = False
+) -> str:
+    current, weather, forecast, alerts, profile = (dict(item) for item in data_items[:5])
+    comparison = dict(data_items[5]) if len(data_items) > 5 else None
     decision, assessment = build_recommendation(
         current=current,
         alerts=alerts,
@@ -320,11 +374,14 @@ def _compose_recommendation(data_items: list[Mapping[str, Any]]) -> str:
     forecast_points = []
     for item in forecast["items"]:
         horizon = item.get("forecast_at") or f"+{item.get('hour')} giờ"
-        value = (
-            f"{item['pm25']:g} µg/m³"
-            if item.get("pm25") is not None
-            else f"{item['pm25_min']:g}-{item['pm25_max']:g} µg/m³"
-        )
+        if item.get("value") is not None:
+            value = f"{item['value']:g} µg/m³"
+        elif item.get("value_min") is not None and item.get("value_max") is not None:
+            value = f"{item['value_min']:g}-{item['value_max']:g} µg/m³"
+        elif item.get("pm25") is not None:
+            value = f"{item['pm25']:g} µg/m³"
+        else:
+            value = f"{item['pm25_min']:g}-{item['pm25_max']:g} µg/m³"
         forecast_points.append(f"{horizon}: {value} (nguồn {item['source']})")
 
     weather_values = []
@@ -339,6 +396,12 @@ def _compose_recommendation(data_items: list[Mapping[str, Any]]) -> str:
 
     alert_note = "có cảnh báo active cùng trạm" if decision.has_active_alert else "không có cảnh báo active cùng trạm"
     limitation = f" Giới hạn dự báo: {'; '.join(assessment.limitations)}." if assessment.limitations else ""
+    time_scope = (
+        " AirGuard không có đủ contract để đánh giá toàn bộ hôm nay; thời điểm phù hợp chỉ được chọn "
+        "trong cửa sổ forecast baseline 1–3 giờ ở trên."
+        if recommendation_window_limited
+        else ""
+    )
     return (
         f"Quan sát tại {current['station_id']}: PM2.5 {current['pm25']:g} µg/m³ lúc {current['updated_at']}, "
         f"mức backend {decision.pm25_band}, nguồn {current['source']}; {alert_note}. "
@@ -347,7 +410,7 @@ def _compose_recommendation(data_items: list[Mapping[str, Any]]) -> str:
         f"{assessment.confidence_label}, xu hướng {assessment.trend}. "
         f"Khuyến nghị cho nhóm {decision.user_group}: {decision.action} "
         f"Cơ sở: {'; '.join(decision.rationale)}. Policy: {decision.policy_version}. "
-        f"{SIMULATOR_NOTICE}{limitation}"
+        f"{SIMULATOR_NOTICE}{limitation}{time_scope}"
     )
 
 
@@ -435,7 +498,7 @@ def _compose_spatial(
             )
         return (
             f"Ước tính nội suy không gian ở {time_label}: {observations}.{comparison} "
-            f"{provenance}. Các giá trị là điểm lưới IDW gần nhất, không phải trạm đo đặt tại từng POI. "
+            f"{provenance}. Đây là suy luận không gian từ điểm lưới IDW gần nhất, không phải trạm đo đặt tại từng POI. "
             f"{SIMULATOR_NOTICE}"
         )
 
@@ -466,13 +529,24 @@ def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict
             for item in data.get("items", []):
                 sources.append(_measurement_source(tool_name, item))
         elif tool_name == "get_active_alerts":
-            for item in data.get("items", []):
+            alert_items = data.get("items", [])
+            for item in alert_items:
                 sources.append(
                     {
                         "tool_name": tool_name,
                         "station_id": item.get("station_id"),
                         "observed_at": item.get("created_at"),
                         "source": item.get("source"),
+                    }
+                )
+            if not alert_items:
+                # An empty, successful backend query is still authoritative
+                # evidence that no active alerts matched the request filter.
+                sources.append(
+                    {
+                        "tool_name": tool_name,
+                        "observed_at": None,
+                        "source": "backend_active_alerts",
                     }
                 )
         elif tool_name == "get_pm25_forecast":
@@ -491,6 +565,16 @@ def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict
                     "tool_name": tool_name,
                     "observed_at": data.get("observed_at"),
                     "source": data.get("source"),
+                }
+            )
+        elif tool_name == "get_user_profile":
+            # The profile is a same-request policy input.  Do not expose its
+            # user id in sources, but make its backend authority visible.
+            sources.append(
+                {
+                    "tool_name": tool_name,
+                    "observed_at": None,
+                    "source": "backend_user_profile",
                 }
             )
         elif tool_name == "get_spatial_air_quality":

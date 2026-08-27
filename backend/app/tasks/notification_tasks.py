@@ -49,18 +49,28 @@ def _task_approval_service() -> ApprovalService:
 
 
 @celery_app.task(name="airguard.notification.send", **RETRY_TASK_OPTIONS)
-def send_notification_job(self, recipient: str, message: str, idempotency_key: str) -> dict:
+def send_notification_job(
+    self,
+    recipient: str,
+    message: str,
+    idempotency_key: str,
+    subject: str | None = None,
+    email_type: str = "proposal_notification",
+) -> dict:
     task_id = self.request.id
 
     def operation() -> dict:
         provider = ResendEmailProvider()
-        subject = os.getenv("NOTIFICATION_SUBJECT", "AirGuard AI — Cảnh báo và đề xuất hành động")
+        resolved_subject = subject or os.getenv(
+            "NOTIFICATION_SUBJECT",
+            "AirGuard AI — Cảnh báo và đề xuất hành động",
+        )
         result = provider.send(
             recipient=recipient,
-            subject=subject,
+            subject=resolved_subject,
             text=message,
             html=None,
-            email_type="proposal_notification",
+            email_type=email_type,
             idempotency_key=idempotency_key,
         )
         if result.retryable:

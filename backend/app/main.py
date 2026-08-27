@@ -35,22 +35,24 @@ from .services.csrf_service import (
     generate_csrf_token,
     validate_csrf,
 )
-from .services.database import Database, ServiceError, dict_cursor
+from .services.database import Database, ServiceError
 from .services.device_service import DeviceService
 from .services.email_service import AuthEmailService
 from .services.forecast_service import InsufficientForecastHistory, trend_forecast
 from .services.geospatial_agent_service import geospatial_agent
 from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
+from .services.live_telemetry_engine import live_engine
 from .services.prophet_forecast_service import prophet_service
 from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
 from .services.report_repository import PostgresReportRepository
+from .services.resident_alert_notification_service import ResidentAlertNotificationService
 from .services.spatial_dispersion_service import SpatialDispersionService
 from .services.station_service import StationService
 from .services.temporal_resolver import temporal_resolver
-from .services.user_service import UserService
 from .services.user_admin_service import UserAdminService
+from .services.user_service import UserService
 from .services.ventilation_service import VentilationService
 from .services.weather_service import WeatherService
 
@@ -290,12 +292,13 @@ ventilation_service = VentilationService(
     db,
     pm25_threshold=settings.alert_warning_threshold,
     co2_threshold=settings.co2_warning_threshold,
-    trigger_duration_seconds=settings.ventilation_trigger_minutes * 60,
+    trigger_duration_seconds=settings.ventilation_trigger_seconds,
     recovery_duration_seconds=settings.ventilation_recovery_minutes * 60,
     stale_after_seconds=settings.stale_after_seconds,
     max_gap_seconds=settings.ventilation_max_gap_seconds,
     default_duration_minutes=settings.ventilation_default_duration_minutes,
     default_intensity_percent=settings.ventilation_intensity_percent,
+    demo_override_provider=live_engine.get_demo_override_evidence,
 )
 approval_service = ApprovalService(
     db,
@@ -342,6 +345,13 @@ automatic_proposal_service = AutomaticProposalService(
     enabled=settings.auto_proposal_enabled,
     allowed_stations=settings.auto_proposal_stations,
     proposal_notifier=_enqueue_manager_proposal_notification,
+)
+resident_alert_notification_service = ResidentAlertNotificationService(
+    user_service=user_service,
+    audit_service=audit_service,
+    notification_task=send_notification_job,
+    enabled=settings.resident_alert_notifications_enabled,
+    cooldown_seconds=settings.resident_alert_notification_cooldown_seconds,
 )
 report_narrator = (
     HttpReportNarrator(
@@ -591,7 +601,10 @@ def auth_google_callback(
             correlation_id=_request_id(request),
         )
         csrf_token = generate_csrf_token()
-        response = RedirectResponse(url=f"{settings.frontend_url}/?auth=google_success", status_code=307)
+        response = RedirectResponse(
+            url=f"{settings.frontend_url}/?auth=google_success",
+            status_code=307,
+        )
         response.set_cookie(
             key="airguard_session",
             value=raw_session_token,
@@ -787,8 +800,6 @@ def get_station_current(station_id: str) -> dict:
 
 @app.get("/api/v1/demo/station-overrides")
 def get_demo_station_overrides(current_user: dict = Depends(require_manager)) -> dict:
-    from .services.live_telemetry_engine import live_engine
-
     return {"demo_mode": True, "overrides": live_engine.get_demo_overrides()}
 
 
@@ -799,8 +810,6 @@ def set_demo_station_override(
     request: Request,
     current_user: dict = Depends(require_manager),
 ) -> dict:
-    from .services.live_telemetry_engine import live_engine
-
     if station_id not in {"S01", "S02", "S03", "S04", "S05"}:
         raise ServiceError("station_not_found", "Station was not found", 404, {"station_id": station_id})
     values = body.model_dump()
@@ -817,8 +826,6 @@ def set_demo_station_override(
 def clear_demo_station_override(
     station_id: str, request: Request, current_user: dict = Depends(require_manager)
 ) -> dict:
-    from .services.live_telemetry_engine import live_engine
-
     live_engine.clear_demo_override(station_id)
     audit_service.record(
         actor_type="user", actor_id=current_user["user_id"], actor_role=current_user["role"],
@@ -847,16 +854,36 @@ def ingest_measurement(
 ) -> dict:
     result = ingestion_service.ingest(body)
     if result.get("accepted"):
-        result["alert"] = alert_engine.evaluate_station(body.station_id, correlation_id=_request_id(request))
-        _schedule_automatic_proposal(background_tasks, result["alert"], _request_id(request))
+        result["alert"], evaluated_alerts = alert_engine.evaluate_station_with_alerts(
+            body.station_id,
+            correlation_id=_request_id(request),
+        )
+        _schedule_alert_side_effects(
+            background_tasks,
+            result["alert"],
+            evaluated_alerts,
+            _request_id(request),
+        )
     return result
 
 
-def _schedule_automatic_proposal(background_tasks: BackgroundTasks, alert: dict | None, correlation_id: str) -> None:
-    if automatic_proposal_service.should_analyze(alert):
+def _schedule_alert_side_effects(
+    background_tasks: BackgroundTasks,
+    primary_alert: dict | None,
+    evaluated_alerts: list[dict],
+    correlation_id: str,
+) -> None:
+    for alert in evaluated_alerts:
+        if resident_alert_notification_service.should_notify(alert):
+            background_tasks.add_task(
+                resident_alert_notification_service.notify,
+                alert=alert,
+                correlation_id=correlation_id,
+            )
+    if automatic_proposal_service.should_analyze(primary_alert):
         background_tasks.add_task(
             automatic_proposal_service.analyze_and_propose,
-            alert=alert,
+            alert=primary_alert,
             correlation_id=correlation_id,
         )
 
@@ -868,11 +895,16 @@ def evaluate_ingested_measurement(
     station_id: str | None = Body(default=None, embed=True),
 ) -> dict:
     if station_id:
-        alert = alert_engine.evaluate_station(station_id, correlation_id=_request_id(request))
-        _schedule_automatic_proposal(background_tasks, alert, _request_id(request))
+        alert, evaluated_alerts = alert_engine.evaluate_station_with_alerts(
+            station_id,
+            correlation_id=_request_id(request),
+        )
+        _schedule_alert_side_effects(background_tasks, alert, evaluated_alerts, _request_id(request))
         return {"station_id": station_id, "alert": alert}
-    alert_engine.evaluate_all_current(correlation_id=_request_id(request))
-    return {"status": "evaluated"}
+    evaluations = alert_engine.evaluate_all_current_with_alerts(correlation_id=_request_id(request))
+    for alert, evaluated_alerts in evaluations:
+        _schedule_alert_side_effects(background_tasks, alert, evaluated_alerts, _request_id(request))
+    return {"status": "evaluated", "alert_count": sum(alert is not None for alert, _ in evaluations)}
 
 
 @app.get("/api/v1/alerts")
@@ -915,7 +947,7 @@ def get_station_forecast(
     station_id: str,
     hours: int = Query(default=3, ge=1, le=3),
     metric: Literal["pm25", "aqi", "co2", "noise_db", "temperature"] = Query(default="pm25"),
-    model: Literal["prophet", "baseline"] = Query(default="prophet"),
+    model: Literal["prophet", "baseline"] = Query(default="baseline"),
 ) -> dict:
     history = station_service.get_forecast_history(station_id)
     if model == "prophet":
@@ -930,7 +962,7 @@ def get_station_forecast(
             503,
             {"station_id": station_id},
         ) from exc
-    return {"station_id": station_id, **forecast, "timestamp": datetime.now(UTC).isoformat()}
+    return {"station_id": station_id, "horizon_hours": hours, "is_stale": False, **forecast, "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)
@@ -961,22 +993,13 @@ async def agent_chat(
             map_context=body.map_context,
         )
         if conversation.intent in {"greeting", "social"}:
-            try:
-                agent_result = await agent_service.chat(
-                    message=body.message,
-                    user_id=effective_user_id,
-                    station_id=body.station_id,
-                    request_id=req_id,
-                )
-                return conversational_agent.response_from_agent(
-                    conversation,
-                    agent_result,
-                    request_id=req_id,
-                )
-            except AgentServiceError:
-                return conversational_agent.deterministic_response(conversation, request_id=req_id)
-        if conversation.intent == "clarification":
+            # Social replies are deliberately local and deterministic: they do
+            # not need telemetry, map planning, or an LLM-mediated Agent call.
             return conversational_agent.deterministic_response(conversation, request_id=req_id)
+        # Phase 2: unclear non-social messages continue to the isolated Agent,
+        # where the bounded semantic router may propose a schema-validated
+        # intent. Invalid/low-confidence/provider-failure results still fall
+        # back to the Agent's deterministic clarification without tool calls.
 
         # The public map's stable alias resolves to the seeded resident profile;
         # all profile fields still come from PostgreSQL rather than client input.
@@ -1023,7 +1046,12 @@ async def agent_chat(
 
         effective_station_id = body.station_id
         if not effective_station_id and body.map_context:
-            effective_station_id = body.map_context.get("selected_sensor")
+            candidate_station_id = body.map_context.get("selected_sensor")
+            # UI context is only a routing hint after backend validation; an
+            # arbitrary client-provided station must never become an implicit
+            # default or bypass the station registry.
+            if candidate_station_id in snapshots:
+                effective_station_id = candidate_station_id
 
         agent_result = await agent_service.chat(
             message=body.message,
@@ -1045,6 +1073,39 @@ async def agent_chat(
         # list. The deterministic geospatial service contributes UI map actions,
         # structured route geometry, and fallback for map-grounded intents.
         agent_sources = agent_result.get("sources")
+        canonical_intent = agent_result.get("intent") or agent_result.get("trace", {}).get("intent", "domain")
+        canonical_kind = agent_result.get("conversation_kind") or agent_result.get("trace", {}).get(
+            "conversation_kind"
+        )
+        canonical_arguments = agent_result.get("tool_arguments", [])
+        agent_outcome = agent_result.get("outcome") or agent_result.get("trace", {}).get("final_outcome")
+        # The isolated Agent remains authoritative for refusals, clarification,
+        # and fail-closed outcomes. Geospatial planning must never replace an
+        # insufficient-data answer with a snapshot assembled outside this
+        # request's tool evidence.
+        if agent_outcome in {"insufficient_data", "clarification", "refused", "direct_response"}:
+            return {
+                "answer": {
+                    "summary": agent_result.get("answer_summary") or agent_result["answer"],
+                    "details": agent_result.get("answer_details") or "",
+                },
+                "response": agent_result["answer"],
+                "intent": canonical_intent,
+                "conversation_kind": canonical_kind,
+                "evidence": [],
+                "sources": agent_sources if isinstance(agent_sources, list) else [],
+                "map_actions": [],
+                "used_tools": agent_result.get("used_tools", []),
+                "tool_arguments": canonical_arguments,
+                "proposal_id": agent_result.get("proposal_id"),
+                "request_id": req_id,
+                "trace": agent_result.get("trace", {}),
+                "data_mode": agent_result.get("data_mode"),
+                "quality": agent_result.get("quality"),
+                "failure_reason": agent_result.get("failure_reason"),
+                "clarification": agent_result.get("clarification"),
+                "pending": agent_result.get("pending", False),
+            }
         if not isinstance(agent_sources, list) or not agent_sources:
             if result.get("intent") in {
                 "get_location_environment",
@@ -1061,13 +1122,19 @@ async def agent_chat(
             }:
                 return result
             return {
-                "answer": {"summary": agent_result["answer"], "details": ""},
+                "answer": {
+                    "summary": agent_result.get("answer_summary") or agent_result["answer"],
+                    "details": agent_result.get("answer_details") or "",
+                },
                 "response": agent_result["answer"],
-                "intent": agent_result.get("trace", {}).get("intent", "domain"),
+                "intent": canonical_intent,
+                "conversation_kind": canonical_kind,
                 "evidence": [],
                 "sources": [],
                 "map_actions": [],
                 "used_tools": agent_result.get("used_tools", []),
+                "tool_arguments": canonical_arguments,
+                "proposal_id": agent_result.get("proposal_id"),
                 "request_id": req_id,
                 "trace": agent_result.get("trace", {}),
             }
@@ -1085,14 +1152,27 @@ async def agent_chat(
                 if time_context["is_forecast"]
                 else evidence_snapshot.get("updated_at")
             )
-        result["answer"] = {"summary": agent_result["answer"], "details": ""}
+        map_intent = result.get("intent")
+        result["answer"] = {
+            "summary": agent_result.get("answer_summary") or agent_result["answer"],
+            "details": agent_result.get("answer_details") or "",
+        }
         result["response"] = agent_result["answer"]
+        result["intent"] = canonical_intent
+        result["conversation_kind"] = canonical_kind
         result["used_tools"] = agent_result.get("used_tools", [])
+        result["tool_arguments"] = canonical_arguments
         result["sources"] = agent_sources
+        result["proposal_id"] = agent_result.get("proposal_id")
+        result["data_mode"] = agent_result.get("data_mode", result.get("data_mode"))
+        result["quality"] = agent_result.get("quality", result.get("quality"))
+        result["failure_reason"] = agent_result.get("failure_reason")
+        result["clarification"] = agent_result.get("clarification")
+        result["pending"] = agent_result.get("pending", False)
         result["trace"] = {
             **agent_result.get("trace", {}),
             "map_planner": "deterministic_grounded_geospatial",
-            "map_intent": result.get("intent"),
+            "map_intent": map_intent,
             "data_mode": result.get("data_mode"),
         }
         return result

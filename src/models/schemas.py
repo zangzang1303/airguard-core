@@ -32,12 +32,26 @@ class AgentSource(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str = Field(..., description="Grounded final answer")
+    answer_summary: str | None = Field(default=None, description="Concise grounded answer summary")
+    answer_details: str | None = Field(default=None, description="Grounded evidence and limitations")
+    intent: str
+    conversation_kind: str | None = None
     used_tools: list[str] = Field(default_factory=list)
+    tool_arguments: list[dict[str, Any]] = Field(default_factory=list)
     sources: list[AgentSource] = Field(default_factory=list)
+    map_actions: list[dict[str, Any]] = Field(default_factory=list)
     request_id: str
     proposal_id: str | None = None
     recommendation_policy_version: str | None = None
     impact_policy_version: str | None = None
+    outcome: str = Field(default="unknown", description="Grounded request outcome")
+    data_mode: str | None = None
+    quality: str | None = None
+    failure_reason: str | None = None
+    clarification: str | None = None
+    pending: bool = False
+    refusal_category: str | None = None
+    reason_code: str | None = None
     trace: dict[str, Any] = Field(default_factory=dict)
     # Compatibility fields for the original template client.
     response: str = Field(default="", description="Deprecated alias of answer")

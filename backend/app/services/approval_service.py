@@ -687,9 +687,12 @@ class ApprovalService:
             if not assessment.eligible:
                 raise ServiceError(
                     "ventilation_not_eligible",
-                    "Ventilation requires PM2.5 > 50 or CO2 > 1000 continuously for 15 minutes",
+                    "Ventilation requires PM2.5 > 50 or CO2 > 1000 for the configured continuous window",
                     409,
-                    {"reason_code": assessment.reason_code},
+                    {
+                        "reason_code": assessment.reason_code,
+                        "required_duration_seconds": assessment.required_duration_seconds,
+                    },
                 )
 
         duration_minutes: int | None = None

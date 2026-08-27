@@ -23,6 +23,19 @@ export type EnvironmentalLayerType =
 
 export type MapViewMode = "markers" | "heatmap";
 
+export type MapLayerVisibilityKey =
+  | "showBoundary"
+  | "showPlaces"
+  | "showSensors"
+  | "showHeatmap"
+  | "showWindVectors"
+  | "showCommunityReports"
+  | "showConnectionStatus"
+  | "showStationOverview"
+  | "showDispersionInfo"
+  | "showDemoControl"
+  | "showForecastTimeline";
+
 export interface MapLayerConfig {
   activeEnvironmentalLayer: EnvironmentalLayerType;
   viewMode: MapViewMode;
@@ -35,6 +48,8 @@ export interface MapLayerConfig {
   showConnectionStatus: boolean;
   showStationOverview: boolean;
   showDispersionInfo: boolean;
+  showDemoControl?: boolean;
+  showForecastTimeline?: boolean;
 }
 
 export interface PlacePOI {
