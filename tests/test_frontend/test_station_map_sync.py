@@ -11,7 +11,7 @@ Acceptance Criteria:
 7. POI / Places layer defaults to off (showPlaces: false)
 """
 from pathlib import Path
-import re
+
 import pytest
 
 FRONTEND_SRC = Path(__file__).resolve().parent.parent.parent / "frontend" / "src"
@@ -138,6 +138,15 @@ class TestSuperMapLayerVisibilityContract:
     def test_is_sensor_layer_visible_calculated_and_passed(self):
         """Station status legend is hidden on map legend overlay."""
         assert "showStationStatus={false}" in self.content
+
+    def test_keyless_osm_basemap_is_shared_by_local_and_deploy(self):
+        assert "https://tile.openstreetmap.org/{z}/{x}/{y}.png" in self.content
+        assert "basemaps.cartocdn.com" not in self.content
+        assert "OpenStreetMap" in self.content
+
+    def test_sensor_markers_can_overlay_the_heatmap(self):
+        assert "showSensors={layerConfig.showSensors}" in self.content
+        assert 'showSensors={layerConfig.showSensors && viewMode !== "heatmap"}' not in self.content
 
 
 class TestSubZoneLabelsAndAppDefaults:
