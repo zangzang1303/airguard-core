@@ -155,8 +155,20 @@ class ConversationalAgentService:
         "ngan hon",
         "dai hon",
         "sach hon",
+        "sach nhat",
+        "tot nhat",
+        "o nhiem nhat",
+        "xau nhat",
         "tranh",
         "con ",
+        "y la",
+        "y toi la",
+        "toan khu",
+        "ca khu",
+        "tong quan",
+        "khong phai",
+        "tinh hinh chung",
+        "khong khi chung",
         # A person can ask for cautious advice by naming their group without
         # repeating an AQI/running keyword.  This only admits the request to
         # the Agent; the Agent still obtains the authoritative group from the

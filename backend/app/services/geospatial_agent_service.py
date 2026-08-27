@@ -44,10 +44,17 @@ class GeospatialAgentService:
         station_histories: dict[str, list[dict[str, Any]]] | None = None,
     ) -> dict[str, Any]:
         map_context = map_context or {}
-        q = message.lower().strip()
+
+        # Check for conversational correction (e.g. "Ý là hỏi chung cả khu Ocean Park 1")
+        is_correction, cleaned_message = conversation_state_manager.detect_correction(message)
+        if is_correction:
+            conversation_state_manager.invalidate_conflicting_context(conversation_id, new_scope="ocp1")
+            q = cleaned_message.lower().strip()
+        else:
+            q = message.lower().strip()
 
         conversation = conversational_agent.classify(
-            message,
+            cleaned_message if is_correction else message,
             station_id=station_id,
             map_context=map_context,
         )
@@ -667,9 +674,31 @@ class GeospatialAgentService:
                 conversation_id=conversation_id,
             )
 
-        # Intent C: Specific Metric Focus (Noise, Temp, PM2.5/CO2) or Single Location / Follow-up Inquiry
-        is_noise_inquiry = any(w in q for w in ["độ ồn", "tiếng ồn", "ồn không", "yên tĩnh", "ồn ào", "ồn thế nào"])
-        is_temp_inquiry = any(w in q for w in ["nhiệt độ", "nóng không", "mát không", "nhiệt độ bao nhiêu", "bao nhiêu độ"])
+        # Intent OVERVIEW: General Area Overview (Vinhomes Ocean Park 1)
+        detected_scope = spatial_registry.resolve_scope(q)
+        is_area_overview = (
+            spatial_registry.is_overview_inquiry(q)
+            or (
+                detected_scope
+                and detected_scope.get("id") == "ocp1"
+                and not any(sup in q for sup in spatial_registry.RANKING_SUPERLATIVES)
+                and not is_worst_inquiry
+                and not is_comparison
+                and not is_route_query
+                and not is_indoor_inquiry
+            )
+        )
+        if is_area_overview and not any(sup in q for sup in spatial_registry.RANKING_SUPERLATIVES) and not is_worst_inquiry:
+            return self._handle_overview_intent(
+                station_data_map=station_data_map,
+                candidate_pois=candidate_pois,
+                time_ctx=time_ctx,
+                request_id=request_id,
+                conversation_id=conversation_id,
+            )
+
+        is_noise_inquiry = any(w in q for w in ["độ ồn", "tiếng ồn", "ồn không", "yên tĩnh", "ồn ào", "ồn thế nào", "do on", "tieng on", "on khong"])
+        is_temp_inquiry = any(w in q for w in ["nhiệt độ", "nóng không", "mát không", "nhiệt độ bao nhiêu", "bao nhiêu độ", "nhiet do", "nong khong", "mat khong"])
 
         target_poi = None
         explicit_station_id = self._extract_explicit_station_id(q)
@@ -741,6 +770,108 @@ class GeospatialAgentService:
         return self._handle_recommendation_intent(
             ranked_pois, activity, time_ctx, request_id, user_group, user_loc=user_loc, conversation_id=conversation_id
         )
+
+    # -------------------------------------------------------------
+    # INTENT HANDLER: Area Overview (Whole Ocean Park 1)
+    # -------------------------------------------------------------
+    def _handle_overview_intent(
+        self,
+        station_data_map: dict[str, dict[str, Any]],
+        candidate_pois: list[dict[str, Any]],
+        time_ctx: dict[str, Any],
+        request_id: str,
+        conversation_id: str = "",
+    ) -> dict[str, Any]:
+        sorted_stations = sorted(station_data_map.values(), key=lambda s: s.get("aqi", 0))
+        best_station = sorted_stations[0]
+        worst_station = sorted_stations[-1]
+
+        valid_aqis = [s.get("aqi", 0) for s in sorted_stations if s.get("aqi") is not None]
+        overall_aqi = round(sum(valid_aqis) / len(valid_aqis)) if valid_aqis else best_station.get("aqi", 50)
+
+        # POI representatives
+        sorted_pois = sorted(candidate_pois, key=lambda p: p.get("aqi", 0))
+        best_poi = sorted_pois[0] if sorted_pois else best_station
+        worst_poi = sorted_pois[-1] if sorted_pois else worst_station
+
+        composed = ResponseComposer.compose_overview(
+            overall_aqi=overall_aqi,
+            best_station_or_poi=best_poi,
+            worst_station_or_poi=worst_poi,
+            station_count=len(sorted_stations),
+            time_ctx=time_ctx,
+            request_id=request_id,
+        )
+
+        all_lats = [s["latitude"] for s in sorted_stations]
+        all_lngs = [s["longitude"] for s in sorted_stations]
+        bounds = [
+            [min(all_lats) - 0.004, min(all_lngs) - 0.004],
+            [max(all_lats) + 0.004, max(all_lngs) + 0.004],
+        ]
+
+        map_actions = [
+            {"type": "clear_ai_layer"},
+            {"type": "show_heatmap", "metric": "aqi", "data_mode": time_ctx["type"]},
+            {
+                "type": "fit_bounds",
+                "bounds": bounds,
+                "padding": [40, 40],
+            },
+        ]
+
+        for st in sorted_stations:
+            map_actions.append({
+                "type": "highlight_sensor",
+                "sensor_id": st["station_id"],
+                "target_id": st["station_id"],
+                "lat": st["latitude"],
+                "lng": st["longitude"],
+                "name": st.get("name") or st["station_id"],
+                "aqi": st.get("aqi"),
+                "pm25": st.get("pm25"),
+                "style": "recommended" if st["station_id"] == best_station["station_id"] else ("avoid" if st["station_id"] == worst_station["station_id"] else "alternative"),
+            })
+
+        evidence = [
+            {
+                "source": "forecast" if time_ctx["is_forecast"] else "sensor",
+                "station_id": st["station_id"],
+                "metric": "aqi",
+                "value": st.get("aqi"),
+                "timestamp": st.get("timestamp"),
+            }
+            for st in sorted_stations
+        ]
+
+        conversation_state_manager.update_state(
+            conversation_id=conversation_id,
+            intent="environment.overview",
+            scope="ocp1",
+            entities=[best_poi, worst_poi],
+            time_context=time_ctx,
+        )
+
+        return {
+            "answer": composed["answer"],
+            "response": composed["response"],
+            "intent": "environment.overview",
+            "scope": {
+                "type": "area",
+                "id": "ocp1",
+                "name": "Vinhomes Ocean Park 1",
+            },
+            "overall_aqi": overall_aqi,
+            "best_location": {"id": best_poi.get("id"), "name": best_poi.get("short_name"), "aqi": best_poi.get("aqi")},
+            "worst_location": {"id": worst_poi.get("id"), "name": worst_poi.get("short_name"), "aqi": worst_poi.get("aqi")},
+            "station_count": len(sorted_stations),
+            "time_context": time_ctx,
+            "data_mode": time_ctx["type"],
+            "evidence": evidence,
+            "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
+            "request_id": request_id,
+        }
 
     # -------------------------------------------------------------
     # INTENT HANDLER: Weather / Rain / Precipitation (Out of Scope with Microclimate Context)

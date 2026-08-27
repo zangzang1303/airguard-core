@@ -61,6 +61,74 @@ class ResponseComposer:
         }
 
     @staticmethod
+    def compose_overview(
+        overall_aqi: int | float,
+        best_station_or_poi: dict[str, Any],
+        worst_station_or_poi: dict[str, Any],
+        station_count: int,
+        time_ctx: dict[str, Any],
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Task Fix: Overview of the entire Vinhomes Ocean Park 1 area."""
+        time_label = time_ctx.get("label", "hiện tại")
+        overall_val = int(round(float(overall_aqi)))
+        cat_vi = aqi_category_vi(overall_val)
+
+        best_name = best_station_or_poi.get("short_name") or best_station_or_poi.get("name", "VinUni")
+        best_aqi = int(round(float(best_station_or_poi.get("aqi", 0))))
+        best_id = best_station_or_poi.get("sensor_id") or best_station_or_poi.get("station_id", "")
+
+        worst_name = worst_station_or_poi.get("short_name") or worst_station_or_poi.get("name", "Trục Đa Tốn")
+        worst_aqi = int(round(float(worst_station_or_poi.get("aqi", 0))))
+        worst_id = worst_station_or_poi.get("sensor_id") or worst_station_or_poi.get("station_id", "")
+
+        best_tag = f"{best_name} ({best_id})" if best_id else best_name
+        worst_tag = f"{worst_name} ({worst_id})" if worst_id else worst_name
+
+        headline = f"🌿 **Chất lượng không khí tại Ocean Park 1 {time_label} nhìn chung ở mức {cat_vi}.**"
+
+        highlights_text = (
+            f"• **AQI đại diện toàn khu:** {overall_val}\n"
+            f"• **Khu có AQI thấp nhất:** {best_tag} — AQI {best_aqi}\n"
+            f"• **Khu có AQI cao nhất:** {worst_tag} — AQI {worst_aqi}"
+        )
+
+        advice = (
+            "Chất lượng không khí đang có sự phân hóa giữa các phân khu. "
+            "Nếu bạn muốn hoạt động ngoài trời, nên ưu tiên các khu vực có chỉ số thấp và hạn chế thời gian ở vùng gần trục giao thông có chỉ số cao hơn."
+        )
+        map_feedback = "🗺️ Mình đã hiển thị tổng quan chất lượng không khí toàn Ocean Park 1 trên bản đồ."
+        data_note = "*Dữ liệu mô phỏng AirGuard AI · cập nhật vừa xong.*"
+
+        summary = f"{headline}\n\n{highlights_text}\n\n{advice}\n\n{map_feedback}\n\n{data_note}"
+
+        highlights_data = [
+            {"label": "AQI đại diện", "value": str(overall_val), "description": cat_vi},
+            {"label": "Khu thấp nhất", "value": best_tag, "description": f"AQI {best_aqi}"},
+            {"label": "Khu cao nhất", "value": worst_tag, "description": f"AQI {worst_aqi}"},
+        ]
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": f"{highlights_text}\n\n{advice}",
+                "highlights": highlights_data,
+                "recommendation": advice,
+                "map_feedback": map_feedback,
+                "data_note": data_note,
+            },
+            "response": summary,
+            "intent": "environment.overview",
+            "follow_up_actions": [
+                f"🏫 {best_name} không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
     def compose_worst_location(
         worst_poi: dict[str, Any],
         best_poi: dict[str, Any] | None,

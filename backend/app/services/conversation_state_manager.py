@@ -25,6 +25,7 @@ class ConversationState:
     last_updated_at: float = field(default_factory=time.time)
     last_intent: str | None = None
     last_query: str = ""
+    active_scope: str = "ocp1"
     active_entities: list[dict[str, Any]] = field(default_factory=list)
     active_locations: list[str] = field(default_factory=list)
     active_metric: str = "AQI"
@@ -41,6 +42,19 @@ class ConversationState:
 
 class ConversationStateManager:
     """Thread-safe in-memory state manager for contextual multi-turn chat."""
+
+    CORRECTION_PATTERNS = [
+        r"^(?:ý\s+là|y\s+la)\b",
+        r"^(?:ý\s+tôi\s+là|y\s+toi\s+la)\b",
+        r"^(?:ý\s+mình\s+là|y\s+minh\s+la)\b",
+        r"^(?:ý\s+em\s+là|y\s+em\s+la)\b",
+        r"^(?:không\s*,?\s*tôi\s+hỏi|khong\s*,?\s*toi\s+hoi)\b",
+        r"^(?:không\s+phải|khong\s+phai)\b",
+        r"^(?:tôi\s+hỏi\s+chung|toi\s+hoi\s+chung)\b",
+        r"^(?:ý\s+tôi\s+hỏi\s+toàn\s+khu|y\s+toi\s+hoi\s+toan\s+khu)\b",
+        r"^(?:tôi\s+muốn\s+nói|toi\s+muon\s+noi)\b",
+        r"^(?:không\s*,?\s*ý\s+là|khong\s*,?\s*y\s+la)\b",
+    ]
 
     def __init__(self, ttl_seconds: float = 1800.0, max_sessions: int = 1000) -> None:
         self.ttl_seconds = ttl_seconds
@@ -60,11 +74,43 @@ class ConversationStateManager:
         if conversation_id in self._sessions:
             del self._sessions[conversation_id]
 
+    def detect_correction(self, message: str) -> tuple[bool, str]:
+        """
+        Detects if the user's message is a conversational correction of previous Agent output.
+        Returns: (is_correction, cleaned_corrected_message)
+        """
+        if not message:
+            return False, ""
+        msg_clean = message.strip()
+        for pat in self.CORRECTION_PATTERNS:
+            match = re.search(pat, msg_clean, flags=re.IGNORECASE)
+            if match:
+                # Strip the correction prefix
+                corrected = msg_clean[match.end():].lstrip(",.:; \t\n")
+                if not corrected:
+                    corrected = msg_clean
+                return True, corrected
+        return False, msg_clean
+
+    def invalidate_conflicting_context(self, conversation_id: str, new_scope: str = "ocp1") -> ConversationState:
+        """
+        Invalidates previous entity context, active location, and focus on conversational correction.
+        """
+        state = self.get_or_create_state(conversation_id)
+        state.active_entities = []
+        state.active_locations = []
+        state.comparison_context = None
+        state.route_context = None
+        state.active_scope = new_scope
+        state.last_updated_at = time.time()
+        return state
+
     def update_state(
         self,
         conversation_id: str,
         intent: str | None = None,
         query: str = "",
+        scope: str | None = None,
         entities: list[dict[str, Any]] | None = None,
         locations: list[str] | None = None,
         metric: str | None = None,
@@ -82,6 +128,8 @@ class ConversationStateManager:
             state.last_intent = intent
         if query:
             state.last_query = query
+        if scope:
+            state.active_scope = scope
         if entities is not None:
             state.active_entities = entities
         if locations is not None:

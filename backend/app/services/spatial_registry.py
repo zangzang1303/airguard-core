@@ -1081,6 +1081,9 @@ class SpatialRegistry:
                     candidate,
                 ).strip()
 
+                # Strip leading location prefix words
+                candidate = re.sub(r"^(?:khu|phan khu|khu vuc|dia diem)\s+", "", candidate).strip()
+
                 if not candidate or len(candidate) < 2:
                     continue
 
@@ -1095,8 +1098,16 @@ class SpatialRegistry:
                 if poi_match:
                     return poi_match, None
 
+                # Check if candidate is an overview phrase
+                if any(cand_overview in candidate for cand_overview in ["toan khu", "ca khu", "chung", "toan ocean park", "tong quan"]):
+                    return None, None
+
                 # Return candidate as unrecognized location if it contains substantive words
-                non_location_words = {"chay", "duong", "tuyen", "troi", "khi", "khong", "nhiem", "bui", "tap", "the", "thao", "duc", "lo trinh", "cung duong"}
+                non_location_words = {
+                    "chay", "duong", "tuyen", "troi", "khi", "khong", "nhiem", "bui",
+                    "tap", "the", "thao", "duc", "lo trinh", "cung duong", "hien", "hien tai",
+                    "chung", "toan", "tinh hinh", "tong quan"
+                }
                 if len(candidate) >= 3 and not any(w in candidate for w in non_location_words):
                     return None, candidate.title()
 
@@ -1118,6 +1129,132 @@ class SpatialRegistry:
                 min_dist = d
                 best_id = s_id
         return best_id
+
+    OVERVIEW_PATTERNS = [
+        "toan khu",
+        "ca khu",
+        "chung cua ca khu",
+        "tong quan",
+        "toan ocean park",
+        "toan ocean park 1",
+        "toan ocp",
+        "toan ocp1",
+        "ocean park 1 the nao",
+        "tinh hinh chung",
+        "khong khi chung",
+        "chat luong khong khi chung",
+        "chat luong chung",
+        "chung ca khu",
+        "chung toan khu",
+        "ca ocean park",
+        "ca ocean park 1",
+        "toan bo ocean park",
+        "toan bo khu do thi",
+        "toan khu do thi",
+    ]
+
+    RANKING_SUPERLATIVES = [
+        "sach nhat",
+        "tot nhat",
+        "o nhiem nhat",
+        "xau nhat",
+        "cao nhat",
+        "thap nhat",
+        "kem nhat",
+        "te nhat",
+        "it o nhiem nhat",
+        "nhieu bui nhat",
+    ]
+
+    @classmethod
+    def resolve_scope(cls, query: str) -> dict[str, Any] | None:
+        """
+        Determines the spatial scope of the query.
+        Supported scope types:
+        - "ocp1": Entire Vinhomes Ocean Park 1 area
+        - "poi": Point of Interest (e.g. VinUni, Hồ Ngọc Trai, Vincom)
+        - "road": Road or artery (e.g. Đường Hải Đăng)
+        - "road_segment": Specific street segment (e.g. Hải Đăng 6)
+        - "residential_area": Sub-area / residential cluster (e.g. Sapphire, San Hô)
+        - "station": Specific monitoring sensor (e.g. S01, S04)
+        """
+        if not query:
+            return None
+
+        q_norm = normalize_text(query)
+
+        # 1. Check for whole OCP1 scope
+        for pat in cls.OVERVIEW_PATTERNS:
+            if pat in q_norm:
+                return {
+                    "type": "area",
+                    "id": "ocp1",
+                    "name": "Vinhomes Ocean Park 1",
+                    "short_name": "Ocean Park 1",
+                }
+
+        # 2. Check for explicit station scope
+        for s_id, st in cls.STATIONS.items():
+            if re.search(r"\b" + re.escape(s_id.lower()) + r"\b", q_norm):
+                return {
+                    "type": "station",
+                    "id": s_id,
+                    "name": st["name"],
+                    "short_name": s_id,
+                }
+
+        # 3. Check for specific POI or Road
+        poi = cls.find_poi_by_name(query)
+        if poi:
+            cat = poi.get("category", "poi")
+            return {
+                "type": cat,
+                "id": poi["id"],
+                "name": poi["name"],
+                "short_name": poi["short_name"],
+            }
+
+        # 4. Check for general ocean park mentions
+        if "ocean park" in q_norm or "ocp" in q_norm:
+            return {
+                "type": "area",
+                "id": "ocp1",
+                "name": "Vinhomes Ocean Park 1",
+                "short_name": "Ocean Park 1",
+            }
+
+        return None
+
+    @classmethod
+    def is_overview_inquiry(cls, query: str) -> bool:
+        """
+        Returns True if the query is asking for a general overview of the entire OCP1 area
+        without asking for a specific ranking (best/worst) or single location.
+        """
+        if not query:
+            return False
+        q_norm = normalize_text(query)
+
+        # If user explicitly asks for ranking superlatives, it is NOT an overview
+        if any(sup in q_norm for sup in cls.RANKING_SUPERLATIVES):
+            return False
+
+        # If user explicitly asks about a specific unrecognized location, fail closed
+        _, unrecognized = cls.extract_location_in_query(query)
+        if unrecognized:
+            return False
+
+        # If user asks for overview keywords, it is an overview
+        has_overview_kw = any(pat in q_norm for pat in cls.OVERVIEW_PATTERNS)
+        if has_overview_kw:
+            return True
+
+        # General questions like "Chất lượng không khí Ocean Park 1 thế nào?" or "Không khí hôm nay thế nào?"
+        if ("ocean park" in q_norm or "ocp" in q_norm or "khong khi" in q_norm or "chat luong" in q_norm) and not cls.find_poi_by_name(query):
+            if any(w in q_norm for w in ["the nao", "ra sao", "nhu the nao", "sao", "bao nhieu", "co tot khong", "tot khong"]):
+                return True
+
+        return False
 
 
 spatial_registry = SpatialRegistry()
