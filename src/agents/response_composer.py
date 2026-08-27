@@ -472,10 +472,13 @@ def _compose_spatial(
         )
 
     values = [float(point["value"]) for point in grid_points]
+    min_val = min(values)
+    max_val = max(values)
     return (
-        f"Bản đồ nội suy {data['metric']} ở {time_label} có khoảng giá trị "
-        f"{min(values):g}-{max(values):g} {unit} trên {len(grid_points)} điểm lưới. "
-        f"{provenance}. {data['disclaimer']}"
+        f"🌿 Chất lượng không khí tổng quan khu vực Ocean Park 1 ở {time_label} "
+        f"dao động trong khoảng {min_val:g}–{max_val:g} {unit}. "
+        f"📍 Bạn có thể xem trực quan phân bố trên bản đồ nhiệt. "
+        f"{SIMULATOR_NOTICE}"
     )
 
 

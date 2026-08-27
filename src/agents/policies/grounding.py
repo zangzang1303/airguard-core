@@ -436,7 +436,22 @@ def route_query(
     # AQI superlatives are a bounded all-station comparison, not five separate
     # current calls.  The composer derives the winning station from this one
     # validated payload.
-    if _contains_any(plain, ("aqi cao nhat", "aqi lon nhat", "highest aqi", "worst aqi")):
+    if _contains_any(
+        plain,
+        (
+            "aqi cao nhat",
+            "aqi lon nhat",
+            "highest aqi",
+            "worst aqi",
+            "khu nao o nhiem nhat",
+            "khu nao dang o nhiem nhat",
+            "cho nao o nhiem nhat",
+            "diem o nhiem nhat",
+        ),
+    ) or (
+        _contains_any(plain, ("o nhiem nhat",))
+        and not _contains_any(plain, ("chay", "chay bo", "cung duong", "lo trinh", "tuyen", "duong"))
+    ):
         return RouteDecision(
             intent=Intent.COMPARE,
             tool_calls=[ToolName.COMPARE_STATIONS],

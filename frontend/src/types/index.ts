@@ -457,6 +457,7 @@ export interface AgentResponse {
   data_mode?: "live" | "forecast";
   evidence: Record<string, any> | Array<Record<string, any>>;
   map_actions?: Array<Record<string, any>>;
+  follow_up_actions?: string[];
   used_tools?: string[];
   proposal_created?: Proposal | null;
   proposal_id?: string | null;

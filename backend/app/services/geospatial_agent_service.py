@@ -7,10 +7,15 @@ from .conversational_agent_service import conversational_agent
 from .database import ServiceError
 from .environmental_scoring import environmental_scoring
 from .prophet_forecast_service import prophet_service
+from .response_composer import ResponseComposer, ResponseValidator, aqi_category_vi
 from .spatial_registry import spatial_registry
 from .temporal_resolver import temporal_resolver
 
 logger = logging.getLogger(__name__)
+
+
+def _aqi_category_vi(aqi: int | float | None) -> str:
+    return aqi_category_vi(aqi)
 
 
 class GeospatialAgentService:
@@ -339,6 +344,22 @@ class GeospatialAgentService:
         if is_worst_inquiry:
             return self._handle_worst_location_intent(ranked_pois, time_ctx, request_id)
 
+        # Intent C: Indoor Activity Inquiry / Negation Pivot ("ngoài chạy bộ...", "trong nhà", "ở nhà", "indoor")
+        is_indoor_inquiry = (
+            any(w in q for w in ["trong nhà", "ở trong nhà", "indoor", "ở nhà", "phòng gym", "gym", "yoga", "bể bơi bốn mùa", "trong phòng"])
+            or (
+                any(w in q for w in ["thay vì", "khác", "không muốn", "đừng", "hạn chế"])
+                and any(w in q for w in ["chạy", "chạy bộ", "ra ngoài"])
+            )
+            or (
+                "ngoài " in q
+                and not any(w in q for w in ["ngoài trời", "ngoài hồ", "ngoài công viên", "ngoài sân", "ra ngoài"])
+                and any(w in q for w in ["chạy", "chạy bộ", "tập thể dục", "thể thao", "hoạt động"])
+            )
+        )
+        if is_indoor_inquiry:
+            return self._handle_explicit_indoor_intent(q, ranked_pois, time_ctx, request_id, user_loc=user_loc)
+
         # Intent 0: Running Route Recommendation (Personalized or General)
         is_route_query = (
             any(w in q for w in ["đoạn đường", "cung đường", "tuyến đường", "lộ trình", "đường chạy", "chạy bộ ở đâu", "tuyến chạy", "chạy ở đâu", "tuyến nào", "đường nào", "chạy bộ"])
@@ -376,11 +397,20 @@ class GeospatialAgentService:
 
             # Max Snap Distance check (Section 8)
             if snap_dist_m > max_origin_snap_distance:
-                summary = f"Tôi chưa tìm thấy lối chạy bộ phù hợp đủ gần điểm bạn chọn (khoảng cách tới trục đường gần nhất là {int(snap_dist_m)} m)."
-                details = "Vui lòng chọn một điểm gần các trục đường nội khu, công viên hoặc dải ven hồ trong khu đô thị Vinhomes Ocean Park 1 để bắt đầu lộ trình."
+                headline = f"📍 **Mình chưa tìm thấy lối chạy bộ phù hợp đủ gần điểm bạn chọn (cách trục đường gần nhất khoảng {int(snap_dist_m)} m).**"
+                advice = "Bạn có thể chọn một điểm gần các trục đường nội khu, công viên hoặc dải ven hồ trong khu đô thị Vinhomes Ocean Park 1 để mình vẽ lộ trình chính xác hơn."
+                summary = f"{headline}\n\n{advice}"
                 return {
-                    "answer": {"summary": summary, "details": details},
-                    "response": f"{summary}\n\n{details}",
+                    "answer": {
+                        "headline": headline,
+                        "summary": summary,
+                        "details": advice,
+                        "highlights": [],
+                        "recommendation": advice,
+                        "map_feedback": "",
+                        "data_note": "",
+                    },
+                    "response": summary,
                     "intent": "recommend_running_route",
                     "time_context": time_ctx,
                     "data_mode": time_ctx["type"],
@@ -527,6 +557,8 @@ class GeospatialAgentService:
     # -------------------------------------------------------------
     # INTENT HANDLER: Weather / Rain / Precipitation (Out of Scope with Microclimate Context)
     # -------------------------------------------------------------
+    # INTENT HANDLER: Weather / Rain / Precipitation (Out of Scope with Microclimate Context)
+    # -------------------------------------------------------------
     def _handle_rain_or_precipitation_intent(
         self,
         q: str,
@@ -534,21 +566,13 @@ class GeospatialAgentService:
         time_ctx: dict[str, Any],
         request_id: str,
     ) -> dict[str, Any]:
-        location_name = poi["short_name"] if poi else "Vinhomes Ocean Park 1"
-
-        summary = (
-            "Hệ thống AirGuard AI hiện tại **chưa trang bị cảm biến đo lượng mưa hoặc radar dự báo mưa thời gian thực** "
-            "(nằm ngoài phạm vi quan trắc của mạng lưới cảm biến không khí & môi trường)."
+        composed = ResponseComposer.compose_precipitation_unsupported(
+            poi=poi,
+            time_ctx=time_ctx,
+            request_id=request_id,
         )
 
         if poi:
-            details = (
-                f"• **Thông số vi khí hậu ghi nhận tại {location_name}:** "
-                f"Nhiệt độ hiện tại: **{poi['temperature']}°C**, Độ ồn: **{poi['noise_db']} dB**, "
-                f"Chất lượng không khí AQI: **{poi['aqi']}** (PM2.5: {poi['pm25']} µg/m³ - Đánh giá: {poi['tier'].upper()}).\n"
-                f"• **Phạm vi hệ thống:** AirGuard tập trung giám sát các chỉ số chất lượng không khí (AQI, PM2.5, CO₂), nhiệt độ, độ ồn và cảnh báo ô nhiễm.\n"
-                f"• **Khuyến nghị:** Để biết chính xác tại {location_name} có mưa hay không hoặc theo dõi ảnh mây vệ tinh, bạn vui lòng tra cứu thêm tại ứng dụng thời tiết chuyên dụng (như AccuWeather hoặc Trung tâm Khí tượng Thủy văn)."
-            )
             map_actions = [
                 {"type": "clear_ai_layer"},
                 {
@@ -577,16 +601,11 @@ class GeospatialAgentService:
                 },
             ]
         else:
-            details = (
-                "• **Phạm vi hệ thống:** Mạng lưới cảm biến AirGuard tại Ocean Park 1 chuyên quan trắc "
-                "chất lượng không khí (AQI, PM2.5, CO₂), nhiệt độ và độ ồn môi trường.\n"
-                "• **Khuyến nghị:** Để theo dõi mây radar và khả năng mưa chính xác, vui lòng tham khảo ứng dụng thời tiết chuyên dụng."
-            )
             map_actions = [{"type": "clear_ai_layer"}]
 
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "unsupported_precipitation_weather",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
@@ -594,6 +613,7 @@ class GeospatialAgentService:
                 {"source": "system_capability", "scope": "air_quality_and_microclimate", "status": "unsupported_rain_sensor"}
             ] + ([{"source": "sensor", "poi_id": poi["id"], "metric": "temperature", "value": poi["temperature"], "timestamp": poi["timestamp"]}] if poi else []),
             "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 
@@ -605,20 +625,14 @@ class GeospatialAgentService:
         q: str,
         request_id: str,
     ) -> dict[str, Any]:
-        summary = "Yêu cầu này nằm ngoài phạm vi hoạt động của hệ thống AirGuard AI."
-        details = (
-            "AirGuard AI là trợ lý thông minh chuyên về **giám sát chất lượng không khí (AQI, PM2.5, CO₂), cảnh báo ô nhiễm và gợi ý lộ trình vận động ngoài trời an toàn** tại Vinhomes Ocean Park 1.\n\n"
-            "👉 **Bạn có thể hỏi mình về:**\n"
-            "• Chất lượng không khí hiện tại hoặc dự báo 1-3h tới tại các phân khu (San Hô, Hồ Ngọc Trai, VinUni, Sapphire, Sao Biển...).\n"
-            "• So sánh độ trong lành giữa các địa điểm để chọn nơi vui chơi, đi dạo.\n"
-            "• Gợi ý cung đường chạy bộ / đạp xe tối nay với cự ly mong muốn."
-        )
+        composed = ResponseComposer.compose_out_of_scope(request_id=request_id)
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "out_of_scope",
             "evidence": [],
             "map_actions": [{"type": "clear_ai_layer"}],
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 
@@ -633,11 +647,10 @@ class GeospatialAgentService:
     ) -> dict[str, Any]:
         noise = poi["noise_db"]
         level_str = "rất yên tĩnh" if noise < 55 else ("mức độ âm thanh vừa phải" if noise <= 70 else "khá ồn ào")
-        summary = f"Độ ồn hiện tại tại **{poi['short_name']}** là **{noise} dB** ({level_str})."
-        details = (
-            f"• **Đánh giá âm học:** Mức {noise} dB đạt chuẩn QCVN 26:2010/BTNMT, "
-            f"{'rất thích hợp cho các hoạt động thư giãn, đọc sách hoặc đi dạo' if noise <= 60 else 'phù hợp sinh hoạt thông thường'}.\n"
-            f"• **Các chỉ số kèm theo:** Nhiệt độ: {poi['temperature']}°C, AQI: {poi['aqi']} (PM2.5: {poi['pm25']} µg/m³)."
+        composed = ResponseComposer.compose_specific_noise(
+            poi=poi,
+            time_ctx=time_ctx,
+            request_id=request_id,
         )
         map_actions = [
             {"type": "clear_ai_layer"},
@@ -662,13 +675,14 @@ class GeospatialAgentService:
             {"type": "fly_to", "lat": poi["latitude"], "lng": poi["longitude"], "zoom": 16},
         ]
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "get_noise_metric",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
             "evidence": [{"source": "sensor", "poi_id": poi["id"], "metric": "noise_db", "value": noise, "timestamp": poi["timestamp"]}],
             "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 
@@ -682,11 +696,10 @@ class GeospatialAgentService:
         request_id: str,
     ) -> dict[str, Any]:
         temp = poi["temperature"]
-        temp_str = "mát mẻ, dễ chịu" if temp < 28 else ("khá ấm áp" if temp <= 33 else "nắng nóng")
-        summary = f"Nhiệt độ hiện tại tại **{poi['short_name']}** là **{temp}°C** ({temp_str})."
-        details = (
-            f"• **Vi khí hậu:** Nhiệt độ {temp}°C kết hợp không gian thoáng rộng quanh khu vực {poi['short_name']}.\n"
-            f"• **Chất lượng không khí:** AQI đạt {poi['aqi']} (PM2.5: {poi['pm25']} µg/m³), Độ ồn: {poi['noise_db']} dB."
+        composed = ResponseComposer.compose_specific_temp(
+            poi=poi,
+            time_ctx=time_ctx,
+            request_id=request_id,
         )
         map_actions = [
             {"type": "clear_ai_layer"},
@@ -711,13 +724,14 @@ class GeospatialAgentService:
             {"type": "fly_to", "lat": poi["latitude"], "lng": poi["longitude"], "zoom": 16},
         ]
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "get_temperature_metric",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
             "evidence": [{"source": "sensor", "poi_id": poi["id"], "metric": "temperature", "value": temp, "timestamp": poi["timestamp"]}],
             "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 
@@ -737,16 +751,15 @@ class GeospatialAgentService:
         worst_poi = max(ranked_pois, key=lambda p: (float(p.get("aqi", 0)), float(p.get("pm25", 0))))
         worst_sensor = worst_poi.get("sensor_id", "S01")
 
-        summary = (
-            f"{mode_prefix}Khu vực **{worst_poi['short_name']}** (Trạm {worst_sensor}) đang có chất lượng không khí ô nhiễm nhất "
-            f"với AQI **{worst_poi['aqi']}** (PM2.5: {worst_poi['pm25']} µg/m³)."
-        )
+        # Cleaner alternative with lowest AQI
+        best_poi = min(ranked_pois, key=lambda p: (float(p.get("aqi", 0)), float(p.get("pm25", 0))))
+        best_sensor = best_poi.get("sensor_id", "S04")
 
-        details = (
-            f"• **Địa điểm:** {worst_poi['name']}\n"
-            f"• **Thông số:** AQI {worst_poi['aqi']} (PM2.5: {worst_poi['pm25']} µg/m³), "
-            f"CO₂: {worst_poi.get('co2', 'N/A')} ppm, Độ ồn: {worst_poi.get('noise_db', 'N/A')} dB, Nhiệt độ: {worst_poi.get('temperature', 'N/A')}°C.\n"
-            f"• **Khuyến nghị:** Tránh các hoạt động thể chất gắng sức ngoài trời tại khu vực này trong khung giờ hiện tại."
+        composed = ResponseComposer.compose_worst_location(
+            worst_poi=worst_poi,
+            best_poi=best_poi,
+            time_ctx=time_ctx,
+            request_id=request_id,
         )
 
         map_actions = [
@@ -766,7 +779,7 @@ class GeospatialAgentService:
                 "lng": worst_poi["longitude"],
                 "radius_m": 300,
                 "style": "avoid",
-                "score": worst_poi["score"],
+                "score": worst_poi.get("score", 30),
             },
             {
                 "type": "add_annotation",
@@ -775,7 +788,7 @@ class GeospatialAgentService:
                 "lng": worst_poi["longitude"],
                 "title": f"⚠️ Điểm ô nhiễm nhất: {worst_poi['short_name']}",
                 "subtitle": f"{time_label} • AQI {worst_poi['aqi']} (PM2.5: {worst_poi['pm25']} µg/m³)",
-                "badge": "Chất lượng kém nhất",
+                "badge": "Khu vực ô nhiễm nhất",
                 "style": "danger",
             },
             {
@@ -795,23 +808,135 @@ class GeospatialAgentService:
             "time_context": time_ctx,
             "target_station": worst_sensor,
             "target_location": worst_poi["short_name"],
-            "answer": {
-                "summary": summary,
-                "details": details,
-            },
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "evidence": [
                 {
                     "station_id": worst_sensor,
                     "location_name": worst_poi["name"],
                     "pm25": worst_poi["pm25"],
                     "aqi": worst_poi["aqi"],
-                    "score": worst_poi["score"],
-                    "timestamp": worst_poi["timestamp"],
+                    "score": worst_poi.get("score", 30),
+                    "timestamp": worst_poi.get("timestamp"),
                     "source": "simulator",
-                }
+                },
+                {
+                    "station_id": best_sensor,
+                    "location_name": best_poi["name"],
+                    "pm25": best_poi["pm25"],
+                    "aqi": best_poi["aqi"],
+                    "score": best_poi.get("score", 90),
+                    "timestamp": best_poi.get("timestamp"),
+                    "source": "simulator",
+                },
             ],
             "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
+        }
+
+    # -------------------------------------------------------------
+    # INTENT HANDLER: Explicit Indoor Activity Recommendation
+    # -------------------------------------------------------------
+    def _handle_explicit_indoor_intent(
+        self,
+        query: str,
+        ranked_pois: list[dict[str, Any]],
+        time_ctx: dict[str, Any],
+        request_id: str,
+        user_loc: tuple[float, float] | None = None,
+    ) -> dict[str, Any]:
+        time_label = time_ctx["label"]
+        venues = spatial_registry.list_indoor_venues()
+
+        if user_loc:
+            for v in venues:
+                v["dist_m"] = spatial_registry.calculate_distance_m(
+                    user_loc[0], user_loc[1], v["latitude"], v["longitude"]
+                )
+            venues.sort(key=lambda x: x.get("dist_m", 0))
+
+        best_v = venues[0] if venues else {
+            "id": "venue_indoor_gym",
+            "name": "Phòng Gym & Yoga Nội khu",
+            "short_name": "Phòng Gym Nội khu",
+            "latitude": 20.9975,
+            "longitude": 105.9430,
+            "operating_hours": "06:00 - 22:00",
+            "activities": ["Gym", "Yoga", "Chạy máy"],
+            "description": "Phòng gym nội khu có hệ thống điều hòa và lọc không khí.",
+        }
+        alt_v = venues[1] if len(venues) > 1 else best_v
+
+        worst_poi = ranked_pois[-1] if ranked_pois else None
+        current_summary = f"AQI khu vực lên tới {worst_poi['aqi']}" if worst_poi else "chất lượng không khí ngoài trời có sự dao động"
+
+        composed = ResponseComposer.compose_indoor_activity(
+            venues=venues,
+            current_summary=current_summary,
+            time_ctx=time_ctx,
+            request_id=request_id,
+        )
+
+        map_actions = [
+            {"type": "clear_ai_layer"},
+            {
+                "type": "highlight_point",
+                "target_id": best_v["id"],
+                "lat": best_v["latitude"],
+                "lng": best_v["longitude"],
+                "name": best_v["short_name"],
+                "style": "recommended",
+            },
+            {
+                "type": "add_annotation",
+                "target_id": f"{best_v['id']}_anno",
+                "lat": best_v["latitude"],
+                "lng": best_v["longitude"],
+                "title": f"🏠 {best_v['short_name']}",
+                "subtitle": f"{best_v.get('activities', ['Hoạt động trong nhà'])[0]} • Lọc khí điều hòa",
+                "badge": "Vận động Trong nhà",
+                "style": "recommended",
+            },
+            {
+                "type": "highlight_point",
+                "target_id": alt_v["id"],
+                "lat": alt_v["latitude"],
+                "lng": alt_v["longitude"],
+                "name": alt_v["short_name"],
+                "style": "alternative",
+            },
+            {
+                "type": "add_annotation",
+                "target_id": f"{alt_v['id']}_anno",
+                "lat": alt_v["latitude"],
+                "lng": alt_v["longitude"],
+                "title": f"🛍️ {alt_v['short_name']}",
+                "subtitle": f"{alt_v.get('activities', ['Không gian kín'])[0]}",
+                "badge": "Lựa chọn trong nhà #2",
+                "style": "alternative",
+            },
+            {
+                "type": "fly_to",
+                "lat": best_v["latitude"],
+                "lng": best_v["longitude"],
+                "zoom": 15,
+            },
+        ]
+
+        return {
+            "answer": composed["answer"],
+            "response": composed["response"],
+            "intent": "recommend_indoor_activity",
+            "time_context": time_ctx,
+            "data_mode": time_ctx["type"],
+            "indoor_venues": venues,
+            "evidence": [
+                {"source": "indoor_catalog", "venue_id": best_v["id"], "name": best_v["name"]},
+                {"source": "indoor_catalog", "venue_id": alt_v["id"], "name": alt_v["name"]},
+            ],
+            "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
+            "request_id": request_id,
         }
 
     # -------------------------------------------------------------
@@ -848,29 +973,15 @@ class GeospatialAgentService:
         alt = ranked_pois[1] if len(ranked_pois) > 1 else best
         worst = ranked_pois[-1]
 
-        activity_label = {
-            "running": "chạy bộ",
-            "walking": "đi dạo tản bộ",
-            "children_play": "vui chơi ngoài trời cho trẻ nhỏ",
-            "elderly_stroll": "dạo bộ cho người cao tuổi",
-            "dining_outdoor": "ngồi ngoài trời & cafe",
-            "general": "hoạt động ngoài trời",
-        }.get(activity, "hoạt động ngoài trời")
+        composed = ResponseComposer.compose_best_location(
+            best_poi=best,
+            alt_poi=alt,
+            activity=activity,
+            time_ctx=time_ctx,
+            request_id=request_id,
+        )
 
         time_label = time_ctx["label"]
-        mode_prefix = f"[{time_label.upper()}] " if time_ctx["is_forecast"] else ""
-
-        summary = (
-            f"{mode_prefix}Khu vực **{best['short_name']}** là địa điểm phù hợp nhất để {activity_label} "
-            f"(Điểm chất lượng: {best['score']}/100, AQI {best['aqi']})."
-        )
-
-        details = (
-            f"• **Lựa chọn #1 ({best['short_name']}):** AQI {best['aqi']}, PM2.5: {best['pm25']} µg/m³, "
-            f"Nhiệt độ: {best['temperature']}°C, Độ ồn: {best['noise_db']} dB. Không gian thoáng rộng, nồng độ bụi mịn ở ngưỡng an toàn.\n"
-            f"• **Lựa chọn #2 ({alt['short_name']}):** AQI {alt['aqi']} (Điểm: {alt['score']}/100), thích hợp làm phương án thay thế.\n"
-            f"• **Lưu ý hạn chế:** Khu vực {worst['short_name']} đang có AQI {worst['aqi']} (PM2.5: {worst['pm25']} µg/m³), khuyến nghị tránh tập luyện nặng tại đây."
-        )
 
         # Generate Declarative Map Actions
         map_actions = [
@@ -954,80 +1065,14 @@ class GeospatialAgentService:
         ]
 
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "recommend_outdoor_location",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
             "evidence": evidence,
             "map_actions": map_actions,
-            "request_id": request_id,
-        }
-
-    # -------------------------------------------------------------
-    # INTENT HANDLER 2: Find Worst / Most Polluted Location
-    # -------------------------------------------------------------
-    def _handle_worst_location_intent(
-        self,
-        ranked_pois: list[dict[str, Any]],
-        time_ctx: dict[str, Any],
-        request_id: str,
-    ) -> dict[str, Any]:
-        # Worst is the last item in ascending ranked list (lowest score, highest pollution)
-        worst = ranked_pois[-1]
-        time_label = time_ctx["label"]
-        mode_prefix = f"[{time_label.upper()}] " if time_ctx["is_forecast"] else ""
-
-        summary = (
-            f"{mode_prefix}Khu vực **{worst['short_name']}** (Trạm {worst['sensor_id']}) "
-            f"hiện đang có chất lượng không khí kém nhất với AQI **{worst['aqi']}** (PM2.5: {worst['pm25']} µg/m³)."
-        )
-
-        details = (
-            f"• **Thông số ô nhiễm:** Nồng độ PM2.5 là {worst['pm25']} µg/m³, Độ ồn: {worst['noise_db']} dB, "
-            f"Nhiệt độ: {worst['temperature']}°C.\n"
-            f"• **Khuyến cáo:** Tránh tập thể dục cường độ cao ngoài trời tại khu vực này. Người có bệnh lý hô hấp hoặc tim mạch nên hạn chế tiếp xúc lâu."
-        )
-
-        map_actions = [
-            {"type": "clear_ai_layer"},
-            {
-                "type": "highlight_sensor",
-                "sensor_id": worst["sensor_id"],
-                "lat": worst["latitude"],
-                "lng": worst["longitude"],
-                "severity": "danger" if worst["aqi"] > 100 else "warning",
-                "aqi": worst["aqi"],
-            },
-            {
-                "type": "add_annotation",
-                "target_id": worst["sensor_id"],
-                "lat": worst["latitude"],
-                "lng": worst["longitude"],
-                "title": f"⚠️ Điểm ô nhiễm: {worst['short_name']}",
-                "subtitle": f"{time_label} • AQI {worst['aqi']} (PM2.5: {worst['pm25']} µg/m³)",
-                "badge": "Khu vực ô nhiễm nhất",
-                "style": "avoid",
-            },
-            {
-                "type": "fly_to",
-                "lat": worst["latitude"],
-                "lng": worst["longitude"],
-                "zoom": 16,
-            },
-        ]
-
-        return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
-            "intent": "find_worst_location",
-            "time_context": time_ctx,
-            "data_mode": time_ctx["type"],
-            "evidence": [
-                {"source": "sensor", "station_id": worst["sensor_id"], "metric": "aqi", "value": worst["aqi"], "timestamp": worst["timestamp"]},
-                {"source": "sensor", "station_id": worst["sensor_id"], "metric": "pm25", "value": worst["pm25"], "timestamp": worst["timestamp"]},
-            ],
-            "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 
@@ -1039,19 +1084,18 @@ class GeospatialAgentService:
         unrecognized_loc: str,
         request_id: str,
     ) -> dict[str, Any]:
-        summary = f"AirGuard AI chưa xác định được địa điểm “{unrecognized_loc}” trên bản đồ khu đô thị Vinhomes Ocean Park 1."
-        details = (
-            "• **Phạm vi quan trắc:** Hệ thống hiện theo dõi và phân tích chất lượng môi trường cho các phân khu và địa điểm thuộc **Vinhomes Ocean Park 1** "
-            "(như An Đào, Sapphire, Hồ Ngọc Trai, San Hô, Sao Biển, Hải Âu, VinUni, Vincom Mega Mall, The Zenpark...).\n"
-            "• **Gợi ý:** Bạn có thể hỏi về một phân khu cụ thể trong Ocean Park 1 hoặc nhấn trực tiếp vào một điểm bất kỳ trên bản đồ để tra cứu dữ liệu."
+        composed = ResponseComposer.compose_unknown_location(
+            unrecognized_loc=unrecognized_loc,
+            request_id=request_id,
         )
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "unknown_location",
             "unrecognized_location": unrecognized_loc,
             "evidence": [],
             "map_actions": [{"type": "clear_ai_layer"}],
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 
@@ -1087,18 +1131,11 @@ class GeospatialAgentService:
         winner = cand_a if cand_a["score"] >= cand_b["score"] else cand_b
         loser = cand_b if winner["id"] == cand_a["id"] else cand_a
 
-        summary = (
-            f"So sánh giữa **{winner['short_name']}** và **{loser['short_name']}**: "
-            f"Khu vực **{winner['short_name']}** có môi trường tốt hơn với AQI **{winner['aqi']}** "
-            f"(Điểm đánh giá: {winner['score']}/100 so với {loser['score']}/100 của {loser['short_name']})."
-        )
-
-        details = (
-            f"• **{winner['short_name']} (Tốt hơn):** AQI {winner['aqi']}, PM2.5: {winner['pm25']} µg/m³, "
-            f"Nhiệt độ: {winner['temperature']}°C, Độ ồn: {winner['noise_db']} dB.\n"
-            f"• **{loser['short_name']}:** AQI {loser['aqi']}, PM2.5: {loser['pm25']} µg/m³, "
-            f"Nhiệt độ: {loser['temperature']}°C, Độ ồn: {loser['noise_db']} dB.\n"
-            f"• **Kết luận:** {winner['short_name']} có nồng độ bụi mịn thấp hơn {abs(round(winner['pm25'] - loser['pm25'], 1))} µg/m³, không gian thoáng đãng hơn."
+        composed = ResponseComposer.compose_comparison(
+            winner=winner,
+            loser=loser,
+            time_ctx=time_ctx,
+            request_id=request_id,
         )
 
         map_actions = [
@@ -1107,42 +1144,40 @@ class GeospatialAgentService:
                 "type": "highlight_area",
                 "area_id": winner["id"],
                 "target_id": winner["id"],
-                "name": winner["short_name"],
                 "lat": winner["latitude"],
                 "lng": winner["longitude"],
                 "radius_m": 250,
+                "name": winner["short_name"],
                 "style": "recommended",
-                "score": winner["score"],
             },
             {
                 "type": "add_annotation",
                 "target_id": winner["id"],
                 "lat": winner["latitude"],
                 "lng": winner["longitude"],
-                "title": f"🏆 Tốt hơn: {winner['short_name']}",
-                "subtitle": f"AQI {winner['aqi']} • PM2.5 {winner['pm25']} µg/m³ (Điểm {winner['score']})",
-                "badge": "Vượt trội hơn",
+                "title": f"🌿 Không khí tốt hơn: {winner['short_name']}",
+                "subtitle": f"{time_ctx['label']} • AQI {winner['aqi']} (PM2.5: {winner['pm25']} µg/m³)",
+                "badge": "Lựa chọn tốt hơn",
                 "style": "recommended",
             },
             {
                 "type": "highlight_area",
                 "area_id": loser["id"],
                 "target_id": loser["id"],
-                "name": loser["short_name"],
                 "lat": loser["latitude"],
                 "lng": loser["longitude"],
-                "radius_m": 220,
+                "radius_m": 250,
+                "name": loser["short_name"],
                 "style": "caution",
-                "score": loser["score"],
             },
             {
                 "type": "add_annotation",
                 "target_id": loser["id"],
                 "lat": loser["latitude"],
                 "lng": loser["longitude"],
-                "title": f"{loser['short_name']}",
-                "subtitle": f"AQI {loser['aqi']} • PM2.5 {loser['pm25']} µg/m³",
-                "badge": "Chất lượng kém hơn",
+                "title": f"⚠️ {loser['short_name']}",
+                "subtitle": f"{time_ctx['label']} • AQI {loser['aqi']} (PM2.5: {loser['pm25']} µg/m³)",
+                "badge": f"Kém hơn {abs(int(winner['aqi']) - int(loser['aqi']))} AQI",
                 "style": "caution",
             },
             {
@@ -1156,8 +1191,8 @@ class GeospatialAgentService:
         ]
 
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "compare_locations",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
@@ -1170,6 +1205,7 @@ class GeospatialAgentService:
                 {"source": "sensor", "poi_id": cand_b["id"], "metric": "aqi", "value": cand_b["aqi"], "timestamp": cand_b["timestamp"]},
             ],
             "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 
@@ -1183,23 +1219,16 @@ class GeospatialAgentService:
         request_id: str,
     ) -> dict[str, Any]:
         time_label = time_ctx["label"]
-        mode_str = f"Dự báo ({time_label})" if time_ctx["is_forecast"] else "Hiện tại"
         is_interp = poi.get("is_interpolated", False)
         source_st = poi.get("source_sensors", [poi.get("sensor_id", "S01")])
-        source_str = ", ".join(f"Trạm {s}" for s in source_st)
+
+        composed = ResponseComposer.compose_single_location(
+            poi=poi,
+            time_ctx=time_ctx,
+            request_id=request_id,
+        )
 
         if is_interp:
-            summary = (
-                f"{mode_str} tại **{poi['short_name']}**: Chỉ số AQI ước tính đạt **{poi['aqi']}** "
-                f"(PM2.5: {poi['pm25']} µg/m³) dựa trên dữ liệu quan trắc từ các trạm lân cận ({source_str})."
-            )
-            details = (
-                f"• **Địa điểm:** {poi['name']}\n"
-                f"• **Thông số ước tính (Nội suy IDW):** PM2.5: {poi['pm25']} µg/m³, CO₂: {poi['co2']} ppm, "
-                f"Nhiệt độ: {poi['temperature']}°C, Độ ồn: {poi['noise_db']} dB.\n"
-                f"• **Phương pháp:** Nội suy không gian IDW (Inverse Distance Weighting) từ {source_str}.\n"
-                f"• **Khuyến nghị sinh hoạt:** {'Không khí trong lành, rất thích hợp cho các hoạt động ngoài trời.' if poi['aqi'] <= 100 else 'Chất lượng không khí ở mức trung bình - kém, người nhạy cảm nên chú ý.'}"
-            )
             evidence = [
                 {
                     "source": "forecast" if time_ctx["is_forecast"] else "idw_spatial_interpolation",
@@ -1222,17 +1251,8 @@ class GeospatialAgentService:
                     "timestamp": poi.get("timestamp"),
                 },
             ]
-            badge_text = f"AQI {poi['aqi']} (Nội suy)"
+            badge_text = f"AQI {poi['aqi']}"
         else:
-            summary = (
-                f"{mode_str} tại **{poi['short_name']}** (Trạm {poi.get('sensor_id', 'S01')}): "
-                f"Chỉ số AQI đạt **{poi['aqi']}**, PM2.5: {poi['pm25']} µg/m³ (Đánh giá mức độ phù hợp: {poi['score']}/100)."
-            )
-            details = (
-                f"• **Thông số chi tiết:** PM2.5: {poi['pm25']} µg/m³, CO₂: {poi['co2']} ppm, "
-                f"Nhiệt độ: {poi['temperature']}°C, Độ ồn: {poi['noise_db']} dB.\n"
-                f"• **Khuyến nghị sinh hoạt:** {'Không khí trong lành, rất thích hợp cho các hoạt động ngoài trời.' if poi['aqi'] <= 100 else 'Chất lượng không khí ở mức trung bình - kém, người nhạy cảm nên chú ý.'}"
-            )
             evidence = [
                 {"source": "forecast" if time_ctx["is_forecast"] else "sensor", "poi_id": poi["id"], "metric": "aqi", "value": poi["aqi"], "timestamp": poi.get("timestamp")},
                 {"source": "forecast" if time_ctx["is_forecast"] else "sensor", "poi_id": poi["id"], "metric": "pm25", "value": poi["pm25"], "timestamp": poi.get("timestamp")},
@@ -1271,8 +1291,8 @@ class GeospatialAgentService:
         ]
 
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "get_location_environment",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
@@ -1290,6 +1310,7 @@ class GeospatialAgentService:
             },
             "evidence": evidence,
             "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 
@@ -1309,46 +1330,13 @@ class GeospatialAgentService:
         alt = ranked_routes[1] if len(ranked_routes) > 1 else best
 
         time_label = time_ctx["label"]
-        mode_prefix = f"[{time_label.upper()}] " if time_ctx["is_forecast"] else ""
-
-        reduction_str = ""
-        if best.get("exposure_reduction_pct", 0) > 0:
-            reduction_str = f" (giảm **{best['exposure_reduction_pct']}%** mức phơi nhiễm bụi mịn so với các tuyến trục đường chính)"
-
-        p90_str = f", P90 AQI: {best.get('p90_aqi', best['aqi'])}" if "p90_aqi" in best else ""
-        start_label = (origin_info.get("label") if origin_info else None) or best.get("start_point", {}).get("name", "Vị trí của bạn")
-
-        summary = (
-            f"{mode_prefix}Cung đường **{best['name']}** (Cự ly: {best['distance_km']} km) "
-            f"là lộ trình chạy bộ phù hợp nhất xuất phát từ {start_label} (Điểm: {best['score']}/100, AQI trung bình {best['aqi']}{reduction_str})."
-        )
-
-        env_dist = best.get("environment_distribution", {})
-        good_pct = env_dist.get("good_percent", 100)
-        mod_pct = env_dist.get("moderate_percent", 0)
-        unhealthy_pct = env_dist.get("unhealthy_percent", 0)
-
-        if unhealthy_pct == 0 and mod_pct == 0:
-            env_text = "• **Phân bố chất lượng không khí:** 100% cung đường ở mức Tốt (Xanh).\n"
-        else:
-            unhealthy_part = f", {unhealthy_pct}% Kém (Cam/Đỏ)" if unhealthy_pct > 0 else ""
-            env_text = f"• **Phân bố chất lượng không khí:** {good_pct}% Tốt (Xanh), {mod_pct}% Trung bình (Vàng){unhealthy_part}.\n"
-
-        hotspot_text = ""
-        if best.get("hotspot_distance_m", 0) > 0:
-            hotspot_text = f"• **Lưu ý điểm nóng ô nhiễm:** Đoạn đường đi qua vùng ô nhiễm cục bộ khoảng {best['hotspot_distance_m']} m ({int(best.get('hotspot_ratio', 0) * 100)}% lộ trình).\n"
-        else:
-            hotspot_text = "• **Độ an toàn môi trường:** 100% cung đường nằm trong vùng không khí sạch, không có điểm nóng ô nhiễm.\n"
-
-        details = (
-            f"• **Lộ trình #1 ({best['short_name']}):** Cự ly {best['distance_km']} km. "
-            f"AQI trung bình: **{best['aqi']}** (PM2.5: {best['pm25']} µg/m³{p90_str}), Nhiệt độ: {best['temperature']}°C, Độ ồn: {best['noise_db']} dB.\n"
-            f"• **Xuất phát:** {start_label}.\n"
-            f"• **Đặc điểm đường chạy:** {best['surface']}. {best['traffic_conflict']}.\n"
-            f"{env_text}"
-            f"{hotspot_text}"
-            f"• **Điểm nổi bật:** {best['highlights']}.\n"
-            f"• **Lựa chọn dự phòng:** Tuyến {alt['name']} ({alt['distance_km']} km, Điểm: {alt['score']}/100, AQI {alt['aqi']})."
+        start_label = (origin_info.get("label") if origin_info else None) or best.get("start_point", {}).get("name", "Điểm xuất phát")
+        composed = ResponseComposer.compose_running_route(
+            best_route=best,
+            origin_label=start_label,
+            time_ctx=time_ctx,
+            request_id=request_id,
+            is_personalized=(target_distance_km is not None or is_personalized),
         )
 
         coords = best["coordinates"]
@@ -1384,15 +1372,12 @@ class GeospatialAgentService:
                 "badge": "Lộ trình tối ưu #1",
                 "style": "recommended",
             },
-        ]
-
-        map_actions.append(
             {
                 "type": "fit_bounds",
                 "bounds": bounds,
                 "padding": [60, 60],
-            }
-        )
+            },
+        ]
 
         evidence = [
             {
@@ -1425,15 +1410,16 @@ class GeospatialAgentService:
         intent_name = "recommend_personalized_running_route" if (target_distance_km is not None or is_personalized) else "recommend_running_route"
 
         res = {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": intent_name,
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
             "origin": origin_info or {"source": "default_location", "lat": best["start_point"]["lat"], "lng": best["start_point"]["lng"], "label": start_label},
-            "environment": env_dist,
+            "environment": best.get("environment_distribution", {}),
             "evidence": evidence,
             "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
         if intent_name == "recommend_personalized_running_route":
@@ -1465,17 +1451,11 @@ class GeospatialAgentService:
         best_v = venues[0]
         alt_v = venues[1] if len(venues) > 1 else best_v
 
-        summary = (
-            f"⚠️ **CẢNH BÁO MÔI TRƯỜNG ({time_label.upper()}):** {safety_eval['warning']}\n"
-            f"💡 **Khuyến nghị y tế:** Không nên chạy bộ ngoài trời. Bạn nên chuyển sang vận động trong nhà tại **{best_v['name']}** để bảo vệ đường hô hấp."
-        )
-
-        details = (
-            f"• **Địa điểm trong nhà ưu tiên #1:** {best_v['name']} (Giờ mở cửa: {best_v['operating_hours']}).\n"
-            f"  - Hoạt động gợi ý: {', '.join(best_v['activities'])}.\n"
-            f"  - Tiện ích: {best_v['description']}\n"
-            f"• **Địa điểm lựa chọn #2:** {alt_v['name']} ({', '.join(alt_v['activities'][:2])}).\n"
-            f"• **Lời khuyên an toàn:** Khi nồng độ bụi mịn PM2.5 vượt ngưỡng, lưu lượng thông khí phổi khi chạy bộ ngoài trời tăng gấp 5–10 lần, hít trực tiếp bụi mịn sâu vào phế nang."
+        composed = ResponseComposer.compose_indoor_activity(
+            venues=venues,
+            current_summary=safety_eval.get("warning", "chất lượng không khí ngoài trời tăng cao"),
+            time_ctx=time_ctx,
+            request_id=request_id,
         )
 
         map_actions = [
@@ -1493,7 +1473,7 @@ class GeospatialAgentService:
                 "target_id": f"{best_v['id']}_anno",
                 "lat": best_v["latitude"],
                 "lng": best_v["longitude"],
-                "title": f"🏊 {best_v['short_name']}",
+                "title": f"🏠 {best_v['short_name']}",
                 "subtitle": f"{best_v['activities'][0]} • Lọc khí điều hòa",
                 "badge": "Vận động Trong nhà",
                 "style": "recommended",
@@ -1511,7 +1491,7 @@ class GeospatialAgentService:
                 "target_id": f"{alt_v['id']}_anno",
                 "lat": alt_v["latitude"],
                 "lng": alt_v["longitude"],
-                "title": f"🏋️ {alt_v['short_name']}",
+                "title": f"🛍️ {alt_v['short_name']}",
                 "subtitle": f"{alt_v['activities'][0]}",
                 "badge": "Lựa chọn #2",
                 "style": "alternative",
@@ -1533,23 +1513,18 @@ class GeospatialAgentService:
         ]
 
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "recommend_indoor_activity",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
-            "safety_status": safety_eval,
-            "indoor_venues": venues,
+            "safety_evaluation": safety_eval,
             "evidence": [
-                {
-                    "source": "safety_engine",
-                    "reason": safety_eval["reason"],
-                    "aqi": safety_eval.get("aqi"),
-                    "pm25": safety_eval.get("pm25"),
-                },
                 {"source": "indoor_catalog", "venue_id": best_v["id"], "name": best_v["name"]},
+                {"source": "indoor_catalog", "venue_id": alt_v["id"], "name": alt_v["name"]},
             ],
             "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 
@@ -1564,25 +1539,13 @@ class GeospatialAgentService:
         request_id: str,
     ) -> dict[str, Any]:
         time_label = time_ctx["label"]
-        mode_prefix = f"[{time_label.upper()}] " if time_ctx["is_forecast"] else ""
-
-        dist_km = personalized_route["distance_km"]
         target_req = personalized_route.get("target_requested_km")
-        if target_req:
-            target_str = f"mục tiêu {target_req} km, cự ly ước tính {dist_km} km"
-        else:
-            target_str = f"tổng cự ly {dist_km} km"
-
-        summary = (
-            f"{mode_prefix}Đã thiết lập **Lộ trình cá nhân hóa xuất phát từ vị trí của bạn** "
-            f"({target_str}, Điểm phù hợp: {personalized_route['score']}/100, AQI {personalized_route['aqi']})."
-        )
-
-        details = (
-            f"• **Lộ trình cá nhân hóa:** Xuất phát từ Vị trí của bạn → {personalized_route['circuit_entry_point']['name']} → {personalized_route['name']} ({dist_km} km).\n"
-            f"• **Chất lượng môi trường:** AQI {personalized_route['aqi']} (PM2.5: {personalized_route['pm25']} µg/m³), Nhiệt độ: {personalized_route['temperature']}°C, Độ ồn: {personalized_route['noise_db']} dB.\n"
-            f"• **Đặc điểm đường chạy:** {personalized_route['surface']}. {personalized_route['traffic_conflict']}.\n"
-            f"• **Điểm nổi bật:** {personalized_route['highlights']}"
+        composed = ResponseComposer.compose_running_route(
+            best_route=personalized_route,
+            origin_label="Vị trí của bạn",
+            time_ctx=time_ctx,
+            request_id=request_id,
+            is_personalized=True,
         )
 
         coords = personalized_route["coordinates"]
@@ -1637,14 +1600,15 @@ class GeospatialAgentService:
         ]
 
         return {
-            "answer": {"summary": summary, "details": details},
-            "response": f"{summary}\n\n{details}",
+            "answer": composed["answer"],
+            "response": composed["response"],
             "intent": "recommend_personalized_running_route",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
             "personalized_route": personalized_route,
             "evidence": evidence,
             "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
             "request_id": request_id,
         }
 

@@ -342,6 +342,178 @@ class SpatialRegistry:
             "suitable_activities": ["walking"],
             "description": "Bệnh viện đa khoa quốc tế tiêu chuẩn 5 sao với không gian yên tĩnh và trong lành.",
         },
+        # 15. Đường Hải Đăng (Main artery & branches Hải Đăng 1-8)
+        {
+            "id": "road_hai_dang",
+            "area_id": "area_hai_dang",
+            "name": "Đường Hải Đăng (Vinhomes Ocean Park 1)",
+            "short_name": "Đường Hải Đăng",
+            "category": "road",
+            "latitude": 20.9950,
+            "longitude": 105.9421,
+            "sensor_id": "S02",
+            "is_interpolated": True,
+            "source_sensors": ["S02", "S04"],
+            "aliases": [
+                "đường hải đăng", "duong hai dang", "hải đăng", "hai dang",
+                "trục hải đăng", "hải đăng 1", "hải đăng 2", "hải đăng 3",
+                "hải đăng 5", "hải đăng 6", "hải đăng 8", "hai dang 1",
+                "hai dang 2", "hai dang 3", "hai dang 5", "hai dang 6", "hai dang 8"
+            ],
+            "suitable_activities": ["walking", "running", "elderly_stroll"],
+            "description": "Trục đường Hải Đăng rợp bóng cây xanh kết nối phân khu The Sapphire và dải công viên sinh thái.",
+        },
+        # 16. Đường Đại Dương
+        {
+            "id": "road_dai_duong",
+            "area_id": "area_dai_duong",
+            "name": "Đường Đại Dương",
+            "short_name": "Đường Đại Dương",
+            "category": "road",
+            "latitude": 20.9930,
+            "longitude": 105.9440,
+            "sensor_id": "S04",
+            "is_interpolated": True,
+            "source_sensors": ["S04", "S02"],
+            "aliases": [
+                "đường đại dương", "duong dai duong", "đại dương", "dai duong",
+                "trục đại dương", "đại dương 1", "đại dương 2", "dai duong 1", "dai duong 2"
+            ],
+            "suitable_activities": ["walking", "running"],
+            "description": "Trục đường Đại Dương huyết mạch hướng về trung tâm phân khu VinUni và tòa tháp TechnoPark.",
+        },
+        # 17. Đường San Hô
+        {
+            "id": "road_san_ho",
+            "area_id": "area_san_ho",
+            "name": "Đường San Hô",
+            "short_name": "Đường San Hô",
+            "category": "road",
+            "latitude": 20.9920,
+            "longitude": 105.9480,
+            "sensor_id": "S04",
+            "is_interpolated": True,
+            "source_sensors": ["S04", "S03"],
+            "aliases": [
+                "đường san hô", "duong san ho", "trục san hô", "san hô 1",
+                "san hô 6", "san hô 16", "san ho 1", "san ho 6", "san ho 16"
+            ],
+            "suitable_activities": ["walking", "running"],
+            "description": "Tuyến đường San Hô ven kênh đào sinh thái thoáng mát và nhiều cây xanh.",
+        },
+        # 18. Đường Sao Biển
+        {
+            "id": "road_sao_bien",
+            "area_id": "area_sao_bien",
+            "name": "Đường Sao Biển",
+            "short_name": "Đường Sao Biển",
+            "category": "road",
+            "latitude": 20.9985,
+            "longitude": 105.9525,
+            "sensor_id": "S03",
+            "is_interpolated": True,
+            "source_sensors": ["S03", "S05"],
+            "aliases": [
+                "đường sao biển", "duong sao bien", "trục sao biển", "sao biển 1",
+                "sao biển 6", "sao biển 24", "sao bien 1", "sao bien 6", "sao bien 24"
+            ],
+            "suitable_activities": ["walking", "dining_outdoor"],
+            "description": "Tuyến đường kết nối phân khu Sao Biển với trung tâm Vincom Mega Mall và Biển hồ.",
+        },
+        # 19. Đường Ngọc Trai
+        {
+            "id": "road_ngoc_trai",
+            "area_id": "area_ngoc_trai",
+            "name": "Đường Ngọc Trai",
+            "short_name": "Đường Ngọc Trai",
+            "category": "road",
+            "latitude": 20.9960,
+            "longitude": 105.9510,
+            "sensor_id": "S03",
+            "is_interpolated": False,
+            "source_sensors": ["S03"],
+            "aliases": [
+                "đường ngọc trai", "duong ngoc trai", "trục ngọc trai",
+                "ngọc trai 1", "ngọc trai 6", "đảo ngọc trai", "ngoc trai 1", "ngoc trai 6", "dao ngoc trai"
+            ],
+            "suitable_activities": ["walking", "running", "elderly_stroll"],
+            "description": "Tuyến đường bao quanh bán đảo và phân khu biệt thự Ngọc Trai với tầm nhìn thoáng ra hồ cát trắng.",
+        },
+        # 20. Đường Biển Hồ
+        {
+            "id": "road_bien_ho",
+            "area_id": "area_bien_ho",
+            "name": "Đường Biển Hồ",
+            "short_name": "Đường Biển Hồ",
+            "category": "road",
+            "latitude": 20.9940,
+            "longitude": 105.9580,
+            "sensor_id": "S05",
+            "is_interpolated": False,
+            "source_sensors": ["S05"],
+            "aliases": [
+                "đường biển hồ", "duong bien ho", "đường ven biển hồ", "duong ven bien ho"
+            ],
+            "suitable_activities": ["walking", "running"],
+            "description": "Tuyến đường dạo bộ bao quanh Biển Hồ nước mặn nhân tạo với hàng dừa nhiệt đới.",
+        },
+        # 21. Đường Lý Thánh Tông
+        {
+            "id": "road_ly_thanh_tong",
+            "area_id": "area_ly_thanh_tong",
+            "name": "Đường Lý Thánh Tông",
+            "short_name": "Đường Lý Thánh Tông",
+            "category": "traffic_source",
+            "latitude": 21.0015,
+            "longitude": 105.9390,
+            "sensor_id": "S01",
+            "is_interpolated": True,
+            "source_sensors": ["S01"],
+            "aliases": [
+                "đường lý thánh tông", "duong ly thanh tong", "lý thánh tông", "ly thanh tong",
+                "cao tốc hà nội hải phòng", "cao toc ha noi hai phong"
+            ],
+            "suitable_activities": ["general"],
+            "description": "Trục đại lộ Lý Thánh Tông cửa ngõ phía ngoài khu đô thị, lưu lượng xe cộ tương đối cao.",
+        },
+        # 22. Tòa tháp TechnoPark
+        {
+            "id": "poi_technopark",
+            "area_id": "area_technopark",
+            "name": "Tòa tháp Văn phòng TechnoPark Tower",
+            "short_name": "TechnoPark Tower",
+            "category": "office",
+            "latitude": 20.9890,
+            "longitude": 105.9450,
+            "sensor_id": "S04",
+            "is_interpolated": True,
+            "source_sensors": ["S04"],
+            "aliases": [
+                "technopark", "tòa technopark", "tháp technopark", "technopark tower",
+                "toa technopark", "thap technopark"
+            ],
+            "suitable_activities": ["walking"],
+            "description": "Tòa tháp văn phòng thông minh đạt chuẩn xanh LEED Platinum với không gian hiện đại.",
+        },
+        # 23. Quảng trường Cá Voi
+        {
+            "id": "poi_whale_square",
+            "area_id": "area_whale_square",
+            "name": "Quảng trường Cá Voi",
+            "short_name": "Quảng trường Cá Voi",
+            "category": "landmark",
+            "latitude": 20.9938,
+            "longitude": 105.9485,
+            "sensor_id": "S03",
+            "is_interpolated": False,
+            "source_sensors": ["S03"],
+            "aliases": [
+                "quảng trường cá voi", "quang truong ca voi", "cá voi", "ca voi",
+                "công viên cá voi", "cong vien ca voi"
+            ],
+            "suitable_activities": ["walking", "running", "children_play"],
+            "description": "Quảng trường trung tâm ven hồ với biểu tượng cá voi nổi bật và đường chạy ven hồ.",
+        },
     ]
 
     RUNNING_ROUTES = [

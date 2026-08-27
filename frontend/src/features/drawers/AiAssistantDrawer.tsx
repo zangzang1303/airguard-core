@@ -6,19 +6,12 @@ import {
   Bot,
   User,
   ShieldAlert,
-  LockKeyhole,
   RotateCcw,
-  Wrench,
-  FileCheck2,
   MapPin,
   HelpCircle,
   ChevronDown,
   ChevronUp,
   Activity,
-  Compass,
-  Flame,
-  Volume2,
-  Thermometer,
   Zap,
 } from "lucide-react";
 import { api } from "../../api/client";
@@ -46,6 +39,7 @@ interface ChatMessage {
   data_mode?: "live" | "forecast";
   evidence?: any;
   map_actions?: MapAction[];
+  follow_up_actions?: string[];
   used_tools?: string[];
   proposal_created?: Proposal | null;
   isError?: boolean;
@@ -145,9 +139,6 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     setIsTyping(true);
 
     try {
-      // Only bind a request to a station selected in this map session. The
-      // AuthContext default (S01) is a UI default, not user intent, and must
-      // never turn an Ocean Park-wide question into an S01 question.
       const selectedSensor = mapContext?.selected_sensor;
       const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
         ? selectedSensor
@@ -175,6 +166,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         used_tools: res.used_tools,
         evidence: res.evidence,
         map_actions: res.map_actions as MapAction[],
+        follow_up_actions: res.follow_up_actions,
         proposal_created: res.proposal_created,
         showEvidence: false,
       };
@@ -236,6 +228,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         used_tools: res.used_tools,
         evidence: res.evidence,
         map_actions: res.map_actions as MapAction[],
+        follow_up_actions: res.follow_up_actions,
         proposal_created: res.proposal_created,
         showEvidence: false,
       };
@@ -332,7 +325,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   </div>
                 )}
 
-                {/* If it's a running route recommendation (Personalized or General), render the Rich Visual Route Card */}
+                {/* If it's a running route recommendation, render the Rich Visual Route Card */}
                 {(msg.intent === "recommend_running_route" || msg.intent === "recommend_personalized_running_route") && routeAction ? (
                   <div className="ai-route-rich-card">
                     <div className="ai-route-header-banner">
@@ -426,6 +419,32 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   </div>
                 )}
 
+                {/* Interactive Follow-up Action Chips */}
+                {msg.follow_up_actions && msg.follow_up_actions.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                    {msg.follow_up_actions.map((actionText, idx) => (
+                      <button
+                        key={`action-${idx}`}
+                        onClick={() => handleSend(actionText.replace(/^[^\w\s]+\s*/, ""))}
+                        disabled={isTyping}
+                        style={{
+                          padding: "5px 10px",
+                          background: "#f1f5f9",
+                          color: "#0f172a",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "14px",
+                          fontSize: "12px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {actionText}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Interactive Map Actions Trigger Button for other inquiries */}
                 {msg.map_actions && msg.map_actions.length > 0 && msg.intent !== "recommend_running_route" && (
                   <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
@@ -476,13 +495,41 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                   </div>
                 )}
 
-                {/* Collapsible Evidence Inspector */}
+                {/* Collapsible Evidence Inspector (Task 11) */}
                 {msg.showEvidence && msg.evidence && (
-                  <div style={{ marginTop: 10, padding: 10, background: "#f8fafc", borderRadius: 10, fontSize: "11px", color: "#334155", border: "1px dashed #cbd5e1" }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4, color: "#0f172a" }}>📊 Dữ liệu Grounded từ Trạm / Forecast:</div>
-                    <pre style={{ margin: 0, fontFamily: "monospace", fontSize: "10.5px", whiteSpace: "pre-wrap", maxHeight: 160, overflowY: "auto" }}>
-                      {JSON.stringify(msg.evidence, null, 2)}
-                    </pre>
+                  <div style={{ marginTop: 10, padding: 10, background: "#f8fafc", borderRadius: 10, fontSize: "11px", color: "#334155", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6, color: "#0f172a", display: "flex", alignItems: "center", gap: 5 }}>
+                      <span>📊</span> Nguồn dữ liệu quan trắc & mô phỏng:
+                    </div>
+                    {Array.isArray(msg.evidence) && msg.evidence.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 6 }}>
+                        {msg.evidence.map((ev: any, evIdx: number) => {
+                          const name = ev.location_name || ev.name || ev.station_id || ev.poi_id || `Dữ liệu #${evIdx + 1}`;
+                          const aqiVal = ev.aqi !== undefined ? ev.aqi : ev.value;
+                          const pm25Val = ev.pm25;
+                          const src = ev.source || "simulator";
+                          const time = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "vừa xong";
+
+                          return (
+                            <div key={`ev-${evIdx}`} style={{ background: "#ffffff", padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1" }}>
+                              <div style={{ fontWeight: 600, color: "#1e293b" }}>{name}</div>
+                              <div style={{ display: "flex", gap: 10, marginTop: 2, color: "#475569" }}>
+                                {aqiVal !== undefined && <span>AQI: <strong>{aqiVal}</strong></span>}
+                                {pm25Val !== undefined && <span>PM2.5: <strong>{pm25Val} µg/m³</strong></span>}
+                                <span>Cập nhật: {time}</span>
+                                <span>Nguồn: <em>{src}</em></span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    <details style={{ marginTop: 4, cursor: "pointer" }}>
+                      <summary style={{ color: "#64748b", fontSize: "10.5px" }}>Xem JSON kỹ thuật (Developer)</summary>
+                      <pre style={{ margin: "6px 0 0", fontFamily: "monospace", fontSize: "10px", whiteSpace: "pre-wrap", maxHeight: 120, overflowY: "auto", background: "#f1f5f9", padding: 6, borderRadius: 4 }}>
+                        {JSON.stringify(msg.evidence, null, 2)}
+                      </pre>
+                    </details>
                   </div>
                 )}
 

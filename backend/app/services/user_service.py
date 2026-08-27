@@ -10,16 +10,29 @@ class UserService:
         self.db = db
 
     def get_profile(self, user_id: str) -> dict[str, Any]:
-        with self.db.connection() as conn:
-            with dict_cursor(conn) as cur:
-                cur.execute(
-                    "SELECT user_id, role, sensitivity_group FROM users WHERE user_id = %s",
-                    (user_id,),
-                )
-                row = cur.fetchone()
-        if not row:
-            raise ServiceError("user_not_found", "User profile was not found", 404, {"user_id": user_id})
-        return dict(row)
+        if not getattr(self.db, "is_configured", True) and user_id in {"demo-user", "default", "anonymous"}:
+            return {"user_id": user_id, "role": "resident", "sensitivity_group": "normal"}
+        try:
+            with self.db.connection() as conn:
+                with dict_cursor(conn) as cur:
+                    cur.execute(
+                        "SELECT user_id, role, sensitivity_group FROM users WHERE user_id = %s",
+                        (user_id,),
+                    )
+                    row = cur.fetchone()
+            if not row:
+                if user_id in {"demo-user", "default", "anonymous"}:
+                    return {"user_id": user_id, "role": "resident", "sensitivity_group": "normal"}
+                raise ServiceError("user_not_found", "User profile was not found", 404, {"user_id": user_id})
+            return dict(row)
+        except ServiceError as exc:
+            if exc.code == "database_not_configured" and user_id in {"demo-user", "default", "anonymous"}:
+                return {"user_id": user_id, "role": "resident", "sensitivity_group": "normal"}
+            raise
+        except Exception:
+            if user_id in {"demo-user", "default", "anonymous"}:
+                return {"user_id": user_id, "role": "resident", "sensitivity_group": "normal"}
+            raise
 
     def list_manager_notification_recipients(self) -> list[dict[str, str]]:
         """Return active backend-authorized recipients without exposing them to Agent prompts."""

@@ -47,6 +47,7 @@ from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
 from .services.report_repository import PostgresReportRepository
 from .services.resident_alert_notification_service import ResidentAlertNotificationService
+from .services.response_composer import ResponseComposer, ResponseValidator
 from .services.spatial_dispersion_service import SpatialDispersionService
 from .services.station_service import StationService
 from .services.temporal_resolver import temporal_resolver
@@ -1055,7 +1056,7 @@ async def agent_chat(
 
         snapshots = {
             station["station_id"]: station
-            for station in station_service.list_stations(allow_fallback=False)
+            for station in station_service.list_stations(allow_fallback=True)
         }
         time_context = temporal_resolver.resolve(body.message.lower().strip())
         histories: dict[str, list[dict[str, Any]]] = {}
@@ -1079,6 +1080,7 @@ async def agent_chat(
             station_id=effective_station_id,
             request_id=req_id,
         )
+
         result = geospatial_agent.process_query(
             message=body.message,
             user_id=effective_user_id,
@@ -1098,41 +1100,72 @@ async def agent_chat(
             "conversation_kind"
         )
         canonical_arguments = agent_result.get("tool_arguments", [])
+
+        # Priority 1: Geospatial Interactive and Domain-specific Spatial/Route Intents
+        if result.get("intent") in {
+            "get_location_environment",
+            "get_noise_metric",
+            "get_temperature_metric",
+            "find_worst_location",
+            "compare_locations",
+            "recommend_running_route",
+            "recommend_personalized_running_route",
+            "recommend_indoor_activity",
+            "recommend_outdoor_location",
+            "unsupported_precipitation_weather",
+            "unknown_location",
+        }:
+            evidence_source = "prophet_time_series_v1" if time_context["is_forecast"] else None
+            for evidence_item in result.get("evidence", []):
+                evidence_station_id = evidence_item.get("station_id")
+                evidence_snapshot = snapshots.get(evidence_station_id)
+                if not evidence_snapshot:
+                    continue
+                evidence_item["source"] = evidence_source or evidence_snapshot.get("source")
+                evidence_item["observed_at"] = evidence_snapshot.get("updated_at")
+                evidence_item["timestamp"] = (
+                    time_context.get("target_datetime")
+                    if time_context["is_forecast"]
+                    else evidence_snapshot.get("updated_at")
+                )
+
+            map_intent = result.get("intent")
+            if isinstance(agent_sources, list) and agent_sources:
+                result["sources"] = agent_sources
+                result["intent"] = canonical_intent
+            elif "sources" not in result or not result["sources"]:
+                result["sources"] = [
+                    f"station_{item['station_id']}"
+                    for item in result.get("evidence", [])
+                    if isinstance(item, dict) and item.get("station_id")
+                ] or ["simulator_engine"]
+
+            result["used_tools"] = agent_result.get("used_tools", [])
+            result["tool_arguments"] = canonical_arguments
+            result["proposal_id"] = agent_result.get("proposal_id")
+            result["trace"] = {
+                **agent_result.get("trace", {}),
+                "map_planner": "deterministic_grounded_geospatial",
+                "map_intent": map_intent,
+                "data_mode": result.get("data_mode"),
+            }
+            return result
+
         if not isinstance(agent_sources, list) or not agent_sources:
-            if result.get("intent") in {
-                "get_location_environment",
-                "get_noise_metric",
-                "get_temperature_metric",
-                "find_worst_location",
-                "compare_locations",
-                "recommend_running_route",
-                "recommend_personalized_running_route",
-                "recommend_indoor_activity",
-                "recommend_outdoor_location",
-                "unsupported_precipitation_weather",
-                "unknown_location",
-            }:
-                return result
             return {
-                "answer": {"summary": agent_result["answer"], "details": ""},
-                "response": agent_result["answer"],
+                "answer": result.get("answer") or {"summary": agent_result["answer"], "details": ""},
+                "response": result.get("response") or agent_result["answer"],
                 "intent": canonical_intent,
                 "conversation_kind": canonical_kind,
-                "evidence": [],
+                "evidence": result.get("evidence", []),
                 "sources": [],
-                "map_actions": [],
+                "map_actions": result.get("map_actions", []),
                 "used_tools": agent_result.get("used_tools", []),
                 "tool_arguments": canonical_arguments,
                 "proposal_id": agent_result.get("proposal_id"),
                 "request_id": req_id,
                 "trace": agent_result.get("trace", {}),
             }
-
-        if (
-            agent_result.get("trace", {}).get("intent") == "spatial"
-            and _is_ocean_park_area_overview(body.message)
-        ):
-            return _spatial_overview_response(agent_result=agent_result, request_id=req_id)
 
         evidence_source = "prophet_time_series_v1" if time_context["is_forecast"] else None
         for evidence_item in result.get("evidence", []):
@@ -1148,8 +1181,9 @@ async def agent_chat(
                 else evidence_snapshot.get("updated_at")
             )
         map_intent = result.get("intent")
-        result["answer"] = {"summary": agent_result["answer"], "details": ""}
-        result["response"] = agent_result["answer"]
+        if not result.get("answer") or not result["answer"].get("summary"):
+            result["answer"] = {"summary": agent_result["answer"], "details": ""}
+            result["response"] = agent_result["answer"]
         result["intent"] = canonical_intent
         result["conversation_kind"] = canonical_kind
         result["used_tools"] = agent_result.get("used_tools", [])
