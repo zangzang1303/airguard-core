@@ -151,6 +151,12 @@ class ConversationalAgentService:
         "phe duyet",
         "manager",
         "thong gio",
+        "chat luong",
+        "ngan hon",
+        "dai hon",
+        "sach hon",
+        "tranh",
+        "con ",
         # A person can ask for cautious advice by naming their group without
         # repeating an AQI/running keyword.  This only admits the request to
         # the Agent; the Agent still obtains the authoritative group from the

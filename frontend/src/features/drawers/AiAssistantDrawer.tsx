@@ -77,6 +77,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     panelId: "ai-chat",
     group: "drawer",
   });
+  const [conversationId, setConversationId] = useState<string>(() => `conv_${Date.now()}`);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "msg-welcome",
@@ -119,6 +120,19 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   }, [initialPrompt]);
 
+  const handleResetConversation = () => {
+    mapActionController.clearAIOverlay();
+    setConversationId(`conv_${Date.now()}`);
+    setMessages([
+      {
+        id: "msg-welcome",
+        sender: "ai",
+        text: "Xin chào! Tôi là AirGuard Geospatial AI Agent. Phiên hội thoại mới đã được thiết lập. Hãy hỏi tôi về không khí, đường chạy hoặc địa điểm tại Ocean Park 1.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
+  };
+
   const handleSend = async (textToSend?: string) => {
     const query = (textToSend || inputVal).trim();
     if (!query || isTyping) return;
@@ -143,7 +157,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
         ? selectedSensor
         : null;
-      const res: AgentResponse = await api.sendAgentMessage(query, contextStationId, userId, mapContext);
+      const res: AgentResponse = await api.sendAgentMessage(query, contextStationId, userId, mapContext, conversationId);
       
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
@@ -191,14 +205,8 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
     }
   };
 
-  const handleRetry = async (errorMsgId: string, retryQuery?: string) => {
-    const query = (retryQuery || "").trim();
-    if (!query || isTyping) return;
-
-    mapActionController.clearAIOverlay();
-
-    // Remove the error bubble from chat state during retry
-    setMessages((prev) => prev.filter((m) => m.id !== errorMsgId));
+  const handleRetry = async (queryToRetry: string) => {
+    if (isTyping) return;
     setIsTyping(true);
 
     try {
@@ -206,7 +214,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const contextStationId = typeof selectedSensor === "string" && /^S0[1-5]$/.test(selectedSensor)
         ? selectedSensor
         : null;
-      const res: AgentResponse = await api.sendAgentMessage(query, contextStationId, userId, mapContext);
+      const res: AgentResponse = await api.sendAgentMessage(queryToRetry, contextStationId, userId, mapContext, conversationId);
 
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
@@ -237,7 +245,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         setPendingApprovalsCount((count) => count + 1);
       }
 
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) => [...prev.filter((m) => !m.isError), aiMsg]);
     } catch (err: any) {
       const newErrorMsg: ChatMessage = {
         id: `msg-err-${Date.now()}`,
@@ -245,7 +253,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         text: formatAgentRequestError(err),
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         isError: true,
-        retryQuery: query,
+        retryQuery: queryToRetry,
       };
       setMessages((prev) => [...prev, newErrorMsg]);
     } finally {
@@ -273,12 +281,24 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
           </div>
           <div style={{ minWidth: 0 }}>
             <h2 className="drawer-main-title">AirGuard Geospatial AI</h2>
-            <span className="drawer-sub-meta">Tương tác thực & vẽ lộ trình trực tiếp trên bản đồ</span>
+            <span className="drawer-sub-meta">Tương tác thực & nhớ ngữ cảnh hội thoại OCP1</span>
           </div>
         </div>
-        <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng">
-          <X size={18} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <button
+            className="no-drag drawer-close-btn"
+            data-no-drag="true"
+            onClick={handleResetConversation}
+            title="Bắt đầu cuộc trò chuyện mới"
+            aria-label="Cuộc trò chuyện mới"
+            style={{ width: "32px", height: "32px" }}
+          >
+            <RotateCcw size={15} />
+          </button>
+          <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng" style={{ width: "32px", height: "32px" }}>
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       {/* Suggested Quick Questions with Icons */}
@@ -539,7 +559,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                     className="retry-send-btn"
                     data-testid="ai-retry-button"
                     style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, fontSize: "11px", cursor: "pointer" }}
-                    onClick={() => handleRetry(msg.id, msg.retryQuery)}
+                    onClick={() => handleRetry(msg.retryQuery || "")}
                   >
                     <RotateCcw size={12} /> Thử lại
                   </button>

@@ -688,6 +688,139 @@ class ResponseComposer:
             ],
         }
 
+    @staticmethod
+    def compose_best_time(
+        forecast_points: list[dict[str, Any]],
+        best_point: dict[str, Any],
+        location_name: str,
+        activity: str = "chạy bộ",
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Module 6 Decision Layer: Optimal time slot selection from forecast."""
+        best_time_label = best_point.get("time_label") or f"{best_point.get('hour', 1)}h tới"
+        best_aqi = int(best_point.get("aqi", 51))
+        best_cat = aqi_category_vi(best_aqi)
+
+        headline = f"⏰ **Thời điểm phù hợp nhất để {activity} tối nay là vào lúc {best_time_label}.**"
+
+        points_text_list = []
+        highlights_data = []
+        for pt in forecast_points:
+            t_lbl = pt.get("time_label") or f"{pt.get('hour', 1)}h tới"
+            val = int(pt.get("aqi", 60))
+            is_optimal = (t_lbl == best_time_label)
+            opt_tag = " ⭐ (Tối ưu nhất)" if is_optimal else ""
+            points_text_list.append(f"- **{t_lbl}:** AQI {val}{opt_tag}")
+            highlights_data.append({"label": t_lbl, "value": f"AQI {val}", "description": "Tốt nhất" if is_optimal else ""})
+
+        highlights_text = "\n".join(points_text_list)
+        advice = f"Lúc {best_time_label}, AQI tại {location_name} dự báo hạ xuống mức {best_aqi} ({best_cat}), thuận lợi cho hô hấp và vận động ngoài trời."
+        map_feedback = f"📍 Mình đã đưa bản đồ tới khu vực {location_name}."
+        data_note = "*Dữ liệu dự báo mô phỏng AirGuard AI.*"
+
+        summary = f"{headline}\n\n{highlights_text}\n\n{advice}\n\n{map_feedback}\n\n{data_note}"
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": f"{advice}\n\n{map_feedback}",
+                "highlights": highlights_data,
+                "recommendation": advice,
+                "map_feedback": map_feedback,
+                "data_note": data_note,
+            },
+            "response": summary,
+            "intent": "decision_best_time",
+            "follow_up_actions": [
+                f"🏃 Gợi ý cung đường lúc {best_time_label}",
+                f"🌿 So sánh {location_name} với khu khác",
+                "📊 Xem thông số hiện tại",
+            ],
+        }
+
+    @staticmethod
+    def compose_clarification(
+        clarification_text: str,
+        options: list[str],
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Module 1 & 6: Friendly clarification when references or entities are ambiguous."""
+        headline = f"❓ **{clarification_text}**"
+        advice = "Bạn có thể chọn một trong các gợi ý bên dưới hoặc gửi cụ thể tên khu vực bạn muốn kiểm tra nhé."
+        summary = f"{headline}\n\n{advice}"
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "clarification",
+            "follow_up_actions": options,
+        }
+
+    @staticmethod
+    def compose_avoidance_route(
+        best_route: dict[str, Any],
+        origin_label: str,
+        avoid_name: str,
+        time_ctx: dict[str, Any],
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Route recommendation with explicit avoidance of high pollution area."""
+        dist = best_route.get("distance_km", 3.1)
+        avg_aqi = int(best_route.get("aqi", 52))
+        avg_cat = aqi_category_vi(avg_aqi)
+        route_name = best_route.get("name") or best_route.get("short_name", "Lộ trình sinh thái")
+
+        headline = f"🏃 **Mình đã thiết lập cung đường {dist} km hoàn toàn tránh khu {avoid_name}.**"
+
+        highlights_text = (
+            f"- **Cự ly:** khoảng {dist} km\n"
+            f"- **AQI trung bình trên tuyến:** {avg_aqi} — {avg_cat}\n"
+            f"- **Lộ trình:** {origin_label} → {route_name}\n"
+            f"- **Khu vực tránh:** {avoid_name} (được đổi hướng sang các trục cây xanh trong lành)"
+        )
+
+        advice = f"Tuyến đường này chuyển hướng tối đa vào nội khu và dải ven hồ để bạn không phải hít phải bụi mịn từ trục {avoid_name}."
+        map_feedback = "🗺️ Mình đã vẽ tuyến tránh ô nhiễm trực tiếp trên bản đồ."
+        data_note = "*Dữ liệu mô phỏng AirGuard AI.*"
+
+        summary = f"{headline}\n\n{highlights_text}\n\n{advice}\n\n{map_feedback}\n\n{data_note}"
+
+        highlights_data = [
+            {"label": "Cự ly", "value": f"khoảng {dist} km"},
+            {"label": "AQI trung bình", "value": str(avg_aqi), "description": avg_cat},
+            {"label": "Đã tránh", "value": avoid_name},
+        ]
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": f"{advice}\n\n{map_feedback}",
+                "highlights": highlights_data,
+                "recommendation": advice,
+                "map_feedback": map_feedback,
+                "data_note": data_note,
+            },
+            "response": summary,
+            "intent": "recommend_avoidance_running_route",
+            "follow_up_actions": [
+                "2 km",
+                "3 km",
+                "5 km",
+                "Đổi điểm xuất phát",
+                "Xem dự báo tối nay",
+            ],
+        }
+
 
 class ResponseValidator:
     """Validates response contracts and guards against technical leakage & map/chat desynchronization."""

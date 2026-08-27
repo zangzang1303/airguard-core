@@ -701,6 +701,7 @@ export const api = {
     contextStationId: string | null = null,
     userId: string = "demo-user",
     mapContext?: Record<string, any>,
+    conversationId?: string,
   ): Promise<AgentResponse> => {
     // The public Demo Day map is intentionally usable without authentication.
     // AuthContext represents that state with an empty string, so normalize it to
@@ -713,6 +714,7 @@ export const api = {
         station_id: contextStationId,
         user_id: effectiveUserId,
         map_context: mapContext,
+        conversation_id: conversationId,
       }),
     });
 

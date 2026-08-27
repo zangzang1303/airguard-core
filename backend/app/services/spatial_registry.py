@@ -357,8 +357,7 @@ class SpatialRegistry:
             "aliases": [
                 "đường hải đăng", "duong hai dang", "hải đăng", "hai dang",
                 "trục hải đăng", "hải đăng 1", "hải đăng 2", "hải đăng 3",
-                "hải đăng 5", "hải đăng 6", "hải đăng 8", "hai dang 1",
-                "hai dang 2", "hai dang 3", "hai dang 5", "hai dang 6", "hai dang 8"
+                "hải đăng 5", "hai dang 1", "hai dang 2", "hai dang 3", "hai dang 5"
             ],
             "suitable_activities": ["walking", "running", "elderly_stroll"],
             "description": "Trục đường Hải Đăng rợp bóng cây xanh kết nối phân khu The Sapphire và dải công viên sinh thái.",
@@ -396,7 +395,7 @@ class SpatialRegistry:
             "source_sensors": ["S04", "S03"],
             "aliases": [
                 "đường san hô", "duong san ho", "trục san hô", "san hô 1",
-                "san hô 6", "san hô 16", "san ho 1", "san ho 6", "san ho 16"
+                "san hô 6", "san ho 1", "san ho 6"
             ],
             "suitable_activities": ["walking", "running"],
             "description": "Tuyến đường San Hô ven kênh đào sinh thái thoáng mát và nhiều cây xanh.",
@@ -415,7 +414,7 @@ class SpatialRegistry:
             "source_sensors": ["S03", "S05"],
             "aliases": [
                 "đường sao biển", "duong sao bien", "trục sao biển", "sao biển 1",
-                "sao biển 6", "sao biển 24", "sao bien 1", "sao bien 6", "sao bien 24"
+                "sao biển 6", "sao bien 1", "sao bien 6"
             ],
             "suitable_activities": ["walking", "dining_outdoor"],
             "description": "Tuyến đường kết nối phân khu Sao Biển với trung tâm Vincom Mega Mall và Biển hồ.",
@@ -514,6 +513,83 @@ class SpatialRegistry:
             "suitable_activities": ["walking", "running", "children_play"],
             "description": "Quảng trường trung tâm ven hồ với biểu tượng cá voi nổi bật và đường chạy ven hồ.",
         },
+        # 24. Phân khu Masteri Waterfront
+        {
+            "id": "poi_masteri",
+            "area_id": "area_masteri",
+            "name": "Phân khu Căn hộ Masteri Waterfront",
+            "short_name": "Masteri Waterfront",
+            "category": "residential",
+            "latitude": 20.9945,
+            "longitude": 105.9470,
+            "sensor_id": "S03",
+            "is_interpolated": True,
+            "source_sensors": ["S03", "S04"],
+            "aliases": [
+                "masteri", "masteri waterfront", "khu masteri", "căn hộ masteri", "the masteri"
+            ],
+            "suitable_activities": ["walking", "running", "children_play"],
+            "description": "Quần thể căn hộ cao cấp trực diện hồ ngọc trai với mật độ cây xanh cao.",
+        },
+        # 25. Đường Hải Đăng 6 (Specific segment)
+        {
+            "id": "road_hai_dang_6",
+            "area_id": "area_hai_dang",
+            "name": "Đường Hải Đăng 6",
+            "short_name": "Hải Đăng 6",
+            "category": "road_segment",
+            "latitude": 20.9955,
+            "longitude": 105.9425,
+            "sensor_id": "S02",
+            "is_interpolated": True,
+            "source_sensors": ["S02", "S04"],
+            "aliases": ["hải đăng 6", "hai dang 6", "đường hải đăng 6", "duong hai dang 6"],
+            "suitable_activities": ["walking", "running"],
+            "description": "Tuyến nhánh Hải Đăng 6 kết nối nội khu Sapphire và đường dạo bộ.",
+        },
+        # 26. Đường San Hô 16 (Specific segment)
+        {
+            "id": "road_san_ho_16",
+            "area_id": "area_san_ho",
+            "name": "Đường San Hô 16",
+            "short_name": "San Hô 16",
+            "category": "road_segment",
+            "latitude": 20.9925,
+            "longitude": 105.9475,
+            "sensor_id": "S04",
+            "is_interpolated": True,
+            "source_sensors": ["S04", "S01"],
+            "aliases": ["san hô 16", "san ho 16", "đường san hô 16", "duong san ho 16"],
+            "suitable_activities": ["walking", "running"],
+            "description": "Tuyến nhánh San Hô 16 ven sông sinh thái gần phân khu biệt thự.",
+        },
+        # 27. Đường Sao Biển 24 (Specific segment)
+        {
+            "id": "road_sao_bien_24",
+            "area_id": "area_sao_bien",
+            "name": "Đường Sao Biển 24",
+            "short_name": "Sao Biển 24",
+            "category": "road_segment",
+            "latitude": 20.9975,
+            "longitude": 105.9535,
+            "sensor_id": "S03",
+            "is_interpolated": True,
+            "source_sensors": ["S03", "S05"],
+            "aliases": ["sao biển 24", "sao bien 24", "đường sao biển 24", "duong sao bien 24"],
+            "suitable_activities": ["walking", "dining_outdoor"],
+            "description": "Tuyến phố thương mại Sao Biển 24 dẫn thẳng ra quảng trường biển hồ.",
+        },
+    ]
+
+    SPATIAL_RELATIONSHIPS = [
+        {"source": "poi_vinuni", "relation": "near", "target": "poi_technopark", "distance_m": 220},
+        {"source": "poi_vinuni", "relation": "near", "target": "poi_ngoc_trai_lake", "distance_m": 650},
+        {"source": "poi_sapphire", "relation": "near", "target": "poi_zenpark_ruby", "distance_m": 420},
+        {"source": "poi_sapphire", "relation": "near", "target": "road_hai_dang", "distance_m": 280},
+        {"source": "poi_an_dao", "relation": "near", "target": "poi_da_ton", "distance_m": 210},
+        {"source": "poi_san_ho_park", "relation": "near", "target": "poi_vinmec", "distance_m": 350},
+        {"source": "poi_vincom", "relation": "near", "target": "poi_sao_bien", "distance_m": 150},
+        {"source": "poi_salt_lake", "relation": "near", "target": "poi_hai_au", "distance_m": 400},
     ]
 
     RUNNING_ROUTES = [
@@ -986,13 +1062,13 @@ class SpatialRegistry:
             "tap the thao", "tap the duc", "chay bo o dau", "di bo o dau",
         }
 
-        # Check if entire query or core query is a general inquiry
-        if any(q_norm == phrase or q_norm.startswith(phrase + " ") or q_norm.endswith(" " + phrase) for phrase in general_query_phrases):
+        # Check if entire query is a general inquiry without named location
+        if q_norm in general_query_phrases:
             return None, None
 
         # Specific regex targeting prepositional location inquiries like "tại ABCXYZ", "ở khu ABCXYZ"
         patterns = [
-            r"\b(?:tai|o|khu|phan khu|khu vuc|dia diem|tai khu)\s+([a-zA-Z0-9\s_]{2,30})",
+            r"\b(?:tai|tai khu|khu|phan khu|khu vuc|dia diem|o(?!\s+(?:nhiem|to|du|day)))\s+([a-zA-Z0-9\s_]{2,30})",
         ]
 
         for pat in patterns:
@@ -1000,7 +1076,7 @@ class SpatialRegistry:
                 candidate = match.group(1).strip()
                 # Strip trailing auxiliary question suffixes
                 candidate = re.sub(
-                    r"\b(nao|o dau|dau|the nao|bao nhieu|co tot khong|tot khong|nhu the nao|sao|thi sao|hien tai|bay gio|ra sao|co tot|dang o nhiem|dang sach|tot nhat|o nhiem nhat)\b.*",
+                    r"\b(nao|o dau|dau|the nao|bao nhieu|co tot khong|tot khong|nhu the nao|sao|thi sao|hien tai|bay gio|ra sao|co tot|dang o nhiem|dang sach|tot nhat|o nhiem nhat|it o nhiem|nhat)\b.*",
                     "",
                     candidate,
                 ).strip()
@@ -1020,7 +1096,8 @@ class SpatialRegistry:
                     return poi_match, None
 
                 # Return candidate as unrecognized location if it contains substantive words
-                if len(candidate) >= 3 and not any(w in candidate for w in ["chay", "duong", "tuyen", "troi", "khi", "khong"]):
+                non_location_words = {"chay", "duong", "tuyen", "troi", "khi", "khong", "nhiem", "bui", "tap", "the", "thao", "duc", "lo trinh", "cung duong"}
+                if len(candidate) >= 3 and not any(w in candidate for w in non_location_words):
                     return None, candidate.title()
 
         return None, None

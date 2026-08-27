@@ -73,6 +73,7 @@ export const AgentChat: React.FC = () => {
     text: `Xin chào! Tôi là Trợ lý AI AirGuard. AQI là chỉ số tổng quan cho trạm [${selectedStationId}]. Bạn cần xem AQI, các thành phần môi trường hay cảnh báo?`,
     timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
   };
+  const [conversationId, setConversationId] = useState<string>(() => `conv_${Date.now()}`);
   const [messages, setMessages] = useState<ChatMessage[]>([initialMessage]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -92,7 +93,7 @@ export const AgentChat: React.FC = () => {
     setSending(true);
 
     try {
-      const response: AgentResponse = await api.sendAgentMessage(userText, selectedStationId, userId);
+      const response: AgentResponse = await api.sendAgentMessage(userText, selectedStationId, userId, undefined, conversationId);
       const conciseReply = splitAgentReply(response.reply);
       setMessages((previous) => [...previous, {
         id: `agent-${Date.now()}`,

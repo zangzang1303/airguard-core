@@ -83,6 +83,7 @@ class AgentChatRequest(BaseModel):
     )
     station_id: str | None = Field(default=None, pattern=r"^S0[1-5]$", examples=["S05"])
     map_context: dict[str, Any] | None = Field(default=None, description="Current map view state, selected POI, and user location")
+    conversation_id: str | None = Field(default=None, max_length=120, description="Optional conversation session ID for multi-turn memory")
 
 
 class AgentJobRequest(AgentChatRequest):
@@ -1084,6 +1085,7 @@ async def agent_chat(
         result = geospatial_agent.process_query(
             message=body.message,
             user_id=effective_user_id,
+            conversation_id=body.conversation_id or f"conv_{effective_user_id}",
             station_id=effective_station_id,
             map_context=body.map_context,
             request_id=req_id,
