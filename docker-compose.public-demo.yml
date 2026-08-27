@@ -39,6 +39,7 @@ services:
         -f /migrations/20260823_003_fix_vietnamese_station_names_and_alerts.sql
         -f /migrations/20260823_004_fix_vietnamese_demo_user_names.sql
         -f /migrations/20260824_005_add_demo_station_devices.sql
+        -f /migrations/20260827_006_agent_conversation_memory.sql
     depends_on:
       postgres:
         condition: service_healthy
