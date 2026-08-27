@@ -12,6 +12,22 @@
 > automatic proposal worker likewise invokes one deterministic grounded proposal workflow, replacing
 > the former provider-preflight plus proposal double invocation.
 
+> **PR1 verification — 2026-08-27:** ISSUE-01 described the pre-PR1 implementation and is now
+> resolved. `POST /api/v1/agent/chat` invokes the isolated Agent exactly once and treats it as the
+> sole authority for the answer, intent, tools, sources and outcome. Non-spatial and terminal
+> outcomes no longer load profile/all-station/forecast dependencies or execute the geospatial
+> engine. An answered spatial request may invoke a UI-only map planner only after a validated
+> `get_spatial_air_quality` source; planner failure preserves the grounded answer and returns no map
+> action. Verification passed 623 repository tests and 70/70 golden evaluation cases with the
+> release gate enabled. The decision and boundary are recorded in ADR 0019.
+
+> **PR2 verification — 2026-08-27:** ISSUE-03 described the pre-PR2 stateless request path and is
+> now resolved with backend-owned semantic conversation memory. The combined PR1 + PR2 branch passed
+> 637 repository tests, the frontend production build, Compose configuration validation and 70/70
+> golden evaluation cases with 100% grounding/safety. ADR 0020 records why the Agent does not receive
+> direct PostgreSQL access and why prior environmental values are never reused as evidence. PR2 is
+> stacked on PR1, so the single-Agent authority and conditional UI-only map planner remain unchanged.
+
 ---
 
 ## Danh mục Tài liệu & Mã nguồn Tham chiếu
@@ -80,7 +96,7 @@ User Input / Map Context / Selected Station
 
 | ID | Vấn đề / Nút thắt kỹ thuật | Phân tích chi tiết lỗi logic / Rủi ro hiệu năng & bảo mật | Mức độ nghiêm trọng |
 |---|---|---|:---:|
-| **ISSUE-01** | **Xử lý kép dư thừa (Dual Agent Execution Overhead)** | Tại [`backend/app/main.py:L1027-L1042`](file:///d:/Ai_Thuc_Chien/P-074/backend/app/main.py#L1027-L1042), hệ thống thực thi **cả 2 lệnh**: `await agent_service.chat()` (HTTP proxy sang LangGraph service) **VÀ** `geospatial_agent.process_query()` (gọi service nội bộ). Việc chạy song song/nối tiếp cả 2 engine gây lãng phí CPU/Memory và tăng Latency không cần thiết. | **Cao** |
+| **ISSUE-01 (pre-PR1)** | **Xử lý kép dư thừa (Dual Agent Execution Overhead)** | Chẩn đoán ban đầu là đúng: endpoint từng gọi cả `agent_service.chat()` và `geospatial_agent.process_query()` cho mọi domain request rồi trộn hai kết quả. PR1 đã sửa bằng một Agent authority và map planner có điều kiện, chỉ xuất UI actions sau source gate. | ✅ **Đã sửa** |
 | **ISSUE-02 (pre-P0)** | **Độ trễ do HTTP Hop & Synchronous LLM Call** | Mô tả này là lịch sử trước P0. Production answer hiện không có synchronous explanation call; semantic fallback tùy chọn chỉ có một invocation và fail-closed về clarification. | **Đã giảm** |
 | **ISSUE-03** | **Thiếu Memory State cho Hội thoại Đa lượt (Multi-turn Context Drift)** | Agent dựa vào `map_context` và `station_id` gửi kèm theo từng HTTP Request payload. Chưa tích hợp LangGraph Checkpointer (Postgres/Redis Persistence) để lưu trữ state hội thoại dài hạn, dẫn đến việc xử lý các câu hỏi tiếp nối nâng cao hoàn toàn phụ thuộc vào thông tin Client tự truyền. | **Trung bình** |
 | **ISSUE-04 (đã phân loại lại)** | **Chat trả response dạng block, chưa có streaming** | AI Chat gửi đúng một REST POST cho mỗi câu hỏi; polling 30 giây thuộc dashboard telemetry, không thuộc chat. Vì production answer chủ yếu deterministic và không có token stream cần truyền, đây là backlog UX chứ không phải lỗi polling. Chỉ triển khai SSE sau khi đo latency và xác định event/progress thực sự cần stream. | **Thấp / UX** |
@@ -108,17 +124,17 @@ User Input / Map Context / Selected Station
 
 ### 4. Đề xuất cải tiến kỹ thuật (Actionable Recommendations)
 
-1. **Hợp nhất luồng xử lý Agent Execution (Unify Agent Pipeline)**
-   - *Giải pháp:* Loại bỏ việc gọi song song `geospatial_agent.process_query()` tại [`backend/app/main.py`](file:///d:/Ai_Thuc_Chien/P-074/backend/app/main.py#L1033) khi `agent_service.chat()` đã xử lý xong. Tích hợp trực tiếp logic sinh Map Actions vào LangGraph node (`compose_node`) của Agent microservice.
-   - *Lợi ích:* Giảm từ **40% – 50% Latency** xử lý backend và triệt tiêu nguy cơ bất đồng bộ Intent giữa 2 engine.
+1. **Hợp nhất luồng xử lý Agent Execution (Unify Agent Pipeline) — đã hoàn thành trong PR1**
+   - *Giải pháp đã áp dụng:* `agent_service.chat()` là authority duy nhất. Geospatial không còn là pipeline hội thoại thứ hai; nó chỉ là map planner tùy chọn cho kết quả `spatial` đã có source hợp lệ và không được ghi đè answer/intent/evidence/tool trace.
+   - *Kết quả:* Domain request thông thường chỉ chạy một pipeline Agent; lỗi phụ thuộc map không còn làm hỏng câu trả lời đã grounded. Không tuyên bố phần trăm giảm latency nếu chưa có benchmark production trước/sau.
 
 2. **Đo latency trước khi quyết định SSE**
    - *Giải pháp:* Dùng metrics hiện có để đo P50/P95/P99 cho `/api/v1/agent/chat`, tách thời gian Agent HTTP, backend tools và geospatial planning. Chỉ bổ sung SSE nếu có event tiến trình có ý nghĩa; không stream từng chữ giả khi response deterministic đã hoàn chỉnh.
    - *Lợi ích:* Tránh thêm protocol, reconnect và state management khi chưa có bottleneck được đo; vẫn giữ đường nâng cấp streaming nếu UX thực tế cần.
 
-3. **Tích hợp LangGraph Checkpointer cho Multi-turn Conversation Memory**
-   - *Giải pháp:* Sử dụng `AsyncPostgresSaver` hoặc Redis Checkpointer trong [`src/agents/graph.py`](file:///d:/Ai_Thuc_Chien/P-074/src/agents/graph.py) để lưu trữ `AgentState` theo `thread_id`.
-   - *Lợi ích:* Cho phép người dùng hỏi tiếp các câu phụ thuộc ngữ cảnh (*"Còn khu San Hô thì sao?", "Chiều nay ở đó có mưa không?"*) một cách tự nhiên mà không bị mất bối cảnh.
+3. **Hội thoại đa lượt có kiểm soát — đã hoàn thành trong PR2**
+   - *Giải pháp đã áp dụng:* Backend system-of-record lưu semantic context tối thiểu theo `conversation_id`; Agent chỉ nhận station/intent đã allowlist và luôn gọi lại tool cho dữ liệu môi trường. Không dùng `AsyncPostgresSaver` trực tiếp trong Agent vì ranh giới kiến trúc cấm Agent truy cập PostgreSQL.
+   - *Kết quả:* Các câu nối tiếp có antecedent rõ ràng được resolve qua memory; conversation hết hạn, khác owner hoặc thiếu context đều fail/clarify an toàn. PR2 chưa lưu transcript đầy đủ và không tuyên bố đó là chat-history feature.
 
 4. **Giữ forecast contract thống nhất và kiểm thử spike**
    - *Giải pháp:* Giữ API/Agent ở baseline 1–3h, fail-closed khi thiếu history/source/timestamp, và duy trì regression case cho spike 40 → 190 µg/m³. Spatial heuristic phải có provenance riêng và không được tự nhận là Prophet.

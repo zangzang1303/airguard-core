@@ -37,6 +37,7 @@ services:
         -f /migrations/20260823_004_fix_vietnamese_demo_user_names.sql
         -f /migrations/20260824_005_add_demo_station_devices.sql
         -f /migrations/20260824_005_seed_demo_health_group_residents.sql
+        -f /migrations/20260827_006_agent_conversation_memory.sql
     depends_on:
       postgres:
         condition: service_healthy
@@ -105,6 +106,7 @@ services:
       JOB_PERSISTENCE_ENABLED: "true"
       AGENT_SERVICE_URL: http://agent:8001
       AGENT_SERVICE_TIMEOUT_SECONDS: 8
+      AGENT_CONVERSATION_TTL_SECONDS: ${AGENT_CONVERSATION_TTL_SECONDS:-86400}
       AUTO_PROPOSAL_ENABLED: ${AUTO_PROPOSAL_ENABLED:-true}
       RESIDENT_ALERT_NOTIFICATIONS_ENABLED: ${RESIDENT_ALERT_NOTIFICATIONS_ENABLED:-false}
       RESIDENT_ALERT_NOTIFICATION_COOLDOWN_SECONDS: ${RESIDENT_ALERT_NOTIFICATION_COOLDOWN_SECONDS:-3600}

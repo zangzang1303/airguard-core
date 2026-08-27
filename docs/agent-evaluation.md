@@ -40,6 +40,8 @@ The AI-002 release gate covers:
   requests are refused without calling a forecast tool;
 - simulator/fixture transparency for current, history, compare, weather, forecast and alert answers;
 - clarification for missing station context;
+- multi-turn follow-up resolution from backend-validated semantic memory, with fresh tool calls,
+  owner isolation, expiry and no-memory clarification;
 - bounded social conversation for greeting, acknowledgement, wellbeing, capability and farewell;
 - unknown short messages must clarify instead of falling through to environmental recommendation;
 - social responses must short-circuit deterministically before LLM/tool/profile/geospatial access and have no tool arguments, sources, proposals or map actions;
@@ -231,3 +233,14 @@ but the production rollout remains blocked because concurrency 2+ breaches the d
 > Historical pre-P0 note: the former explanation deadline and live-provider release gate were
 > removed from production chat. The only optional provider path is semantic routing, which uses its
 > own bounded deadline and zero application-level retries.
+
+## Map presentation regression cases
+
+- Ask `Gợi ý cung đường chạy bộ ít ô nhiễm nhất`. A successful grounded spatial answer keeps
+  canonical `intent=spatial`, exposes a route or indoor `map_intent`, and produces declarative map
+  actions. Route geometry must be visible after the chat response.
+- Ask `So sánh S01 và S02 hiện tại`. A successful grounded comparison keeps
+  canonical `intent=compare`, exposes `map_intent=compare_stations`, highlights exactly S01 and
+  S02, and fits both markers in view.
+- Remove either station's same-request comparison source. The comparison text may remain, but map
+  projection must fail closed with no station actions.

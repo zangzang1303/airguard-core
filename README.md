@@ -16,7 +16,7 @@ AirGuard AI là MVP giám sát chất lượng môi trường tại Vinhomes Oce
 | Dự báo 1–3 giờ | Damped linear trend từ tối thiểu 3 điểm fresh; hỗ trợ AQI, PM2.5, CO₂, tiếng ồn, nhiệt độ |
 | Cảnh báo | Rule Engine deterministic cho 5 chỉ số và sensor offline |
 | Khuyến nghị | Rule-owned recommendation trong alert; Agent recommendation theo profile và evidence cùng request |
-| AI Agent | Conversation gate + LangGraph/tool calling; xã giao có kiểm soát, grounded answer và deterministic fallback khi không có provider key |
+| AI Agent | Conversation gate + LangGraph/tool calling; backend-owned semantic memory có TTL cho follow-up, grounded answer và deterministic fallback khi không có provider key |
 | HITL | Proposal bắt đầu `pending`; chỉ Manager approve/reject; có audit và device simulator |
 | Notification | Resend Email API khi cấu hình; proposal báo Manager/Admin và environmental alert báo cư dân theo nhóm hồ sơ; mặc định provider `disabled` |
 | Prophet/LSTM | Chưa triển khai |
@@ -276,6 +276,7 @@ Luồng trả lời:
 5. Quality gate loại dữ liệu missing/stale/offline/invalid; response composer tạo câu trả lời grounded.
 6. Production answer generation thuộc deterministic composer. Provider chỉ có thể được dùng một lần cho semantic-router fallback; output đó chỉ định tuyến và không tạo facts hay answer text.
 7. Trace ghi `generation_mode=deterministic_grounded` cho answer deterministic; `llm_call_count` là logical model invocation, không phải số HTTP/provider attempt. Xã giao có thêm `conversation_kind`.
+8. `conversation_id` liên kết các lượt; backend chỉ lưu station/intent đã validate và mỗi follow-up vẫn gọi tool mới thay vì dùng số liệu cũ làm evidence.
 
 ## Sample queries
 
@@ -480,6 +481,7 @@ Runtime entry points:
 - [Demo runbook](docs/demo-runbook.md).
 - [ADR forecast](adrs/0007-short-term-trend-forecast.md).
 - [ADR multi-metric alerts](adrs/0009-multi-metric-environmental-alerts.md).
+- [ADR conversation memory](adrs/0020-backend-owned-semantic-conversation-memory.md).
 
 ## Known limitations
 

@@ -11,6 +11,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from src.agents.policies.grounding import (
     Intent,
     RouteDecision,
+    _conversation_station_ids,
+    _is_memory_follow_up,
+    _plain,
     _stations,
 )
 from src.agents.tools.contracts import ToolName
@@ -58,7 +61,7 @@ class SemanticRoute(BaseModel):
         return normalized
 
     @model_validator(mode="after")
-    def fields_match_intent(self) -> "SemanticRoute":
+    def fields_match_intent(self) -> SemanticRoute:
         if self.intent == "forecast" and self.hours is None:
             raise ValueError("forecast requires hours")
         if self.intent in {"forecast", "recommendation"} and self.hours is not None and self.hours > 3:
@@ -131,6 +134,7 @@ async def classify_semantically(
     *,
     user_id: str | None = None,
     context_station_id: str | None = None,
+    conversation_context: dict[str, Any] | None = None,
     settings: Any | None = None,
     telemetry: dict[str, Any] | None = None,
 ) -> RouteDecision | None:
@@ -173,8 +177,17 @@ async def classify_semantically(
         deadline = float(getattr(settings, "semantic_router_deadline_seconds", 2.0))
         observation["llm_call_count"] = 1
         started = perf_counter()
+        memory_stations = _conversation_station_ids(conversation_context)
+        semantic_input = query
+        if _is_memory_follow_up(_plain(query), memory_stations):
+            last_intent = str((conversation_context or {}).get("last_intent") or "none")
+            semantic_input += (
+                "\nBackend-validated conversation station ids: "
+                + ", ".join(memory_stations)
+                + f". Previous intent: {last_intent}."
+            )
         reply = await asyncio.wait_for(
-            llm.ainvoke(SEMANTIC_ROUTER_PROMPT + query),
+            llm.ainvoke(SEMANTIC_ROUTER_PROMPT + semantic_input),
             timeout=deadline,
         )
         usage = getattr(reply, "usage_metadata", None) or {}
@@ -218,6 +231,7 @@ async def classify_semantically(
         query,
         user_id=user_id,
         context_station_id=context_station_id,
+        conversation_context=conversation_context,
     )
     if decision is not None:
         decision.routing_mode = "semantic"
@@ -234,6 +248,7 @@ def _route_from_proposal(
     *,
     user_id: str | None = None,
     context_station_id: str | None = None,
+    conversation_context: dict[str, Any] | None = None,
 ) -> RouteDecision | None:
     explicit_stations = _stations(query)
     if re.search(r"\bS\d{2}\b", query.upper()) and not explicit_stations:
@@ -246,6 +261,10 @@ def _route_from_proposal(
     allowed_request_stations = set(explicit_stations)
     if not explicit_stations and validated_context:
         allowed_request_stations.add(validated_context)
+    memory_stations = _conversation_station_ids(conversation_context)
+    memory_follow_up = _is_memory_follow_up(_plain(query), memory_stations)
+    if memory_follow_up:
+        allowed_request_stations.update(memory_stations)
     proposed_stations = proposal.station_ids
     all_station_compare = (
         proposal.intent == "compare"
@@ -260,7 +279,12 @@ def _route_from_proposal(
         return None
     if proposed_stations and not all_station_compare and not set(proposed_stations).issubset(allowed_request_stations):
         return None
-    stations = proposed_stations or explicit_stations or ([validated_context] if validated_context else [])
+    stations = (
+        proposed_stations
+        or explicit_stations
+        or (memory_stations if memory_follow_up else [])
+        or ([validated_context] if validated_context else [])
+    )
     if proposal.intent in {"clarification", "out_of_scope"}:
         return None
     if proposal.intent == "current":

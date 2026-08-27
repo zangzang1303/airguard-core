@@ -23,6 +23,7 @@ async def route_node(state: AgentState) -> dict[str, Any]:
         state.get("query", ""),
         context_station_id=state.get("context_station_id"),
         user_id=state.get("user_id"),
+        conversation_context=state.get("conversation_context"),
     )
     # Semantic routing is a bounded fallback for genuinely unclear requests.
     # Safety/social decisions never reach the provider. The semantic router
@@ -37,6 +38,7 @@ async def route_node(state: AgentState) -> dict[str, Any]:
             state.get("query", ""),
             user_id=state.get("user_id"),
             context_station_id=state.get("context_station_id"),
+            conversation_context=state.get("conversation_context"),
             settings=get_settings(),
             telemetry=llm_observation,
         )
@@ -373,6 +375,11 @@ def trace_node(state: AgentState) -> dict[str, Any]:
         "latency_ms": round((perf_counter() - state["started_at"]) * 1000, 3),
         **state.get("generation", {"generation_mode": "deterministic_grounded"}),
     }
+    conversation_context = state.get("conversation_context")
+    conversation_context = conversation_context if isinstance(conversation_context, dict) else {}
+    memory_stations = conversation_context.get("station_ids")
+    trace["memory_context_used"] = bool(memory_stations)
+    trace["memory_turn_count"] = int(conversation_context.get("turn_count") or 0)
     if decision.intent == Intent.RECOMMENDATION:
         trace["recommendation_policy_version"] = RECOMMENDATION_POLICY_VERSION
     if decision.intent == Intent.IMPACT:

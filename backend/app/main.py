@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
-from uuid import NAMESPACE_URL, uuid4, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, Header, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -29,6 +29,7 @@ from .services.approval_service import ApprovalService, configure_default_servic
 from .services.audit_service import AuditService
 from .services.auth_service import AuthService
 from .services.automatic_proposal_service import AutomaticProposalService
+from .services.conversation_memory_service import ConversationMemoryService
 from .services.conversational_agent_service import conversational_agent
 from .services.csrf_service import (
     CSRF_COOKIE_NAME,
@@ -81,6 +82,10 @@ class AgentChatRequest(BaseModel):
         examples=["Hien tai co nen chay bo o cong vien khong?"],
     )
     station_id: str | None = Field(default=None, pattern=r"^S0[1-5]$", examples=["S05"])
+    conversation_id: UUID | None = Field(
+        default=None,
+        description="Opaque conversation identifier used for backend-owned semantic memory",
+    )
     map_context: dict[str, Any] | None = Field(default=None, description="Current map view state, selected POI, and user location")
 
 
@@ -336,6 +341,10 @@ configure_default_service(approval_service)
 agent_service = AgentService(
     settings.agent_service_url,
     timeout_seconds=settings.agent_service_timeout_seconds,
+)
+conversation_memory_service = ConversationMemoryService(
+    db,
+    ttl_seconds=settings.agent_conversation_ttl_seconds,
 )
 automatic_proposal_service = AutomaticProposalService(
     agent_service=agent_service,
@@ -982,6 +991,7 @@ async def agent_chat(
     # An authenticated browser cannot impersonate another profile by editing the
     # client payload. Public Demo Day visitors retain the explicit demo profile.
     effective_user_id = str(current_user.get("user_id") or body.user_id) if current_user else body.user_id
+    conversation_id = str(body.conversation_id or uuid4())
     try:
         conversation = conversational_agent.classify(
             body.message,
@@ -991,62 +1001,29 @@ async def agent_chat(
         if conversation.intent in {"greeting", "social"}:
             # Social replies are deliberately local and deterministic: they do
             # not need telemetry, map planning, or an LLM-mediated Agent call.
-            return conversational_agent.deterministic_response(conversation, request_id=req_id)
+            response = conversational_agent.deterministic_response(conversation, request_id=req_id)
+            response["conversation_id"] = conversation_id
+            return response
         # Phase 2: unclear non-social messages continue to the isolated Agent,
         # where the bounded semantic router may propose a schema-validated
         # intent. Invalid/low-confidence/provider-failure results still fall
         # back to the Agent's deterministic clarification without tool calls.
 
-        # The public map's stable alias resolves to the seeded resident profile;
-        # all profile fields still come from PostgreSQL rather than client input.
-        profile_user_id = (
-            "00000000-0000-0000-0000-000000000101"
-            if effective_user_id == "demo-user"
-            else effective_user_id
+        memory = conversation_memory_service.start_or_resume(
+            conversation_id=conversation_id,
+            owner_id=effective_user_id,
         )
-        try:
-            profile = user_service.get_profile(profile_user_id)
-        except ServiceError:
-            raise
-        except Exception as exc:
-            raise ServiceError(
-                "user_profile_unavailable",
-                "The user profile required for personalized analysis is unavailable",
-                503,
-                {"user_id": effective_user_id},
-            ) from exc
-        user_group = profile.get("sensitivity_group")
-        if not user_group:
-            raise ServiceError(
-                "user_profile_incomplete",
-                "A sensitivity group is required for personalized analysis",
-                422,
-                {"user_id": effective_user_id},
-            )
-
-        snapshots = {
-            station["station_id"]: station
-            for station in station_service.list_stations(allow_fallback=False)
-        }
-        time_context = temporal_resolver.resolve(body.message.lower().strip())
-        histories: dict[str, list[dict[str, Any]]] = {}
-        if time_context["is_forecast"]:
-            for station_id, snapshot in snapshots.items():
-                if snapshot.get("status") != "online" or snapshot.get("freshness") != "fresh":
-                    continue
-                try:
-                    histories[station_id] = station_service.get_forecast_history(station_id)
-                except ServiceError as exc:
-                    if exc.code != "insufficient_forecast_history":
-                        raise
+        conversation_id = memory["conversation_id"]
+        conversation_context = memory["context"]
 
         effective_station_id = body.station_id
         if not effective_station_id and body.map_context:
             candidate_station_id = body.map_context.get("selected_sensor")
-            # UI context is only a routing hint after backend validation; an
-            # arbitrary client-provided station must never become an implicit
-            # default or bypass the station registry.
-            if candidate_station_id in snapshots:
+            # UI context is only a typed routing hint. The Agent's backend tool
+            # validates station availability/freshness before using any fact.
+            if isinstance(candidate_station_id, str) and re.fullmatch(
+                r"S0[1-5]", candidate_station_id
+            ):
                 effective_station_id = candidate_station_id
 
         agent_result = await agent_service.chat(
@@ -1054,124 +1031,226 @@ async def agent_chat(
             user_id=effective_user_id,
             station_id=effective_station_id,
             request_id=req_id,
+            conversation_context=conversation_context,
         )
-        result = geospatial_agent.process_query(
-            message=body.message,
-            user_id=effective_user_id,
-            station_id=effective_station_id,
-            map_context=body.map_context,
-            request_id=req_id,
-            user_group=user_group,
-            station_snapshots=snapshots,
-            station_histories=histories,
-        )
-        # The Agent graph is the authority for the answer, tool trace and source
-        # list. The deterministic geospatial service contributes UI map actions,
-        # structured route geometry, and fallback for map-grounded intents.
-        agent_sources = agent_result.get("sources")
-        canonical_intent = agent_result.get("intent") or agent_result.get("trace", {}).get("intent", "domain")
-        canonical_kind = agent_result.get("conversation_kind") or agent_result.get("trace", {}).get(
-            "conversation_kind"
-        )
-        canonical_arguments = agent_result.get("tool_arguments", [])
-        agent_outcome = agent_result.get("outcome") or agent_result.get("trace", {}).get("final_outcome")
-        # The isolated Agent remains authoritative for refusals, clarification,
-        # and fail-closed outcomes. Geospatial planning must never replace an
-        # insufficient-data answer with a snapshot assembled outside this
-        # request's tool evidence.
-        if agent_outcome in {"insufficient_data", "clarification", "refused", "direct_response"}:
-            return {
-                "answer": {
-                    "summary": agent_result.get("answer_summary") or agent_result["answer"],
-                    "details": agent_result.get("answer_details") or "",
-                },
-                "response": agent_result["answer"],
-                "intent": canonical_intent,
-                "conversation_kind": canonical_kind,
-                "evidence": [],
-                "sources": agent_sources if isinstance(agent_sources, list) else [],
-                "map_actions": [],
-                "used_tools": agent_result.get("used_tools", []),
-                "tool_arguments": canonical_arguments,
-                "proposal_id": agent_result.get("proposal_id"),
-                "request_id": req_id,
-                "trace": agent_result.get("trace", {}),
-                "data_mode": agent_result.get("data_mode"),
-                "quality": agent_result.get("quality"),
-                "failure_reason": agent_result.get("failure_reason"),
-                "clarification": agent_result.get("clarification"),
-                "pending": agent_result.get("pending", False),
-            }
-        if not isinstance(agent_sources, list) or not agent_sources:
-            if result.get("intent") in {
-                "get_location_environment",
-                "get_noise_metric",
-                "get_temperature_metric",
-                "find_worst_location",
-                "compare_locations",
-                "recommend_running_route",
-                "recommend_personalized_running_route",
-                "recommend_indoor_activity",
-                "recommend_outdoor_location",
-                "unsupported_precipitation_weather",
-                "unknown_location",
-            }:
-                return result
-            return {
-                "answer": {
-                    "summary": agent_result.get("answer_summary") or agent_result["answer"],
-                    "details": agent_result.get("answer_details") or "",
-                },
-                "response": agent_result["answer"],
-                "intent": canonical_intent,
-                "conversation_kind": canonical_kind,
-                "evidence": [],
-                "sources": [],
-                "map_actions": [],
-                "used_tools": agent_result.get("used_tools", []),
-                "tool_arguments": canonical_arguments,
-                "proposal_id": agent_result.get("proposal_id"),
-                "request_id": req_id,
-                "trace": agent_result.get("trace", {}),
-            }
-
-        evidence_source = "simulator_history_spatial_fourier_v2" if time_context["is_forecast"] else None
-        for evidence_item in result.get("evidence", []):
-            evidence_station_id = evidence_item.get("station_id")
-            evidence_snapshot = snapshots.get(evidence_station_id)
-            if not evidence_snapshot:
-                continue
-            evidence_item["source"] = evidence_source or evidence_snapshot.get("source")
-            evidence_item["observed_at"] = evidence_snapshot.get("updated_at")
-            evidence_item["timestamp"] = (
-                time_context.get("target_datetime")
-                if time_context["is_forecast"]
-                else evidence_snapshot.get("updated_at")
+        memory_trace: dict[str, Any]
+        try:
+            persisted_context = conversation_memory_service.record_agent_result(
+                conversation_id=conversation_id,
+                owner_id=effective_user_id,
+                previous_context=conversation_context,
+                agent_result=agent_result,
             )
-        map_intent = result.get("intent")
-        result["answer"] = {
-            "summary": agent_result.get("answer_summary") or agent_result["answer"],
-            "details": agent_result.get("answer_details") or "",
+            memory_trace = {
+                "memory_persisted": True,
+                "memory_turn_count": persisted_context["turn_count"],
+            }
+        except ServiceError as exc:
+            # A memory write failure must not discard an answer already grounded
+            # by current-request tools. The bounded trace exposes the loss.
+            memory_trace = {
+                "memory_persisted": False,
+                "memory_failure_reason": exc.code,
+            }
+        except Exception:
+            memory_trace = {
+                "memory_persisted": False,
+                "memory_failure_reason": "conversation_memory_write_failed",
+            }
+        trace = agent_result.get("trace")
+        trace = dict(trace) if isinstance(trace, dict) else {}
+        trace = {
+            **trace,
+            **memory_trace,
+            "memory_context_used": bool(conversation_context.get("station_ids")),
         }
-        result["response"] = agent_result["answer"]
-        result["intent"] = canonical_intent
-        result["conversation_kind"] = canonical_kind
-        result["used_tools"] = agent_result.get("used_tools", [])
-        result["tool_arguments"] = canonical_arguments
-        result["sources"] = agent_sources
-        result["proposal_id"] = agent_result.get("proposal_id")
-        result["data_mode"] = agent_result.get("data_mode", result.get("data_mode"))
-        result["quality"] = agent_result.get("quality", result.get("quality"))
-        result["failure_reason"] = agent_result.get("failure_reason")
-        result["clarification"] = agent_result.get("clarification")
-        result["pending"] = agent_result.get("pending", False)
-        result["trace"] = {
-            **agent_result.get("trace", {}),
-            "map_planner": "deterministic_grounded_geospatial",
-            "map_intent": map_intent,
-            "data_mode": result.get("data_mode"),
+        canonical_intent = agent_result.get("intent") or trace.get("intent", "domain")
+        canonical_kind = agent_result.get("conversation_kind") or trace.get("conversation_kind")
+        agent_outcome = agent_result.get("outcome") or trace.get("final_outcome") or "unknown"
+        agent_sources = agent_result.get("sources")
+        agent_sources = agent_sources if isinstance(agent_sources, list) else []
+        used_tools = agent_result.get("used_tools")
+        used_tools = used_tools if isinstance(used_tools, list) else []
+
+        map_actions: list[dict[str, Any]] = []
+        planner_fields: dict[str, Any] = {}
+        planner_trace = {
+            "map_planner_status": "skipped",
+            "map_planner_reason": "non_spatial_intent",
         }
-        return result
+        terminal_outcomes = {
+            "insufficient_data",
+            "clarification",
+            "refused",
+            "direct_response",
+        }
+        has_spatial_source = (
+            "get_spatial_air_quality" in used_tools
+            and any(
+                isinstance(source, dict)
+                and source.get("tool_name") == "get_spatial_air_quality"
+                and isinstance(source.get("source"), str)
+                and bool(source["source"].strip())
+                for source in agent_sources
+            )
+        )
+
+        if agent_outcome in terminal_outcomes:
+            planner_trace["map_planner_reason"] = f"agent_{agent_outcome}"
+        elif canonical_intent == "spatial" and not has_spatial_source:
+            planner_trace["map_planner_reason"] = "missing_validated_spatial_source"
+        elif canonical_intent == "spatial":
+            # Planner dependencies are intentionally lazy. A normal domain
+            # answer no longer reads profiles, all stations, or forecast history.
+            try:
+                profile_user_id = (
+                    "00000000-0000-0000-0000-000000000101"
+                    if effective_user_id == "demo-user"
+                    else effective_user_id
+                )
+                profile = user_service.get_profile(profile_user_id)
+                user_group = profile.get("sensitivity_group")
+                if not user_group:
+                    raise ServiceError(
+                        "user_profile_incomplete",
+                        "A sensitivity group is required for map planning",
+                        422,
+                    )
+
+                snapshots = {
+                    station["station_id"]: station
+                    for station in station_service.list_stations(allow_fallback=False)
+                }
+                time_context = temporal_resolver.resolve(body.message.lower().strip())
+                histories: dict[str, list[dict[str, Any]]] = {}
+                if time_context["is_forecast"]:
+                    for station_id, snapshot in snapshots.items():
+                        if (
+                            snapshot.get("status") != "online"
+                            or snapshot.get("freshness") != "fresh"
+                        ):
+                            continue
+                        try:
+                            histories[station_id] = station_service.get_forecast_history(
+                                station_id
+                            )
+                        except ServiceError as exc:
+                            if exc.code != "insufficient_forecast_history":
+                                raise
+
+                planned = geospatial_agent.plan_map_actions(
+                    authoritative_agent_result=agent_result,
+                    message=body.message,
+                    user_id=effective_user_id,
+                    station_id=effective_station_id,
+                    map_context=body.map_context,
+                    request_id=req_id,
+                    user_group=user_group,
+                    station_snapshots=snapshots,
+                    station_histories=histories,
+                )
+                map_actions = planned["map_actions"]
+                planner_fields = {
+                    key: planned[key]
+                    for key in ("map_intent", "time_context", "data_mode")
+                    if planned.get(key) is not None
+                }
+                planner_trace = {
+                    "map_planner": "deterministic_grounded_geospatial",
+                    "map_planner_status": "completed",
+                    "map_planner_reason": None,
+                    "map_intent": planned.get("map_intent"),
+                }
+            except ServiceError as exc:
+                planner_trace = {
+                    "map_planner_status": "unavailable",
+                    "map_planner_reason": exc.code,
+                }
+            except Exception:
+                planner_trace = {
+                    "map_planner_status": "unavailable",
+                    "map_planner_reason": "map_planner_failed",
+                }
+        elif canonical_intent == "compare":
+            # A comparison is already answered by the canonical Agent. This
+            # projector reads only the two-to-five validated station IDs and
+            # their catalog coordinates; it cannot change answer semantics.
+            try:
+                comparison_station_ids = (
+                    geospatial_agent.validated_comparison_station_ids(agent_result)
+                )
+                station_locations = station_service.get_station_locations(
+                    comparison_station_ids
+                )
+                planned = geospatial_agent.plan_comparison_map_actions(
+                    authoritative_agent_result=agent_result,
+                    station_locations=station_locations,
+                )
+                map_actions = planned["map_actions"]
+                planner_fields = {
+                    "map_intent": planned.get("map_intent"),
+                }
+                planner_trace = {
+                    "map_planner": "validated_station_comparison_projector",
+                    "map_planner_status": "completed",
+                    "map_planner_reason": None,
+                    "map_intent": planned.get("map_intent"),
+                }
+            except ServiceError as exc:
+                planner_trace = {
+                    "map_planner_status": "unavailable",
+                    "map_planner_reason": exc.code,
+                }
+            except Exception:
+                planner_trace = {
+                    "map_planner_status": "unavailable",
+                    "map_planner_reason": "map_planner_failed",
+                }
+
+        answer = agent_result.get("answer")
+        if not isinstance(answer, str):
+            raise ServiceError(
+                "agent_schema_drift",
+                "The Agent response did not contain a textual answer",
+                503,
+            )
+        response = {
+            "answer": {
+                "summary": agent_result.get("answer_summary") or answer,
+                "details": agent_result.get("answer_details") or "",
+            },
+            "response": answer,
+            "intent": canonical_intent,
+            "conversation_kind": canonical_kind,
+            # Evidence shown by the public chat is the same canonical source
+            # list used by the isolated Agent, never the planner's local answer.
+            "evidence": agent_sources,
+            "sources": agent_sources,
+            "map_actions": map_actions,
+            "used_tools": used_tools,
+            "tool_arguments": agent_result.get("tool_arguments", []),
+            "proposal_id": agent_result.get("proposal_id"),
+            "request_id": req_id,
+            "conversation_id": conversation_id,
+            "trace": {**trace, **planner_trace},
+            "outcome": agent_outcome,
+            "data_mode": agent_result.get("data_mode") or planner_fields.get("data_mode"),
+            "quality": agent_result.get("quality"),
+            "failure_reason": agent_result.get("failure_reason"),
+            "clarification": agent_result.get("clarification"),
+            "pending": agent_result.get("pending", False),
+            "recommendation_policy_version": agent_result.get(
+                "recommendation_policy_version"
+            ),
+            "impact_policy_version": agent_result.get("impact_policy_version"),
+            "refusal_category": agent_result.get("refusal_category"),
+            "reason_code": agent_result.get("reason_code"),
+        }
+        if planner_fields.get("time_context") is not None:
+            response["time_context"] = planner_fields["time_context"]
+        if planner_fields.get("map_intent") is not None:
+            response["map_intent"] = planner_fields["map_intent"]
+        return response
     except ServiceError:
         raise
     except AgentServiceError as exc:
