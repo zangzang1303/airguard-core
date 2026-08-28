@@ -799,10 +799,15 @@ export const api = {
       id: String(entry.audit_id),
       time: entry.created_at,
       actor: entry.actor_id ?? entry.actor_type,
+      actor_type: entry.actor_type,
+      actor_role: entry.actor_role,
       action: entry.action,
       target: [entry.entity_type, entry.entity_id].filter(Boolean).join(":"),
+      entity_type: entry.entity_type,
+      entity_id: entry.entity_id,
       outcome: entry.outcome,
       correlation_id: entry.correlation_id ?? "—",
+      detail: entry.details ? JSON.stringify(entry.details, null, 2) : undefined,
     }));
   },
 

@@ -429,8 +429,13 @@ export interface AuditLogEntry {
   id: string;
   time: string;
   actor: string;
+  actor_type?: string;
+  actor_role?: string;
   action: string;
   target: string;
+  entity_type?: string;
+  entity_id?: string;
+  station_id?: string;
   outcome: string;
   correlation_id: string;
   detail?: string;
