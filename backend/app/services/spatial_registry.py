@@ -1254,7 +1254,49 @@ class SpatialRegistry:
             if any(w in q_norm for w in ["the nao", "ra sao", "nhu the nao", "sao", "bao nhieu", "co tot khong", "tot khong"]):
                 return True
 
-        return False
+    INDOOR_VENUES = [
+        {
+            "id": "indoor_vincom_mega_mall",
+            "name": "Vincom Mega Mall Ocean Park (Khu đi bộ & Thể thao trong nhà)",
+            "short_name": "Vincom Mega Mall",
+            "category": "commercial_indoor",
+            "latitude": 20.9985,
+            "longitude": 105.9525,
+            "activities": ["Đi bộ trong nhà", "Mua sắm", "Thư giãn"],
+            "air_conditioning": "Hệ thống lọc khí tươi điều hòa trung tâm",
+            "description": "Trung tâm thương mại 4 tầng với không gian đi bộ rộng rãi, điều hòa lọc khí và nhiều tiện ích giải trí.",
+        },
+        {
+            "id": "indoor_sapphire_clubhouse",
+            "name": "Sapphire Club House & Phòng Gym Thể thao",
+            "short_name": "Sapphire Club House (Gym)",
+            "category": "gym_indoor",
+            "latitude": 20.9975,
+            "longitude": 105.9430,
+            "activities": ["Gym & Fitness", "Chạy máy trong nhà", "Yoga"],
+            "air_conditioning": "Điều hòa lọc bụi mịn PM2.5",
+            "description": "Phòng tập thể thao và nhà sinh hoạt cộng đồng nội khu Sapphire với trang thiết bị tập luyện hiện đại.",
+        },
+        {
+            "id": "indoor_zenpark_clubhouse",
+            "name": "The Zenpark Club House & Gym Tiêu chuẩn Nhật Bản",
+            "short_name": "Zenpark Club House (Gym)",
+            "category": "gym_indoor",
+            "latitude": 20.9940,
+            "longitude": 105.9380,
+            "activities": ["Gym & Yoga", "Bóng bàn", "Bể bơi 4 mùa"],
+            "air_conditioning": "Hệ thống điều hòa lọc khí khép kín",
+            "description": "Khu thể thao cao cấp trong nhà tại phân khu The Zenpark với bể bơi bốn mùa và phòng gym.",
+        },
+    ]
+
+    @classmethod
+    def list_indoor_venues(cls, activity_type: str | None = None) -> list[dict[str, Any]]:
+        import copy
+        res = [copy.deepcopy(v) for v in cls.INDOOR_VENUES]
+        if activity_type == "gym":
+            res = [v for v in res if "gym" in v["category"] or any("gym" in a.lower() for a in v["activities"])]
+        return res
 
 
 spatial_registry = SpatialRegistry()

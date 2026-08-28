@@ -222,11 +222,25 @@ class ConversationalAgentService:
         "nhay cam",
         "sensitive group",
         "nen lam gi",
+        "o nhiem",
+        "trong nha",
+        "indoor",
+        "gym",
+        "fitness",
+        "dap xe",
+        "xe dap",
     )
     _CONTEXT_FOLLOW_UPS = (
         "o day",
         "cho nay",
         "khu nay",
+        "o do",
+        "cho do",
+        "khu do",
+        "noi do",
+        "toi do",
+        "den do",
+        "di toi do",
         "the nao",
         "toi nay",
         "hom nay",
@@ -238,6 +252,8 @@ class ConversationalAgentService:
         "chi so bao nhieu",
         "co tot",
         "co nen",
+        "trong nha",
+        "gym",
     )
     _DISTANCE_TARGET_RE = re.compile(r"\b\d+(?:\.\d+)?\s*(?:km|cay|kilo(?:met)?)\b")
     _RUNNING_DISTANCE_CUES = (
@@ -289,9 +305,30 @@ class ConversationalAgentService:
         *,
         station_id: str | None = None,
         map_context: dict[str, Any] | None = None,
+        conversation_id: str = "",
     ) -> ConversationDecision:
         plain = cls._plain(message)
         social_plain = cls._social_plain(message)
+
+        # 0. Check dialogue state resolution (Pending actions, awaiting slots, modifications)
+        if conversation_id:
+            try:
+                from .conversation_state_manager import conversation_state_manager
+                turn_res = conversation_state_manager.resolve_conversation_turn(
+                    conversation_id, message, map_context, peek=True
+                )
+                if turn_res["resolution_type"] in {"accept_pending_action", "answer_slot", "modify", "reference"}:
+                    return ConversationDecision(intent="domain", kind=turn_res["resolution_type"], fallback_response="")
+                if turn_res["resolution_type"] == "reject_pending_action":
+                    conversation_state_manager.clear_pending_action(conversation_id)
+                    conversation_state_manager.clear_awaiting_slot(conversation_id)
+                    return ConversationDecision(
+                        intent="social.smalltalk",
+                        kind="action_cancelled",
+                        fallback_response="👌 **Đã hủy đề xuất.**\n\nNếu cần hỗ trợ thêm về chất lượng không khí, địa điểm hay lộ trình tại Ocean Park 1, bạn cứ nhắn mình nhé!",
+                    )
+            except Exception:
+                pass
 
         # 1. Explicit domain requests always win over a social prefix
         if cls._has_explicit_domain_request(plain):

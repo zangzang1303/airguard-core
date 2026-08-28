@@ -600,6 +600,7 @@ class ResponseComposer:
             "Một vài lựa chọn trong nhà:\n"
             f"- 🏋️ **Gym hoặc chạy máy:** {best_v['name']}\n"
             "- 🧘 **Yoga / giãn cơ**\n"
+            "- 🏊 **Bể bơi 4 mùa hoặc thể thao nội khu**\n"
             f"- 🛍️ **Đi bộ trong khu thương mại:** {alt_v['name']}\n"
             "- 🏠 **Tập luyện nhẹ trong nhà**"
         )
@@ -1008,6 +1009,105 @@ class ResponseComposer:
                 "Đổi điểm xuất phát",
                 "Xem dự báo tối nay",
             ],
+        }
+
+    @staticmethod
+    def compose_action_cancelled(request_id: str = "") -> dict[str, Any]:
+        """User rejects or cancels a pending dialogue offer/action."""
+        headline = "👌 **Đã hủy đề xuất.**"
+        advice = "Nếu cần hỗ trợ thêm về chất lượng không khí, địa điểm hay lộ trình tại Ocean Park 1, bạn cứ nhắn mình nhé!"
+        summary = f"{headline}\n\n{advice}"
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.reject",
+            "follow_up_actions": [
+                "Kiểm tra chất lượng không khí",
+                "Tìm đường chạy bộ",
+                "So sánh các địa điểm",
+            ],
+            "request_id": request_id,
+        }
+
+    @staticmethod
+    def compose_slot_prompt(
+        slot_name: str,
+        for_intent: str = "",
+        options: list[str] | None = None,
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Prompts the user for a specific missing slot without generic clarification."""
+        if slot_name == "distance_km":
+            headline = "🏃 **Bạn muốn chạy khoảng bao nhiêu km?**"
+            advice = "Gợi ý: bạn có thể chọn **2 km**, **3 km**, hoặc **5 km**."
+            follow_ups = ["2 km", "3 km", "5 km"]
+        elif slot_name == "origin":
+            headline = "📍 **Bạn muốn xuất phát từ vị trí nào?**"
+            advice = "Bạn có thể chọn khu vực cụ thể (như **Khu Sapphire**, **VinUni**, **Hồ Ngọc Trai**) hoặc dùng vị trí hiện tại."
+            follow_ups = ["Khu Sapphire", "VinUni", "Hồ Ngọc Trai", "Vị trí hiện tại"]
+        elif slot_name == "activity_subtype":
+            headline = "🏠 **Bạn muốn ưu tiên loại hình thể thao nào trong nhà?**"
+            advice = "Bạn có thể chọn **Phòng Gym / Fitness** hoặc **Khu đi bộ trong nhà**."
+            follow_ups = ["Phòng Gym / Fitness", "Đi bộ trong nhà", "Xem tất cả"]
+        elif slot_name == "indoor_outdoor_choice":
+            headline = "🚴 **Bạn muốn vận động ngoài trời hay trong không gian trong nhà?**"
+            advice = "Mình có thể tìm tuyến đường thoáng đãng ngoài trời hoặc gợi ý các khu tập luyện trong nhà có điều hòa lọc khí."
+            follow_ups = ["Vận động ngoài trời", "Tập trong nhà"]
+        else:
+            headline = f"📝 **Bạn muốn cung cấp thêm thông tin về {slot_name}?**"
+            advice = "Vui lòng cho mình biết để hoàn tất gợi ý phù hợp nhất."
+            follow_ups = options or []
+
+        summary = f"{headline}\n\n{advice}"
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.answer_slot",
+            "follow_up_actions": follow_ups,
+            "request_id": request_id,
+        }
+
+    @staticmethod
+    def compose_ambiguous_reference_clarification(
+        candidates: list[dict[str, Any]],
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Asks user to disambiguate between multiple referred locations."""
+        c1_name = candidates[0].get("short_name", "Địa điểm 1")
+        c2_name = candidates[1].get("short_name", "Địa điểm 2") if len(candidates) > 1 else "địa điểm khác"
+        headline = f"🤔 **Bạn muốn đi tới {c1_name} hay {c2_name}?**"
+        advice = f"Do bạn vừa đề cập đến cả **{c1_name}** và **{c2_name}**, bạn muốn mình hướng dẫn lộ trình tới địa điểm nào?"
+        summary = f"{headline}\n\n{advice}"
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.clarification",
+            "follow_up_actions": [c1_name, c2_name],
+            "request_id": request_id,
         }
 
 
