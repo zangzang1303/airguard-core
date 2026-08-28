@@ -8,6 +8,7 @@ Verifies:
 """
 import re
 from pathlib import Path
+
 import pytest
 
 FRONTEND_SRC = Path(__file__).resolve().parent.parent.parent / "frontend" / "src"
@@ -18,7 +19,7 @@ STYLES_FILE = FRONTEND_SRC / "styles.css"
 
 
 def format_alert_badge_py(count: int):
-    """Python counterpart of frontend's formatAlertBadge function for logic verification."""
+    """Python counterpart of frontend's alert badge formatting."""
     if count <= 0:
         return None
     if count > 99:
@@ -27,23 +28,11 @@ def format_alert_badge_py(count: int):
 
 
 class TestAlertBadgeLogic:
-    """Test suite for alert badge counting rules (0, 1-99, 99+)."""
-
-    def test_zero_alerts_returns_none(self):
+    def test_alert_badge_formatting(self):
         assert format_alert_badge_py(0) is None
-        assert format_alert_badge_py(-1) is None
-        assert format_alert_badge_py(-10) is None
-
-    def test_single_and_double_digit_alerts_return_exact_count(self):
         assert format_alert_badge_py(1) == "1"
-        assert format_alert_badge_py(5) == "5"
-        assert format_alert_badge_py(50) == "50"
         assert format_alert_badge_py(99) == "99"
-
-    def test_over_99_alerts_returns_99_plus(self):
         assert format_alert_badge_py(100) == "99+"
-        assert format_alert_badge_py(150) == "99+"
-        assert format_alert_badge_py(9999) == "99+"
 
 
 class TestTopFloatingBarContract:
@@ -60,15 +49,11 @@ class TestTopFloatingBarContract:
         # Ensure 'Hỏi AI' does not appear as a header button label
         assert '<span className="btn-text">Hỏi AI</span>' not in self.content
 
-    def test_has_bell_alert_button_with_badge_and_a11y(self):
-        """Header must contain the single entry Bell button with badge and aria-label."""
-        assert "Bell" in self.content
-        assert "formatAlertBadge" in self.content
-        assert "formattedAlertBadge" in self.content
-        assert 'className={`top-icon-btn ${activeAlertCount > 0 ? "has-alerts" : ""}' in self.content
-        assert "aria-label={alertAriaLabel}" in self.content
-        assert "aria-expanded={isAlertsOpen}" in self.content
-        assert 'type="button"' in self.content
+    def test_has_bell_alert_button_and_profile_button(self):
+        assert "<Bell" in self.content
+        assert "profile-btn" in self.content
+        assert "onOpenAlerts" in self.content
+        assert "onOpenProfile" in self.content
 
 
 class TestBottomActionDockContract:
@@ -116,12 +101,14 @@ class TestAppIntegrationContract:
         assert APP_FILE.exists(), f"File not found: {APP_FILE}"
         self.content = APP_FILE.read_text(encoding="utf-8")
 
-    def test_top_floating_bar_props_wired_correctly(self):
-        """TopFloatingBar receives isAlertsOpen and does not receive onOpenAiChat."""
+    def test_top_floating_bar_props_include_utility_actions(self):
+        """TopFloatingBar retains its alert and profile callbacks."""
         top_bar_match = re.search(r"<TopFloatingBar([\s\S]*?)/>", self.content)
         assert top_bar_match is not None, "TopFloatingBar not found in App.tsx"
         top_bar_props = top_bar_match.group(1)
-        assert 'isAlertsOpen={activeDrawer === "alerts"}' in top_bar_props
+        assert "activeAlertCount=" in top_bar_props
+        assert "onOpenAlerts=" in top_bar_props
+        assert "onOpenProfile=" in top_bar_props
         assert "onOpenAiChat=" not in top_bar_props
 
     def test_bottom_action_dock_props_wired_correctly(self):

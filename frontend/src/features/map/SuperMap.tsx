@@ -1,17 +1,16 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { Station } from "../../types";
+import { SpatialHeatmapResponse, Station } from "../../types";
 import { MapLayerConfig, PlacePOI } from "../../types/superApp";
-import { MAP_CENTER_OCEAN_PARK, OCEAN_PARK_1_BOUNDARY } from "./poiData";
+import { MAP_CENTER_OCEAN_PARK } from "./poiData";
 import { OceanParkBoundary } from "./OceanParkBoundary";
 import { SensorMarkers } from "./SensorMarkers";
 import { UserLocationMarker } from "./UserLocationMarker";
 import { SubZoneLabels } from "./SubZoneLabels";
-import { AqiLegend } from "./AqiLegend";
+import { AqiLegend, MapLegendVariant } from "./AqiLegend";
 import { HeatmapLayer } from "../stations/HeatmapLayer";
 import { TimelineSlider } from "../stations/TimelineSlider";
-import { MapLocationControls } from "./MapLocationControls";
 import { mapActionController } from "./MapActionController";
 import { useFloatingPanelContext, useDraggableFloatingPanel } from "../floating";
 import { Crosshair, X } from "lucide-react";
@@ -24,22 +23,20 @@ interface SuperMapProps {
   layerConfig: MapLayerConfig;
   flyToTarget: [number, number] | null;
   forecastHour?: number;
+  refreshRevision?: number;
   userCoords?: [number, number];
   userLocationAccuracy?: number | null;
   userLocationName?: string;
   userLocationSource?: "gps" | "search" | "manual_click" | "default";
-  isLocating?: boolean;
   isPickingOnMap?: boolean;
   onForecastHourChange?: (hours: number) => void;
   onSelectStation: (stationId: string) => void;
   onSelectPoi: (poi: PlacePOI) => void;
   onOpenNearMe: () => void;
-  onLocateGps?: () => void;
-  onTogglePickOnMap?: () => void;
   onCancelPicking?: () => void;
   onMapClickLocation?: (coords: [number, number]) => void;
   onUserLocationChange?: (coords: [number, number], source: "manual_click") => void;
-  onResetDefaultLocation?: () => void;
+  onToggleMapLegend?: () => void;
 }
 
 // Controller component to bind Leaflet map to MapActionController & FloatingPanelProvider
@@ -77,43 +74,7 @@ const MapCameraController: React.FC<{
   return null;
 };
 
-const DraggableLegendOverlay: React.FC<{ metric?: any }> = ({ metric }) => {
-  const { containerProps, handleProps } = useDraggableFloatingPanel({
-    panelId: "map-legend",
-    group: "widget",
-  });
-
-  return (
-    <div {...containerProps} className="map-legend-overlay">
-      <AqiLegend showStationStatus={true} metric={metric} headerProps={handleProps} />
-    </div>
-  );
-};
-
-const DraggableTimelineDock: React.FC<{
-  forecastHour: number;
-  onForecastHourChange: (hours: number) => void;
-}> = ({ forecastHour, onForecastHourChange }) => {
-  const { containerProps, handleProps } = useDraggableFloatingPanel({
-    panelId: "timeline",
-    group: "widget",
-  });
-
-  return (
-    <div {...containerProps} className="map-timeline-floating-dock">
-      <div className="no-drag" data-no-drag="true" style={{ width: "100%" }}>
-        <TimelineSlider
-          value={forecastHour}
-          onChange={onForecastHourChange}
-          label="Thanh trượt dự báo lan truyền"
-          titleProps={handleProps}
-        />
-      </div>
-    </div>
-  );
-};
-
-// Click handler for picking location on map
+// Click handler on map
 const MapClickHandler: React.FC<{
   isPickingOnMap: boolean;
   onMapClickLocation?: (coords: [number, number]) => void;
@@ -125,7 +86,72 @@ const MapClickHandler: React.FC<{
       }
     },
   });
+
   return null;
+};
+
+const DraggableLegendOverlay: React.FC<{
+  variant?: MapLegendVariant;
+  metric?: any;
+  forecastHour?: number;
+  dispersionData?: SpatialHeatmapResponse | null;
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+  onCloseLegend?: () => void;
+}> = ({
+  variant = "stations",
+  metric,
+  forecastHour = 0,
+  dispersionData,
+  loading,
+  error,
+  onRetry,
+  onCloseLegend,
+}) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "map-legend",
+    group: "widget",
+  });
+
+  return (
+    <div {...containerProps} className="map-legend-overlay">
+      <AqiLegend
+        variant={variant}
+        showStationStatus={true}
+        metric={metric}
+        forecastHour={forecastHour}
+        dispersionData={dispersionData}
+        loading={loading}
+        error={error}
+        onRetry={onRetry}
+        headerProps={handleProps}
+        onClose={onCloseLegend}
+      />
+    </div>
+  );
+};
+
+const DraggableTimelineDock: React.FC<{
+  forecastHour: number;
+  onForecastHourChange: (hours: number) => void;
+}> = ({ forecastHour, onForecastHourChange }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "timeline",
+    group: "widget",
+    baseTransform: "translateX(-50%)",
+  });
+
+  return (
+    <div {...containerProps} className="map-timeline-floating-dock">
+      <TimelineSlider
+        value={forecastHour}
+        onChange={onForecastHourChange}
+        label="Thanh trượt dự báo lan truyền"
+        titleProps={handleProps}
+      />
+    </div>
+  );
 };
 
 export const SuperMap: React.FC<SuperMapProps> = ({
@@ -136,24 +162,36 @@ export const SuperMap: React.FC<SuperMapProps> = ({
   layerConfig,
   flyToTarget,
   forecastHour = 0,
+  refreshRevision = 0,
   userCoords,
   userLocationAccuracy,
   userLocationName,
   userLocationSource = "default",
-  isLocating = false,
   isPickingOnMap = false,
   onForecastHourChange,
   onSelectStation,
   onSelectPoi,
   onOpenNearMe,
-  onLocateGps,
-  onTogglePickOnMap,
   onCancelPicking,
   onMapClickLocation,
   onUserLocationChange,
-  onResetDefaultLocation,
+  onToggleMapLegend,
 }) => {
   const viewMode = layerConfig.viewMode ?? (layerConfig.showHeatmap ? "heatmap" : "markers");
+
+  const [dispersionData, setDispersionData] = useState<SpatialHeatmapResponse | null>(null);
+  const [dispersionLoading, setDispersionLoading] = useState(false);
+  const [dispersionError, setDispersionError] = useState<string | null>(null);
+  const heatmapRetryRef = useRef<(() => void) | null>(null);
+
+  const handleHeatmapDataChange = useCallback(
+    (data: SpatialHeatmapResponse | null, loading: boolean, error: string | null) => {
+      setDispersionData(data);
+      setDispersionLoading(loading);
+      setDispersionError(error);
+    },
+    []
+  );
 
   return (
     <div className={`super-map-wrapper ${isPickingOnMap ? "is-picking-mode" : ""}`}>
@@ -191,6 +229,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
         style={{ width: "100%", height: "100%" }}
       >
         <MapActionBinder />
+        <MapCameraController flyToTarget={flyToTarget} />
         <MapClickHandler
           isPickingOnMap={isPickingOnMap}
           onMapClickLocation={onMapClickLocation}
@@ -209,7 +248,9 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           forecastHour={forecastHour}
           viewMode={viewMode}
           showHeatmap={layerConfig.showHeatmap}
-          showMetadata={layerConfig.showDispersionInfo}
+          refreshRevision={refreshRevision}
+          onDataChange={handleHeatmapDataChange}
+          onRetryRef={heatmapRetryRef}
         />
 
         {/* Ocean Park 1 Boundary Polygon */}
@@ -245,24 +286,22 @@ export const SuperMap: React.FC<SuperMapProps> = ({
         />
       </MapContainer>
 
-      {/* Floating Map Location Controls (GPS Locate + Pick on Map + Reset) */}
-      {onLocateGps && onTogglePickOnMap && (
-        <MapLocationControls
-          isLocating={isLocating}
-          isPickingOnMap={isPickingOnMap}
-          onLocateGps={onLocateGps}
-          onTogglePickOnMap={onTogglePickOnMap}
-          onResetDefaultLocation={onResetDefaultLocation}
+      {/* Unified Context-Aware Map Legend Overlay */}
+      {(layerConfig.showMapLegend ?? true) && (
+        <DraggableLegendOverlay
+          variant={viewMode === "heatmap" ? "dispersion" : "stations"}
+          metric={layerConfig.activeEnvironmentalLayer}
+          forecastHour={forecastHour}
+          dispersionData={dispersionData}
+          loading={dispersionLoading}
+          error={dispersionError}
+          onRetry={() => heatmapRetryRef.current?.()}
+          onCloseLegend={onToggleMapLegend}
         />
       )}
 
-      {/* Accessible Map Legend Overlay (Bottom Right — Only in markers view mode when heatmap is NOT active) */}
-      {(
-        <DraggableLegendOverlay metric={layerConfig.activeEnvironmentalLayer} />
-      )}
-
       {/* Floating Map Forecast Timeline Control Dock (Bottom Center) */}
-      {onForecastHourChange && viewMode === "heatmap" && (
+      {onForecastHourChange && viewMode === "heatmap" && (layerConfig.showForecastTimeline ?? true) && (
         <DraggableTimelineDock
           forecastHour={forecastHour}
           onForecastHourChange={onForecastHourChange}

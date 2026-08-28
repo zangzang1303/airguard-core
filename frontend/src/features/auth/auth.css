@@ -30,6 +30,11 @@
   position: relative;
 }
 
+.auth-unified-container--register {
+  max-width: 880px;
+  min-height: 640px;
+}
+
 /* Standalone Auth Card (for Register, Verify, Forgot, Reset) */
 .auth-card--standalone {
   width: 100%;
@@ -49,6 +54,16 @@
   flex-direction: column;
   justify-content: center;
   box-sizing: border-box;
+}
+
+.auth-column-main--register {
+  justify-content: flex-start;
+}
+
+.auth-registration-content {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
 }
 
 /* Right Column: Demo Roles / System Highlights */
@@ -232,6 +247,21 @@
   text-decoration: underline;
 }
 
+.auth-link-btn:focus-visible,
+.auth-password-toggle:focus-visible {
+  outline: 2px solid #19A87B;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.auth-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin: 0 0 16px;
+}
+
 .auth-input-wrap {
   display: flex;
   align-items: center;
@@ -261,6 +291,25 @@
   outline: none;
   font-size: 0.86rem;
   color: #0f172a;
+}
+
+.auth-select {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.auth-input-wrap input:disabled,
+.auth-select:disabled {
+  color: #64748b;
+  cursor: not-allowed;
 }
 
 .auth-password-toggle {
@@ -584,6 +633,10 @@
     max-width: 440px;
     min-height: auto;
     border-radius: 16px;
+  }
+
+  .auth-unified-container--register {
+    min-height: auto;
   }
 
   .auth-column-main {

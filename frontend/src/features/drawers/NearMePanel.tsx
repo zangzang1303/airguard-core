@@ -10,6 +10,7 @@ interface NearMePanelProps {
   userLocationAccuracy?: number | null;
   stations: Station[];
   isLocating?: boolean;
+  isPickingOnMap?: boolean;
   onClose: () => void;
   onOpenAiChat: () => void;
   onLocateGps?: () => void;
@@ -24,6 +25,7 @@ export const NearMePanel: React.FC<NearMePanelProps> = ({
   userLocationAccuracy,
   stations,
   isLocating = false,
+  isPickingOnMap = false,
   onClose,
   onOpenAiChat,
   onLocateGps,
@@ -70,15 +72,17 @@ export const NearMePanel: React.FC<NearMePanelProps> = ({
   };
 
   return (
-    <div className="floating-bottom-sheet near-me-sheet">
-      {/* Header */}
+    <div className={`floating-bottom-sheet near-me-sheet ${isPickingOnMap ? "is-picking-map" : ""}`}>
       <div className="sheet-header-row">
         <div className="sheet-title-group">
-          <MapPin size={18} className="sheet-pin-icon text-primary" aria-hidden="true" />
-          <div>
+          <span className="near-me-header-icon" aria-hidden="true">
+            <MapPin size={19} />
+          </span>
+          <div className="near-me-heading-copy">
+            <span className="near-me-eyebrow">Không khí quanh bạn</span>
             <h3 className="sheet-title">Thông tin môi trường gần bạn</h3>
             <span className="sheet-sub">
-              {sourceLabel} • Toạ độ: {userLocation[0].toFixed(4)}, {userLocation[1].toFixed(4)}
+              {sourceLabel} · {userLocation[0].toFixed(4)}, {userLocation[1].toFixed(4)}
               {userLocationAccuracy ? ` (±${Math.round(userLocationAccuracy)}m)` : ""}
             </span>
           </div>
@@ -93,9 +97,13 @@ export const NearMePanel: React.FC<NearMePanelProps> = ({
         </button>
       </div>
 
-      {/* Location Switcher Quick Bar */}
-      <div className="near-me-location-switchers">
-        <span className="switchers-label">Thay đổi vị trí:</span>
+      <section className="near-me-location-switchers" aria-labelledby="near-me-location-title">
+        <div className="near-me-section-heading">
+          <div>
+            <strong id="near-me-location-title">Chọn vị trí tham chiếu</strong>
+            <span>Dùng GPS hoặc chạm trực tiếp lên bản đồ</span>
+          </div>
+        </div>
         <div className="switchers-buttons-group">
           {onLocateGps && (
             <button
@@ -103,39 +111,53 @@ export const NearMePanel: React.FC<NearMePanelProps> = ({
               className={`near-me-switch-btn ${userLocationSource === "gps" ? "active" : ""}`}
               onClick={onLocateGps}
               disabled={isLocating}
+              aria-pressed={userLocationSource === "gps"}
             >
-              <LocateFixed size={13} />
-              <span>{isLocating ? "Đang tìm GPS..." : "Bắt GPS"}</span>
+              <span className="near-me-switch-icon" aria-hidden="true">
+                <LocateFixed size={17} />
+              </span>
+              <span className="near-me-switch-copy">
+                <strong>{isLocating ? "Đang định vị..." : "Vị trí hiện tại"}</strong>
+                <small>GPS của thiết bị</small>
+              </span>
             </button>
           )}
           {onStartPickOnMap && (
             <button
               type="button"
-              className={`near-me-switch-btn ${userLocationSource === "manual_click" ? "active" : ""}`}
-              onClick={() => {
-                onStartPickOnMap();
-                onClose();
-              }}
+              className={`near-me-switch-btn ${isPickingOnMap || userLocationSource === "manual_click" ? "active" : ""}`}
+              onClick={onStartPickOnMap}
+              aria-pressed={isPickingOnMap || userLocationSource === "manual_click"}
             >
-              <Crosshair size={13} />
-              <span>Chọn trên Map</span>
+              <span className="near-me-switch-icon" aria-hidden="true">
+                <Crosshair size={17} />
+              </span>
+              <span className="near-me-switch-copy">
+                <strong>{isPickingOnMap ? "Đang chờ bạn chọn" : "Chọn trên bản đồ"}</strong>
+                <small>Chạm một điểm bất kỳ</small>
+              </span>
             </button>
           )}
         </div>
-      </div>
+        {isPickingOnMap && (
+          <p className="near-me-picking-hint" role="status">
+            <Crosshair size={14} aria-hidden="true" />
+            Panel vẫn mở — hãy chạm một điểm trên phần bản đồ còn hiển thị.
+          </p>
+        )}
+      </section>
 
-      {/* Current User Location Card */}
       <div className="near-me-current-loc-badge">
-        <div className="loc-badge-icon">📍</div>
+        <span className="loc-badge-icon" aria-hidden="true"><MapPin size={18} /></span>
         <div className="loc-badge-info">
+          <span className="loc-badge-label">Điểm đang xem</span>
           <strong className="loc-badge-name">{userLocationName}</strong>
           <span className="loc-badge-coords">
-            Kinh độ: {userLocation[1].toFixed(5)}, Vĩ độ: {userLocation[0].toFixed(5)}
+            {userLocation[0].toFixed(5)}, {userLocation[1].toFixed(5)}
           </span>
         </div>
       </div>
 
-      {/* Nearest Station Card */}
       {nearestSt ? (
         <div className="nearest-station-card">
           <div className="nearest-station-header">
@@ -165,14 +187,30 @@ export const NearMePanel: React.FC<NearMePanelProps> = ({
             <div className="nearest-metric-highlight">
               <div
                 className="nearest-aqi-chip"
-                style={{ backgroundColor: getAqiColor(nearestSt.aqi) }}
+                style={{
+                  backgroundColor: getAqiColor(nearestSt.aqi),
+                  color: nearestSt.aqi !== null && nearestSt.aqi !== undefined && nearestSt.aqi <= 100
+                    ? "#172033"
+                    : "#ffffff",
+                }}
               >
                 <span className="aqi-label">AQI</span>
                 <span className="aqi-value">{nearestSt.aqi ?? "—"}</span>
               </div>
               <div className="nearest-aqi-text">
                 <strong>{getAqiLevelText(nearestSt.aqi)}</strong>
-                <span>PM2.5: {nearestSt.pm25 ?? "—"} µg/m³ • CO2: {nearestSt.co2 ?? "—"} ppm</span>
+                <span>Chỉ số tổng quan tại trạm gần nhất</span>
+              </div>
+            </div>
+
+            <div className="nearest-secondary-metrics" aria-label="Chỉ số thành phần">
+              <div>
+                <span>PM2.5</span>
+                <strong>{nearestSt.pm25 ?? "—"} <small>µg/m³</small></strong>
+              </div>
+              <div>
+                <span>CO₂</span>
+                <strong>{nearestSt.co2 ?? "—"} <small>ppm</small></strong>
               </div>
             </div>
 
@@ -201,10 +239,9 @@ export const NearMePanel: React.FC<NearMePanelProps> = ({
       )}
 
       <p className="today-simulator-note">
-        Dữ liệu đo đạc trực tiếp từ trạm sensor lân cận, không nội suy giả định.
+        Dữ liệu từ trạm mô phỏng gần nhất; không nội suy cho thẻ này và không phải quan trắc chính thức.
       </p>
 
-      {/* Footer Ask AI Action */}
       <div className="near-me-footer-actions">
         <button
           type="button"

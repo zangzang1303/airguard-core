@@ -19,8 +19,8 @@ Validates:
    - Early return null if unprivileged, preventing 403 calls.
 """
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 FRONTEND_ROOT = Path(__file__).resolve().parent.parent.parent / "frontend" / "src"
 SUPERAPP_TYPES_FILE = FRONTEND_ROOT / "types" / "superApp.ts"
@@ -100,7 +100,8 @@ class TestMapLayersPopoverRbacContract:
         assert "toggle-sensors" in self.content
         assert "toggle-places" in self.content
         assert "toggle-connection" in self.content
-        assert "toggle-dispersion" in self.content
+        assert "toggle-map-legend" in self.content
+        assert "toggle-dispersion" not in self.content
         assert "toggle-timeline" in self.content
 
     def test_controlled_checkbox_inputs_used(self):
