@@ -14,7 +14,7 @@ import {
 import { Button } from "../../components/common/Button";
 import { RegisterResidentInput, useAuth } from "../../context/AuthContext";
 import { UserGroup } from "../../types";
-import { AuthLayout } from "./AuthLayout";
+import { AuthShell } from "./AuthShell";
 import "./auth.css";
 
 export const Register: React.FC = () => {
@@ -79,30 +79,32 @@ export const Register: React.FC = () => {
   };
 
   return (
-    <AuthLayout>
-      <div className="auth-card auth-card--register-main">
-        {/* HEADER TOOLBAR */}
-        <div className="register-header-toolbar">
-          <Button variant="ghost" size="sm" className="auth-back" onClick={() => navigateTo("login")}>
+    <AuthShell className="auth-unified-container--register">
+      <section className="auth-column-main auth-column-main--register">
+        <div className="auth-registration-content">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="auth-link-btn auth-back-btn"
+            onClick={() => navigateTo("login")}
+            disabled={submitting}
+          >
             <ArrowLeft size={16} aria-hidden="true" /> Quay lại
           </Button>
 
-          <div className="auth-card__brand">
-            <div className="auth-brand-logo">
+          <div className="auth-brand-compact">
+            <div className="auth-brand-icon">
               <ShieldCheck size={22} strokeWidth={2.2} />
             </div>
-            <h1 className="auth-brand-title">AirGuard AI</h1>
+            <div className="auth-brand-text">
+              <h2>Đăng ký tài khoản</h2>
+              <p>Tạo tài khoản cư dân để theo dõi chất lượng không khí.</p>
+            </div>
           </div>
-        </div>
 
-        <div className="auth-card__heading">
-          <h2>Đăng ký tài khoản</h2>
-          <p className="auth-card__subtitle">Tài khoản cư dân theo dõi chất lượng không khí Vinhomes Ocean Park 1</p>
-        </div>
+          {error && <div className="auth-notice auth-notice--error" role="alert" aria-live="assertive">{error}</div>}
 
-        {error && <div className="auth-notice auth-notice--error" role="alert">{error}</div>}
-
-        <form className="auth-form auth-form--register" onSubmit={handleSubmit} noValidate>
+          <form className="auth-form auth-form--register" onSubmit={handleSubmit} noValidate>
           <div className="auth-field">
             <label htmlFor="register-name">Họ và tên</label>
             <div className="auth-input-wrap">
@@ -113,6 +115,7 @@ export const Register: React.FC = () => {
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Nguyễn Văn A"
                 autoComplete="name"
+                disabled={submitting}
                 required
               />
             </div>
@@ -129,6 +132,7 @@ export const Register: React.FC = () => {
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="email@vinuni.edu.vn"
                 autoComplete="email"
+                disabled={submitting}
                 required
               />
             </div>
@@ -140,17 +144,10 @@ export const Register: React.FC = () => {
               <HeartPulse size={18} aria-hidden="true" />
               <select
                 id="register-group"
+                className="auth-select"
                 value={userGroup}
                 onChange={(e) => setUserGroup(e.target.value as UserGroup)}
-                style={{
-                  width: "100%",
-                  padding: "0.6rem 0.8rem",
-                  background: "transparent",
-                  border: "none",
-                  outline: "none",
-                  fontSize: "0.95rem",
-                  color: "#0f172a",
-                }}
+                disabled={submitting}
               >
                 <option value="normal">Bình thường (Cư dân chung)</option>
                 <option value="sensitive">Nhạy cảm (Người già, trẻ nhỏ, hô hấp)</option>
@@ -170,6 +167,7 @@ export const Register: React.FC = () => {
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Tối thiểu 8 ký tự"
                 autoComplete="new-password"
+                disabled={submitting}
                 required
               />
               <button
@@ -177,6 +175,7 @@ export const Register: React.FC = () => {
                 className="auth-password-toggle"
                 onClick={() => setShowPassword((value) => !value)}
                 aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                disabled={submitting}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -194,6 +193,7 @@ export const Register: React.FC = () => {
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 placeholder="Nhập lại mật khẩu"
                 autoComplete="new-password"
+                disabled={submitting}
                 required
               />
             </div>
@@ -205,6 +205,7 @@ export const Register: React.FC = () => {
               type="checkbox"
               checked={termsAccepted}
               onChange={(event) => setTermsAccepted(event.target.checked)}
+              disabled={submitting}
             />
             <span>Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật dữ liệu.</span>
           </label>
@@ -221,14 +222,41 @@ export const Register: React.FC = () => {
           </Button>
         </form>
 
-        <p className="auth-switch">
-          Đã có tài khoản?{" "}
-          <button type="button" onClick={() => navigateTo("login")}>
-            Đăng nhập
-          </button>
-        </p>
-      </div>
-    </AuthLayout>
+          <p className="auth-switch">
+            Đã có tài khoản?{" "}
+            <button type="button" onClick={() => navigateTo("login")} disabled={submitting}>
+              Đăng nhập
+            </button>
+          </p>
+        </div>
+      </section>
+
+      <aside className="auth-column-demo" aria-label="Giới thiệu AirGuard AI">
+        <div className="demo-panel-inner auth-register-aside">
+          <div className="demo-selector-header">
+            <div className="demo-title-row">
+              <ShieldCheck size={16} aria-hidden="true" />
+              <h3>AirGuard AI cho cư dân</h3>
+            </div>
+            <p>Đăng ký để cá nhân hóa trải nghiệm theo dõi chất lượng môi trường quanh bạn.</p>
+          </div>
+          <div className="prod-benefits-stack">
+            <div className="prod-benefit-item">
+              <strong>Theo dõi đa chỉ số</strong>
+              <p>Xem AQI, PM2.5, CO₂, nhiệt độ và độ ồn từ các trạm mô phỏng trong khu vực.</p>
+            </div>
+            <div className="prod-benefit-item">
+              <strong>Nhận cảnh báo phù hợp</strong>
+              <p>Chọn nhóm người dùng để nhận nội dung cảnh báo và khuyến nghị phù hợp hơn.</p>
+            </div>
+            <div className="prod-benefit-item">
+              <strong>Dữ liệu minh bạch</strong>
+              <p>AirGuard AI là MVP dùng dữ liệu mô phỏng, không phải hệ thống quan trắc chính thức.</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </AuthShell>
   );
 };
 

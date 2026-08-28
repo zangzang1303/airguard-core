@@ -15,7 +15,7 @@ interface AnalysisWorkspaceDrawerProps {
   onSelectStationId: (id: string) => void;
 }
 
-type AnalysisTab = "overview" | "history" | "evidence" | "raw";
+type AnalysisTab = "overview" | "history" | "evidence";
 type HistoryMetric = "aqi" | "pm25" | "co2" | "noise_db" | "temperature" | "humidity";
 
 const METRICS: Record<HistoryMetric, { label: string; unit: string; color: string }> = {
@@ -124,7 +124,6 @@ export const AnalysisWorkspaceDrawer: React.FC<AnalysisWorkspaceDrawerProps> = (
           ["overview", "Biểu đồ"],
           ["history", "Chuỗi đo"],
           ["evidence", "Nguồn dữ liệu"],
-          ["raw", "JSON"],
         ] as const).map(([tab, label]) => (
           <button
             type="button"
@@ -258,12 +257,6 @@ export const AnalysisWorkspaceDrawer: React.FC<AnalysisWorkspaceDrawerProps> = (
           </div>
         )}
 
-        {!error && historyData.length > 0 && activeTab === "raw" && (
-          <div className="tab-pane-content">
-            <h3 className="section-title">Dữ liệu API đã nhận</h3>
-            <pre className="raw-json-box">{JSON.stringify({ station: currentStation, history: historyData }, null, 2)}</pre>
-          </div>
-        )}
       </div>
     </aside>
   );

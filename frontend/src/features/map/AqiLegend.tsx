@@ -1,9 +1,27 @@
 import React, { useState } from "react";
-import { Clock, Compass, Cpu, Info, Wind } from "lucide-react";
-import { getMetricScale, getMetricTicks, METRIC_SCALES } from "../../constants/metrics";
+import {
+  Activity,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Compass,
+  Cpu,
+  Info,
+  Layers,
+  RefreshCw,
+  Wind,
+  X,
+} from "lucide-react";
+import { getMetricScale } from "../../constants/metrics";
 import { STATION_STATUS_CONFIG } from "../../constants/stationStatus";
 import { SpatialHeatmapResponse, StationStatus } from "../../types";
-import { formatVnDateTime, formatVnDateTimeWithSeconds, formatVnTimeWithSeconds } from "../../utils/datetime";
+import {
+  formatVnDateTimeWithSeconds,
+  formatVnTimeWithSeconds,
+} from "../../utils/datetime";
+
+export type MapLegendVariant = "stations" | "dispersion";
 
 export function getFriendlyModelName(modelRaw: string | undefined): string {
   if (!modelRaw) return "IDW · Gió v1.0";
@@ -165,7 +183,7 @@ export const DispersionMetadata: React.FC<{
       <div className="dispersion-grid">
         <div className="dispersion-grid-item" title="Thời điểm backend tạo mô hình IDW">
           <Clock size={13} className="dispersion-icon" />
-          <span>Mô hình tạo lúc: <strong>{modelCreatedTime}</strong></span>
+          <span>Mô hình tạo: <strong>{modelCreatedTime}</strong></span>
         </div>
 
         {forecastHour > 0 && (
@@ -198,7 +216,8 @@ export const DispersionMetadata: React.FC<{
       <div className="dispersion-detail-trigger">
         <button
           type="button"
-          className="dispersion-toggle-btn"
+          className="dispersion-toggle-btn no-drag"
+          data-no-drag="true"
           onClick={() => setShowDetail(!showDetail)}
           aria-expanded={showDetail}
         >
@@ -244,22 +263,143 @@ export const SimulationDisclaimer: React.FC<{ text?: string }> = ({
   text = "* Dữ liệu mô phỏng cho MVP · Không phải quan trắc chính thức.",
 }) => <div className="aqi-disclaimer-text">{text}</div>;
 
-export const AqiLegend: React.FC<{
+export interface UnifiedMapLegendProps {
+  variant?: MapLegendVariant;
   showStationStatus?: boolean;
   metric?: string;
+  forecastHour?: number;
+  dispersionData?: SpatialHeatmapResponse | null;
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   headerProps?: any;
-}> = ({ showStationStatus = false, metric = "aqi", headerProps }) => {
+  onClose?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+/**
+ * Unified Context-Aware Map Legend Component
+ * Seamlessly adapts between "stations" mode and "dispersion" (heatmap) mode.
+ * Always renders exactly ONE MetricColorScale, avoiding duplicates.
+ */
+export const AqiLegend: React.FC<UnifiedMapLegendProps> = ({
+  variant = "stations",
+  showStationStatus = true,
+  metric = "aqi",
+  forecastHour = 0,
+  dispersionData = null,
+  loading = false,
+  error = null,
+  onRetry,
+  headerProps,
+  onClose,
+  isCollapsed: controlledCollapsed,
+  onToggleCollapse,
+}) => {
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+  const handleToggleCollapse = onToggleCollapse || (() => setInternalCollapsed((prev) => !prev));
+
   const scale = getMetricScale(metric);
-  const headerTitle = showStationStatus
+  const isDispersion = variant === "dispersion";
+
+  const headerTitle = isDispersion
+    ? `Bản đồ lan truyền ${scale.label}`
+    : showStationStatus
     ? `Chú giải ${scale.label} & Trạng thái trạm`
     : `Chú giải ${scale.label}`;
 
   return (
-    <div className="aqi-legend-card">
-      <div className="aqi-legend-header" {...headerProps}>{headerTitle}</div>
-      <MetricColorScale metric={metric} />
-      {showStationStatus && <StationStatusLegend />}
-      <SimulationDisclaimer />
+    <div className={`aqi-legend-card unified-map-legend ${isDispersion ? "dispersion-variant" : "stations-variant"}`}>
+      {/* 1. Header Bar with Drag Handle, Badge, Collapse and Close */}
+      <div className="aqi-legend-header unified-legend-header">
+        <div className="legend-title-drag-area" {...headerProps}>
+          {isDispersion ? (
+            <Layers size={15} className="legend-header-icon dispersion-icon-tint" />
+          ) : (
+            <Activity size={15} className="legend-header-icon station-icon-tint" />
+          )}
+          <span className="aqi-legend-title-text">{headerTitle}</span>
+        </div>
+
+        <div className="legend-header-controls">
+          {isDispersion && (
+            <span className={`header-badge ${forecastHour > 0 ? "badge-forecast" : ""}`}>
+              {getFriendlyBadgeLabel(dispersionData?.model_version || dispersionData?.source, forecastHour)}
+            </span>
+          )}
+
+          <button
+            type="button"
+            className="no-drag panel-collapse-btn"
+            data-no-drag="true"
+            onClick={handleToggleCollapse}
+            title={isCollapsed ? "Mở rộng chú giải" : "Thu gọn chú giải"}
+            aria-label={isCollapsed ? "Mở rộng chú giải" : "Thu gọn chú giải"}
+          >
+            {isCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+          </button>
+
+          {onClose && (
+            <button
+              type="button"
+              className="no-drag legend-close-btn"
+              data-no-drag="true"
+              onClick={onClose}
+              aria-label="Ẩn chú giải"
+              title="Ẩn chú giải"
+            >
+              <X size={15} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 2. Expanded Body Content */}
+      {!isCollapsed && (
+        <div className="aqi-legend-body">
+          {isDispersion && loading && (
+            <div className="unified-loading-state">
+              <RefreshCw size={14} className="spin-icon" />
+              <span>Đang cập nhật mô hình {scale.label}...</span>
+            </div>
+          )}
+
+          {isDispersion && error && (
+            <div className="unified-error-state" role="alert">
+              <div className="error-title-row">
+                <AlertTriangle size={14} />
+                <strong>Không thể tải mô hình</strong>
+              </div>
+              <p className="error-message-text">{error}</p>
+              {onRetry && (
+                <button type="button" onClick={onRetry} className="error-retry-btn">
+                  <RefreshCw size={12} /> Thử lại
+                </button>
+              )}
+            </div>
+          )}
+
+          {(!isDispersion || (!loading && !error)) && (
+            <>
+              {/* MetricColorScale is rendered strictly ONCE */}
+              <MetricColorScale metric={metric} />
+
+              {/* Context-aware secondary information */}
+              {isDispersion ? (
+                <DispersionMetadata data={dispersionData} forecastHour={forecastHour} />
+              ) : (
+                showStationStatus && <StationStatusLegend />
+              )}
+
+              <SimulationDisclaimer />
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
+
+export const UnifiedMapLegend = AqiLegend;

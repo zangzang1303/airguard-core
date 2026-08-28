@@ -155,8 +155,9 @@ export function getMetricLevel(metric: string, value: number | null | undefined)
   if (value === null || value === undefined || Number.isNaN(value)) return null;
   const scale = getMetricScale(metric);
   const val = Math.min(scale.max, Math.max(scale.min, value));
+
   for (const level of scale.levels) {
-    if (val >= level.min && val <= level.max) {
+    if (val <= level.max) {
       return level;
     }
   }

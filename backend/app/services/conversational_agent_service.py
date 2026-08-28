@@ -5,7 +5,18 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any, Literal
 
-ConversationIntent = Literal["domain", "greeting", "social", "clarification", "out_of_scope"]
+ConversationIntent = Literal[
+    "domain",
+    "social.greeting",
+    "social.assistant_identity",
+    "social.smalltalk",
+    "conversation.capability",
+    "conversation.unknown",
+    "out_of_scope",
+    "greeting",
+    "social",
+    "clarification",
+]
 
 
 @dataclass(frozen=True)
@@ -23,6 +34,38 @@ class ConversationalAgentService:
     recommendation.
     """
 
+    _IDENTITY_AGE = {
+        "ban bao tuoi",
+        "ban bao nhieu tuoi",
+        "ban may tuoi",
+        "bao tuoi",
+        "bao nhieu tuoi",
+        "may tuoi",
+        "tuoi cua ban",
+        "tuoi ban",
+        "tuoi gi",
+        "ban bao nhieu tuoi roi",
+        "ban duoc bao nhieu tuoi",
+        "how old are you",
+        "what is your age",
+        "your age",
+    }
+    _IDENTITY_WHO = {
+        "ban la ai",
+        "ban ten gi",
+        "ten ban la gi",
+        "ai tao ra ban",
+        "ai lam ra ban",
+        "ban la nguoi hay ai",
+        "ban la nguoi hay bot",
+        "ban la robot a",
+        "ban la robot ha",
+        "ban co phai con nguoi khong",
+        "ban la gi",
+        "who are you",
+        "what is your name",
+        "who made you",
+    }
     _GREETINGS = {
         "e",
         "ee",
@@ -39,6 +82,9 @@ class ConversationalAgentService:
         "xin chao airguard ai",
         "hello airguard",
         "hello airguard ai",
+        "chao buoi sang",
+        "chao buoi toi",
+        "chao buoi chieu",
     }
     _THANKS_AND_ACKS = {
         "cam on",
@@ -58,19 +104,24 @@ class ConversationalAgentService:
         "ro roi",
         "hay qua",
         "tot lam",
+        "tuyet voi",
+        "hay day",
+        "cam on nha",
+        "thanks ban",
     }
-    _FAREWELLS = {"tam biet", "bye", "goodbye", "hen gap lai", "chao nhe"}
+    _FAREWELLS = {"tam biet", "bye", "goodbye", "hen gap lai", "chao nhe", "bye bye"}
     _WELLBEING = {
         "khoe khong",
         "ban khoe khong",
         "ban co khoe khong",
+        "hom nay the nao",
         "hom nay ban the nao",
         "airguard khoe khong",
         "airguard co khoe khong",
+        "how are you",
+        "dao nay the nao",
     }
     _CAPABILITIES = {
-        "ban la ai",
-        "airguard la gi",
         "ban lam duoc gi",
         "ban lam duoc nhung gi",
         "ban co the lam gi",
@@ -85,7 +136,10 @@ class ConversationalAgentService:
         "giup duoc gi",
         "chuc nang cua ban",
         "what can you do",
-        "who are you",
+        "toi co the hoi gi",
+        "toi co the hoi nhung gi",
+        "hoi duoc gi",
+        "ban co chuc nang gi",
     }
     _DOMAIN_SIGNALS = (
         "aqi",
@@ -100,12 +154,12 @@ class ConversationalAgentService:
         "tieng on",
         "nhiet do",
         "thoi tiet",
-        "mua",
-        "bao",
+        "mua bao",
+        "con bao",
         "do am",
         "nang",
         "gio",
-        "tram",
+        "tram quan trac",
         "sensor",
         "canh bao",
         "du bao",
@@ -114,7 +168,6 @@ class ConversationalAgentService:
         "chieu nay",
         "sang nay",
         "cho nay",
-        "o day",
         "khu nay",
         "chay bo",
         "di bo",
@@ -155,28 +208,52 @@ class ConversationalAgentService:
         "ngan hon",
         "dai hon",
         "sach hon",
+        "sach nhat",
+        "tot nhat",
+        "o nhiem nhat",
+        "xau nhat",
         "tranh",
-        "con ",
-        # A person can ask for cautious advice by naming their group without
-        # repeating an AQI/running keyword.  This only admits the request to
-        # the Agent; the Agent still obtains the authoritative group from the
-        # backend profile in the same request.
+        "toan khu",
+        "ca khu",
+        "tong quan",
+        "tinh hinh chung",
+        "khong khi chung",
         "nhom nhay cam",
         "nhay cam",
         "sensitive group",
         "nen lam gi",
+        "o nhiem",
+        "trong nha",
+        "indoor",
+        "gym",
+        "fitness",
+        "dap xe",
+        "xe dap",
     )
     _CONTEXT_FOLLOW_UPS = (
         "o day",
         "cho nay",
         "khu nay",
+        "o do",
+        "cho do",
+        "khu do",
+        "noi do",
+        "toi do",
+        "den do",
+        "di toi do",
         "the nao",
         "toi nay",
         "hom nay",
         "bay gio",
-        "bao nhieu",
+        "aqi bao nhieu",
+        "pm25 bao nhieu",
+        "bao nhieu do",
+        "nhiet do bao nhieu",
+        "chi so bao nhieu",
         "co tot",
         "co nen",
+        "trong nha",
+        "gym",
     )
     _DISTANCE_TARGET_RE = re.compile(r"\b\d+(?:\.\d+)?\s*(?:km|cay|kilo(?:met)?)\b")
     _RUNNING_DISTANCE_CUES = (
@@ -228,54 +305,109 @@ class ConversationalAgentService:
         *,
         station_id: str | None = None,
         map_context: dict[str, Any] | None = None,
+        conversation_id: str = "",
     ) -> ConversationDecision:
         plain = cls._plain(message)
         social_plain = cls._social_plain(message)
-        # A concrete environmental request always wins over a social prefix.
-        # Do this before exact social matching so, for example, "Cảm ơn, AQI
-        # S03 hiện tại thế nào?" cannot be swallowed by an acknowledgement.
+
+        # 0. Check dialogue state resolution (Pending actions, awaiting slots, modifications)
+        if conversation_id:
+            try:
+                from .conversation_state_manager import conversation_state_manager
+                turn_res = conversation_state_manager.resolve_conversation_turn(
+                    conversation_id, message, map_context, peek=True
+                )
+                if turn_res["resolution_type"] in {"accept_pending_action", "answer_slot", "modify", "reference"}:
+                    return ConversationDecision(intent="domain", kind=turn_res["resolution_type"], fallback_response="")
+                if turn_res["resolution_type"] == "reject_pending_action":
+                    conversation_state_manager.clear_pending_action(conversation_id)
+                    conversation_state_manager.clear_awaiting_slot(conversation_id)
+                    return ConversationDecision(
+                        intent="social.smalltalk",
+                        kind="action_cancelled",
+                        fallback_response="👌 **Đã hủy đề xuất.**\n\nNếu cần hỗ trợ thêm về chất lượng không khí, địa điểm hay lộ trình tại Ocean Park 1, bạn cứ nhắn mình nhé!",
+                    )
+            except Exception:
+                pass
+
+        # 1. Explicit domain requests always win over a social prefix
         if cls._has_explicit_domain_request(plain):
             return ConversationDecision(intent="domain", kind="domain", fallback_response="")
-        if social_plain in cls._GREETINGS:
+
+        # 2. Assistant Identity: Age questions (Rule 2: Social/Identity has high priority)
+        if social_plain in cls._IDENTITY_AGE or any(pat in social_plain for pat in ["bao nhieu tuoi", "bao tuoi", "may tuoi", "how old are you", "tuoi cua ban"]):
             return ConversationDecision(
-                intent="greeting",
-                kind="greeting",
+                intent="social.assistant_identity",
+                kind="identity_age",
                 fallback_response=(
-                    "Mình đây 👋 Bạn muốn kiểm tra chất lượng không khí, so sánh khu vực "
-                    "hay tìm cung đường chạy bộ?"
-                ),
-            )
-        if social_plain in cls._THANKS_AND_ACKS:
-            return ConversationDecision(
-                intent="social",
-                kind="acknowledgement",
-                fallback_response="Cảm ơn bạn. Rất vui được hỗ trợ trong phạm vi AirGuard.",
-            )
-        if social_plain in cls._FAREWELLS:
-            return ConversationDecision(
-                intent="social",
-                kind="farewell",
-                fallback_response="Tạm biệt bạn! Hẹn gặp lại khi bạn cần hỗ trợ từ AirGuard.",
-            )
-        if social_plain in cls._WELLBEING:
-            return ConversationDecision(
-                intent="social",
-                kind="wellbeing",
-                fallback_response=(
-                    "Mình là trợ lý AI nên không có sức khỏe hay cảm xúc, nhưng có thể hỗ trợ về AirGuard."
-                ),
-            )
-        if social_plain in cls._CAPABILITIES:
-            return ConversationDecision(
-                intent="social",
-                kind="capabilities",
-                fallback_response=(
-                    "Mình hỗ trợ AQI/trạm hiện tại, so sánh trạm, dự báo baseline 1–3 giờ, cảnh báo và "
-                    "khuyến nghị grounded từ dữ liệu demo/mô phỏng. Mình không dự báo dài hạn, chẩn đoán "
-                    "hay điều khiển thiết bị."
+                    "Mình là trợ lý AI nên không có tuổi như con người 😊\n\n"
+                    "Mình được thiết kế để hỗ trợ bạn về chất lượng không khí, địa điểm và lộ trình trong Vinhomes Ocean Park 1."
                 ),
             )
 
+        # 3. Assistant Identity: Who/Name/Creator questions
+        if social_plain in cls._IDENTITY_WHO or any(pat in social_plain for pat in ["ban la ai", "ban ten gi", "ai tao ra ban", "ban la nguoi hay ai", "who are you", "what is your name"]):
+            return ConversationDecision(
+                intent="social.assistant_identity",
+                kind="identity_who",
+                fallback_response=(
+                    "Mình là **AirGuard Geospatial AI**, trợ lý AI hỗ trợ bạn kiểm tra chất lượng không khí, địa điểm và lộ trình trong Vinhomes Ocean Park 1."
+                ),
+            )
+
+        # 4. Capabilities (e.g. "bạn làm được gì", "bạn giúp được gì ở đây")
+        if social_plain in cls._CAPABILITIES or any(pat in social_plain for pat in ["ban lam duoc gi", "ban giup duoc gi", "ban co the lam gi", "toi co the hoi gi", "ban giup gi", "giup gi"]):
+            return ConversationDecision(
+                intent="conversation.capability",
+                kind="capabilities",
+                fallback_response=(
+                    "Mình có thể giúp bạn:\n"
+                    "• Kiểm tra chất lượng không khí theo từng khu vực tại Ocean Park 1\n"
+                    "• So sánh chất lượng không khí giữa các địa điểm\n"
+                    "• Xem dự báo AQI ngắn hạn 1–3 giờ\n"
+                    "• Tìm cung đường đi bộ/chạy bộ tối ưu mức độ trong lành\n"
+                    "• Định vị và hiển thị kết quả trực quan trên bản đồ"
+                ),
+            )
+
+        # 5. Greetings
+        if social_plain in cls._GREETINGS or any(social_plain.startswith(g + " ") for g in ["xin chao", "chao ban", "hello", "hi"]):
+            return ConversationDecision(
+                intent="social.greeting",
+                kind="greeting",
+                fallback_response=(
+                    "Mình đây 👋 Bạn muốn kiểm tra chất lượng không khí, so sánh khu vực "
+                    "hay tìm cung đường chạy bộ trong Ocean Park 1?"
+                ),
+            )
+
+        # 6. Acknowledgements & Thanks
+        if social_plain in cls._THANKS_AND_ACKS or any(social_plain.startswith(t + " ") for t in ["cam on", "thank you", "thanks"]):
+            return ConversationDecision(
+                intent="social.smalltalk",
+                kind="acknowledgement",
+                fallback_response="Không có gì 😊 Nếu cần, bạn cứ hỏi mình về không khí hoặc địa điểm trong Ocean Park 1 nhé!",
+            )
+
+        # 7. Farewells
+        if social_plain in cls._FAREWELLS or any(f in social_plain for f in ["tam biet", "hen gap lai", "chao nhe", "bye bye", "goodbye"]):
+            return ConversationDecision(
+                intent="social.smalltalk",
+                kind="farewell",
+                fallback_response="Tạm biệt bạn! Hẹn gặp lại khi bạn cần hỗ trợ từ AirGuard 👋",
+            )
+
+        # 8. Wellbeing
+        if social_plain in cls._WELLBEING or any(w in social_plain for w in ["khoe khong", "ban khoe khong", "hom nay the nao", "how are you"]):
+            return ConversationDecision(
+                intent="social.smalltalk",
+                kind="wellbeing",
+                fallback_response=(
+                    "Mình là trợ lý AI nên luôn sẵn sàng hoạt động để hỗ trợ bạn! Hôm nay bạn muốn kiểm tra khu vực nào ở Ocean Park 1 không?"
+                ),
+            )
+
+        # 9. Out of Scope
         if any(s in plain for s in cls._OUT_OF_SCOPE_SIGNALS):
             return ConversationDecision(
                 intent="out_of_scope",
@@ -287,15 +419,16 @@ class ConversationalAgentService:
                 ),
             )
 
+        # 10. Domain Boundary
         if cls._is_domain_query(plain, station_id=station_id, map_context=map_context):
             return ConversationDecision(intent="domain", kind="domain", fallback_response="")
 
+        # 11. Unknown / Clarification
         return ConversationDecision(
-            intent="clarification",
+            intent="conversation.unknown",
             kind="unclear",
             fallback_response=(
-                "Mình chưa hiểu yêu cầu này. Bạn có thể hỏi về AQI hiện tại, so sánh khu vực, "
-                "cảnh báo môi trường hoặc tìm cung đường chạy bộ."
+                "Bạn muốn mình kiểm tra **chất lượng không khí**, **một địa điểm**, hay **một cung đường** trong Ocean Park 1?"
             ),
         )
 
@@ -318,10 +451,18 @@ class ConversationalAgentService:
                 "generation_mode": "deterministic_grounded",
                 "conversation_mode": (
                     "deterministic_social"
-                    if decision.intent in {"greeting", "social"}
+                    if (
+                        decision.intent in {"greeting", "social"}
+                        or decision.intent.startswith("social.")
+                        or decision.intent == "conversation.capability"
+                    )
                     else None
                 ),
-                "final_outcome": "clarification" if decision.intent == "clarification" else "direct_response",
+                "final_outcome": (
+                    "clarification"
+                    if decision.intent in {"clarification", "conversation.unknown"}
+                    else "direct_response"
+                ),
             },
         )
 

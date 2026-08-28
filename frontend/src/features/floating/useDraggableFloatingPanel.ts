@@ -7,6 +7,8 @@ export interface UseDraggableFloatingPanelOptions {
   disabled?: boolean;
   minMargin?: number;
   dragThreshold?: number;
+  /** Base CSS transform string to preserve (e.g. "translateX(-50%)") */
+  baseTransform?: string;
   /** Optional custom clamp bounds function */
   customClamp?: (proposed: PanelPosition, rect: DOMRect, boundary: DOMRect) => PanelPosition;
 }
@@ -27,6 +29,7 @@ export function useDraggableFloatingPanel({
   disabled = false,
   minMargin = 12,
   dragThreshold = 4,
+  baseTransform,
   customClamp,
 }: UseDraggableFloatingPanelOptions) {
   const {
@@ -157,8 +160,10 @@ export function useDraggableFloatingPanel({
       // Bring panel to front on any handle pointerdown
       bringToFront(panelId, group);
 
-      // Check if target is non-draggable interactive element
       const target = e.target as HTMLElement | null;
+      const handleEl = e.currentTarget as HTMLElement;
+
+      // Check if target is non-draggable interactive element
       if (target) {
         if (
           target.closest("button") ||
@@ -166,11 +171,13 @@ export function useDraggableFloatingPanel({
           target.closest("select") ||
           target.closest("textarea") ||
           target.closest("a") ||
-          target.closest('[role="tab"]') ||
-          target.closest('[data-no-drag="true"]') ||
-          target.closest(".no-drag") ||
-          target.classList.contains("no-drag")
+          target.closest('[role="tab"]')
         ) {
+          return;
+        }
+
+        const noDragEl = target.closest('[data-no-drag="true"], .no-drag');
+        if (noDragEl && handleEl && handleEl.contains(noDragEl)) {
           return;
         }
       }
@@ -179,7 +186,6 @@ export function useDraggableFloatingPanel({
       e.stopPropagation();
 
       const initialOffset = getPosition(panelId);
-      const handleEl = e.currentTarget as HTMLElement;
 
       dragSessionRef.current = {
         pointerId: e.pointerId,
@@ -340,12 +346,21 @@ export function useDraggableFloatingPanel({
   // Dynamic CSS style for panel container
   const panelStyle = useMemo((): React.CSSProperties => {
     const hasOffset = currentOffset.x !== 0 || currentOffset.y !== 0;
+    const offsetStr = hasOffset ? `translate3d(${currentOffset.x}px, ${currentOffset.y}px, 0)` : "";
+    let transformStr: string | undefined;
+
+    if (baseTransform) {
+      transformStr = offsetStr ? `${baseTransform} ${offsetStr}` : baseTransform;
+    } else {
+      transformStr = offsetStr || undefined;
+    }
+
     return {
-      transform: hasOffset ? `translate3d(${currentOffset.x}px, ${currentOffset.y}px, 0)` : undefined,
+      transform: transformStr,
       zIndex,
       transition: isDragging ? "none" : "transform 0.15s ease-out, box-shadow 0.15s ease",
     };
-  }, [currentOffset.x, currentOffset.y, zIndex, isDragging]);
+  }, [baseTransform, currentOffset.x, currentOffset.y, zIndex, isDragging]);
 
   const handleProps = useMemo(() => {
     return {

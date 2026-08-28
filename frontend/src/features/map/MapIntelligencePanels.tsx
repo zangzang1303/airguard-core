@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Activity, ChevronRight, Cloud, ShieldAlert, Thermometer, Volume2, Wind } from "lucide-react";
 import { Alert, Station } from "../../types";
+import { useDraggableFloatingPanel } from "../floating";
 
 interface MapIntelligencePanelsProps {
   stations: Station[];
@@ -22,6 +23,11 @@ export const MapIntelligencePanels: React.FC<MapIntelligencePanelsProps> = ({
   alerts,
   onOpenAlerts,
 }) => {
+  const { containerProps, handleProps } = useDraggableFloatingPanel({
+    panelId: "air-quality-now",
+    group: "widget",
+  });
+
   const freshStations = useMemo(
     () => stations.filter((station) => station.status === "online" && !station.is_stale && station.aqi != null),
     [stations],
@@ -41,9 +47,11 @@ export const MapIntelligencePanels: React.FC<MapIntelligencePanelsProps> = ({
     : null;
 
   return (
-    <aside className="map-intelligence-stack" aria-label="Tổng quan chất lượng không khí">
+    <aside {...containerProps} className="map-intelligence-stack" aria-label="Tổng quan chất lượng không khí">
       <section className="map-intelligence-summary" aria-label="Air quality now">
-        <div className="map-panel-kicker"><Activity size={14} /> Air quality now</div>
+        <div className="map-panel-kicker" {...handleProps}>
+          <Activity size={14} /> AIR QUALITY NOW
+        </div>
         <div className="map-summary-main">
           <strong>{averageAqi ?? "—"}</strong>
           <div><span className={`map-aqi-badge map-aqi-badge--${averageAqi == null ? "neutral" : averageAqi <= 50 ? "good" : averageAqi <= 100 ? "moderate" : "warning"}`}>{aqiLabel(averageAqi)}</span><small>AQI · {freshStations.length}/{stations.length} fresh stations</small></div>
@@ -60,7 +68,7 @@ export const MapIntelligencePanels: React.FC<MapIntelligencePanelsProps> = ({
       </section>
 
       {activeAlert && (
-        <button type="button" className="map-alert-peek" onClick={onOpenAlerts}>
+        <button type="button" className="map-alert-peek no-drag" data-no-drag="true" onClick={onOpenAlerts}>
           <ShieldAlert size={17} />
           <span><strong>{activeAlert.title}</strong><small>{activeAlert.station_id} · {activeAlert.severity}</small></span>
           <ChevronRight size={16} />

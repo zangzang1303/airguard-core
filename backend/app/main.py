@@ -1021,11 +1021,13 @@ async def agent_chat(
             station_id=body.station_id,
             map_context=body.map_context,
         )
-        if conversation.intent in {"greeting", "social"}:
-            # Social replies are deliberately local and deterministic: they do
-            # not need telemetry, map planning, or an LLM-mediated Agent call.
-            return conversational_agent.deterministic_response(conversation, request_id=req_id)
-        if conversation.intent == "clarification":
+        if (
+            conversation.intent in {"greeting", "social", "clarification", "out_of_scope"}
+            or conversation.intent.startswith("social.")
+            or conversation.intent.startswith("conversation.")
+        ):
+            # Social, identity, capability, and out-of-scope replies are deliberately
+            # local and deterministic: they do not need telemetry, map planning, or an LLM call.
             return conversational_agent.deterministic_response(conversation, request_id=req_id)
 
         # The public map's stable alias resolves to the seeded resident profile;
