@@ -5,18 +5,6 @@ import { Station } from "../../types";
 import { PlacePOI } from "../../types/superApp";
 import { formatVnTimeWithSeconds } from "../../utils/datetime";
 
-/**
- * Format alert count badge:
- * - count <= 0: null (badge hidden)
- * - 1 <= count <= 99: exact count as string
- * - count > 99: "99+"
- */
-export const formatAlertBadge = (count: number): string | null => {
-  if (count <= 0) return null;
-  if (count > 99) return "99+";
-  return count.toString();
-};
-
 interface TopFloatingBarProps {
   stations: Station[];
   activeAlertCount: number;
@@ -71,12 +59,12 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   onStartPickOnMap,
 }) => {
   const syncTime = lastStationSyncAt ?? lastUpdated ?? null;
-  const formattedAlertBadge = formatAlertBadge(activeAlertCount);
+  const formattedAlertBadge =
+    activeAlertCount > 0 ? (activeAlertCount > 99 ? "99+" : activeAlertCount.toString()) : null;
   const alertAriaLabel =
     activeAlertCount > 0
       ? `Cảnh báo môi trường, có ${activeAlertCount > 99 ? "hơn 99" : activeAlertCount} cảnh báo đang hoạt động`
       : "Cảnh báo môi trường, không có cảnh báo nào";
-
   const formattedSyncTime = syncTime ? formatVnTimeWithSeconds(syncTime) : "Chưa đồng bộ";
 
   return (
@@ -204,7 +192,6 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
 
       {/* Right Quick Action Utility Icons */}
       <div className="top-actions-right">
-        {/* Active Alerts Bell: Single entry point for environmental alerts */}
         <button
           type="button"
           className={`top-icon-btn ${activeAlertCount > 0 ? "has-alerts" : ""} ${isAlertsOpen ? "active" : ""}`}
@@ -214,11 +201,7 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
           aria-expanded={isAlertsOpen}
         >
           <Bell size={18} aria-hidden="true" />
-          {formattedAlertBadge && (
-            <span className="badge-count" aria-hidden="true">
-              {formattedAlertBadge}
-            </span>
-          )}
+          {formattedAlertBadge && <span className="badge-count" aria-hidden="true">{formattedAlertBadge}</span>}
         </button>
 
         {/* Manager Mode Access Button */}
@@ -248,7 +231,6 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
           </>
         )}
 
-        {/* User Health Profile */}
         <button
           type="button"
           className="top-icon-btn profile-btn"

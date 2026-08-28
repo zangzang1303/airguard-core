@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   X,
   RotateCcw,
+  BarChart2,
 } from "lucide-react";
 import {
   MapLayerConfig,
@@ -238,22 +239,31 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
             />
           </label>
 
-          {/* Thông tin IDW */}
-          <label className="toggle-item-row" htmlFor="toggle-dispersion">
+          {/* Tổng quan Chất lượng không khí (Air Quality Now) */}
+          <label className="toggle-item-row" htmlFor="toggle-air-quality-now">
             <div className="toggle-label-wrap">
-              <PanelTop size={15} />
-              <div className="toggle-title-block">
-                <span>Thông tin bản đồ lan truyền</span>
-                {currentViewMode !== "heatmap" && (
-                  <span className="toggle-helper-note">Chỉ áp dụng cho Bản đồ nhiệt</span>
-                )}
-              </div>
+              <Activity size={15} />
+              <span>Chất lượng không khí (Air Quality Now)</span>
             </div>
             <input
-              id="toggle-dispersion"
+              id="toggle-air-quality-now"
               type="checkbox"
-              checked={config.showDispersionInfo}
-              onChange={() => toggleFeature("showDispersionInfo")}
+              checked={config.showAirQualityNow ?? true}
+              onChange={() => toggleFeature("showAirQualityNow")}
+            />
+          </label>
+
+          {/* Chú giải dải màu & Trạng thái (Map Legend) */}
+          <label className="toggle-item-row" htmlFor="toggle-map-legend">
+            <div className="toggle-label-wrap">
+              <BarChart2 size={15} />
+              <span>Chú giải bản đồ & Phân cấp (Map Legend)</span>
+            </div>
+            <input
+              id="toggle-map-legend"
+              type="checkbox"
+              checked={config.showMapLegend ?? true}
+              onChange={() => toggleFeature("showMapLegend")}
             />
           </label>
 

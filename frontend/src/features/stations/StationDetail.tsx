@@ -191,13 +191,11 @@ export const StationDetail: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px dashed #cbd5e1", fontSize: "0.72rem", color: "#64748b", display: "flex", flexWrap: "wrap", gap: "8px 16px" }}>
-              <span>Mô hình: <strong>{forecast.model_name || "damped_linear_trend"}</strong></span>
-              <span>Nguồn: <strong>{forecast.source || "backend_baseline"}</strong></span>
-              {forecast.limitations && forecast.limitations.length > 0 && (
-                <span>Giới hạn: <em>{forecast.limitations[0]}</em></span>
-              )}
-            </div>
+            {forecast.limitations && forecast.limitations.length > 0 && (
+              <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px dashed #cbd5e1", fontSize: "0.72rem", color: "#64748b" }}>
+                <span>Lưu ý: <em>{forecast.limitations[0]}</em></span>
+              </div>
+            )}
           </div>
         )}
       </section>

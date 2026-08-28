@@ -78,8 +78,9 @@ const SuperAppMain: React.FC<{
   connectionStatus,
   lastUpdated,
 }) => {
-  const { role, userGroup } = useAuth();
+  const { role, userGroup, demoMode } = useAuth();
   const isManager = role === "manager" || role === "admin";
+  const canUseDemoControl = isManager && Boolean(demoMode);
 
   // Active Overlay & Drawer States
   const [activeDrawer, setActiveDrawer] = useState<ActiveDrawerType>(null);
@@ -103,10 +104,12 @@ const SuperAppMain: React.FC<{
     showCommunityReports: true,
     showConnectionStatus: true,
     showStationOverview: true,
-    showDispersionInfo: true,
+    showDemoControl: true,
+    showForecastTimeline: false,
+    showAirQualityNow: false,
+    showMapLegend: false,
   });
 
-  // User Health Profile State
   // User Health Profile State
   const [healthProfile, setHealthProfile] = useState<HealthProfile>({
     sensitivityGroup: "normal",
@@ -115,6 +118,7 @@ const SuperAppMain: React.FC<{
     alertPushEnabled: true,
     dailyDigestEnabled: true,
   });
+
 
   // User Geolocation & Positioning State
   const [userLocation, setUserLocation] = useState<[number, number]>(() => {
@@ -356,7 +360,6 @@ const SuperAppMain: React.FC<{
     () => alerts.filter((alert) => alert.status === "active").length,
     [alerts],
   );
-
   // Hooks must run before every conditional return so the order stays stable
   // while the initial station request moves through loading/error/success.
   const [forecastHour, setForecastHour] = useState<number>(0);
@@ -423,14 +426,11 @@ const SuperAppMain: React.FC<{
         userLocationAccuracy={userLocationAccuracy}
         userLocationName={userLocationName}
         userLocationSource={userLocationSource}
-        isLocating={isLocating}
         isPickingOnMap={isPickingOnMap}
         onForecastHourChange={setForecastHour}
         onSelectStation={handleSelectStation}
         onSelectPoi={handleSelectPoi}
         onOpenNearMe={() => setActiveDrawer("near-me")}
-        onLocateGps={handleLocateGps}
-        onTogglePickOnMap={() => (isPickingOnMap ? handleCancelPickingOnMap() : handleStartPickingOnMap())}
         onCancelPicking={handleCancelPickingOnMap}
         onMapClickLocation={handleMapClickLocation}
         onUserLocationChange={(coords, src) =>
@@ -440,7 +440,9 @@ const SuperAppMain: React.FC<{
             src
           )
         }
-        onResetDefaultLocation={handleResetDefaultLocation}
+        onToggleMapLegend={() =>
+          setLayerConfig((prev) => ({ ...prev, showMapLegend: !(prev.showMapLegend ?? true) }))
+        }
       />
 
       {/* 2. TOP FLOATING HEADER */}
@@ -467,14 +469,18 @@ const SuperAppMain: React.FC<{
         onStartPickOnMap={handleStartPickingOnMap}
       />
 
-      <MapIntelligencePanels
-        stations={stations}
-        alerts={alerts}
-        onOpenAlerts={() => setActiveDrawer("alerts")}
-      />
+      {(layerConfig.showAirQualityNow ?? true) && (
+        <MapIntelligencePanels
+          stations={stations}
+          alerts={alerts}
+          onOpenAlerts={() => setActiveDrawer("alerts")}
+        />
+      )}
 
-      {isManager && <ManagerStationStatusBar stations={stations} alerts={alerts} />}
-      {isManager && <DemoStationControl floating />}
+      {isManager && layerConfig.showStationOverview && (
+        <ManagerStationStatusBar stations={stations} alerts={alerts} />
+      )}
+      {canUseDemoControl && (layerConfig.showDemoControl ?? true) && <DemoStationControl floating />}
 
       {/* 3. MAP LAYERS POPOVER */}
       {isLayersOpen && (
@@ -489,7 +495,11 @@ const SuperAppMain: React.FC<{
       <BottomActionDock
         activeDrawer={activeDrawer}
         isLayersOpen={isLayersOpen}
-        onToggleLayers={() => setIsLayersOpen(!isLayersOpen)}
+        onToggleLayers={() => {
+          const nextIsLayersOpen = !isLayersOpen;
+          setIsLayersOpen(nextIsLayersOpen);
+          if (nextIsLayersOpen) setActiveDrawer(null);
+        }}
         onOpenDrawer={(drawer) => {
           setActiveDrawer(drawer);
           if (drawer !== null) setIsLayersOpen(false);
@@ -577,10 +587,11 @@ const SuperAppMain: React.FC<{
           userLocationAccuracy={userLocationAccuracy}
           stations={stations}
           isLocating={isLocating}
+          isPickingOnMap={isPickingOnMap}
           onClose={() => setActiveDrawer(null)}
           onOpenAiChat={handleOpenAiChat}
           onLocateGps={handleLocateGps}
-          onStartPickOnMap={handleStartPickingOnMap}
+          onStartPickOnMap={isPickingOnMap ? handleCancelPickingOnMap : handleStartPickingOnMap}
           onSelectStation={handleSelectStation}
         />
       )}
