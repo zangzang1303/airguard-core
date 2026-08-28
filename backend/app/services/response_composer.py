@@ -472,18 +472,25 @@ class ResponseComposer:
         request_id: str = "",
         is_personalized: bool = False,
     ) -> dict[str, Any]:
-        """Task 10.6: Running Route Recommendation."""
+        """Task 10.6 & Section 23: Running Route Recommendation."""
         dist = best_route.get("distance_km", 3.1)
-        avg_aqi = int(best_route.get("aqi", 55))
+        avg_aqi = int(round(best_route.get("mean_aqi") or best_route.get("aqi", 55)))
+        p90_aqi = int(round(best_route.get("p90_aqi") or best_route.get("max_aqi", avg_aqi)))
         avg_cat = aqi_category_vi(avg_aqi)
         route_name = best_route.get("name") or best_route.get("short_name", "VinUni → Hồ Ngọc Trai")
+        snap_m = int(best_route.get("snap_distance_m", 25))
+        access_m = int(best_route.get("access_distance_m", 0))
 
-        headline = f"🏃 **Mình đã tìm được một cung đường khoảng {dist} km có chất lượng không khí phù hợp hơn.**"
+        start_desc = f"cách vị trí hiện tại khoảng {snap_m} m" if snap_m > 5 else "ngay tại điểm bạn đã chọn"
+
+        headline = f"🏃 **Mình đã tìm được một tuyến khoảng {dist} km bám theo các đường đi bộ thực tế quanh khu {route_name}.**"
 
         highlights_text = (
             f"- **Cự ly:** khoảng {dist} km\n"
             f"- **AQI trung bình trên tuyến:** {avg_aqi}\n"
-            f"- **Khu vực chính:** {origin_label} → {route_name}"
+            f"- **AQI cao nhất trên tuyến:** {p90_aqi}\n"
+            f"- **Khu vực chính:** {origin_label} → {route_name}\n"
+            f"- **Điểm xuất phát:** {start_desc}"
         )
 
         advice = "Tuyến này giúp hạn chế đi qua các vùng đang có AQI cao hơn."
@@ -492,16 +499,17 @@ class ResponseComposer:
 
         summary = f"{headline}\n\n{highlights_text}\n\n{advice}\n\n{map_feedback}\n\n{data_note}"
         details = (
-            f"• **Điểm xuất phát:** {origin_label}.\n"
+            f"• **Điểm xuất phát:** {origin_label} ({start_desc}).\n"
             f"• **Lộ trình:** {route_name} ({dist} km).\n"
-            f"• **Chỉ số:** AQI trung bình {avg_aqi} ({avg_cat}).\n"
+            f"• **Chỉ số:** AQI trung bình {avg_aqi} ({avg_cat}), đỉnh P90 {p90_aqi}.\n"
             f"• **Khuyến nghị:** {advice}\n\n{map_feedback}"
         )
 
         highlights_data = [
             {"label": "Cự ly", "value": f"khoảng {dist} km"},
             {"label": "AQI trung bình trên tuyến", "value": str(avg_aqi), "description": avg_cat},
-            {"label": "Khu vực chính", "value": f"{origin_label} → {route_name}"},
+            {"label": "AQI cao nhất", "value": str(p90_aqi)},
+            {"label": "Điểm xuất phát", "value": start_desc},
         ]
 
         intent_name = "recommend_personalized_running_route" if is_personalized else "recommend_running_route"
@@ -524,6 +532,77 @@ class ResponseComposer:
                 "5 km",
                 "Đổi điểm xuất phát",
                 "Xem dự báo tối nay",
+            ],
+        }
+
+    @staticmethod
+    def compose_too_far_route(
+        origin_label: str = "",
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Task Section 23: Too Far Route Fallback."""
+        headline = "📍 **Tuyến có chất lượng không khí tốt hơn hiện nằm khá xa vị trí của bạn nên mình không ưu tiên phương án đó.**"
+        advice = "Mình có thể tìm một tuyến gần hơn hoặc gợi ý hoạt động trong nhà gần vị trí hiện tại."
+        summary = f"{headline}\n\n{advice}"
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "*AirGuard AI.*",
+            },
+            "response": summary,
+            "intent": "route.too_far",
+            "follow_up_actions": [
+                "🏠 Tìm hoạt động trong nhà",
+                "🏃 Tìm tuyến gần hơn",
+                "⏱️ Xem dự báo 1-3 giờ tới",
+            ],
+        }
+
+    @staticmethod
+    def compose_no_safe_route_fallback(
+        reason: str = "aqi_unhealthy",
+        forecast_better_hour: str | None = None,
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Task Section 18 & 19: Unsafe Route or Network Fallback."""
+        headline = "⚠️ **Hiện tại mình chưa tìm được một tuyến chạy ngoài trời đủ phù hợp quanh vị trí của bạn.**"
+        explanation = "Các tuyến gần nhất đều đi qua khu vực có AQI cao hơn mức ưu tiên."
+
+        time_advice = f"\n- xem lại tuyến vào khoảng {forecast_better_hour} khi chất lượng không khí được dự báo cải thiện;" if forecast_better_hour else "\n- chờ thời điểm AQI giảm;"
+
+        options_text = (
+            f"{explanation}\n\n"
+            "Bạn có thể:"
+            f"{time_advice}"
+            "\n- chọn một khu vực gần hơn;"
+            "\n- hoặc chuyển sang hoạt động trong nhà."
+        )
+
+        indoor_offer = "🏠 Nếu muốn, mình có thể tìm lựa chọn trong nhà gần bạn."
+        summary = f"{headline}\n\n{options_text}\n\n{indoor_offer}"
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": options_text,
+                "highlights": [],
+                "recommendation": indoor_offer,
+                "map_feedback": "",
+                "data_note": "*Dữ liệu cảnh báo an toàn AirGuard AI.*",
+            },
+            "response": summary,
+            "intent": "recommend_indoor_activity",
+            "follow_up_actions": [
+                "🏠 Tìm địa điểm trong nhà gần đây",
+                "⏱️ Xem dự báo không khí",
+                "📍 Đổi vị trí xuất phát",
             ],
         }
 

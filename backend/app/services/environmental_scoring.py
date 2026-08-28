@@ -312,12 +312,15 @@ class EnvironmentalScoringEngine:
         mean_noise = round(weighted_noise / total_dist_m, 1)
         mean_co2 = round(weighted_co2 / total_dist_m, 1)
 
-        # Percentiles (P90)
+        # Percentiles & Extrema
         sorted_aqis = sorted(all_aqis)
         sorted_pm25s = sorted(all_pm25s)
         p90_idx = min(len(sorted_aqis) - 1, int(len(sorted_aqis) * 0.90))
         p90_aqi = round(sorted_aqis[p90_idx], 1)
         p90_pm25 = round(sorted_pm25s[p90_idx], 1)
+        median_aqi = round(sorted_aqis[len(sorted_aqis) // 2], 1)
+        max_aqi = round(sorted_aqis[-1], 1)
+        max_pm25 = round(sorted_pm25s[-1], 1)
 
         hotspot_ratio = round(hotspot_dist_m / total_dist_m, 3)
         good_pct = int(round((good_dist_m / total_dist_m) * 100))
@@ -375,12 +378,16 @@ class EnvironmentalScoringEngine:
 
         return {
             "mean_aqi": mean_aqi,
+            "median_aqi": median_aqi,
+            "max_aqi": max_aqi,
+            "max_pm25": max_pm25,
             "mean_pm25": mean_pm25,
             "mean_temperature": mean_temp,
             "mean_noise_db": mean_noise,
             "mean_co2": mean_co2,
             "p90_aqi": p90_aqi,
             "p90_pm25": p90_pm25,
+            "distance_above_threshold_m": round(hotspot_dist_m),
             "hotspot_distance_m": round(hotspot_dist_m),
             "hotspot_ratio": hotspot_ratio,
             "exposure_score": final_score,
@@ -448,17 +455,28 @@ class EnvironmentalScoringEngine:
                 else exposure["actual_distance_km"]
             )
 
+            access_dist_m = float(cand.get("access_distance_m", 0.0))
+            access_penalty = 0.0
+            if access_dist_m > 1000.0:
+                access_penalty = min(35.0, (access_dist_m - 1000.0) * 0.025)
+            adjusted_score = round(max(0.0, exposure["exposure_score"] - access_penalty), 1)
+
             cand_updated = {
                 **cand,
-                "score": exposure["exposure_score"],
+                "score": adjusted_score,
                 "tier": exposure["tier"],
                 "aqi": exposure["mean_aqi"],
+                "mean_aqi": exposure["mean_aqi"],
+                "median_aqi": exposure.get("median_aqi", exposure["mean_aqi"]),
+                "max_aqi": exposure.get("max_aqi", exposure["p90_aqi"]),
                 "pm25": exposure["mean_pm25"],
+                "mean_pm25": exposure["mean_pm25"],
                 "temperature": exposure["mean_temperature"],
                 "noise_db": exposure["mean_noise_db"],
                 "co2": exposure["mean_co2"],
                 "p90_aqi": exposure["p90_aqi"],
                 "p90_pm25": exposure["p90_pm25"],
+                "distance_above_threshold_m": exposure.get("distance_above_threshold_m", exposure["hotspot_distance_m"]),
                 "hotspot_distance_m": exposure["hotspot_distance_m"],
                 "hotspot_ratio": exposure["hotspot_ratio"],
                 "distance_km": final_dist_km,
@@ -472,7 +490,10 @@ class EnvironmentalScoringEngine:
                     if exposure["environment_segments"]
                     else None
                 ),
-                "exposure_breakdown": exposure["breakdown"],
+                "exposure_breakdown": {
+                    **exposure["breakdown"],
+                    "access_penalty": round(access_penalty, 1),
+                },
             }
             evaluated.append(cand_updated)
 

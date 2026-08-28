@@ -672,17 +672,21 @@ class GeospatialAgentService:
         if is_indoor_inquiry:
             return self._handle_explicit_indoor_intent(q, ranked_pois, time_ctx, request_id, user_loc=user_loc, conversation_id=conversation_id)
 
-        # Intent 0: Running Route Recommendation (Personalized or General)
+        # Intent 0: Running / Walking / Cycling Route Recommendation
+        is_cycling = any(w in q for w in ["đạp xe", "xe đạp", "cycling", "đua xe"])
+        if is_cycling:
+            activity = "cycling"
+
         is_route_query = (
-            any(w in q for w in ["đoạn đường", "cung đường", "tuyến đường", "lộ trình", "đường chạy", "chạy bộ ở đâu", "tuyến chạy", "chạy ở đâu", "tuyến nào", "đường nào", "chạy bộ"])
+            any(w in q for w in ["đoạn đường", "cung đường", "tuyến đường", "lộ trình", "đường chạy", "chạy bộ ở đâu", "tuyến chạy", "chạy ở đâu", "tuyến nào", "đường nào", "chạy bộ", "đạp xe", "xe đạp"])
             or target_distance_km is not None
-            or (activity == "running" and any(w in q for w in ["đường", "tuyến", "đoạn", "ở đâu", "lộ trình", "nơi nào", "chỗ nào"]))
+            or (activity in {"running", "walking", "cycling"} and any(w in q for w in ["đường", "tuyến", "đoạn", "ở đâu", "lộ trình", "nơi nào", "chỗ nào"]))
         )
         if is_route_query:
             from .road_graph_router import road_graph_router
 
-            start_node, snap_dist_m = road_graph_router.find_nearest_node(origin_lat, origin_lng)
-            max_origin_snap_distance = 250.0  # meters
+            start_node, snap_dist_m = road_graph_router.find_nearest_node(origin_lat, origin_lng, activity=activity)
+            max_origin_snap_distance = 400.0 if activity == "cycling" else 250.0  # meters
 
             # Structured Debug Logging for Routing Origin Trace
             logger.info(
@@ -692,6 +696,7 @@ class GeospatialAgentService:
                         "query": message,
                         "origin_source": origin_source,
                         "origin_label": origin_label,
+                        "activity": activity,
                         "clicked_origin": {"lat": origin_lat, "lng": origin_lng},
                         "agent_origin": {"lat": origin_lat, "lng": origin_lng},
                         "routing_origin": {"lat": origin_lat, "lng": origin_lng},
@@ -707,7 +712,7 @@ class GeospatialAgentService:
                 )
             )
 
-            # Max Snap Distance check (Section 8)
+            # Max Snap Distance check (Section 6 & 8)
             if snap_dist_m > max_origin_snap_distance:
                 headline = f"📍 **Mình chưa tìm thấy lối chạy bộ phù hợp đủ gần điểm bạn chọn (cách trục đường gần nhất khoảng {int(snap_dist_m)} m).**"
                 advice = "Bạn có thể chọn một điểm gần các trục đường nội khu, công viên hoặc dải ven hồ trong khu đô thị Vinhomes Ocean Park 1 để mình vẽ lộ trình chính xác hơn."
@@ -745,7 +750,22 @@ class GeospatialAgentService:
                 station_pm25_map=station_pm25_map,
                 origin_source=origin_source,
                 origin_label=origin_label,
+                activity=activity,
             )
+
+            if not candidates:
+                too_far_comp = ResponseComposer.compose_too_far_route(origin_label=origin_label, request_id=request_id)
+                return {
+                    "answer": too_far_comp["answer"],
+                    "response": too_far_comp["response"],
+                    "intent": "recommend_running_route",
+                    "time_context": time_ctx,
+                    "data_mode": time_ctx["type"],
+                    "origin": {"source": origin_source, "lat": origin_lat, "lng": origin_lng, "label": origin_label},
+                    "evidence": [],
+                    "map_actions": [],
+                    "request_id": request_id,
+                }
 
             # 2. Continuous Line-Integral Spatial Environmental Scoring along polyline coordinates
             ranked_routes = environmental_scoring.rank_route_candidates(
@@ -756,12 +776,18 @@ class GeospatialAgentService:
             )
 
             if not ranked_routes:
-                raise ServiceError(
-                    "running_route_unavailable",
-                    "No grounded road-network candidate is available from the selected origin",
-                    503,
-                    {"origin_source": origin_source},
-                )
+                too_far_comp = ResponseComposer.compose_too_far_route(origin_label=origin_label, request_id=request_id)
+                return {
+                    "answer": too_far_comp["answer"],
+                    "response": too_far_comp["response"],
+                    "intent": "recommend_running_route",
+                    "time_context": time_ctx,
+                    "data_mode": time_ctx["type"],
+                    "origin": {"source": origin_source, "lat": origin_lat, "lng": origin_lng, "label": origin_label},
+                    "evidence": [],
+                    "map_actions": [],
+                    "request_id": request_id,
+                }
 
             best_route = ranked_routes[0]
 
@@ -2075,6 +2101,7 @@ class GeospatialAgentService:
             "intent": "recommend_indoor_activity",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
+            "indoor_venues": venues,
             "safety_evaluation": safety_eval,
             "evidence": [
                 {"source": "indoor_catalog", "venue_id": best_v["id"], "name": best_v["name"]},
