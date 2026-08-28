@@ -1,35 +1,51 @@
-# Task B7-03: Bản Đồ Nhiệt Lan Truyền (IDW + Gió & Polygon Ocean Park 1)
+# Task B7-03: Bản Đồ Nhiệt Lan Truyền Khí Động Học, Hấp Thụ Mặt Nước & Hạt Gió Động
 
-> **Người phụ trách:** Backend Engineer & Frontend Map Specialist  
+> **Người phụ trách:** Backend Spatial Engineer & Frontend WebGL / Canvas Specialist  
 > **Thời hạn dự kiến:** Ngày 1 - Ngày 2  
-> **Mục tiêu:** Hoàn thiện thuật toán nội suy không gian Inverse Distance Weighting có tính đến Vector Hướng & Vận tốc Gió (Wind-adjusted IDW), cắt gọt viền chính xác theo Polygon 10 đỉnh của Vinhomes Ocean Park 1, và bổ sung hoạt ảnh hạt gió sống động trên Canvas.
+> **Mục tiêu:** 
+> 1. Hoàn thiện mô hình lan truyền khí động học **Wind-adjusted IDW** có tính toán **Hệ số Hấp thụ Mặt Nước (Water Body Absorption)** của Hồ Ngọc Trai (24.5ha) và Biển Hồ nước mặn (6.1ha).
+> 2. Bổ sung **Hoạt ảnh Luồng Hạt Gió Động (Canvas Wind Particles Animation)** tương tự Windy.com.
+> 3. Tính năng **"Đo Chất Lượng Tại Tòa Nhà Của Bạn" (Pick on Map)**: Bấm vào bất kỳ vị trí căn hộ nào trên bản đồ để nhận ngay báo cáo nội suy 5 chỉ số môi trường.
 
 ---
 
 ## 1. PHẠM VI CÔNG VIỆC CHI TIẾT
 
-### 1.1. Backend Spatial Engine
+### 1.1. Backend Spatial Engine & Địa Hình Đô Thị
 - **File cần hoàn thiện / tinh chỉnh**:
   - [`backend/app/services/spatial_dispersion_service.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/services/spatial_dispersion_service.py)
   - [`backend/app/services/weather_service.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/services/weather_service.py)
-  - [`backend/app/main.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/main.py) (Endpoint `/api/v1/spatial/dispersion`)
+  - [`backend/app/main.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/main.py) (Endpoint `/api/v1/spatial/dispersion`, `/api/v1/spatial/point-assessment`)
 - **Nhiệm vụ cụ thể**:
-  1. **Lưới không gian 30x30**: Chia khu vực tọa độ $[20.9840, 21.0050]$ vĩ độ và $[105.9330, 105.9630]$ kinh độ thành 900 điểm lưới.
-  2. **Thuật toán Ray-Casting**: Kiểm tra từng điểm lưới xem có nằm trong đa giác 10 đỉnh của Vinhomes Ocean Park 1 hay không; loại bỏ các điểm ngoài ranh giới để giảm tải truyền tải và render.
-  3. **Hiệu chỉnh Vector Gió**: Tính góc $\theta$ giữa hướng gió thực tế (từ OpenWeather API hoặc simulator) và vector trạm đo $\rightarrow$ điểm lưới:
-     $$d_{\text{effective}} = \frac{d_{\text{Euclid}}}{1.0 + 0.15 \cdot \text{wind\_speed} \cdot \cos(\theta)}$$
-     $$\text{Trọng số } w_i = \frac{1}{(d_{\text{effective}} + 0.0001)^2}$$
-  4. **Quality Gate**: Nếu có ít hơn 3 trạm online/fresh $\rightarrow$ Trả về mã lỗi `insufficient_spatial_data` và không tính toán sai lệch.
+  1. **Hiệu ứng Mặt Nước Điều Hòa (Water Body Dispersion Damping)**:
+     - Vinhomes Ocean Park 1 có diện tích mặt nước rất lớn: Hồ Ngọc Trai ($24.5\text{ ha}$) và Biển Hồ ($6.1\text{ ha}$).
+     - Các điểm lưới nằm trên bề mặt nước hoặc trong bán kính $150\text{m}$ quanh hồ được áp dụng hệ số làm sạch tự nhiên:
+       * Nồng độ PM2.5 giảm tự nhiên $15\text{–}20\%$ do hơi ẩm lắng đọng bụi.
+       * Nhiệt độ giảm $1.0\text{–}2.0^\circ\text{C}$ nhờ hiệu ứng bốc hơi làm mát.
+  2. **Thuật toán Khí Động Học Gió 2 Chiều (Wind-Vector IDW)**:
+     $$d_{\text{effective}} = \frac{d_{\text{Euclid}}}{1.0 + 0.18 \cdot \text{wind\_speed} \cdot \cos(\theta_{\text{wind}})}$$
+     - Chiều xuôi gió ($\cos\theta > 0$): Ô nhiễm lan xa hơn và nồng độ đậm hơn.
+     - Chiều ngược gió ($\cos\theta < 0$): Ô nhiễm bị cản lại và pha loãng nhanh chóng.
+  3. **API Đo Điểm Tùy Chọn (Point Assessment Endpoint)**:
+     - Nhận tọa độ $(\text{lat}, \text{lon})$ từ người dùng $\rightarrow$ Trả về giá trị nội suy 5 chỉ số, mức độ an toàn và trạm đo gần nhất đóng vai trò tham chiếu.
 
-### 1.2. Frontend Map Visualization
+---
+
+### 1.2. Frontend UI / Canvas WebGL & Hạt Gió Động
 - **File cần hoàn thiện / tinh chỉnh**:
   - [`frontend/src/features/stations/HeatmapLayer.tsx`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/stations/HeatmapLayer.tsx)
+  - [`frontend/src/features/map/WindParticlesLayer.tsx`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/map/) *(Component mới)*
   - [`frontend/src/features/map/OceanParkBoundary.tsx`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/map/OceanParkBoundary.tsx)
   - [`frontend/src/features/map/SuperMap.tsx`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/map/SuperMap.tsx)
 - **Nhiệm vụ cụ thể**:
-  1. **Tối ưu Canvas Rendering**: Sử dụng `leaflet.heat` hoặc Custom Canvas 2D để vẽ gradient màu mượt mà (Xanh ➔ Vàng ➔ Cam ➔ Đỏ ➔ Tím ➔ Nâu) theo bảng màu EPA AQI.
-  2. **Lớp phủ Ranh giới (Polygon Mask)**: Phủ màu xám mờ ngoài ranh giới Ocean Park 1 để tôn vinh khu vực đô thị dự án.
-  3. **Hiệu ứng Hạt Gió (Wind Particle Animation)**: Bổ sung lớp hạt chuyển động nhẹ nhàng theo hướng gió để bản đồ trở nên sinh động và tạo hiệu ứng WOW trước Ban Giám khảo.
+  1. **Lớp Hạt Gió Bay Động (Wind Streamlines / Particles Layer)**:
+     - Sử dụng HTML5 Canvas vẽ 150–200 hạt gió mảnh (Streamlines) chuyển động lướt trên bản đồ theo đúng góc hướng gió (Degree) và vận tốc gió (m/s).
+     - Tạo hiệu ứng thị giác cực kỳ chuyên nghiệp và sống động (như các bản đồ khí tượng vệ tinh thế hệ mới).
+  2. **Công cụ Chọn Tòa Nhà (Pick on Map Tool)**:
+     - Bấm nút `[📍 Đo tại vị trí của tôi]` trên bản đồ: Cho phép di chuột bấm vào tòa nhà mong muốn (như S2.08, Ruby 1, Hải Âu 2).
+     - Hiển thị Card nổi: *"Không khí tại Tòa S2.08: AQI 42 (Tốt), Nhiệt độ 28.5°C, Hướng gió Đông Nam 3.2 m/s"*.
+  3. **Cắt Viền Đa Giác & Masking Bóng Đổ (Polygon Clamping)**:
+     - Áp dụng thuật toán Ray-Casting 10 đỉnh cắt gọn mép heatmap, làm mờ vùng bên ngoài ranh giới dự án.
 
 ---
 
@@ -40,18 +56,19 @@
 & "d:\CODE\AITHUCCHIEN\BUILD\P-074\.venv\Scripts\pytest" tests/test_backend/test_spatial_dispersion.py -v
 ```
 
-### 2.2. Test thủ công trên Giao diện (Manual Checklist)
-- [ ] Bật layer Heatmap trên bản đồ:
-  - Bản đồ hiển thị dải màu mượt mà, bao trọn 5 trạm quan trắc.
-  - Vùng xung quanh trạm có chỉ số cao (như S03) hiển thị màu đỏ/tím rõ rệt và bị dạt theo hướng gió.
-- [ ] Thay đổi hướng gió từ Đông Nam ($135^\circ$) sang Tây Bắc ($315^\circ$) trong simulator:
-  - Bản đồ nhiệt xoay hướng lan truyền ô nhiễm ngay trong chu kỳ làm mới tiếp theo.
-- [ ] Tắt/Bật các layer phụ trợ (Sensor Markers, SubZone Labels): Không có xung đột visual.
+### 2.2. Test tương tác trực quan (Visual & Performance Test)
+- [ ] Bật lớp Heatmap và lớp Hạt Gió:
+  - Các vệt hạt gió chuyển động nhịp nhàng theo hướng gió hiện tại.
+  - Tốc độ render duy trì mượt mà $\ge 50\text{ FPS}$ trên trình duyệt.
+- [ ] Đổi hướng gió trong simulator từ $90^\circ$ (Đông) sang $270^\circ$ (Tây):
+  - Hạt gió đổi chiều bay ngay lập tức và bản đồ nhiệt chuyển hướng lan tỏa tương ứng.
+- [ ] Dùng công cụ Pick on Map nhấp vào giữa Hồ Ngọc Trai:
+  - Thẻ kết quả hiển thị chỉ số AQI thấp hơn và nhiệt độ mát hơn các trạm ven đường.
 
 ---
 
 ## 3. TIÊU CHUẨN NGHIỆM THU (ACCEPTANCE CRITERIA)
 
-1. ✅ Endpoint `/api/v1/spatial/dispersion` phản hồi dưới $150\text{ms}$.
-2. ✅ Tất cả 900 điểm lưới được lọc chính xác bằng thuật toán Ray-Casting 100% bên trong polygon.
-3. ✅ Canvas Heatmap đạt tốc độ khung hình $60\text{ FPS}$ khi zoom/pan bản đồ.
+1. ✅ Hiệu ứng hạt gió hoạt động mượt mà, không gây rò rỉ bộ nhớ (Canvas cleanup on unmount).
+2. ✅ Thuật toán IDW phản ánh chính xác tác động của vector gió và vùng mặt nước hồ điều hòa.
+3. ✅ Thời gian tính toán nội suy điểm tùy chọn $< 50\text{ms}$.

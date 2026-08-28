@@ -1,64 +1,71 @@
-# Task B7-02: Cảnh Báo Cá Nhân Hóa 3 Nhóm Sức Khỏe & Gửi Email
+# Task B7-02: Cảnh Báo Sớm Cá Nhân Hóa, Tính Liều Lượng Bụi & Lộ Trình Sạch
 
 > **Người phụ trách:** Backend Engineer & AI Agent Lead  
 > **Thời hạn dự kiến:** Ngày 2  
-> **Mục tiêu:** Hoàn thiện cơ chế phân loại cảnh báo thông minh theo 3 nhóm đối tượng (`sensitive`, `normal`, `outdoor_sport`), tích hợp gửi Email qua Resend API có cơ chế chống spam (Debounce & Cooldown), và tối ưu khả năng trả lời tư vấn của AI Agent.
+> **Mục tiêu:** 
+> 1. Xây dựng cơ chế **Cảnh báo Dự báo Sớm (Predictive Early Warning)**: Báo trước 30–60 phút trước khi đợt ô nhiễm tràn tới theo mô hình dự báo.
+> 2. Tính toán **Liều lượng Bụi Mịn Hít Phải (Inhaled PM2.5 Dose)** theo cường độ vận động (Nghỉ ngơi 6 L/phút vs Chạy bộ 45 L/phút).
+> 3. Tích hợp **Lộ trình Chạy bộ Sạch (AQI-Aware Clean Running Route)** trên bản đồ OpenStreetMap.
+> 4. Email HTML tương tác 2 chiều qua Resend API có Checklist hành động 1-Click và Deep link.
 
 ---
 
 ## 1. PHẠM VI CÔNG VIỆC CHI TIẾT
 
-### 1.1. Backend Core & Notification Service
+### 1.1. Backend Core & Dược Động Học Hô Hấp (Inhaled Dose Engine)
 - **File cần hoàn thiện / tinh chỉnh**:
   - [`backend/app/services/resident_alert_notification_service.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/services/resident_alert_notification_service.py)
   - [`backend/app/services/environmental_scoring.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/services/environmental_scoring.py)
+  - [`backend/app/services/road_graph_router.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/services/road_graph_router.py)
   - [`backend/app/services/resend_email_provider.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/services/resend_email_provider.py)
-  - [`backend/app/services/email_service.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/services/email_service.py)
 - **Nhiệm vụ cụ thể**:
-  1. **Quy tắc phân tầng cảnh báo sớm (Early Warning Thresholds)**:
-     - Nhóm `sensitive`: Kích hoạt cảnh báo cấp độ Vàng khi PM2.5 vượt $35.5\text{ µg/m³}$ hoặc AQI $> 50$ kèm khuyến nghị đóng cửa sổ và bật máy lọc không khí.
-     - Nhóm `outdoor_sport`: Kích hoạt cảnh báo khi PM2.5 vượt $55.4\text{ µg/m³}$ hoặc AQI $> 100$ kèm gợi ý chuyển sang tập thể dục trong nhà hoặc tìm trạm sạch nhất.
-     - Nhóm `normal`: Cảnh báo khi vượt ngưỡng Cam/Đỏ (AQI $> 150$).
-  2. **Bộ lọc chống mệt mỏi cảnh báo (Alert Fatigue Filter)**:
-     - **Debounce**: Bắt buộc phát hiện vượt ngưỡng trong ít nhất 2 chu kỳ đo liên tiếp ($20\text{s}$).
-     - **Cooldown**: Khóa gửi lại email cho cùng 1 user và 1 trạm trong vòng $60\text{ phút}$, trừ khi mức độ nghiêm trọng leo thang từ `warning` lên `danger`.
-     - **Idempotency Key**: Sinh khóa `uuid5(alert_id, user_id, severity)` chống gửi trùng lặp.
-  3. **Template Email HTML Resend**: Thiết kế mẫu Email HTML responsive, hiển thị rõ chỉ số ô nhiễm, trạm ghi nhận, biểu tượng cảnh báo màu sắc và lời khuyên hành động tức thời.
+  1. **Tính toán Liều Lượng Bụi Hít Phải (Inhaled Dose Calculation)**:
+     $$\text{Dose } (\mu\text{g}) = \text{PM2.5 Conc } (\mu\text{g/m}^3) \times \text{Ventilation Rate } (V_E \text{ m}^3/\text{min}) \times \text{Duration } (t \text{ min})$$
+     - Nhóm `normal` nghỉ ngơi trong phòng: $V_E = 0.006\text{ m}^3/\text{phút}$ (6 L/min).
+     - Nhóm `outdoor_sport` chạy bộ ngoài trời: $V_E = 0.045\text{ m}^3/\text{phút}$ (45 L/min $\rightarrow$ Hít bụi gấp **7.5 lần** so với người bình thường!).
+     - *Ứng dụng*: AI Agent dùng công thức này để chứng minh thuyết phục: *"Nếu bạn chạy bộ 30 phút quanh trạm S01 lúc này, phổi bạn sẽ hấp thụ $115\text{ µg}$ bụi mịn, tương đương hút 2.5 điếu thuốc lá."*
+  2. **Cơ chế Cảnh Báo Dự Báo Sớm (Predictive Warning)**:
+     - Không đợi đến khi PM2.5 vượt ngưỡng thực tế. Nếu mô hình dự báo chỉ ra trong $1\text{–}2\text{ giờ}$ tới trạm sẽ chạm mức Đỏ/Tím $\rightarrow$ Gửi thông báo trước **45 phút** để người dân kịp đóng cửa sổ và mang đồ phơi vào nhà.
+  3. **Định Tuyến Đường Chạy Bộ Sạch Nhất (AQI-Aware Multi-objective Routing)**:
+     - Thuật toán Dijkstra đa mục tiêu trên mạng lưới đường OSM Ocean Park 1: Cân bằng giữa khoảng cách (Distance) và mức độ phơi nhiễm ô nhiễm tích lũy (Cumulative Pollution Exposure).
 
-### 1.2. Frontend UI / UX & Profile Drawer
+---
+
+### 1.2. Frontend UI & Email Tương Tác 2 Chiều
 - **File cần hoàn thiện / tinh chỉnh**:
-  - [`frontend/src/features/profile/`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/profile/) (Drawer cài đặt hồ sơ sức khỏe)
-  - [`frontend/src/features/alerts/`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/alerts/) (Alert Banners & Drawer)
-  - [`frontend/src/features/agent/`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/agent/) (Chatbot widget)
+  - [`frontend/src/features/profile/`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/profile/) (Health Profile Drawer)
+  - [`frontend/src/features/alerts/`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/alerts/) (Interactive Alert Cards)
+  - [`frontend/src/features/map/SuperMap.tsx`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/map/SuperMap.tsx) (Clean Route Overlay Polyline)
 - **Nhiệm vụ cụ thể**:
-  1. **User Profile Selector**: Cho phép cư dân chọn 1 trong 3 nhóm sức khỏe trong Profile Drawer kèm mô tả rõ ràng.
-  2. **Banner Cảnh báo Động**: Hiển thị Banner trên đầu trang dashboard với màu sắc tương ứng mức cảnh báo của nhóm người dùng đang chọn.
-  3. **Tương tác Chatbot AI**: Khi cư dân hỏi câu hỏi tự nhiên (*"Tôi bị hen suyễn thì giờ có nên ra hồ Ngọc Trai đi dạo không?"*), AI Agent tự động đọc profile `sensitive` và dữ liệu thời gian thực của trạm S03 để đưa ra câu trả lời có căn cứ khoa học.
+  1. **Hiển thị Tuyến Đường Chạy Sạch Trên Bản Đồ**:
+     - Khi người dùng chọn nhóm `outdoor_sport` và hỏi đường chạy, bản đồ vẽ đường Polyline màu xanh Cyan quanh Hồ Ngọc Trai kèm thông số: Cự ly ($3.2\text{ km}$), Thời gian ($22\text{ phút}$), Lượng bụi tránh được ($68\%$).
+  2. **Email HTML Tương Tác Qua Resend API**:
+     - Mẫu Email sang trọng, có nút bấm:
+       * `[Xem Bản Đồ Trực Tiếp]` (Mở web app và fly-to trạm tương ứng).
+       * `[Checklist Hành Động]`: Danh sách việc cần làm (Đóng cửa ban công, bật máy lọc khí, đeo khẩu trang N95).
+  3. **Chống Spam Thông Minh (Debounce & Smart Cooldown)**:
+     - Khóa gửi email 60 phút, nhưng nếu chuyển sang mức cực kỳ nguy hại (Hazardous AQI $> 300$) ➔ Tự động phá vỡ cooldown để gửi cảnh báo khẩn cấp (Emergency Break-through).
 
 ---
 
 ## 2. KỊCH BẢN KIỂM THỬ TRÊN LOCAL (TEST PLAN)
 
 ### 2.1. Test tự động (Automated Tests)
-Chạy lệnh kiểm thử notification và agent recommendation:
 ```powershell
-& "d:\CODE\AITHUCCHIEN\BUILD\P-074\.venv\Scripts\pytest" tests/test_backend/test_notification_tasks_resend.py tests/test_agents/test_recommendations.py -v
+& "d:\CODE\AITHUCCHIEN\BUILD\P-074\.venv\Scripts\pytest" tests/test_backend/test_notification_tasks_resend.py tests/test_agents/test_recommendations.py tests/test_agents/test_tools.py -v
 ```
 
-### 2.2. Test thủ công trên Giao diện (Manual Checklist)
-- [ ] Đăng nhập tài khoản cư dân: `resident1` (Nhóm `sensitive`).
-- [ ] Điều khiển Simulator tạo sự cố PM2.5 tăng lên $65\text{ µg/m³}$ tại trạm S03.
-- [ ] Kiểm tra trên Dashboard:
-  - Banner cảnh báo màu Cam xuất hiện ngay lập tức.
-  - Nội dung cảnh báo ghi rõ: *"Khuyến nghị cho nhóm nhạy cảm: Đóng cửa sổ, hạn chế ra ngoài, bật máy lọc không khí."*
-- [ ] Chuyển tài khoản sang `runner_sport` (Nhóm `outdoor_sport`):
-  - Mở khung chat AI, hỏi: *"Hôm nay chạy bộ ở đâu tốt nhất?"*
-  - AI Agent gợi ý trạm S05 (Park River) có AQI $= 25$ kèm khung giờ tối ưu.
+### 2.2. Test kịch bản thực tế (Live Testing)
+- [ ] Chọn profile `outdoor_sport`: Hỏi chatbot *"Tôi muốn chạy 5km, hãy chỉ đường ít bụi nhất"*.
+  - AI Agent vẽ lộ trình polyline quanh hồ Ngọc Trai và khuôn viên VinUni.
+  - Phản hồi giải thích rõ vì sao không nên chạy theo trục đường Đa Tốn (S01).
+- [ ] Kích hoạt kịch bản dự báo ô nhiễm tăng trong 1 giờ tới:
+  - Nhận thông báo sớm: *"Dự báo sau 45 phút nữa khói bụi giờ tan tầm sẽ tăng cao tại khu Sapphire, hãy đóng cửa sổ trước 17:30."*
 
 ---
 
 ## 3. TIÊU CHUẨN NGHIỆM THU (ACCEPTANCE CRITERIA)
 
-1. ✅ 100% email thông báo được định dạng HTML chuẩn, không lỗi font tiếng Việt.
-2. ✅ Không có hiện tượng spam email khi cảm biến gửi dữ liệu định kỳ mỗi 10s.
-3. ✅ AI Agent trả lời đúng 100% intent cá nhân hóa trong tập kiểm thử 62 Golden Cases.
+1. ✅ Công thức Inhaled Dose tính toán chính xác theo lưu lượng thở của 3 nhóm người dùng.
+2. ✅ Tuyến đường chạy bộ trên bản đồ tuân thủ 100% đồ thị đường thực tế của OpenStreetMap.
+3. ✅ Email gửi qua Resend có tỷ lệ giao nhận thành công và hiển thị hoàn hảo trên cả điện thoại và máy tính.
