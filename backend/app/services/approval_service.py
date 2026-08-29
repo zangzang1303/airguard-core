@@ -366,6 +366,8 @@ class ApprovalService:
                 approved = dict(request)
                 command_intent = self._create_dispatch_intent(cur, approved)
                 audit_details = {
+                    "station_id": approved.get("station_id"),
+                    "proposed_action": approved.get("proposed_action"),
                     "command_intent_id": command_intent.get("command_intent_id") if command_intent else None,
                 }
                 if idempotency_key:

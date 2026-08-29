@@ -1,19 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2,
-  Clock,
-  Eye,
-  FileCheck2,
-  FileSearch,
-  Filter,
-  LockKeyhole,
-  RefreshCw,
-  RotateCcw,
-  Search,
-  ShieldCheck,
-  XCircle,
-  X,
-  FileText
+  Activity, BellRing, Bot, CheckCircle2, ChevronRight, CircleAlert, Clock3,
+  FileCheck2, FilePlus2, FileSearch, Filter, LogIn, RefreshCw, RotateCcw,
+  Search, Send, Server, ShieldCheck, UserCog, UserRound, Wrench, X, XCircle,
 } from "lucide-react";
 import { api } from "../../api/client";
 import { Button } from "../../components/common/Button";
@@ -23,79 +12,107 @@ import { AuditLogEntry, Station } from "../../types";
 import { useDraggableFloatingPanel } from "../floating";
 import "./AuditLog.css";
 
-// Formatter cho thời gian Việt Nam
-const formatVnDateTime = (isoString: string): { primary: string; relative: string } => {
-  try {
-    const date = new Date(isoString);
-    if (isNaN(date.getTime())) return { primary: isoString, relative: "" };
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-    const primary = date.toLocaleString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-
-    const diffMinutes = Math.floor((Date.now() - date.getTime()) / 60000);
-    let relative = "";
-    if (diffMinutes < 1) relative = "vừa xong";
-    else if (diffMinutes < 60) relative = `${diffMinutes} phút trước`;
-    else if (diffMinutes < 1440) relative = `${Math.floor(diffMinutes / 60)} giờ trước`;
-    else relative = `${Math.floor(diffMinutes / 1440)} ngày trước`;
-
-    return { primary, relative };
-  } catch {
-    return { primary: isoString, relative: "" };
-  }
+const formatVnDateTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { primary: value, relative: "" };
+  const primary = date.toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
+  const relative = minutes < 1 ? "Vừa xong" : minutes < 60 ? `${minutes} phút trước` : minutes < 1440 ? `${Math.floor(minutes / 60)} giờ trước` : `${Math.floor(minutes / 1440)} ngày trước`;
+  return { primary, relative };
 };
 
-// Formatter cho mã hành động
-const formatActionLabel = (action: string): string => {
-  const map: Record<string, string> = {
-    CREATE_PROPOSAL: "Tạo đề xuất",
-    APPROVE_PROPOSAL: "Phê duyệt đề xuất",
-    REJECT_PROPOSAL: "Từ chối đề xuất",
-    DISPATCH_DEVICE_COMMAND: "Gửi lệnh thiết bị",
-    UPDATE_USER_ROLE: "Cập nhật quyền",
-    CREATE_USER: "Tạo người dùng mới",
-    DISABLE_USER: "Vô hiệu tài khoản",
-    SET_STATION_OVERRIDE: "Ghi đè sensor",
-    CLEAR_STATION_OVERRIDE: "Gỡ ghi đè sensor",
-  };
-  return map[action] ?? action;
+type ActionMeta = { label: string; verb: string; Icon: React.ElementType; tone: "ai" | "alert" | "approval" | "account" | "device" | "system" };
+const action = (label: string, verb: string, Icon: React.ElementType, tone: ActionMeta["tone"]): ActionMeta => ({ label, verb, Icon, tone });
+const ACTIONS: Record<string, ActionMeta> = {
+  "agent.auto_proposal.create": action("AI tạo đề xuất cảnh báo", "tạo đề xuất cảnh báo", Bot, "ai"),
+  "agent.auto_proposal.failure": action("AI không thể tạo đề xuất", "không thể tạo đề xuất cảnh báo", Bot, "ai"),
+  "agent.auto_proposal.skipped": action("AI bỏ qua đề xuất", "bỏ qua đề xuất cảnh báo", Bot, "ai"),
+  "auth.demo_login": action("Đăng nhập hệ thống", "đăng nhập hệ thống", LogIn, "account"),
+  "auth.login.success": action("Đăng nhập hệ thống", "đăng nhập hệ thống", LogIn, "account"),
+  "auth.login.failed": action("Đăng nhập không thành công", "không thể đăng nhập", LogIn, "account"),
+  "auth.logout": action("Đăng xuất hệ thống", "đăng xuất hệ thống", LogIn, "account"),
+  "auth.register": action("Tạo tài khoản", "tạo tài khoản", UserRound, "account"),
+  "auth.profile_updated": action("Cập nhật hồ sơ", "cập nhật hồ sơ", UserCog, "account"),
+  "alert.create": action("Tạo cảnh báo", "tạo cảnh báo", BellRing, "alert"),
+  "alert.auto_resolve": action("Đóng cảnh báo tự động", "đóng cảnh báo", CheckCircle2, "alert"),
+  "alert.manual_resolve": action("Đóng cảnh báo", "đóng cảnh báo", CheckCircle2, "alert"),
+  "alert.sensor_offline": action("Phát hiện trạm mất kết nối", "ghi nhận trạm mất kết nối", CircleAlert, "alert"),
+  "alert.sensor_recovered": action("Trạm hoạt động trở lại", "ghi nhận trạm hoạt động trở lại", Activity, "alert"),
+  "approval.create": action("Tạo đề xuất cảnh báo", "tạo đề xuất cảnh báo", FilePlus2, "approval"),
+  "approval.approve": action("Phê duyệt đề xuất", "phê duyệt đề xuất", CheckCircle2, "approval"),
+  "approval.quick_approve": action("Phê duyệt đề xuất", "phê duyệt đề xuất", CheckCircle2, "approval"),
+  "approval.reject": action("Từ chối đề xuất", "từ chối đề xuất", XCircle, "approval"),
+  "approval.expire": action("Đề xuất hết hiệu lực", "đánh dấu đề xuất hết hiệu lực", Clock3, "approval"),
+  "approval.dispatch.failure": action("Gửi lệnh thiết bị không thành công", "không thể gửi lệnh thiết bị", Send, "device"),
+  "demo_station_override.set": action("Cập nhật dữ liệu mô phỏng", "cập nhật dữ liệu mô phỏng", Wrench, "system"),
+  "demo_station_override.clear": action("Khôi phục dữ liệu mô phỏng", "khôi phục dữ liệu mô phỏng", Wrench, "system"),
+  "measurement.accepted": action("Nhận dữ liệu trạm", "ghi nhận dữ liệu trạm", Activity, "system"),
+  CREATE_PROPOSAL: action("Tạo đề xuất cảnh báo", "tạo đề xuất cảnh báo", FilePlus2, "approval"),
+  APPROVE_PROPOSAL: action("Phê duyệt đề xuất", "phê duyệt đề xuất", CheckCircle2, "approval"),
+  REJECT_PROPOSAL: action("Từ chối đề xuất", "từ chối đề xuất", XCircle, "approval"),
+};
+const FALLBACK_ACTION = action("Hoạt động hệ thống", "thực hiện một hoạt động hệ thống", Activity, "system");
+const getActionMeta = (value: string) => ACTIONS[value] ?? FALLBACK_ACTION;
+
+// This manager-facing view is intentionally a concise approval history. The raw
+// backend audit ledger remains append-only for traceability, but warnings,
+// authentication, pending proposals, and automation events are not shown here.
+const MANAGER_VISIBLE_AUDIT_ACTIONS = new Set([
+  "approval.approve",
+  "approval.quick_approve",
+  "APPROVE_PROPOSAL",
+]);
+
+const getActorMeta = (log: AuditLogEntry) => {
+  const source = `${log.actor_type ?? ""} ${log.actor_role ?? ""} ${log.actor ?? ""}`.toLowerCase();
+  if (source.includes("agent") || source.includes("ai")) return { label: "AI Alert Agent", Icon: Bot, tone: "ai" };
+  if (source.includes("admin")) return { label: "Quản trị viên", Icon: ShieldCheck, tone: "admin" };
+  if (source.includes("manager")) return { label: "Quản lý", Icon: UserCog, tone: "manager" };
+  if (source.includes("system") || source.includes("backend") || !log.actor || UUID_PATTERN.test(log.actor)) return { label: "Hệ thống", Icon: Server, tone: "system" };
+  return { label: "Người dùng", Icon: UserRound, tone: "user" };
 };
 
-// Avatar viết tắt cho Actor
-const getActorInitials = (actor: string): string => {
-  if (!actor) return "SY";
-  if (actor.toLowerCase().includes("system")) return "SY";
-  if (actor.toLowerCase().includes("manager")) return "MGR";
-  if (actor.toLowerCase().includes("admin")) return "ADM";
-  const parts = actor.split("@")[0].split(/[._\s-]/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return actor.substring(0, 2).toUpperCase();
+const getStationForLog = (log: AuditLogEntry, stations: Station[]) =>
+  stations.find((item) => `${log.station_id ?? ""} ${log.target} ${log.detail ?? ""}`.includes(item.station_id));
+
+const getTargetLabel = (log: AuditLogEntry, stations: Station[] = []) => {
+  const [type, id] = log.entity_type ? [log.entity_type, log.entity_id] : log.target.split(":", 2);
+  const entity = (type || "").toLowerCase();
+  const number = id && /^\d+$/.test(id) ? ` #${id}` : "";
+  const station = getStationForLog(log, stations);
+  const area = station ? ` · ${station.station_name}` : "";
+  if (entity.includes("alert")) return `Cảnh báo${number}${area}`;
+  if (entity.includes("approval") || entity.includes("proposal")) return `Đề xuất cảnh báo${number}${area}`;
+  if (entity.includes("station")) return id && !UUID_PATTERN.test(id) ? `Trạm ${id}${area}` : `Trạm quan trắc${area}`;
+  if (entity.includes("user")) return `Người dùng${number}`;
+  if (entity.includes("device")) return id && !UUID_PATTERN.test(id) ? `Thiết bị ${id}${area}` : `Thiết bị${area}`;
+  if (entity.includes("measurement")) return `Dữ liệu trạm${area}`;
+  return `Bản ghi hệ thống${area}`;
 };
 
-interface AuditLogProps {
-  onClose?: () => void;
-  stations?: Station[];
-}
+const getOutcomeMeta = (value: string) => {
+  const outcome = value.toLowerCase();
+  if (["failure", "failed", "rejected", "error"].includes(outcome)) return { label: "Thất bại", tone: "failure", Icon: XCircle };
+  if (["pending", "processing", "in_progress"].includes(outcome)) return { label: "Đang xử lý", tone: "pending", Icon: Clock3 };
+  return { label: "Thành công", tone: "success", Icon: CheckCircle2 };
+};
+
+const getSummary = (log: AuditLogEntry, stations: Station[]) => {
+  const station = getStationForLog(log, stations);
+  return `${getActorMeta(log).label} đã ${getActionMeta(log.action).verb}${station ? ` cho trạm ${station.station_name}` : ""}.`;
+};
+
+interface AuditLogProps { onClose?: () => void; stations?: Station[]; }
 
 export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) => {
   const { role, userId } = useAuth();
-  const { containerProps, handleProps } = useDraggableFloatingPanel({
-    panelId: "audit",
-    group: "modal",
-  });
-
+  const { containerProps, handleProps } = useDraggableFloatingPanel({ panelId: "audit", group: "modal" });
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<AuditLogEntry | null>(null);
-
-  // Filter States
   const [searchTerm, setSearchTerm] = useState("");
   const [actorFilter, setActorFilter] = useState("all");
   const [actionFilter, setActionFilter] = useState("all");
@@ -104,506 +121,78 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
   const [timeRangeFilter, setTimeRangeFilter] = useState("all");
 
   const fetchLogs = async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const data = await api.getAuditLogs({ userId, role: "manager" });
-      setLogs(data);
-    } catch (err: any) {
-      setError(err?.message ?? "Không thể tải nhật ký kiểm toán. Vui lòng thử lại.");
-    } finally {
-      setLoading(false);
+      const [auditLogs, proposals] = await Promise.all([
+        api.getAuditLogs({ userId, role: "manager" }),
+        api.getProposals(),
+      ]);
+      const stationByProposalId = new Map(proposals.map((proposal) => [proposal.proposal_id, proposal.station_id]));
+      setLogs(auditLogs.map((log) => ({
+        ...log,
+        station_id: stationByProposalId.get(log.entity_id ?? "") ?? log.station_id,
+      })));
     }
+    catch (err: any) { setError(err?.message ?? "Không thể tải nhật ký hoạt động. Vui lòng thử lại."); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    if (role === "manager" || role === "admin") {
-      fetchLogs();
-    } else {
-      setLoading(false);
-    }
-  }, [role]);
+  useEffect(() => { if (role === "manager" || role === "admin") fetchLogs(); else setLoading(false); }, [role]);
 
-  // Dynamic filter options
-  const actors = useMemo(() => Array.from(new Set(logs.map((log) => log.actor))), [logs]);
-  const actions = useMemo(() => Array.from(new Set(logs.map((log) => log.action))), [logs]);
+  const managerLogs = useMemo(() => logs.filter((log) => MANAGER_VISIBLE_AUDIT_ACTIONS.has(log.action)), [logs]);
+  const actors = useMemo(() => Array.from(new Map(managerLogs.map((log) => [log.actor, getActorMeta(log).label])).entries()), [managerLogs]);
+  const actions = useMemo(() => Array.from(new Map(managerLogs.map((log) => [log.action, getActionMeta(log.action).label])).entries()), [managerLogs]);
+  const hasActiveFilters = Boolean(searchTerm.trim()) || [actorFilter, actionFilter, stationFilter, outcomeFilter, timeRangeFilter].some((value) => value !== "all");
+  const resetFilters = () => { setSearchTerm(""); setActorFilter("all"); setActionFilter("all"); setStationFilter("all"); setOutcomeFilter("all"); setTimeRangeFilter("all"); };
 
-  // Check if any filter is active
-  const hasActiveFilters = useMemo(() => {
-    return (
-      searchTerm.trim() !== "" ||
-      actorFilter !== "all" ||
-      actionFilter !== "all" ||
-      stationFilter !== "all" ||
-      outcomeFilter !== "all" ||
-      timeRangeFilter !== "all"
-    );
-  }, [searchTerm, actorFilter, actionFilter, stationFilter, outcomeFilter, timeRangeFilter]);
+  const filteredLogs = useMemo(() => managerLogs.filter((log) => {
+    const summary = getSummary(log, stations);
+    const searchText = `${getActorMeta(log).label} ${getActionMeta(log.action).label} ${getTargetLabel(log, stations)} ${summary}`.toLowerCase();
+    if (searchTerm.trim() && !searchText.includes(searchTerm.trim().toLowerCase())) return false;
+    if (actorFilter !== "all" && log.actor !== actorFilter) return false;
+    if (actionFilter !== "all" && log.action !== actionFilter) return false;
+    if (stationFilter !== "all" && !`${log.target} ${log.detail ?? ""}`.includes(stationFilter)) return false;
+    if (outcomeFilter !== "all" && getOutcomeMeta(log.outcome).tone !== outcomeFilter) return false;
+    const logTime = new Date(log.time).getTime(); const hoursAgo = (Date.now() - logTime) / 3600000;
+    if (timeRangeFilter === "today" && logTime < new Date().setHours(0, 0, 0, 0)) return false;
+    if (timeRangeFilter === "24h" && hoursAgo > 24) return false;
+    if (timeRangeFilter === "7d" && hoursAgo > 168) return false;
+    return true;
+  }), [managerLogs, searchTerm, actorFilter, actionFilter, stationFilter, outcomeFilter, timeRangeFilter, stations]);
 
-  const resetFilters = () => {
-    setSearchTerm("");
-    setActorFilter("all");
-    setActionFilter("all");
-    setStationFilter("all");
-    setOutcomeFilter("all");
-    setTimeRangeFilter("all");
-  };
+  if (role !== "manager" && role !== "admin") return <div className="audit-empty-state"><ShieldCheck size={28} /><h3>Chỉ quản lý mới có thể xem nhật ký hoạt động</h3></div>;
 
-  // Filter computation
-  const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
-      // 1. Search text
-      if (searchTerm.trim() !== "") {
-        const term = searchTerm.toLowerCase();
-        const actorMatch = log.actor.toLowerCase().includes(term);
-        const actionMatch = log.action.toLowerCase().includes(term);
-        const targetMatch = log.target ? log.target.toLowerCase().includes(term) : false;
-        const detailsMatch = log.detail ? log.detail.toLowerCase().includes(term) : false;
-        const corrMatch = log.correlation_id ? log.correlation_id.toLowerCase().includes(term) : false;
-        if (!actorMatch && !actionMatch && !targetMatch && !detailsMatch && !corrMatch) {
-          return false;
-        }
-      }
+  return <div {...containerProps} className="audit-explorer-container audit-manager-log">
+    <header className="audit-explorer-header">
+      <div className="audit-explorer-title-group"><div className="audit-explorer-title-row" {...handleProps}><div className="audit-explorer-title-icon"><FileCheck2 size={20} /></div><div><h2 className="audit-explorer-title">Nhật ký hoạt động</h2><p className="audit-explorer-subtitle">Theo dõi các thay đổi và quyết định quan trọng của AirGuard AI.</p></div></div><span className="audit-pill-badge audit-pill-badge--count">{filteredLogs.length} hoạt động</span></div>
+      <div className="audit-header-actions no-drag" data-no-drag="true"><Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}><RefreshCw className={loading ? "is-spinning" : ""} size={15} />{loading ? "Đang cập nhật" : "Làm mới"}</Button>{onClose && <IconButton label="Đóng" onClick={onClose}><X size={18} /></IconButton>}</div>
+    </header>
 
-      // 2. Actor filter
-      if (actorFilter !== "all" && log.actor !== actorFilter) {
-        return false;
-      }
+    <section className="audit-filter-card" aria-label="Bộ lọc nhật ký hoạt động"><div className="audit-filter-heading"><Filter size={16} /> Lọc hoạt động</div><div className="audit-search-input-wrap"><Search className="audit-search-icon" size={16} /><input className="audit-search-input" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm hoạt động, người thực hiện hoặc trạm" /></div><div className="audit-filter-grid">
+      <label className="audit-filter-field"><span>Trạm quan trắc</span><select className="audit-select-control" value={stationFilter} onChange={(event) => setStationFilter(event.target.value)}><option value="all">Tất cả trạm</option>{stations.map((station) => <option key={station.station_id} value={station.station_id}>{station.station_name}</option>)}</select></label>
+      <label className="audit-filter-field"><span>Khoảng thời gian</span><select className="audit-select-control" value={timeRangeFilter} onChange={(event) => setTimeRangeFilter(event.target.value)}><option value="all">Mọi thời điểm</option><option value="today">Hôm nay</option><option value="24h">24 giờ qua</option><option value="7d">7 ngày qua</option></select></label>
+      <label className="audit-filter-field"><span>Người thực hiện</span><select className="audit-select-control" value={actorFilter} onChange={(event) => setActorFilter(event.target.value)}><option value="all">Tất cả</option>{actors.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label className="audit-filter-field"><span>Loại hoạt động</span><select className="audit-select-control" value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}><option value="all">Tất cả</option>{actions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label className="audit-filter-field"><span>Trạng thái</span><select className="audit-select-control" value={outcomeFilter} onChange={(event) => setOutcomeFilter(event.target.value)}><option value="all">Tất cả</option><option value="success">Thành công</option><option value="failure">Thất bại</option><option value="pending">Đang xử lý</option></select></label>
+      <button type="button" className={`audit-reset-btn ${hasActiveFilters ? "active" : ""}`} onClick={resetFilters}><RotateCcw size={14} />Đặt lại</button>
+    </div></section>
 
-      // 3. Action filter
-      if (actionFilter !== "all" && log.action !== actionFilter) {
-        return false;
-      }
+    <section className="audit-table-card">
+      {loading ? <AuditTableSkeleton /> : error ? <AuditEmpty icon={<XCircle size={28} />} title="Không thể tải nhật ký hoạt động" description={error} action={<Button variant="outline" size="sm" onClick={fetchLogs}>Thử lại</Button>} /> : filteredLogs.length === 0 ? <AuditEmpty icon={<FileSearch size={28} />} title={hasActiveFilters ? "Không tìm thấy yêu cầu phù hợp" : "Chưa có yêu cầu nào được phê duyệt"} description={hasActiveFilters ? "Hãy thử thay đổi bộ lọc hoặc từ khóa tìm kiếm." : "Các cảnh báo và đề xuất đang chờ duyệt không hiển thị trong danh sách này."} action={hasActiveFilters ? <Button variant="outline" size="sm" onClick={resetFilters}>Xóa bộ lọc</Button> : undefined} /> : <div className="audit-table-wrapper"><table className="audit-explorer-table"><thead><tr>{["Thời gian", "Người thực hiện", "Hoạt động", "Đối tượng", "Trạng thái", "Chi tiết"].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{filteredLogs.map((log) => <AuditRow key={log.id} log={log} stations={stations} onDetails={setSelectedLog} />)}</tbody></table></div>}
+    </section>
+    {selectedLog && <AuditDetail log={selectedLog} stations={stations} onClose={() => setSelectedLog(null)} />}
+  </div>;
+};
 
-      // 4. Station filter
-      if (stationFilter !== "all") {
-        const targetContains = log.target ? log.target.includes(stationFilter) : false;
-        const detailsContains = log.detail ? log.detail.includes(stationFilter) : false;
-        if (!targetContains && !detailsContains) {
-          return false;
-        }
-      }
+const AuditRow: React.FC<{ log: AuditLogEntry; stations: Station[]; onDetails: (log: AuditLogEntry) => void }> = ({ log, stations, onDetails }) => {
+  const actor = getActorMeta(log); const actionMeta = getActionMeta(log.action); const outcome = getOutcomeMeta(log.outcome); const time = formatVnDateTime(log.time); const ActorIcon = actor.Icon; const ActionIcon = actionMeta.Icon; const OutcomeIcon = outcome.Icon;
+  return <tr><td><div className="audit-time-cell"><strong>{time.primary}</strong><span>{time.relative}</span></div></td><td><div className={`audit-actor-cell audit-actor-cell--${actor.tone}`}><span className="audit-actor-avatar"><ActorIcon size={15} /></span><span>{actor.label}</span></div></td><td><span className={`audit-action-label audit-action-label--${actionMeta.tone}`}><ActionIcon size={15} />{actionMeta.label}</span></td><td><span className="audit-target-tag">{getTargetLabel(log, stations)}</span></td><td><span className={`audit-outcome-pill audit-outcome-pill--${outcome.tone}`}><OutcomeIcon size={13} />{outcome.label}</span></td><td><div className="audit-detail-cell"><p>{getSummary(log, stations)}</p><button type="button" className="audit-detail-link" onClick={() => onDetails(log)}>Xem chi tiết <ChevronRight size={14} /></button></div></td></tr>;
+};
 
-      // 5. Outcome filter
-      if (outcomeFilter !== "all" && log.outcome !== outcomeFilter) {
-        return false;
-      }
+const AuditTableSkeleton = () => <div className="audit-table-wrapper"><table className="audit-explorer-table"><thead><tr>{["Thời gian", "Người thực hiện", "Hoạt động", "Đối tượng", "Trạng thái", "Chi tiết"].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{[1, 2, 3, 4, 5].map((row) => <tr key={row} className="audit-skeleton-row">{[1, 2, 3, 4, 5, 6].map((cell) => <td key={cell}><div className="audit-skeleton-box" /></td>)}</tr>)}</tbody></table></div>;
+const AuditEmpty: React.FC<{ icon: React.ReactNode; title: string; description: string; action?: React.ReactNode }> = ({ icon, title, description, action }) => <div className="audit-empty-state"><div className="audit-empty-icon">{icon}</div><h3>{title}</h3><p>{description}</p>{action}</div>;
 
-      // 6. Time range filter
-      if (timeRangeFilter !== "all") {
-        const logTime = new Date(log.time).getTime();
-        const now = Date.now();
-        const diffHours = (now - logTime) / (1000 * 60 * 60);
-
-        if (timeRangeFilter === "today") {
-          const todayStart = new Date();
-          todayStart.setHours(0, 0, 0, 0);
-          if (logTime < todayStart.getTime()) return false;
-        } else if (timeRangeFilter === "24h" && diffHours > 24) return false;
-        else if (timeRangeFilter === "7d" && diffHours > 168) return false;
-      }
-
-      return true;
-    });
-  }, [logs, searchTerm, actorFilter, actionFilter, stationFilter, outcomeFilter, timeRangeFilter]);
-
-  // Access Control Guard
-  if (role !== "manager" && role !== "admin") {
-    return (
-      <div className="audit-explorer-container">
-        <div className="alert-box alert-warning" style={{ marginTop: 24 }}>
-          <LockKeyhole size={20} />
-          <div>
-            <strong>Truy cập bị giới hạn</strong>
-            <p style={{ margin: 0, fontSize: "0.85rem" }}>
-              Nhật ký kiểm toán hệ thống (Audit Log Explorer) chỉ dành riêng cho tài khoản vai trò Manager hoặc Admin.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div {...containerProps} className="audit-explorer-container">
-      {/* HEADER SECTION */}
-      <div className="audit-explorer-header">
-        <div className="audit-explorer-title-group">
-          <div className="audit-explorer-title-row" {...handleProps}>
-            <div className="audit-explorer-title-icon">
-              <FileCheck2 size={20} />
-            </div>
-            <h2 className="audit-explorer-title">Audit Log Explorer</h2>
-          </div>
-          <p className="audit-explorer-subtitle">
-            Nhật ký kiểm toán hệ thống append-only · Giám sát và truy vết quy trình phê duyệt BQL
-          </p>
-          <div className="audit-header-badges">
-            <span className="audit-pill-badge audit-pill-badge--count">
-              <FileText size={13} /> {filteredLogs.length} / {logs.length} bản ghi
-            </span>
-            <span className="audit-pill-badge audit-pill-badge--verified">
-              <ShieldCheck size={13} /> Append-Only Read-Only Verified
-            </span>
-          </div>
-        </div>
-
-        <div className="audit-header-actions no-drag" data-no-drag="true">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchLogs}
-            disabled={loading}
-            style={{ borderRadius: 10, padding: "8px 14px" }}
-          >
-            <RefreshCw className={loading ? "is-spinning" : ""} size={15} />
-            <span>{loading ? "Đang cập nhật" : "Làm mới"}</span>
-          </Button>
-
-          {onClose && (
-            <IconButton
-              label="Đóng"
-              onClick={onClose}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: "#f1f5f9",
-                color: "#475569",
-                border: "1px solid #cbd5e1",
-              }}
-            >
-              <X size={18} />
-            </IconButton>
-          )}
-        </div>
-      </div>
-
-      {/* FILTER TOOLBAR */}
-      <section className="audit-filter-card" aria-label="Bộ lọc Audit Log">
-        <div className="audit-filter-top-row">
-          <div className="audit-search-input-wrap">
-            <Search className="audit-search-icon" size={16} />
-            <input
-              type="text"
-              className="audit-search-input"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm theo Người thực hiện, Hành động, ID..."
-            />
-          </div>
-        </div>
-
-        <div className="audit-filter-grid">
-          <div className="audit-filter-field">
-            <span className="audit-field-label">Trạm quan trắc</span>
-            <select
-              className="audit-select-control"
-              value={stationFilter}
-              onChange={(e) => setStationFilter(e.target.value)}
-            >
-              <option value="all">Tất cả trạm</option>
-              {stations.map((station) => (
-                <option key={station.station_id} value={station.station_id}>
-                  {station.station_id} · {station.station_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="audit-filter-field">
-            <span className="audit-field-label">Thời gian</span>
-            <select
-              className="audit-select-control"
-              value={timeRangeFilter}
-              onChange={(e) => setTimeRangeFilter(e.target.value)}
-            >
-              <option value="all">Tất cả thời gian</option>
-              <option value="today">Hôm nay</option>
-              <option value="24h">24 giờ qua</option>
-              <option value="7d">7 ngày qua</option>
-            </select>
-          </div>
-
-          <div className="audit-filter-field">
-            <span className="audit-field-label">Người thực hiện</span>
-            <select
-              className="audit-select-control"
-              value={actorFilter}
-              onChange={(e) => setActorFilter(e.target.value)}
-            >
-              <option value="all">Tất cả người thực hiện</option>
-              {actors.map((actor) => (
-                <option key={actor} value={actor}>
-                  {actor}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="audit-filter-field">
-            <span className="audit-field-label">Kết quả</span>
-            <select
-              className="audit-select-control"
-              value={outcomeFilter}
-              onChange={(e) => setOutcomeFilter(e.target.value)}
-            >
-              <option value="all">Tất cả kết quả</option>
-              <option value="success">SUCCESS / Phê duyệt</option>
-              <option value="failure">FAILURE / Từ chối</option>
-              <option value="pending">PENDING / Đang xử lý</option>
-            </select>
-          </div>
-
-          <button
-            type="button"
-            className={`audit-reset-btn ${hasActiveFilters ? "active" : ""}`}
-            onClick={resetFilters}
-            title="Đặt lại tất cả bộ lọc"
-          >
-            <RotateCcw size={14} />
-            <span>Đặt lại</span>
-          </button>
-        </div>
-      </section>
-
-      {/* DATA TABLE / ACTIVITY EXPLORER CARD */}
-      <div className="audit-table-card">
-        {loading ? (
-          <div className="audit-table-wrapper">
-            <table className="audit-explorer-table">
-              <thead>
-                <tr>
-                  <th>Thời gian</th>
-                  <th>Người thực hiện</th>
-                  <th>Hành động</th>
-                  <th>Đối tượng</th>
-                  <th>Kết quả</th>
-                  <th>Correlation ID</th>
-                  <th>Chi tiết</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <tr key={i} className="audit-skeleton-row">
-                    <td><div className="audit-skeleton-box" style={{ width: "110px" }} /></td>
-                    <td><div className="audit-skeleton-box" style={{ width: "140px" }} /></td>
-                    <td><div className="audit-skeleton-box" style={{ width: "130px" }} /></td>
-                    <td><div className="audit-skeleton-box" style={{ width: "100px" }} /></td>
-                    <td><div className="audit-skeleton-box" style={{ width: "80px" }} /></td>
-                    <td><div className="audit-skeleton-box" style={{ width: "90px" }} /></td>
-                    <td><div className="audit-skeleton-box" style={{ width: "50px" }} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : error ? (
-          <div className="audit-empty-state">
-            <div className="audit-empty-icon" style={{ background: "#fef2f2", color: "#ef4444" }}>
-              <XCircle size={28} />
-            </div>
-            <h3 className="audit-empty-title">Không thể tải nhật ký</h3>
-            <p className="audit-empty-desc">{error}</p>
-            <Button variant="outline" size="sm" onClick={fetchLogs}>
-              Thử lại
-            </Button>
-          </div>
-        ) : filteredLogs.length === 0 ? (
-          <div className="audit-empty-state">
-            <div className="audit-empty-icon">
-              <FileSearch size={28} />
-            </div>
-            <h3 className="audit-empty-title">Không tìm thấy bản ghi kiểm toán phù hợp</h3>
-            <p className="audit-empty-desc">
-              {hasActiveFilters
-                ? "Không có dữ liệu trùng khớp với bộ lọc hiện tại. Thử thay đổi từ khóa hoặc bấm Đặt lại."
-                : "Hệ thống chưa ghi nhận bản ghi kiểm toán nào."}
-            </p>
-            {hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={resetFilters} style={{ borderRadius: 8 }}>
-                <RotateCcw size={14} /> Xóa bộ lọc
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="audit-table-wrapper">
-            <table className="audit-explorer-table">
-              <thead>
-                <tr>
-                  <th>Thời gian</th>
-                  <th>Người thực hiện</th>
-                  <th>Mã hành động</th>
-                  <th>Đối tượng</th>
-                  <th>Kết quả</th>
-                  <th>Request ID</th>
-                  <th style={{ textAlign: "right" }}>Chi tiết</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLogs.map((log) => {
-                  const { primary, relative } = formatVnDateTime(log.time);
-                  const outcomeLower = log.outcome.toLowerCase();
-
-                  return (
-                    <tr key={log.id}>
-                      <td>
-                        <div className="audit-time-cell">
-                          <span className="audit-time-primary">{primary}</span>
-                          {relative && <span className="audit-time-relative">{relative}</span>}
-                        </div>
-                      </td>
-
-                      <td>
-                        <div className="audit-actor-cell">
-                          <div
-                            className={`audit-actor-avatar ${
-                              log.actor.toLowerCase().includes("ai")
-                                ? "audit-actor-avatar--ai"
-                                : "audit-actor-avatar--manager"
-                            }`}
-                          >
-                            {getActorInitials(log.actor)}
-                          </div>
-                          <span className="audit-actor-name">{log.actor}</span>
-                        </div>
-                      </td>
-
-                      <td>
-                        <span className="audit-action-pill" title={log.action}>
-                          {formatActionLabel(log.action)}
-                        </span>
-                      </td>
-
-                      <td>
-                        <span className="audit-target-tag" title={log.target}>
-                          {log.target}
-                        </span>
-                      </td>
-
-                      <td>
-                        {["success", "approved", "succeeded"].includes(outcomeLower) ? (
-                          <span className="audit-outcome-pill audit-outcome-pill--success">
-                            <CheckCircle2 size={12} /> Success
-                          </span>
-                        ) : ["failure", "failed", "rejected"].includes(outcomeLower) ? (
-                          <span className="audit-outcome-pill audit-outcome-pill--failure">
-                            <XCircle size={12} /> Failure
-                          </span>
-                        ) : (
-                          <span className="audit-outcome-pill audit-outcome-pill--pending">
-                            <Clock size={12} /> Pending
-                          </span>
-                        )}
-                      </td>
-
-                      <td>
-                        <code className="audit-corr-code">{log.correlation_id}</code>
-                      </td>
-
-                      <td style={{ textAlign: "right" }}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedLog(log)}
-                          style={{ padding: "4px 8px", fontSize: "0.78rem" }}
-                        >
-                          <Eye size={14} /> Xem
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* AUDIT RECORD DETAIL MODAL OVERLAY */}
-      {selectedLog && (
-        <div
-          className="audit-detail-modal-overlay"
-          onClick={() => setSelectedLog(null)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="audit-detail-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="audit-detail-modal-header">
-              <h3>
-                <FileCheck2 size={18} style={{ color: "#10b981" }} /> Chi tiết Bản ghi #{selectedLog.id}
-              </h3>
-              <IconButton label="Đóng" onClick={() => setSelectedLog(null)}>
-                <X size={18} />
-              </IconButton>
-            </div>
-
-            <div className="audit-detail-modal-body">
-              <div className="audit-detail-grid">
-                <div className="audit-detail-field">
-                  <span className="audit-detail-label">Thời gian thực hiện</span>
-                  <span className="audit-detail-value">{formatVnDateTime(selectedLog.time).primary}</span>
-                </div>
-
-                <div className="audit-detail-field">
-                  <span className="audit-detail-label">Người thực hiện (Actor)</span>
-                  <span className="audit-detail-value">{selectedLog.actor}</span>
-                </div>
-
-                <div className="audit-detail-field">
-                  <span className="audit-detail-label">Mã hành động (Action)</span>
-                  <code className="audit-action-pill">{selectedLog.action}</code>
-                </div>
-
-                <div className="audit-detail-field">
-                  <span className="audit-detail-label">Kết quả (Outcome)</span>
-                  <span className="audit-detail-value" style={{ textTransform: "uppercase", fontWeight: 700 }}>
-                    {selectedLog.outcome}
-                  </span>
-                </div>
-
-                <div className="audit-detail-field full-width">
-                  <span className="audit-detail-label">Đối tượng tác động (Target)</span>
-                  <span className="audit-detail-value">{selectedLog.target}</span>
-                </div>
-
-                <div className="audit-detail-field full-width">
-                  <span className="audit-detail-label">Request / Correlation ID</span>
-                  <code className="audit-corr-code" style={{ fontSize: "0.85rem" }}>
-                    {selectedLog.correlation_id}
-                  </code>
-                </div>
-
-                {selectedLog.detail && (
-                  <div className="audit-detail-field full-width">
-                    <span className="audit-detail-label">Ghi chú & Chi tiết kĩ thuật</span>
-                    <pre
-                      style={{
-                        background: "#f8fafc",
-                        padding: 12,
-                        borderRadius: 8,
-                        fontSize: "0.78rem",
-                        color: "#334155",
-                        overflowX: "auto",
-                        margin: 0,
-                        border: "1px solid #e2e8f0",
-                      }}
-                    >
-                      {selectedLog.detail}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="audit-detail-modal-footer">
-              <Button variant="outline" size="sm" onClick={() => setSelectedLog(null)}>
-                Đóng
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+const AuditDetail: React.FC<{ log: AuditLogEntry; stations: Station[]; onClose: () => void }> = ({ log, stations, onClose }) => {
+  const actor = getActorMeta(log); const actionMeta = getActionMeta(log.action); const outcome = getOutcomeMeta(log.outcome); const ActionIcon = actionMeta.Icon;
+  return <div className="audit-detail-modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Chi tiết hoạt động"><aside className="audit-detail-modal-card" onClick={(event) => event.stopPropagation()}><header className="audit-detail-modal-header"><div><span className={`audit-action-label audit-action-label--${actionMeta.tone}`}><ActionIcon size={15} />{actionMeta.label}</span><h3>Chi tiết hoạt động</h3></div><IconButton label="Đóng" onClick={onClose}><X size={18} /></IconButton></header><div className="audit-detail-modal-body"><p className="audit-detail-summary">{getSummary(log, stations)}</p><div className="audit-detail-grid"><div><span>Thời gian</span><strong>{formatVnDateTime(log.time).primary}</strong></div><div><span>Người thực hiện</span><strong>{actor.label}</strong></div><div><span>Đối tượng</span><strong>{getTargetLabel(log, stations)}</strong></div><div><span>Trạng thái</span><strong className={`audit-outcome-pill audit-outcome-pill--${outcome.tone}`}>{outcome.label}</strong></div></div><details className="audit-technical-details"><summary>Thông tin hệ thống</summary><dl><div><dt>Mã hoạt động</dt><dd>{log.action}</dd></div><div><dt>Người thực hiện (ID)</dt><dd>{log.actor || "—"}</dd></div><div><dt>Đối tượng (ID)</dt><dd>{log.entity_id ?? log.target ?? "—"}</dd></div><div><dt>Request ID</dt><dd>{log.correlation_id || "—"}</dd></div>{log.detail && <div><dt>Dữ liệu ghi nhận</dt><dd><pre>{log.detail}</pre></dd></div>}</dl></details></div></aside></div>;
 };
