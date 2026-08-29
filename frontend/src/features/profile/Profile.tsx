@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Activity, BellOff, CheckCircle2, HeartPulse, Save, UserRound } from "lucide-react";
+import { Activity, Bell, CheckCircle2, HeartPulse, Mail, Save, UserRound } from "lucide-react";
+import { api } from "../../api/client";
 import { Button } from "../../components/common/Button";
 import { PageHeader } from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
-import { UserGroup } from "../../types";
+import { NotificationPreferences, UserGroup } from "../../types";
 
 const groupOptions: Array<{ value: UserGroup; title: string; description: string; icon: typeof UserRound }> = [
   { value: "normal", title: "Bình thường", description: "Không có nhu cầu cảnh báo ưu tiên.", icon: UserRound },
@@ -18,11 +19,49 @@ export const Profile: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>({
+    environmental_email_enabled: false,
+    predictive_email_enabled: false,
+  });
+  const [notificationLoading, setNotificationLoading] = useState(true);
+  const [notificationSaving, setNotificationSaving] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
 
   useEffect(() => {
     setFormName(userName);
     setFormGroup(userGroup);
   }, [userGroup, userName]);
+
+  useEffect(() => {
+    let active = true;
+    api.getNotificationPreferences()
+      .then((preferences) => {
+        if (active) setNotificationPreferences(preferences);
+      })
+      .catch(() => {
+        if (active) setNotificationError("Không thể tải tùy chọn email.");
+      })
+      .finally(() => {
+        if (active) setNotificationLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const saveNotificationPreferences = async () => {
+    setNotificationSaving(true);
+    setNotificationError(null);
+    setNotificationMessage(null);
+    try {
+      const savedPreferences = await api.updateNotificationPreferences(notificationPreferences);
+      setNotificationPreferences(savedPreferences);
+      setNotificationMessage("Đã lưu lựa chọn email. Hai loại email được bật/tắt độc lập.");
+    } catch {
+      setNotificationError("Không thể lưu tùy chọn email. Vui lòng thử lại.");
+    } finally {
+      setNotificationSaving(false);
+    }
+  };
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -135,24 +174,50 @@ export const Profile: React.FC = () => {
 
         <section className="profile-card profile-notification-card">
           <div className="profile-section-heading profile-section-heading--compact">
-            <BellOff size={22} aria-hidden="true" />
+            <Bell size={22} aria-hidden="true" />
             <div>
-              <span className="dashboard-eyebrow">Tùy chọn thông báo · P2</span>
-              <h2>Chưa cấu hình trong MVP</h2>
-              <p>Push Notification và email hàng ngày sẽ được bật sau khi có contract phía backend.</p>
+              <span className="dashboard-eyebrow">Tùy chọn email</span>
+              <h2>Thông báo môi trường</h2>
+              <p>Mặc định tắt. Bạn phải chủ động bật từng loại email và có thể tắt lại bất cứ lúc nào.</p>
             </div>
           </div>
 
           <div className="profile-disabled-options">
             <label>
-              <span>Push Notification</span>
-              <input type="checkbox" disabled />
+              <span><Mail size={16} aria-hidden="true" /> Email cảnh báo đang xảy ra</span>
+              <input
+                type="checkbox"
+                checked={notificationPreferences.environmental_email_enabled}
+                disabled={notificationLoading || notificationSaving}
+                onChange={(event) => setNotificationPreferences((current) => ({
+                  ...current,
+                  environmental_email_enabled: event.target.checked,
+                }))}
+              />
             </label>
             <label>
-              <span>Email hàng ngày</span>
-              <input type="checkbox" disabled />
+              <span><Mail size={16} aria-hidden="true" /> Email cảnh báo dự báo 1–2 giờ</span>
+              <input
+                type="checkbox"
+                checked={notificationPreferences.predictive_email_enabled}
+                disabled={notificationLoading || notificationSaving}
+                onChange={(event) => setNotificationPreferences((current) => ({
+                  ...current,
+                  predictive_email_enabled: event.target.checked,
+                }))}
+              />
             </label>
           </div>
+          {notificationError && <div className="alert-box alert-error" role="alert">{notificationError}</div>}
+          {notificationMessage && <div className="alert-box alert-success" role="status">{notificationMessage}</div>}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={saveNotificationPreferences}
+            disabled={notificationLoading || notificationSaving}
+          >
+            {notificationSaving ? "Đang lưu" : "Lưu tùy chọn email"}
+          </Button>
         </section>
 
         <div className="profile-actions">

@@ -18,7 +18,8 @@ import {
   SpatialHeatmapResponse,
   SpatialHeatmapPoint,
   EmailDeliveryStatus,
-  VentilationDevice,
+  NotificationPreferences,
+  PredictiveWarningDetail,
 } from "../types";
 import { resolveApiBaseUrl } from "./apiBaseUrl";
 import { extractAgentReply } from "./agentResponseHelper.js";
@@ -882,6 +883,44 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(input),
     });
+  },
+
+  getNotificationPreferences: async (): Promise<NotificationPreferences> => {
+    const data = await apiFetch<{
+      preferences: NotificationPreferences;
+      contract_version: string;
+    }>("/api/v1/auth/notification-preferences");
+    return data.preferences;
+  },
+
+  updateNotificationPreferences: async (
+    input: Partial<NotificationPreferences>,
+  ): Promise<NotificationPreferences> => {
+    const data = await apiFetch<{
+      preferences: NotificationPreferences;
+      contract_version: string;
+    }>("/api/v1/auth/notification-preferences", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+    return data.preferences;
+  },
+
+  getPredictiveWarning: async (episodeId: string): Promise<PredictiveWarningDetail> => {
+    return apiFetch<PredictiveWarningDetail>(
+      `/api/v1/predictive-warnings/${encodeURIComponent(episodeId)}`,
+    );
+  },
+
+  updatePredictiveWarningChecklist: async (
+    episodeId: string,
+    itemKey: string,
+    completed: boolean,
+  ): Promise<{ item: PredictiveWarningDetail["checklist"][number] }> => {
+    return apiFetch(
+      `/api/v1/predictive-warnings/${encodeURIComponent(episodeId)}/checklist/${encodeURIComponent(itemKey)}`,
+      { method: "PUT", body: JSON.stringify({ completed }) },
+    );
   },
 
   logout: async (): Promise<{ success: boolean; message: string }> => {

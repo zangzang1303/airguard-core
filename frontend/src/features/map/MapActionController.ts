@@ -220,7 +220,7 @@ export class MapActionController {
               ? new Date(segment.observed_at).toLocaleString("vi-VN")
               : "Không có thời điểm";
             segmentPolyline.bindTooltip(
-              `AQI ${segment.aqi} · PM2.5 ${segment.pm25} µg/m³ · ${observedAt}`,
+              `PM2.5 ${segment.pm25} µg/m³ · khối lượng hít vào ước tính ${segment.estimated_inhaled_mass_ug} µg · ${observedAt}`,
               { sticky: true, direction: "top" },
             );
             segmentPolylines.push(segmentPolyline);

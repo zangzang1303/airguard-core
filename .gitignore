@@ -31,6 +31,7 @@ Thumbs.db
 # Data (never commit large data)
 data/*
 !data/stations.json
+!data/ocean-park-1-road-graph.json
 *.db
 *.sqlite3
 
@@ -62,3 +63,7 @@ out/
 .vercel
 .pytest-agent-cache/
 .pytest_cache/
+
+# Generated report/PDF QA artifacts
+output/
+tmp/

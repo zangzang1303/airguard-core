@@ -3,10 +3,8 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
-  MailCheck,
   RefreshCw,
   ShieldAlert,
-  ShieldCheck,
 } from "lucide-react";
 import { Button } from "../../components/common/Button";
 import { useAuth } from "../../context/AuthContext";
@@ -165,7 +163,16 @@ export const VerifyEmail: React.FC = () => {
         setCountdown(60);
         setOtp(Array(OTP_LENGTH).fill(""));
         inputRefs.current[0]?.focus();
-        setSuccessMsg("Mã xác minh mới đã được gửi đến email của bạn.");
+        const deliveryUnavailable =
+          res.emailDeliveryStatus === "failed" || res.emailDeliveryStatus === "not_configured";
+        const message =
+          res.message || "Nếu email có tài khoản chưa xác minh, mã mới sẽ được gửi trong ít phút.";
+        if (deliveryUnavailable) {
+          setError(message);
+        } else {
+          // The API deliberately does not reveal whether an account exists or is already verified.
+          setSuccessMsg(message);
+        }
       } else {
         setError(res.message || "Không thể gửi lại mã xác minh. Vui lòng thử lại sau.");
       }
@@ -195,31 +202,25 @@ export const VerifyEmail: React.FC = () => {
             <ArrowLeft size={16} aria-hidden="true" /> Quay lại đăng nhập
           </Button>
 
-          <div className="auth-card__brand">
-            <div className="auth-brand-logo">
-              <ShieldCheck size={22} strokeWidth={2.2} />
-            </div>
-            <h1 className="auth-brand-title">AirGuard AI</h1>
-          </div>
         </div>
 
-        {/* Dynamic Heading */}
+        {/* Keep the explanation short: the email field and OTP controls provide the rest of the context. */}
         <div className="auth-card__heading" style={{ textAlign: "center", marginBottom: "18px" }}>
           <h2 style={{ fontSize: "1.32rem", fontWeight: 800, color: "#0f172a", margin: "0 0 6px" }}>
-            Xác nhận địa chỉ email
+            Xác minh email
           </h2>
           <p className="auth-card__subtitle" style={{ fontSize: "0.86rem", color: "#475569", margin: 0, lineHeight: 1.5 }}>
             {hasPendingEmail ? (
-              <>Chúng tôi đã gửi mã xác minh gồm 6 chữ số đến <strong>{displayedMaskedEmail}</strong>.</>
+              <>Nhập mã 6 số đã gửi đến <strong>{displayedMaskedEmail}</strong>.</>
             ) : (
-              <>Nhập email để nhận mã xác minh gồm 6 chữ số.</>
+              <>Nhập email để nhận mã 6 số.</>
             )}
           </p>
         </div>
 
         {!hasPendingEmail && (
           <div className="auth-field" style={{ marginBottom: "16px" }}>
-            <label htmlFor="verification-email">Email nhận mã xác minh</label>
+            <label htmlFor="verification-email">Email</label>
             <div className="auth-input-wrap">
               <input
                 id="verification-email"
@@ -248,24 +249,9 @@ export const VerifyEmail: React.FC = () => {
           </div>
         )}
 
-        {/* Instructions Block */}
-        <div className="verify-instruction-box">
-          <div className="verify-instruction-icon">
-            <MailCheck size={24} strokeWidth={2.2} />
-          </div>
-          <h3 className="verify-instruction-title">Kiểm tra email của bạn</h3>
-          <p className="verify-instruction-desc">
-            Nhập mã xác minh để kích hoạt tài khoản.
-          </p>
-        </div>
-
         {/* 6-Digit OTP Form */}
         <form onSubmit={handleVerify} noValidate>
           <div className="otp-container">
-            <label className="auth-field__label" style={{ fontWeight: 700, fontSize: "0.88rem", color: "#1e293b", marginBottom: "4px" }}>
-              Mã xác minh
-            </label>
-
             <div className="otp-inputs-row" role="group" aria-label="Mã xác minh 6 chữ số">
               {otp.map((digit, index) => (
                 <input
@@ -291,7 +277,7 @@ export const VerifyEmail: React.FC = () => {
               ))}
             </div>
 
-            <p className="otp-hint-text">Mã có hiệu lực trong 10 phút.</p>
+            <p className="otp-hint-text">Mã có hiệu lực 10 phút.</p>
           </div>
 
           {/* Action Buttons */}
@@ -336,19 +322,6 @@ export const VerifyEmail: React.FC = () => {
           </div>
         </form>
 
-        {/* Footer Navigation */}
-        <div style={{ textAlign: "center", marginTop: "16px" }}>
-          <button
-            type="button"
-            className="verify-back-link"
-            onClick={() => {
-              clearPendingEmailVerification();
-              navigateTo("login");
-            }}
-          >
-            Quay lại đăng nhập
-          </button>
-        </div>
       </div>
     </AuthLayout>
   );

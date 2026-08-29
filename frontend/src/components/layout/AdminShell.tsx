@@ -6,6 +6,7 @@ import {
   ChevronDown,
   CircleUserRound,
   Cpu,
+  FileBarChart2,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -29,6 +30,7 @@ const adminNavigation: Array<{ screen: ScreenType; label: string; icon: React.El
   { screen: "admin-users", label: "Quản lý người dùng", icon: UserCog },
   { screen: "admin-regions", label: "Khu vực & Trạm", icon: Building2 },
   { screen: "admin-devices", label: "Thiết bị IoT", icon: Cpu },
+  { screen: "admin-reports", label: "Báo cáo môi trường", icon: FileBarChart2 },
   { screen: "approvals", label: "Phê duyệt HITL", icon: CheckCircle2, badge: true },
   { screen: "admin-settings", label: "Cài đặt", icon: Settings },
 ];

@@ -1,18 +1,25 @@
 import React, { useEffect, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   BarChart3,
   Calendar,
   CheckCircle2,
+  Database,
   Download,
+  FileCheck2,
   FileText,
   Info,
+  Leaf,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { api } from "../../api/client";
 import { PageHeader } from "../../components/common/PageHeader";
 import { useAuth } from "../../context/AuthContext";
+import { WeeklyMatrixChart } from "./WeeklyMatrixChart";
 import {
   Report,
   ReportExportFormat,
@@ -42,6 +49,33 @@ const effectivenessLabels: Record<VentilationEffectivenessOutcome, string> = {
   mixed: "Kết quả hỗn hợp",
   insufficient_data: "Chưa đủ dữ liệu đánh giá",
 };
+
+const estimateStatusLabels: Record<"complete" | "insufficient_data", string> = {
+  complete: "Đã có dữ liệu ước tính",
+  insufficient_data: "Chưa đủ dữ liệu để ước tính",
+};
+
+const estimateReasonLabels: Record<string, string> = {
+  no_acknowledged_boost_cycles: "Chưa có chu kỳ tăng cường thông gió được xác nhận.",
+  no_acknowledged_eco_intervals: "Chưa có khoảng thời gian tiết kiệm năng lượng được xác nhận.",
+  insufficient_acknowledged_duration: "Thời lượng vận hành được xác nhận chưa đủ để ước tính.",
+};
+
+const qcvnStatusLabels: Record<"not_comparable" | "insufficient_data", string> = {
+  not_comparable: "Không đối chiếu trực tiếp",
+  insufficient_data: "Chưa đủ dữ liệu",
+};
+
+const whoStatusLabels: Record<"below_reference" | "above_reference" | "insufficient_data", string> = {
+  below_reference: "Dưới mức tham chiếu",
+  above_reference: "Trên mức tham chiếu",
+  insufficient_data: "Chưa đủ dữ liệu",
+};
+
+function formatEstimateReason(reasonCode: string | null): string | null {
+  if (!reasonCode) return null;
+  return estimateReasonLabels[reasonCode] ?? "Chưa có đủ dữ liệu đầu vào để thực hiện ước tính.";
+}
 
 function formatNumber(value: number | null | undefined, fractionDigits = 1): string {
   if (value == null || !Number.isFinite(value)) return "—";
@@ -73,6 +107,37 @@ function formatBreakdown(values: Record<string, number>): string {
 function errorText(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return "Không thể tải dữ liệu báo cáo từ server.";
+}
+
+function buildReaderSummary(report: Report): Array<{ label: string; value: string; detail: string; tone: string }> {
+  const { measurements, alerts, ventilation, trends } = report.statistics;
+  const trend = trendLabels[trends.direction] ?? "Chưa đủ dữ liệu";
+  return [
+    {
+      label: "Dữ liệu đủ điều kiện",
+      value: `${formatNumber(measurements.valid_sample_count, 0)} mẫu hợp lệ`,
+      detail: `${formatNumber(measurements.excluded_sample_count, 0)} mẫu bị loại khỏi tổng hợp.`,
+      tone: "data",
+    },
+    {
+      label: "Chất lượng không khí",
+      value: `AQI trung bình ${formatNumber(measurements.overall_avg_aqi)}`,
+      detail: `Trạm có AQI cao nhất: ${measurements.worst_station_id || "chưa xác định"}.`,
+      tone: "air",
+    },
+    {
+      label: "Cảnh báo và vận hành",
+      value: `${formatNumber(alerts.total_count, 0)} cảnh báo`,
+      detail: `${formatNumber(ventilation.activation_count, 0)} lượt thông gió đã được xác nhận.`,
+      tone: "operations",
+    },
+    {
+      label: "Xu hướng quan sát",
+      value: trend,
+      detail: "Chỉ mô tả mẫu trong dữ liệu đã lưu; không kết luận nguyên nhân.",
+      tone: "trend",
+    },
+  ];
 }
 
 export const ReportViewer: React.FC = () => {
@@ -187,12 +252,12 @@ export const ReportViewer: React.FC = () => {
     }
   };
 
-  const downloadReport = async () => {
+  const downloadReport = async (format = exportFormat) => {
     if (!report || report.status !== "completed") return;
     setDownloading(true);
     setError(null);
     try {
-      const exported = await api.exportReport(report.report_id, exportFormat);
+      const exported = await api.exportReport(report.report_id, format);
       const url = URL.createObjectURL(exported.blob);
       const link = document.createElement("a");
       link.href = url;
@@ -229,17 +294,39 @@ export const ReportViewer: React.FC = () => {
   const proposals = report?.statistics.proposals;
   const ventilation = report?.statistics.ventilation;
   const dataQuality = report?.statistics.data_quality;
+  const esgMetrics = report?.statistics.esg_metrics;
+  const referenceComparison = report?.statistics.reference_comparison;
+  const weeklyMatrix = report?.statistics.weekly_matrix;
+  const isLegacyReport = Boolean(report && report.schema_version !== "b7-esg-reports-v1");
+  const readerSummary = report ? buildReaderSummary(report) : [];
+  const hasMultipleReports = reports.length > 1;
 
   return (
     <div className="report-viewer-container">
-      <PageHeader
-        title="Báo cáo Môi trường Định kỳ"
-        description="Dữ liệu báo cáo Daily/Weekly do backend tổng hợp từ bằng chứng đã lưu."
-        actions={
+      <header className="report-hero">
+        <div className="report-hero-copy">
+          <div className="report-eyebrow">
+            <Sparkles size={15} aria-hidden="true" />
+            <span>AirGuard Intelligence · ESG Reporting</span>
+          </div>
+          <h1>Báo cáo Môi trường Định kỳ</h1>
+          <p>
+            Không gian tổng hợp Daily/Weekly dành cho Ban Quản lý, được dựng từ bằng chứng đã lưu
+            và giữ nguyên dấu vết xuất bản.
+          </p>
+          <div className="report-trust-row" aria-label="Thuộc tính tin cậy của báo cáo">
+            <span><Database size={14} /> Bằng chứng từ backend</span>
+            <span><ShieldCheck size={14} /> Kiểm tra toàn vẹn SHA-256</span>
+            <span><FileCheck2 size={14} /> Sẵn sàng xuất bản</span>
+          </div>
+        </div>
+
+        <div className="report-hero-panel">
+          <span className="report-hero-panel-label">Trung tâm xuất bản</span>
           <div className="report-header-actions">
             <button
               type="button"
-              className="btn btn-outline report-action-btn"
+              className="btn report-action-btn report-action-primary"
               onClick={generateReport}
               disabled={generating}
             >
@@ -247,93 +334,106 @@ export const ReportViewer: React.FC = () => {
               <span>{generating ? "Đang tạo..." : "Tạo báo cáo"}</span>
             </button>
 
-            <select
-              className="report-export-select"
-              aria-label="Định dạng xuất báo cáo"
-              value={exportFormat}
-              onChange={(event) => setExportFormat(event.target.value as ReportExportFormat)}
-              disabled={!report || report.status !== "completed" || downloading}
-            >
-              <option value="pdf">PDF</option>
-              <option value="html">HTML</option>
-              <option value="markdown">Markdown</option>
-            </select>
-            <button
-              type="button"
-              className="btn btn-outline report-action-btn"
-              onClick={downloadReport}
-              disabled={!report || report.status !== "completed" || downloading}
-            >
-              {downloading ? <RefreshCw size={15} className="spin-icon" /> : <Download size={15} />}
-              <span>{downloading ? "Đang tải..." : "Tải báo cáo"}</span>
-            </button>
           </div>
-        }
-      />
+          <small>Tải PDF ở thanh công cụ bên dưới sau khi chọn kỳ báo cáo.</small>
+        </div>
+      </header>
 
       <div className="alert-box alert-info report-simulator-banner" role="status">
-        <Info size={18} />
-        <span>
-          Dữ liệu MVP có nguồn từ simulator, không phải quan trắc chính thức và không dùng cho
-          chẩn đoán y tế hay quyết định pháp lý.
-        </span>
+        <span className="report-banner-icon"><Info size={18} /></span>
+        <div>
+          <strong>Phạm vi sử dụng dữ liệu</strong>
+          <span>
+            Dữ liệu MVP có nguồn từ simulator, không phải quan trắc chính thức và không dùng cho
+            chẩn đoán y tế hay quyết định pháp lý.
+          </span>
+        </div>
       </div>
 
-      <div className="report-controls-bar">
-        <div className="report-tabs" role="tablist" aria-label="Loại báo cáo">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "daily"}
-            className={`report-tab-btn ${activeTab === "daily" ? "is-active" : ""}`}
-            onClick={() => setActiveTab("daily")}
-          >
-            <Calendar size={15} />
-            <span>Hàng ngày</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "weekly"}
-            className={`report-tab-btn ${activeTab === "weekly" ? "is-active" : ""}`}
-            onClick={() => setActiveTab("weekly")}
-          >
-            <BarChart3 size={15} />
-            <span>Hàng tuần</span>
+      <section className="report-download-toolbar" aria-label="Tải báo cáo đã chọn">
+        <div className="report-download-toolbar-copy">
+          <span className="report-download-toolbar-icon"><FileText size={18} /></span>
+          <div><strong>Tải báo cáo</strong><span>Chọn định dạng tệp trước khi tải xuống.</span></div>
+        </div>
+        <div className="report-download-toolbar-actions">
+          <label htmlFor="report-export-format" className="sr-only">Định dạng tải</label>
+          <select id="report-export-format" className="report-export-select" value={exportFormat} onChange={(event) => setExportFormat(event.target.value as ReportExportFormat)} disabled={!report || report.status !== "completed" || downloading}>
+            <option value="pdf">PDF</option><option value="html">Trang HTML</option><option value="markdown">Markdown</option>
+          </select>
+          <button type="button" className="btn report-download-btn" onClick={() => void downloadReport()} disabled={!report || report.status !== "completed" || downloading}>
+            {downloading ? <RefreshCw size={16} className="spin-icon" /> : <Download size={16} />}
+            <span>{downloading ? "Đang tải tệp..." : "Tải tệp"}</span>
           </button>
         </div>
+      </section>
 
-        <div className="report-filter-group">
-          <label htmlFor="report-period-select" className="sr-only">
-            Chọn kỳ báo cáo
-          </label>
-          <select
-            id="report-period-select"
-            className="report-period-select"
-            value={selectedReportId}
-            onChange={(event) => void selectReport(event.target.value)}
-            disabled={loading || reports.length === 0}
-          >
-            {reports.length === 0 ? (
-              <option value="">Chưa có báo cáo</option>
+      <div className="report-controls-bar">
+        <div className="report-control-cluster">
+          <span className="report-control-label">Chu kỳ báo cáo</span>
+          <div className="report-tabs" role="tablist" aria-label="Loại báo cáo">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "daily"}
+              className={`report-tab-btn ${activeTab === "daily" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("daily")}
+            >
+              <Calendar size={15} />
+              <span>Hàng ngày</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "weekly"}
+              className={`report-tab-btn ${activeTab === "weekly" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("weekly")}
+            >
+              <BarChart3 size={15} />
+              <span>Hàng tuần</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="report-control-cluster report-period-cluster">
+          <span className="report-control-label">
+            {hasMultipleReports ? "Chọn kỳ báo cáo" : "Báo cáo đang xem"}
+          </span>
+          <div className="report-filter-group">
+            {hasMultipleReports ? (
+              <>
+                <label htmlFor="report-period-select" className="sr-only">
+                  Chọn kỳ báo cáo
+                </label>
+                <select
+                  id="report-period-select"
+                  className="report-period-select"
+                  value={selectedReportId}
+                  onChange={(event) => void selectReport(event.target.value)}
+                  disabled={loading}
+                >
+                  {reports.map((item) => (
+                    <option key={item.report_id} value={item.report_id}>
+                      {formatPeriod(item)} · {statusLabels[item.status]}
+                    </option>
+                  ))}
+                </select>
+              </>
             ) : (
-              reports.map((item) => (
-                <option key={item.report_id} value={item.report_id}>
-                  {formatPeriod(item)} · {statusLabels[item.status]}
-                </option>
-              ))
+              <span className="report-current-period" aria-live="polite">
+                {report ? `Đang xem báo cáo: ${formatPeriod(report)}` : "Chưa có báo cáo đã lưu"}
+              </span>
             )}
-          </select>
-          <button
-            type="button"
-            className="btn btn-outline report-refresh-btn"
-            onClick={() => void refreshReports()}
-            disabled={loading || detailLoading}
-            aria-label="Làm mới danh sách báo cáo"
-          >
-            <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
-            <span>Làm mới</span>
-          </button>
+            <button
+              type="button"
+              className="btn report-refresh-btn"
+              onClick={() => void refreshReports()}
+              disabled={loading || detailLoading}
+              aria-label="Làm mới danh sách báo cáo"
+            >
+              <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
+              <span>Làm mới</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -360,8 +460,11 @@ export const ReportViewer: React.FC = () => {
           <>
             <div className="report-card-header">
               <div className="report-meta-tag">
-                <FileText size={16} />
-                <span>{report.report_type === "daily" ? "BÁO CÁO HÀNG NGÀY" : "BÁO CÁO HÀNG TUẦN"}</span>
+                <span className="report-meta-icon"><FileText size={18} /></span>
+                <div>
+                  <span className="report-meta-eyebrow">Bản ghi đã xuất bản</span>
+                  <strong>{report.report_type === "daily" ? "Báo cáo hàng ngày" : "Báo cáo hàng tuần"}</strong>
+                </div>
               </div>
               <span className={`report-status-badge report-status-${report.status}`}>
                 {statusLabels[report.status]}
@@ -370,26 +473,35 @@ export const ReportViewer: React.FC = () => {
 
             <div className="report-card-body">
               <div className="report-document-header">
-                <h3>Báo cáo tổng hợp chất lượng môi trường</h3>
-                <div className="document-sub-meta">
-                  <span>Kỳ: {formatPeriod(report)}</span>
-                  <span>•</span>
-                  <span>Múi giờ: {report.timezone}</span>
-                  <span>•</span>
-                  <span>Tạo lúc: {formatTimestamp(report.created_at)}</span>
+                <div className="report-document-heading">
+                  <span className="report-document-mark"><Leaf size={21} /></span>
+                  <div>
+                    <span className="report-document-kicker">Tóm tắt từ dữ liệu đã lưu</span>
+                    <h3>Báo cáo tổng hợp chất lượng môi trường</h3>
+                  </div>
                 </div>
-                <div className="document-sub-meta">
-                  <span>Chế độ: {report.generation_mode}</span>
-                  <span>•</span>
-                  <span>Nguồn mô hình: {report.model_source || "—"}</span>
-                  {report.reused && (
-                    <>
-                      <span>•</span>
-                      <span>Dùng lại báo cáo đã lưu</span>
-                    </>
-                  )}
+                <div className="report-document-meta-grid">
+                  <div><span>Kỳ báo cáo</span><strong>{formatPeriod(report)}</strong></div>
+                  <div><span>Tạo lúc</span><strong>{formatTimestamp(report.created_at)}</strong></div>
                 </div>
               </div>
+
+              <details className="report-technical-details">
+                <summary><ShieldCheck size={15} /> Thông tin kỹ thuật và kiểm tra toàn vẹn</summary>
+                <div>
+                  <span>Schema: <strong>{report.schema_version || "periodic-report-v1"}</strong></span>
+                  <span>SHA-256: <code>{report.content_checksum_sha256 || "Không có (legacy)"}</code></span>
+                  <span>Múi giờ: <strong>{report.timezone}</strong></span>
+                  {report.reused && <span className="report-reused-pill">Dùng lại bản ghi đã lưu</span>}
+                </div>
+              </details>
+
+              {isLegacyReport && (
+                <div className="alert-box alert-info" role="status">
+                  <Info size={16} />
+                  <span>Báo cáo legacy vẫn có thể xem và xuất; các khối ESG, đối chiếu và ma trận có thể chưa có.</span>
+                </div>
+              )}
 
               {report.status === "generating" && (
                 <div className="alert-box alert-info" role="status">
@@ -408,24 +520,47 @@ export const ReportViewer: React.FC = () => {
                 </div>
               )}
 
+              <section className="report-reader-summary" aria-labelledby="report-reader-summary-title">
+                <div className="report-reader-summary-heading">
+                  <div>
+                    <span>Tóm tắt cho Ban Quản lý</span>
+                    <h4 id="report-reader-summary-title">Bốn điểm cần nắm trong kỳ này</h4>
+                  </div>
+                  <p>Được diễn giải từ cùng bản ghi báo cáo, không tính lại dữ liệu.</p>
+                </div>
+                <div className="report-reader-summary-grid">
+                  {readerSummary.map((item) => (
+                    <article key={item.label} className={`report-reader-card report-reader-card--${item.tone}`}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.detail}</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
               <section className="report-section-block">
                 <h4>1. Tổng quan dữ liệu</h4>
                 <div className="report-kpi-grid">
-                  <div>
-                    <span>Mẫu hợp lệ</span>
+                  <div className="report-kpi-card report-kpi-card--valid">
+                    <div className="report-kpi-label"><Database size={15} /><span>Mẫu hợp lệ</span></div>
                     <strong>{measurements?.valid_sample_count ?? 0}</strong>
+                    <small>Được đưa vào tổng hợp</small>
                   </div>
-                  <div>
-                    <span>Mẫu bị loại</span>
+                  <div className="report-kpi-card report-kpi-card--excluded">
+                    <div className="report-kpi-label"><ShieldAlert size={15} /><span>Mẫu bị loại</span></div>
                     <strong>{measurements?.excluded_sample_count ?? 0}</strong>
+                    <small>Không qua quality gate</small>
                   </div>
-                  <div>
-                    <span>AQI trung bình</span>
+                  <div className="report-kpi-card report-kpi-card--average">
+                    <div className="report-kpi-label"><Activity size={15} /><span>AQI trung bình</span></div>
                     <strong>{formatNumber(measurements?.overall_avg_aqi)}</strong>
+                    <small>Toàn bộ trạm đủ điều kiện</small>
                   </div>
-                  <div>
-                    <span>AQI cao nhất</span>
+                  <div className="report-kpi-card report-kpi-card--peak">
+                    <div className="report-kpi-label"><BarChart3 size={15} /><span>AQI cao nhất</span></div>
                     <strong>{formatNumber(measurements?.overall_max_aqi)}</strong>
+                    <small>Đỉnh quan sát trong kỳ</small>
                   </div>
                 </div>
                 <p>
@@ -502,10 +637,92 @@ export const ReportViewer: React.FC = () => {
               </section>
 
               <section className="report-section-block">
-                <h4>4. Nhận định có căn cứ</h4>
-                <div className="report-narrative">
-                  {report.narrative || "Backend chưa cung cấp phần nhận định cho báo cáo này."}
-                </div>
+                <h4>4. Chỉ số ESG ước tính</h4>
+                {esgMetrics ? (
+                  <div className="report-esg-grid">
+                    <article>
+                      <span>PM2.5 ước tính</span>
+                      <strong>
+                        {esgMetrics.estimated_pm25_removed_kg.value == null
+                          ? "Không đủ dữ liệu"
+                          : `${formatNumber(esgMetrics.estimated_pm25_removed_kg.value, 9)} kg`}
+                      </strong>
+                      <small>
+                        {estimateStatusLabels[esgMetrics.estimated_pm25_removed_kg.status]}
+                        {formatEstimateReason(esgMetrics.estimated_pm25_removed_kg.reason_code)
+                          ? ` · ${formatEstimateReason(esgMetrics.estimated_pm25_removed_kg.reason_code)}`
+                          : ""}
+                      </small>
+                    </article>
+                    <article>
+                      <span>Điện năng ước tính</span>
+                      <strong>
+                        {esgMetrics.estimated_energy_saved_kwh.value == null
+                          ? "Không đủ dữ liệu"
+                          : `${formatNumber(esgMetrics.estimated_energy_saved_kwh.value, 6)} kWh`}
+                      </strong>
+                      <small>
+                        {estimateStatusLabels[esgMetrics.estimated_energy_saved_kwh.status]}
+                        {formatEstimateReason(esgMetrics.estimated_energy_saved_kwh.reason_code)
+                          ? ` · ${formatEstimateReason(esgMetrics.estimated_energy_saved_kwh.reason_code)}`
+                          : ""}
+                      </small>
+                    </article>
+                  </div>
+                ) : (
+                  <p>Khối ESG không có trong báo cáo legacy.</p>
+                )}
+                <p className="report-reference-disclaimer">
+                  Đây là estimate từ ACK/profile simulator, không phải lượng bụi thực đo, bằng chứng nhân quả
+                  hoặc điện năng đo từ công tơ.
+                </p>
+              </section>
+
+              <section className="report-section-block">
+                <h4>5. Đối chiếu tham chiếu và KPI nội bộ</h4>
+                {referenceComparison?.station_days?.length ? (
+                  <div className="report-summary-table-wrapper">
+                    <table className="report-summary-table" aria-label="Đối chiếu QCVN WHO và KPI giờ tốt">
+                      <thead>
+                        <tr>
+                          <th>Trạm / ngày</th>
+                          <th>PM2.5 TB</th>
+                          <th>Độ phủ</th>
+                          <th>QCVN</th>
+                          <th>WHO</th>
+                          <th>KPI giờ tốt</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {referenceComparison.station_days.map((item) => (
+                          <tr key={`${item.station_id}-${item.local_date}`}>
+                            <td>{item.station_id} · {item.local_date}</td>
+                            <td>{formatNumber(item.avg_pm25_ug_m3)} µg/m³</td>
+                            <td>{formatNumber(item.coverage_ratio * 100)}%</td>
+                            <td>{qcvnStatusLabels[item.qcvn.status]}</td>
+                            <td>{whoStatusLabels[item.who.status]}</td>
+                            <td>
+                              {item.good_hour_kpi.good_hour_rate == null
+                                ? "N/A"
+                                : `${formatNumber(item.good_hour_kpi.good_hour_rate * 100)}% (${item.good_hour_kpi.good_hour_count}/${item.good_hour_kpi.eligible_hour_count})`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p>Không có station-day đủ điều kiện hoặc report legacy chưa lưu block này.</p>
+                )}
+                <p className="report-reference-disclaimer">
+                  QCVN dùng µg/Nm³ nên không thể đối chiếu trực tiếp với dữ liệu mô phỏng µg/m³. WHO là hướng dẫn,
+                  không phải quy chuẩn pháp lý. KPI mục tiêu 85% là KPI demo độc lập; không đánh giá tuân thủ trung bình năm.
+                </p>
+              </section>
+
+              <section className="report-section-block">
+                <h4>6. Ma trận 7 ngày × 24 giờ</h4>
+                <WeeklyMatrixChart matrix={weeklyMatrix} />
               </section>
 
               <div className="report-disclaimer-footer">

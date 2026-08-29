@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import html
+import json
 import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable
@@ -14,6 +16,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .air_quality import pm25_aqi
 from .database import ServiceError
+from .report_coverage_service import build_coverage_analytics
+from .report_esg_service import calculate_esg_metrics
 from .report_narrative_service import (
     NarrativeResult,
     NarrativeServiceError,
@@ -21,6 +25,12 @@ from .report_narrative_service import (
     validate_aggregate_evidence,
     validate_live_narrative,
     validate_model_source,
+)
+from .report_policy import REPORT_SCHEMA_VERSION, ReportPolicy
+from .report_publication_service import (
+    render_publication_html,
+    render_publication_markdown,
+    render_publication_pdf,
 )
 from .report_repository import ReportRepository, ReportSourceData
 
@@ -100,9 +110,16 @@ def resolve_report_period(
 
 
 class ReportGeneratorService:
-    def __init__(self, repository: ReportRepository, *, narrator: ReportNarrator | None = None) -> None:
+    def __init__(
+        self,
+        repository: ReportRepository,
+        *,
+        narrator: ReportNarrator | None = None,
+        policy: ReportPolicy | None = None,
+    ) -> None:
         self.repository = repository
         self.narrator = narrator
+        self.policy = policy or ReportPolicy()
 
     def generate_report(
         self,
@@ -149,8 +166,52 @@ class ReportGeneratorService:
                 period_end=period.period_end,
             )
             statistics = aggregate_report_statistics(source_data, period)
+            active_station_ids = source_data.active_station_ids or sorted(
+                {
+                    str(row.get("station_id"))
+                    for row in source_data.measurements
+                    if row.get("station_id")
+                }
+            )
+            coverage = build_coverage_analytics(
+                source_data.measurements,
+                period_start=period.period_start,
+                period_end=period.period_end,
+                timezone_name=period.timezone,
+                report_type=period.report_type,
+                active_station_ids=active_station_ids,
+                policy=self.policy,
+            )
+            statistics["policy_snapshot"] = self.policy.snapshot()
+            statistics["reference_comparison"] = coverage["reference_comparison"]
+            statistics["weekly_matrix"] = coverage["weekly_matrix"]
+            statistics["esg_metrics"] = calculate_esg_metrics(
+                command_intents=source_data.command_intents,
+                device_status_events=source_data.device_status_events,
+                device_profiles=source_data.device_profiles,
+                measurements=source_data.measurements,
+                period_start=period.period_start,
+                period_end=period.period_end,
+                policy=self.policy,
+            )
+            statistics["data_quality"]["active_station_ids"] = coverage["active_station_ids"]
+            statistics["data_quality"]["coverage_policy"] = {
+                "expected_sample_interval_seconds": self.policy.expected_sample_interval_seconds,
+                "minimum_coverage_ratio": self.policy.minimum_coverage_ratio,
+            }
             evidence_summary = build_evidence_summary(statistics, period)
             narrative_result, narrative_failure = self._compose_narrative(evidence_summary, statistics)
+            content_checksum = compute_content_checksum(
+                {
+                    **reserved,
+                    "schema_version": REPORT_SCHEMA_VERSION,
+                    "statistics": statistics,
+                    "evidence_summary": evidence_summary,
+                    "narrative": narrative_result.narrative,
+                    "generation_mode": narrative_result.generation_mode,
+                    "model_source": narrative_result.model_source,
+                }
+            )
             completed = self.repository.complete_report(
                 report_id=report_id,
                 generation_attempt_id=generation_attempt_id,
@@ -160,6 +221,8 @@ class ReportGeneratorService:
                 generation_mode=narrative_result.generation_mode,
                 model_source=narrative_result.model_source,
                 failure_code=narrative_failure,
+                schema_version=REPORT_SCHEMA_VERSION,
+                content_checksum_sha256=content_checksum,
             )
             return {**_public_report_record(completed), "reused": False}
         except ServiceError as exc:
@@ -373,7 +436,21 @@ def build_evidence_summary(statistics: dict[str, Any], period: ReportPeriod) -> 
         "alerts": statistics["alerts"],
         "proposals": statistics["proposals"],
         "ventilation": statistics["ventilation"],
+        "coverage": {
+            "policy": statistics.get("policy_snapshot", {}),
+            "active_station_ids": statistics.get("data_quality", {}).get("active_station_ids", []),
+        },
+        "reference_comparison": statistics.get("reference_comparison", {}),
+        "acknowledged_activity": statistics.get("esg_metrics", {}).get("acknowledged_intervals", []),
+        "esg_metrics": statistics.get("esg_metrics", {}),
         "data_quality": statistics["data_quality"],
+        "allowed_claim_types": [
+            "trend",
+            "coverage",
+            "reference",
+            "acknowledged_activity",
+            "estimate_availability",
+        ],
     }
     validate_aggregate_evidence(evidence)
     return evidence
@@ -386,25 +463,32 @@ def deterministic_report_narrative(statistics: dict[str, Any]) -> str:
     average_aqi = measurements.get("overall_avg_aqi")
     worst_station = measurements.get("worst_station_id")
     first = (
-        f"The report includes {measurements['valid_sample_count']} valid samples from "
-        f"{measurements['station_count']} simulated stations."
+        f"Báo cáo ghi nhận {measurements['valid_sample_count']} mẫu hợp lệ từ "
+        f"{measurements['station_count']} trạm mô phỏng."
     )
     if average_aqi is None:
-        second = "There are not enough valid samples to calculate average AQI or identify a worst station."
+        second = "Chưa đủ mẫu hợp lệ để tính AQI trung bình hoặc xác định trạm có giá trị cao nhất."
     else:
-        second = f"Average AQI is {average_aqi:g}, and the highest station maximum belongs to {worst_station}."
+        second = f"AQI trung bình là {average_aqi:g}; giá trị AQI cao nhất trong kỳ được ghi nhận tại {worst_station}."
     third = (
-        f"The backend recorded {alerts['total_count']} alert lifecycles and "
-        f"{ventilation['activation_count']} acknowledged ventilation starts; observed lifecycle time is "
-        f"{ventilation['total_duration_minutes']:g} minutes and commanded duration is "
-        f"{ventilation['commanded_duration_minutes']:g} minutes."
+        f"Backend ghi nhận {alerts['total_count']} vòng đời cảnh báo và "
+        f"{ventilation['activation_count']} lượt thông gió đã được xác nhận; thời lượng quan sát là "
+        f"{ventilation['total_duration_minutes']:g} phút và thời lượng được ra lệnh là "
+        f"{ventilation['commanded_duration_minutes']:g} phút."
     )
     outcome = ventilation["effectiveness"]["outcome"]
-    fourth = f"The before-and-after outcome is {outcome}; this comparison does not establish causation."
+    fourth = (
+        f"Kết quả so sánh trước và sau là {outcome}; thông tin này không dùng để kết luận "
+        "quan hệ nguyên nhân-kết quả."
+    )
     return " ".join((first, second, third, fourth))
 
 
 def render_report_markdown(report: dict[str, Any]) -> str:
+    return render_publication_markdown(report)
+
+
+def _legacy_render_report_markdown(report: dict[str, Any]) -> str:
     statistics = _stored_statistics(report)
     measurements = statistics["measurements"]
     lines = [
@@ -448,6 +532,10 @@ def render_report_markdown(report: dict[str, Any]) -> str:
 
 
 def render_report_html(report: dict[str, Any]) -> str:
+    return render_publication_html(report)
+
+
+def _legacy_render_report_html(report: dict[str, Any]) -> str:
     statistics = _stored_statistics(report)
     station_rows = "".join(
         "<tr>"
@@ -481,6 +569,10 @@ def render_report_html(report: dict[str, Any]) -> str:
 
 
 def render_report_pdf(report: dict[str, Any]) -> bytes:
+    return render_publication_pdf(report)
+
+
+def _legacy_render_report_pdf(report: dict[str, Any]) -> bytes:
     try:
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4
@@ -823,6 +915,41 @@ def _within_period(rows: Iterable[dict[str, Any]], period: ReportPeriod, timesta
         if timestamp is not None and period.period_start <= timestamp < period.period_end:
             accepted.append(row)
     return accepted
+
+
+def canonical_content_payload(report: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "report_id": str(report.get("report_id")),
+        "report_type": str(report.get("report_type")),
+        "period_start": _iso(report.get("period_start")),
+        "period_end": _iso(report.get("period_end")),
+        "timezone": str(report.get("timezone")),
+        "schema_version": str(report.get("schema_version") or REPORT_SCHEMA_VERSION),
+        "statistics": report.get("statistics"),
+        "evidence_summary": report.get("evidence_summary"),
+        "narrative": str(report.get("narrative") or ""),
+        "generation_mode": str(report.get("generation_mode") or ""),
+        "model_source": str(report.get("model_source") or ""),
+    }
+
+
+def compute_content_checksum(report: dict[str, Any]) -> str:
+    payload = canonical_content_payload(report)
+    try:
+        canonical = json.dumps(
+            payload,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ServiceError(
+            "report_record_invalid",
+            "Report content cannot be serialized canonically.",
+            500,
+        ) from exc
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _stored_statistics(report: dict[str, Any]) -> dict[str, Any]:

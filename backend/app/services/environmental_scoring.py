@@ -32,6 +32,16 @@ class EnvironmentalScoringEngine:
         "S05": (20.9910, 105.9560),
     }
 
+    @staticmethod
+    def _required_metric(values: dict[str, Any], name: str) -> float:
+        value = values.get(name)
+        if isinstance(value, bool) or value is None:
+            raise ValueError(f"grounded environmental metric is required: {name}")
+        number = float(value)
+        if not math.isfinite(number) or number < 0:
+            raise ValueError(f"grounded environmental metric is invalid: {name}")
+        return number
+
     @classmethod
     def calculate_distance_m(cls, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         r = 6371000.0
@@ -108,6 +118,11 @@ class EnvironmentalScoringEngine:
             st_data = station_data_map.get(st_id)
             if not st_data:
                 continue
+            required = ("pm25", "aqi", "co2", "noise_db", "temperature")
+            if any(st_data.get(key) is None for key in required):
+                continue
+            # Coordinates are immutable station registry metadata, not an
+            # environmental fallback. Environmental metrics remain mandatory.
             st_lat = float(st_data.get("latitude", canonical_coords[0]))
             st_lon = float(st_data.get("longitude", canonical_coords[1]))
 
@@ -117,11 +132,11 @@ class EnvironmentalScoringEngine:
 
             if dist_km <= 0.0001:
                 return {
-                    "pm25": float(st_data.get("pm25", 25.0)),
-                    "aqi": float(st_data.get("aqi", 50.0)),
-                    "co2": float(st_data.get("co2", 420.0)),
-                    "noise_db": float(st_data.get("noise_db", 55.0)),
-                    "temperature": float(st_data.get("temperature", 28.0)),
+                    "pm25": float(st_data["pm25"]),
+                    "aqi": float(st_data["aqi"]),
+                    "co2": float(st_data["co2"]),
+                    "noise_db": float(st_data["noise_db"]),
+                    "temperature": float(st_data["temperature"]),
                     "source_station_ids": [st_id],
                 }
 
@@ -133,11 +148,11 @@ class EnvironmentalScoringEngine:
             total_weight += w
             source_weights.append((w, st_id))
 
-            weighted_metrics["pm25"] += w * float(st_data.get("pm25", 25.0))
-            weighted_metrics["aqi"] += w * float(st_data.get("aqi", 50.0))
-            weighted_metrics["co2"] += w * float(st_data.get("co2", 420.0))
-            weighted_metrics["noise_db"] += w * float(st_data.get("noise_db", 55.0))
-            weighted_metrics["temperature"] += w * float(st_data.get("temperature", 28.0))
+            weighted_metrics["pm25"] += w * float(st_data["pm25"])
+            weighted_metrics["aqi"] += w * float(st_data["aqi"])
+            weighted_metrics["co2"] += w * float(st_data["co2"])
+            weighted_metrics["noise_db"] += w * float(st_data["noise_db"])
+            weighted_metrics["temperature"] += w * float(st_data["temperature"])
 
         if total_weight <= 0:
             raise ValueError("route exposure requires at least one grounded station")
@@ -505,11 +520,11 @@ class EnvironmentalScoringEngine:
 
         # Calculate comparative reduction vs the least clean / baseline route
         baseline = evaluated[-1]
-        baseline_pm25 = max(1.0, baseline.get("pm25", 30.0))
+        baseline_pm25 = max(1.0, float(baseline["pm25"]))
 
         for idx, item in enumerate(evaluated):
             item["rank"] = idx + 1
-            cand_pm25 = item.get("pm25", 25.0)
+            cand_pm25 = float(item["pm25"])
             reduction_pct = round(max(0.0, (baseline_pm25 - cand_pm25) / baseline_pm25) * 100.0, 1)
             item["exposure_reduction_pct"] = reduction_pct
 
@@ -525,10 +540,10 @@ class EnvironmentalScoringEngine:
     ) -> dict[str, Any]:
         weights = cls.ACTIVITY_WEIGHTS.get(activity, cls.ACTIVITY_WEIGHTS["general"])
 
-        aqi = float(candidate.get("aqi") or 50.0)
-        pm25 = float(candidate.get("pm25") or 25.0)
-        temp = float(candidate.get("temperature") or 28.0)
-        noise = float(candidate.get("noise_db") or 55.0)
+        aqi = cls._required_metric(candidate, "aqi")
+        pm25 = cls._required_metric(candidate, "pm25")
+        temp = cls._required_metric(candidate, "temperature")
+        noise = cls._required_metric(candidate, "noise_db")
 
         # 1. Sub-score: AQI (100 = 0 AQI, 0 = 250+ AQI)
         aqi_sub = max(0.0, min(100.0, 100.0 - (aqi / 2.2)))
@@ -675,12 +690,14 @@ class EnvironmentalScoringEngine:
         user_group: str = "normal",
     ) -> dict[str, Any]:
         """
-        Evaluates whether vigorous outdoor aerobic exercise is medically safe.
-        Pivots to indoor alternatives if AQI/PM2.5 or temperature reaches hazardous thresholds.
+        Applies versioned demo-policy gates for outdoor activity wording.
+
+        This is not a medical safety assessment. Missing environmental facts fail
+        closed instead of being replaced by demo defaults.
         """
-        aqi = float(metrics.get("aqi") or 50.0)
-        pm25 = float(metrics.get("pm25") or 25.0)
-        temp = float(metrics.get("temperature") or 28.0)
+        aqi = cls._required_metric(metrics, "aqi")
+        pm25 = cls._required_metric(metrics, "pm25")
+        temp = cls._required_metric(metrics, "temperature")
 
         # Thresholds: Sensitive groups have stricter cutoff
         aqi_limit = 100.0 if user_group == "sensitive" else 150.0
@@ -688,7 +705,6 @@ class EnvironmentalScoringEngine:
 
         if aqi > aqi_limit or pm25 > pm25_limit:
             reason = "unhealthy_for_sensitive_groups" if user_group == "sensitive" and aqi <= 150 else "severe_air_pollution"
-            group_desc = "cho người có bệnh lý hô hấp nhạy cảm" if user_group == "sensitive" else "cho vận động ngoài trời"
             return {
                 "safe": False,
                 "reason": reason,
@@ -696,9 +712,8 @@ class EnvironmentalScoringEngine:
                 "aqi": aqi,
                 "pm25": pm25,
                 "warning": (
-                    f"Chỉ số AQI {int(aqi)} (PM2.5 {pm25} µg/m³) vượt ngưỡng an toàn {group_desc}. "
-                    "Khi chạy bộ hoặc tập cardio ngoài trời, lưu lượng thông khí phổi tăng gấp 5–10 lần, "
-                    "khiến phế nang hấp thụ lượng lớn bụi mịn gây kích ứng phế quản."
+                    f"AQI {int(aqi)} và PM2.5 {pm25} µg/m³ vượt ngưỡng policy demo cho hoạt động ngoài trời. "
+                    "Cân nhắc giảm hoạt động ngoài trời; đây không phải tư vấn y tế."
                 ),
             }
 
@@ -707,9 +722,7 @@ class EnvironmentalScoringEngine:
                 "safe": False,
                 "reason": "extreme_heat",
                 "temperature": temp,
-                "warning": (
-                    f"Nhiệt độ ngoài trời {temp}°C quá cao, có nguy cơ sốc nhiệt, mất nước nhanh và kiệt sức."
-                ),
+                "warning": f"Nhiệt độ ngoài trời {temp}°C vượt ngưỡng policy demo; cân nhắc hoạt động trong nhà.",
             }
 
         if temp < 10.0:
@@ -717,7 +730,7 @@ class EnvironmentalScoringEngine:
                 "safe": False,
                 "reason": "extreme_cold",
                 "temperature": temp,
-                "warning": f"Nhiệt độ ngoài trời {temp}°C rét đậm, hít thở không khí lạnh sâu có thể gây co thắt phế quản.",
+                "warning": f"Nhiệt độ ngoài trời {temp}°C dưới ngưỡng policy demo; cân nhắc hoạt động trong nhà.",
             }
 
         return {"safe": True, "reason": "normal", "aqi": aqi, "pm25": pm25, "temperature": temp}

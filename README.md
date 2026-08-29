@@ -19,6 +19,9 @@ AirGuard AI là MVP giám sát chất lượng môi trường tại Vinhomes Oce
 | AI Agent | Conversation gate + LangGraph/tool calling; xã giao có kiểm soát, grounded answer và deterministic fallback khi không có provider key |
 | HITL | Proposal bắt đầu `pending`; chỉ Manager approve/reject; có audit và device simulator |
 | Notification | Resend Email API khi cấu hình; proposal báo Manager/Admin và environmental alert báo cư dân theo nhóm hồ sơ; mặc định provider `disabled` |
+| Personalized alerts | Hai opt-in độc lập mặc định tắt, predictive episode 1–2h, worker revalidation và checklist authenticated theo `b7-personalized-alerts-v1` |
+| Exposure/route | Ước tính `estimated_inhaled_mass_ug` và tuyến chạy deterministic trên `curated_demo_graph`; không dùng telemetry fallback hoặc live OSM |
+| Báo cáo ESG | Daily/weekly persisted theo `b7-esg-reports-v1`, coverage/DST, QCVN/WHO/KPI tách biệt, ESG estimate có provenance, ma trận 7x24 và checksum chung cho UI/Markdown/HTML/PDF |
 | Prophet/LSTM | Chưa triển khai |
 | Mô hình lan truyền khoa học | Chưa có; vùng nhiệt chỉ trực quan hóa cường độ quanh trạm |
 
@@ -136,6 +139,9 @@ Remove-Item Env:CELERY_TASK_ALWAYS_EAGER
 Profile này khởi động thêm Celery worker và Celery Beat. Beat tạo báo cáo của ngày đã hoàn tất lúc
 00:10 hằng ngày và báo cáo tuần đã hoàn tất lúc 00:20 thứ Hai theo `REPORT_TIMEZONE`; khóa duy nhất
 `report_type + period_start + period_end + timezone` ngăn tạo trùng.
+Beat cũng đánh giá predictive warning theo chu kỳ mặc định 900 giây. Email chỉ được enqueue khi
+episode còn trong cửa sổ lead 30–60 phút và worker chạy lại freshness/confidence/actual-alert/consent
+gates ngay trước khi gọi provider.
 
 ### 5. Dừng
 
@@ -325,6 +331,7 @@ Không cần nhập prompt tạo proposal để demo luồng tự động. Khi c
 - Sau một boost thành công và 20 phút dữ liệu an toàn liên tục, backend chỉ tạo proposal `eco_mode`
   `pending`; Manager vẫn phải duyệt trước dispatch.
 - Resend gửi thật khi `NOTIFICATION_PROVIDER=resend` và API key/sender hợp lệ. Alert môi trường gửi nội dung deterministic theo nhóm hồ sơ cho resident active đã xác minh email; proposal vẫn gửi riêng cho Manager/Admin.
+- Email môi trường và predictive email là hai opt-in độc lập, backend-owned và mặc định `false` cho cả user hiện hữu. Predictive warning là advisory riêng, không tạo proposal hoặc device command.
 
 Auth frontend hiện là demo identity, chưa phải authentication production.
 
@@ -341,6 +348,12 @@ Base URL: `/api/v1`.
 | `POST /stations/compare` | So sánh trạm |
 | `GET /stations/{id}/forecast` | Dự báo theo metric |
 | `GET /alerts` | Alert đa chỉ số |
+| `POST /exposure/inhaled-mass` | Ước tính khối lượng PM2.5 hít vào từ dữ liệu backend |
+| `POST /routes/clean-running` | Một tuyến chạy deterministic trên graph đóng gói |
+| `GET/PATCH /auth/notification-preferences` | Đọc/cập nhật hai opt-in; PATCH cần session + CSRF |
+| `GET /predictive-warnings/{id}` | Episode public facts và checklist của session user |
+| `PUT /predictive-warnings/{id}/checklist/{item}` | Checklist idempotent, authenticated + CSRF |
+| `GET /predictive-warnings`, `POST /predictive-warnings/evaluate` | Manager operations; evaluate mutation cần CSRF |
 | `POST /agent/chat` | Agent qua backend proxy |
 | `POST /proposals` | Tạo proposal pending |
 | `GET /approvals` | Manager queue |
@@ -384,10 +397,18 @@ Sao chép `.env.example` thành `.env`; không commit file `.env`. Stack demo c�
 | `VENTILATION_DEFAULT_DURATION_MINUTES`, `VENTILATION_INTENSITY_PERCENT` | Không | Policy điều khiển backend; mặc định 45 phút/80%. |
 | `VENTILATION_MAX_GAP_SECONDS` | Không | Gap tối đa trong chuỗi hợp lệ; mặc định 60 giây. |
 | `REPORT_TIMEZONE` | Không | Múi giờ kỳ báo cáo và Celery Beat; mặc định `Asia/Ho_Chi_Minh`. |
+| `REPORT_POLICY_VERSION` | Không | Contract/policy snapshot của báo cáo; mặc định `b7-esg-reports-v1`. |
+| `REPORT_EXPECTED_SAMPLE_INTERVAL_SECONDS` | Không | Cadence lịch sử snapshot để tính coverage; mặc định 10, hợp lệ 1–3600. |
+| `REPORT_MINIMUM_COVERAGE_RATIO` | Không | Gate coverage station-hour/day/matrix; mặc định 0,75. |
+| `REPORT_MATRIX_MIN_ELIGIBLE_STATIONS` | Không | Số trạm eligible tối thiểu cho `all_stations`; mặc định 3, hợp lệ 1–5. |
 | `REPORT_NARRATIVE_ENDPOINT` | Không | Endpoint LLM nội bộ tùy chọn; để trống dùng narrative deterministic grounded. |
 | `NOTIFICATION_PROVIDER` | Không | Mặc định `disabled`; đặt `resend` khi đã cấu hình Resend API key & sender. |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Chỉ khi dùng Resend | Secret local; không in ra log, screenshot hoặc commit. |
 | `RESEND_FROM_NAME`, `RESEND_REPLY_TO`, `RESEND_TIMEOUT_SECONDS` | Không | Cấu hình mở rộng cho Resend email dispatch; mặc định timeout 10 giây. |
+| `PREDICTIVE_WARNING_NOTIFICATIONS_ENABLED` | Không | Feature flag email predictive; mặc định `false`. |
+| `PREDICTIVE_WARNING_EVALUATION_INTERVAL_SECONDS` | Không | Chu kỳ Beat, mặc định 900 giây; hợp lệ 300–3600. |
+| `PREDICTIVE_WARNING_LEAD_MINUTES`, `PREDICTIVE_WARNING_LEAD_TOLERANCE_MINUTES` | Không | Target/cửa sổ lead; mặc định 45±15 phút. |
+| `PREDICTIVE_WARNING_MIN_CONFIDENCE`, `PREDICTIVE_WARNING_FORECAST_MAX_AGE_SECONDS` | Không | Quality gates forecast; mặc định 0,60 và 900 giây. |
 | `CELERY_TASK_ALWAYS_EAGER` | Không | `true` trong demo; async worker thật dùng profile `async-jobs`. |
 
 Xem đầy đủ tại [.env.example](.env.example).
@@ -433,6 +454,8 @@ Frontend:
 ```powershell
 Set-Location frontend
 npm ci
+npm run test:personalized-alerts
+npm run test:email-snapshots
 npm run build
 ```
 
@@ -489,3 +512,4 @@ Runtime entry points:
 - Threshold CO₂/noise/temperature cần mentor/operations xác nhận.
 - Authentication/RBAC frontend còn ở mức demo.
 - Resend và async worker production cần cấu hình hạ tầng/secret riêng.
+- Graph tuyến chạy là `curated_demo_graph`, không phải snapshot OSM live; người dùng phải tự kiểm tra điều kiện đường thực tế.

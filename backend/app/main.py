@@ -11,7 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from .core import Settings
 from .dependencies.auth import (
@@ -29,6 +29,7 @@ from .services.approval_service import ApprovalService, configure_default_servic
 from .services.audit_service import AuditService
 from .services.auth_service import AuthService
 from .services.automatic_proposal_service import AutomaticProposalService
+from .services.clean_running_route_service import CleanRunningRouteService
 from .services.conversational_agent_service import conversational_agent
 from .services.csrf_service import (
     CSRF_COOKIE_NAME,
@@ -41,10 +42,19 @@ from .services.email_service import AuthEmailService
 from .services.forecast_service import InsufficientForecastHistory, trend_forecast
 from .services.geospatial_agent_service import geospatial_agent
 from .services.ingestion_service import MeasurementIngestionService
+from .services.inhaled_dose_service import InhaledDoseService
 from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.live_telemetry_engine import live_engine
+from .services.notification_preference_service import NotificationPreferenceService
+from .services.personalized_alert_repository import PersonalizedAlertRepository
+from .services.predictive_warning_service import (
+    PREDICTIVE_WARNING_DISCLAIMER,
+    PredictiveWarningNotificationService,
+    PredictiveWarningService,
+)
 from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
+from .services.report_policy import ReportPolicy
 from .services.report_repository import PostgresReportRepository
 from .services.resident_alert_notification_service import ResidentAlertNotificationService
 from .services.spatial_dispersion_service import SpatialDispersionService
@@ -59,11 +69,13 @@ try:
     from .tasks.agent_tasks import run_agent_job
     from .tasks.forecast_tasks import run_forecast_job
     from .tasks.notification_tasks import publish_approved_device_command, send_notification_job
+    from .tasks.predictive_warning_tasks import send_predictive_warning_notification
 except ModuleNotFoundError:
     run_agent_job = None
     run_forecast_job = None
     publish_approved_device_command = None
     send_notification_job = None
+    send_predictive_warning_notification = None
 
 
 class AgentChatRequest(BaseModel):
@@ -135,10 +147,39 @@ class DeviceControlProposalRequest(BaseModel):
 
 
 class ReportGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["daily", "weekly"]
     period_start: datetime | None = None
     period_end: datetime | None = None
     timezone: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class EnvironmentalReportResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    report_id: str
+    report_type: Literal["daily", "weekly"]
+    period_start: datetime
+    period_end: datetime
+    timezone: str
+    status: Literal["generating", "completed", "failed"]
+    schema_version: str = "periodic-report-v1"
+    statistics: dict[str, Any] = Field(default_factory=dict)
+    evidence_summary: dict[str, Any] = Field(default_factory=dict)
+    narrative: str | None = None
+    generation_mode: str
+    model_source: str
+    content_checksum_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    generated_by: str | None = None
+    failure_code: str | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
+    reused: bool | None = None
+
+
+class EnvironmentalReportListResponse(BaseModel):
+    items: list[EnvironmentalReportResponse]
 
 
 class RegisterRequest(BaseModel):
@@ -191,6 +232,54 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str = Field(..., min_length=16, max_length=256)
     new_password: str = Field(..., min_length=8, max_length=1024, examples=["NewSecurePassword123!"])
+
+
+class InhaledMassRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    station_id: str = Field(pattern=r"^S0[1-5]$")
+    activity: str
+    duration_minutes: int
+    data_mode: str = "current"
+    forecast_hour: int | None = None
+
+
+class RouteOriginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lat: float
+    lon: float
+    source: str
+
+
+class CleanRunningRouteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    origin: RouteOriginRequest
+    target_distance_km: float
+    pace_minutes_per_km: float | None = None
+    data_mode: str = "current"
+    forecast_hour: int | None = None
+
+
+class NotificationPreferencesPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    environmental_email_enabled: StrictBool | None = None
+    predictive_email_enabled: StrictBool | None = None
+
+
+class PredictiveWarningEvaluateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    station_id: str = Field(pattern=r"^S0[1-5]$")
+    dry_run: StrictBool = True
+
+
+class ChecklistItemUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    completed: StrictBool
 
 
 def _enqueue_manager_proposal_notification(
@@ -275,6 +364,46 @@ db = Database(settings.database_url)
 audit_service = AuditService(db)
 station_service = StationService(db, settings.stale_after_seconds)
 user_service = UserService(db)
+personalized_alert_repository = PersonalizedAlertRepository(db)
+notification_preference_service = NotificationPreferenceService(
+    personalized_alert_repository,
+    audit_service,
+)
+inhaled_dose_service = InhaledDoseService(
+    station_service,
+    observation_max_age_seconds=settings.stale_after_seconds,
+    min_forecast_confidence=settings.predictive_warning_min_confidence,
+    forecast_max_age_seconds=settings.predictive_warning_forecast_max_age_seconds,
+)
+clean_running_route_service = CleanRunningRouteService(
+    station_service,
+    observation_max_age_seconds=settings.stale_after_seconds,
+    min_forecast_confidence=settings.predictive_warning_min_confidence,
+    forecast_max_age_seconds=settings.predictive_warning_forecast_max_age_seconds,
+)
+geospatial_agent.clean_route_service = clean_running_route_service
+predictive_warning_notifier = PredictiveWarningNotificationService(
+    personalized_alert_repository,
+    audit_service,
+    notification_task=send_predictive_warning_notification,
+    enabled=settings.predictive_warning_notifications_enabled,
+)
+predictive_warning_service = PredictiveWarningService(
+    personalized_alert_repository,
+    station_service,
+    audit_service,
+    notifier=predictive_warning_notifier,
+    policy_version=settings.predictive_warning_policy_version,
+    threshold_rule_version=settings.alert_rule_version,
+    warning_threshold=settings.alert_warning_threshold,
+    critical_threshold=settings.alert_critical_threshold,
+    observation_max_age_seconds=settings.stale_after_seconds,
+    min_confidence=settings.predictive_warning_min_confidence,
+    forecast_max_age_seconds=settings.predictive_warning_forecast_max_age_seconds,
+    clear_evaluations=settings.predictive_warning_clear_evaluations,
+    lead_minutes=settings.predictive_warning_lead_minutes,
+    lead_tolerance_minutes=settings.predictive_warning_lead_tolerance_minutes,
+)
 user_admin_service = UserAdminService(db, audit_service)
 device_service = DeviceService(db)
 email_service = AuthEmailService(frontend_url=settings.frontend_url)
@@ -372,6 +501,12 @@ report_narrator = (
 report_service = ReportGeneratorService(
     PostgresReportRepository(db),
     narrator=report_narrator,
+    policy=ReportPolicy(
+        report_policy_version=settings.report_policy_version,
+        expected_sample_interval_seconds=settings.report_expected_sample_interval_seconds,
+        minimum_coverage_ratio=settings.report_minimum_coverage_ratio,
+        matrix_min_eligible_stations=settings.report_matrix_min_eligible_stations,
+    ),
 )
 weather_service = WeatherService(
     settings.weather_api_base_url,
@@ -768,6 +903,39 @@ def auth_update_profile(
     }
 
 
+@app.get("/api/v1/auth/notification-preferences")
+def get_notification_preferences(current_user: dict = Depends(get_current_user)) -> dict:
+    return {
+        "preferences": notification_preference_service.get(str(current_user["user_id"])),
+        "contract_version": "b7-personalized-alerts-v1",
+    }
+
+
+@app.patch("/api/v1/auth/notification-preferences")
+def update_notification_preferences(
+    request: Request,
+    body: NotificationPreferencesPatch,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    validate_csrf(request)
+    values = body.model_dump(exclude_none=True)
+    if not values:
+        raise ServiceError(
+            "notification_preferences_empty_update",
+            "At least one notification preference is required",
+            422,
+        )
+    return {
+        "preferences": notification_preference_service.update(
+            user_id=str(current_user["user_id"]),
+            actor_role=str(current_user["role"]),
+            values=values,
+            correlation_id=_request_id(request),
+        ),
+        "contract_version": "b7-personalized-alerts-v1",
+    }
+
+
 @app.post("/api/v1/auth/logout")
 def auth_logout(
     request: Request,
@@ -971,6 +1139,110 @@ def get_current_weather() -> dict:
     return {**weather_service.current_weather(), "timestamp": datetime.now(UTC).isoformat()}
 
 
+@app.post("/api/v1/exposure/inhaled-mass")
+def estimate_inhaled_mass(body: InhaledMassRequest) -> dict:
+    return {
+        **inhaled_dose_service.estimate(
+            station_id=body.station_id,
+            activity=body.activity,
+            duration_minutes=body.duration_minutes,
+            data_mode=body.data_mode,
+            forecast_hour=body.forecast_hour,
+        ),
+        "contract_version": "b7-personalized-alerts-v1",
+    }
+
+
+@app.post("/api/v1/routes/clean-running")
+def recommend_clean_running_route(body: CleanRunningRouteRequest) -> dict:
+    return {
+        **clean_running_route_service.recommend(
+            origin=body.origin.model_dump(),
+            target_distance_km=body.target_distance_km,
+            pace_minutes_per_km=body.pace_minutes_per_km,
+            data_mode=body.data_mode,
+            forecast_hour=body.forecast_hour,
+        ),
+        "contract_version": "b7-personalized-alerts-v1",
+    }
+
+
+@app.get("/api/v1/predictive-warnings")
+def list_predictive_warnings(
+    status: str | None = Query(default=None),
+    station_id: str | None = Query(default=None, pattern=r"^S0[1-5]$"),
+    _current_user: dict = Depends(require_manager),
+) -> dict:
+    return {
+        "items": personalized_alert_repository.list_episodes(status=status, station_id=station_id),
+        "contract_version": "b7-personalized-alerts-v1",
+    }
+
+
+@app.post("/api/v1/predictive-warnings/evaluate")
+def evaluate_predictive_warning(
+    request: Request,
+    body: PredictiveWarningEvaluateRequest,
+    _current_user: dict = Depends(require_manager),
+) -> dict:
+    validate_csrf(request)
+    return {
+        **predictive_warning_service.evaluate(
+            body.station_id,
+            dry_run=body.dry_run,
+            correlation_id=_request_id(request),
+        ),
+        "station_id": body.station_id,
+        "contract_version": "b7-personalized-alerts-v1",
+    }
+
+
+@app.get("/api/v1/predictive-warnings/{episode_id}")
+def get_predictive_warning(
+    episode_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    return {
+        "episode": personalized_alert_repository.get_episode(episode_id),
+        "checklist": personalized_alert_repository.get_checklist(
+            episode_id,
+            str(current_user["user_id"]),
+        ),
+        "disclaimer": PREDICTIVE_WARNING_DISCLAIMER,
+        "contract_version": "b7-personalized-alerts-v1",
+    }
+
+
+@app.put("/api/v1/predictive-warnings/{episode_id}/checklist/{item_key}")
+def update_predictive_warning_checklist(
+    request: Request,
+    episode_id: str,
+    item_key: str,
+    body: ChecklistItemUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    validate_csrf(request)
+    if current_user.get("role") != "resident":
+        raise ServiceError("permission_denied", "Only residents can update their checklist", 403)
+    item = personalized_alert_repository.put_checklist(
+        episode_id,
+        str(current_user["user_id"]),
+        item_key,
+        body.completed,
+    )
+    audit_service.record(
+        actor_type="user",
+        actor_id=str(current_user["user_id"]),
+        actor_role="resident",
+        action="predictive_warning.checklist_updated",
+        entity_type="predictive_warning_episode",
+        entity_id=episode_id,
+        correlation_id=_request_id(request),
+        details={"item_key": item_key, "completed": body.completed},
+    )
+    return {"item": item, "contract_version": "b7-personalized-alerts-v1"}
+
+
 @app.get("/api/v1/spatial/heatmap")
 def get_spatial_heatmap(
     metric: str = Query(default="aqi"),
@@ -1066,7 +1338,7 @@ async def agent_chat(
 
         snapshots = {
             station["station_id"]: station
-            for station in station_service.list_stations(allow_fallback=True)
+            for station in station_service.list_stations(allow_fallback=False)
         }
         time_context = temporal_resolver.resolve(body.message.lower().strip())
         histories: dict[str, list[dict[str, Any]]] = {}
@@ -1141,7 +1413,11 @@ async def agent_chat(
                 )
 
             map_intent = result.get("intent")
-            if isinstance(agent_sources, list) and agent_sources:
+            is_canonical_route = map_intent in {
+                "recommend_running_route",
+                "recommend_personalized_running_route",
+            }
+            if isinstance(agent_sources, list) and agent_sources and not is_canonical_route:
                 result["sources"] = agent_sources
                 result["intent"] = canonical_intent
             elif "sources" not in result or not result["sources"]:
@@ -1151,7 +1427,14 @@ async def agent_chat(
                     if isinstance(item, dict) and item.get("station_id")
                 ] or ["simulator_engine"]
 
-            result["used_tools"] = agent_result.get("used_tools", [])
+            result["used_tools"] = list(
+                dict.fromkeys(
+                    [
+                        *result.get("used_tools", []),
+                        *agent_result.get("used_tools", []),
+                    ]
+                )
+            )
             result["tool_arguments"] = canonical_arguments
             result["proposal_id"] = agent_result.get("proposal_id")
             result["trace"] = {
@@ -1433,7 +1716,7 @@ def reject_request(
     )
 
 
-@app.get("/api/v1/reports")
+@app.get("/api/v1/reports", response_model=EnvironmentalReportListResponse)
 def list_environmental_reports(
     type: Literal["daily", "weekly"] | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
@@ -1449,7 +1732,7 @@ def list_environmental_reports(
     }
 
 
-@app.post("/api/v1/reports/generate", status_code=201)
+@app.post("/api/v1/reports/generate", status_code=201, response_model=EnvironmentalReportResponse)
 def generate_environmental_report(
     request: Request,
     body: ReportGenerateRequest,
@@ -1465,7 +1748,7 @@ def generate_environmental_report(
     )
 
 
-@app.get("/api/v1/reports/{report_id}")
+@app.get("/api/v1/reports/{report_id}", response_model=EnvironmentalReportResponse)
 def get_environmental_report(
     report_id: str,
     current_user: dict = Depends(require_manager),

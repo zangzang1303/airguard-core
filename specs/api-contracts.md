@@ -34,8 +34,12 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/stations/{id}/forecast?hours=1..3&metric=pm25|aqi|co2|noise_db|temperature&model=baseline` | damped linear-trend forecast from at least 3 fresh valid measurements of the selected metric; defaults to PM2.5 and `model=baseline` | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
 | GET `/spatial/heatmap?metric=aqi|pm25|co2|noise_db|temperature&forecast_hour=0..24` | grounded wind-adjusted IDW grid from at least three fresh valid online stations | 200 | 422/503 |
+| POST `/exposure/inhaled-mass` | grounded estimated inhaled PM2.5 mass for a declared activity and duration | 200 | 404/422/503 |
+| POST `/routes/clean-running` | canonical deterministic graph route and segment inhaled-mass estimate | 200 | 422/503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
 | PATCH `/auth/profile` | authenticated user updates own display name and recommendation group | 200 | 401/403/422/404 |
+| GET `/auth/notification-preferences` | authenticated user reads independent environmental/predictive email opt-ins | 200 | 401/503 |
+| PATCH `/auth/notification-preferences` | authenticated user changes only the two boolean opt-ins; CSRF required | 200 | 401/403/422/503 |
 | GET `/users` | manager/admin reads persisted user accounts | 200 | 401/403/503 |
 | PATCH `/users/{id}` | admin changes role and/or active status with reason, CSRF and audit | 200 | 401/403/404/409/422/503 |
 | POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
@@ -58,6 +62,70 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/reports/{id}` | manager report detail from one persisted record | 200 | 401/403/404/422/503 |
 | POST `/reports/generate` | manager manual deterministic report generation | 201 | 401/403/409/422/503 |
 | GET `/reports/{id}/export?format=markdown|html|pdf` | export the same persisted report record | 200 | 401/403/404/409/422/503 |
+| GET `/predictive-warnings?status=&station_id=` | Manager/Admin operational episode list | 200 | 401/403/422/503 |
+| POST `/predictive-warnings/evaluate` | Manager dry-run/evaluation; CSRF required and dry-run defaults true | 200 | 401/403/422/503 |
+| GET `/predictive-warnings/{episode_id}` | authenticated public episode facts plus the session user's checklist | 200 | 401/404/503 |
+| PUT `/predictive-warnings/{episode_id}/checklist/{item_key}` | resident updates one allow-listed checklist item; CSRF required | 200 | 401/403/404/422/503 |
+
+## Personalized exposure and route contract (`b7-personalized-alerts-v1`)
+
+`POST /exposure/inhaled-mass` accepts only `station_id`, required `activity=resting|running`, integer
+`duration_minutes=1..180`, `data_mode=current|forecast`, and a mode-compatible
+`forecast_hour`. The backend obtains PM2.5 and profile-independent model assumptions. It returns
+`estimated_inhaled_mass_ug`, concentration source/time/quality, ventilation preset, formula,
+`policy_version=inhaled-mass-policy-v1`, and the simulator/non-medical disclaimer. The client cannot
+submit a concentration, confidence, threshold or sensitivity group. Non-finite, missing,
+stale/offline/invalid current data and stale/low-confidence forecast data fail closed with no number.
+
+`POST /routes/clean-running` accepts an origin (`lat`, `lon`,
+`source=map_selection|gps|named_poi|demo_default`), target distance 1..10 km, optional pace 3..20
+minutes/km (versioned default 6.5), data mode and forecast hour. Origin must be inside the packaged
+demo extent and snap to the graph within 250 m. At least three fresh valid online simulator stations
+(or three same-horizon quality-gated forecasts) are required. No live OSM call, straight-line
+geometry, station fallback or environmental default is allowed.
+
+The service returns at most one selected deterministic route from at most three candidates. Every
+segment has a packaged `edge_id`, coordinates sampled no farther than 35 m, distance/duration,
+grounded PM2.5, `estimated_inhaled_mass_ug`, contributing station IDs, time and source. Ranking is
+`0.70 * normalized_inhaled_mass + 0.30 * normalized_distance_deviation`, with tie-break by inhaled
+mass, distance deviation then route ID. A baseline must be a different candidate within 10% distance;
+otherwise `exposure_reduction_pct` is null. Segment duration and mass totals match route totals within
+0.01. Graph provenance is `source=curated_demo_graph` until an independently reviewed snapshot
+supersedes it.
+
+Structured failures use the standard envelope. Task-specific reason codes are
+`invalid_activity`, `invalid_duration`, `invalid_forecast_hour`, `route_origin_out_of_bounds`,
+`route_origin_snap_failed`, `route_target_out_of_range`, `environmental_data_unavailable`,
+`insufficient_route_coverage`, `insufficient_forecast_quality`, `road_graph_unavailable`,
+`route_not_found`, and `scheduler_unavailable`.
+
+## Predictive warning and notification preference contract
+
+Both preference flags default to false. `PATCH /auth/notification-preferences` rejects unknown or
+non-boolean fields, requires session plus double-submit CSRF, and audits only the internal user ID
+and changed field names. Observed alert email filters `environmental_email_enabled=true`; predictive
+email independently filters an active, verified resident with `predictive_email_enabled=true`.
+
+Predictive candidates require a fresh valid online simulator current snapshot and a fresh baseline
+forecast no older than 900 seconds with confidence at least 0.60. The earliest 1-2 hour item whose
+`value_min` reaches the backend threshold owns the target and severity. An active actual PM2.5 alert
+transitions an active predictive episode to `observed` and prevents predictive delivery. Two clear
+evaluations resolve; a target more than 15 minutes in the past expires. A unique partial index
+enforces one active episode per station/metric/rule version.
+
+Beat evaluates at the configured 900-second cadence and enqueues only when lead time is 30-60
+minutes. The worker re-fetches current, forecast, episode and recipient preference immediately before
+delivery. Idempotency is `predictive-warning:{episode_id}:{severity}:{recipient_user_id}`; escalation
+may create one additional job, while retries at the same severity reuse it. Provider or queue failure
+does not mutate alert, proposal, HITL or device state.
+
+The only email URL is
+`{FRONTEND_URL}/?panel=alerts&station_id=S01&predictive_warning_id=<uuid>`. It is server-built and
+contains no token, GPS, return URL, mutation or tracking pixel. HTML and plain text state simulator
+source, model/policy versions, confidence/range and the advisory disclaimer. Resend `accepted` means
+provider acceptance, not inbox delivery. Checklist item keys are `close_windows`,
+`bring_laundry_inside`, `reduce_outdoor_activity`, and `check_air_purifier`; writes are scoped to the
+session user and never create a command intent.
 
 ## Station response
 
@@ -225,6 +293,47 @@ timed-out, malformed or unsafe provider output stores a `deterministic_grounded`
 sanitized fallback reason without failing the statistics report. All report records retain the
 simulator/non-certified disclaimer and contain no raw prompt, secret, session token, email or user
 profile. Markdown, HTML and PDF exports render the same stored record; they never recalculate data.
+
+### ESG report additive contract (`b7-esg-reports-v1`)
+
+Completed v1 reports add `schema_version=b7-esg-reports-v1` and a lowercase 64-character
+`content_checksum_sha256`. The checksum covers canonical compact sorted-key UTF-8 JSON containing
+report identity/period/timezone/schema, complete `statistics`, `evidence_summary`, `narrative`,
+`generation_mode` and `model_source`; the checksum field itself is excluded and NaN/Infinity is
+forbidden. Legacy `periodic-report-v1` records may have a null checksum and remain readable/exportable.
+
+`statistics.policy_snapshot` contains the exact cadence, coverage, matrix station gate, internal KPI,
+reference, ESG formula and color versions used for generation. `data_quality.active_station_ids` is
+the persisted active catalog denominator.
+
+`reference_comparison.station_days[]` contains station/local-day PM2.5 average, valid/expected counts,
+coverage, eligible/applicable hours and three separate semantic blocks. QCVN uses 45 `ug/Nm3`,
+effective 2026-01-01, and is always `not_comparable` with simulator data when coverage is sufficient;
+`relation` is null and `not_legally_comparable=true`. WHO uses the non-legal 24-hour guideline
+15 `ug/m3` and may be `below_reference|above_reference`. The internal 85 percent good-hour KPI records
+its numerator/denominator and never represents compliance. Annual compliance is always false.
+
+`esg_metrics.estimated_pm25_removed_kg` and `estimated_energy_saved_kwh` contain nullable `value`,
+`status=complete|insufficient_data`, reason code, formula version, unit, eligible count and
+provenance-only inputs. Complete zero is distinct from missing input. Energy identifies
+`boost_baseline_v1`, is counterfactual and is not metered energy. Before/after PM2.5 is an estimate and
+does not establish causation.
+
+Weekly `weekly_matrix` uses station options beginning at `all_stations`, fixed
+`pm25-fixed-scale-v1` stops `[0,15,35,45,75,150]`, and one view per option. Every view has exactly 168
+cells ordered by local date then local hour. Each cell contains value, sample/expected counts,
+coverage, eligible/active station counts and `eligible|insufficient_data|not_applicable`; missing cells
+have null value. `all_stations` is an unweighted mean and requires both station-count and coverage
+gates. Daily reports use `status=not_applicable` and no views.
+
+The optional provider returns `{model_source,sentences:[{claim_type,text}]}`. Claim types are `trend`,
+`coverage`, `reference`, `acknowledged_activity`, and `estimate_availability`, each backed by its
+matching evidence block. Digits, URL, email, HTML, causal/legal/health-benefit claims, timeout or
+malformed output reject the entire provider result and select the deterministic composer.
+
+`report_policy_invalid` and `report_record_invalid` are structured 500 errors. Coverage/profile/ACK
+insufficiency is report content, not endpoint failure. All exporters consume the persisted publication
+model only and include the same report ID/checksum and required disclaimers.
 
 ## Agent response
 The canonical backend `POST /api/v1/agent/chat` accepts

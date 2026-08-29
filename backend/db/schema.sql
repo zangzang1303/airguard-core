@@ -179,6 +179,79 @@ ON user_sessions(user_id, expires_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_active
 ON user_sessions(user_id, revoked_at, expires_at);
 
+CREATE TABLE IF NOT EXISTS resident_notification_preferences (
+    user_id UUID PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    environmental_email_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    predictive_email_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DROP TRIGGER IF EXISTS resident_notification_preferences_set_updated_at
+ON resident_notification_preferences;
+CREATE TRIGGER resident_notification_preferences_set_updated_at
+BEFORE UPDATE ON resident_notification_preferences
+FOR EACH ROW EXECUTE FUNCTION set_row_updated_at();
+
+CREATE TABLE IF NOT EXISTS predictive_warning_episodes (
+    episode_id UUID PRIMARY KEY,
+    station_id VARCHAR(50) NOT NULL REFERENCES stations(station_id),
+    metric VARCHAR(20) NOT NULL DEFAULT 'pm25' CHECK (metric = 'pm25'),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('active', 'observed', 'resolved', 'expired')),
+    severity VARCHAR(20) NOT NULL CHECK (severity IN ('warning', 'critical')),
+    threshold_value DOUBLE PRECISION NOT NULL CHECK (threshold_value >= 0),
+    threshold_rule_version VARCHAR(100) NOT NULL,
+    policy_version VARCHAR(100) NOT NULL,
+    forecast_generated_at TIMESTAMPTZ NOT NULL,
+    forecast_target_at TIMESTAMPTZ NOT NULL,
+    predicted_value DOUBLE PRECISION NOT NULL CHECK (predicted_value >= 0),
+    predicted_min DOUBLE PRECISION NOT NULL CHECK (predicted_min >= 0),
+    predicted_max DOUBLE PRECISION NOT NULL CHECK (predicted_max >= predicted_min),
+    confidence DOUBLE PRECISION NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+    model_version VARCHAR(120) NOT NULL,
+    source VARCHAR(120) NOT NULL,
+    evidence JSONB NOT NULL DEFAULT '{}'::JSONB,
+    clear_evaluation_count INTEGER NOT NULL DEFAULT 0 CHECK (clear_evaluation_count >= 0),
+    notified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_predictive_warning_active_episode
+ON predictive_warning_episodes(station_id, metric, threshold_rule_version)
+WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS idx_predictive_warning_status_target
+ON predictive_warning_episodes(status, forecast_target_at);
+
+DROP TRIGGER IF EXISTS predictive_warning_episodes_set_updated_at
+ON predictive_warning_episodes;
+CREATE TRIGGER predictive_warning_episodes_set_updated_at
+BEFORE UPDATE ON predictive_warning_episodes
+FOR EACH ROW EXECUTE FUNCTION set_row_updated_at();
+
+CREATE TABLE IF NOT EXISTS warning_checklist_responses (
+    episode_id UUID NOT NULL REFERENCES predictive_warning_episodes(episode_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    item_key VARCHAR(50) NOT NULL CHECK (
+        item_key IN (
+            'close_windows',
+            'bring_laundry_inside',
+            'reduce_outdoor_activity',
+            'check_air_purifier'
+        )
+    ),
+    completed BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (episode_id, user_id, item_key)
+);
+
+DROP TRIGGER IF EXISTS warning_checklist_responses_set_updated_at
+ON warning_checklist_responses;
+CREATE TRIGGER warning_checklist_responses_set_updated_at
+BEFORE UPDATE ON warning_checklist_responses
+FOR EACH ROW EXECUTE FUNCTION set_row_updated_at();
+
 CREATE TABLE IF NOT EXISTS email_verification_tokens (
     token_id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -218,6 +291,48 @@ CREATE TABLE IF NOT EXISTS devices (
     last_seen_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+CREATE TABLE IF NOT EXISTS device_operating_profiles (
+    profile_id UUID PRIMARY KEY,
+    device_id VARCHAR(50) NOT NULL REFERENCES devices(device_id),
+    profile_version VARCHAR(80) NOT NULL,
+    effective_from TIMESTAMPTZ NOT NULL,
+    effective_to TIMESTAMPTZ,
+    airflow_m3_per_hour NUMERIC NOT NULL
+        CHECK (airflow_m3_per_hour > 0 AND airflow_m3_per_hour <= 1000000),
+    boost_power_kw NUMERIC NOT NULL
+        CHECK (boost_power_kw > 0 AND boost_power_kw <= 10000),
+    eco_power_kw NUMERIC NOT NULL
+        CHECK (eco_power_kw >= 0 AND eco_power_kw <= 10000),
+    calibration_source TEXT NOT NULL CHECK (length(trim(calibration_source)) > 0),
+    is_simulated BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (effective_to IS NULL OR effective_to > effective_from),
+    CHECK (boost_power_kw >= eco_power_kw),
+    UNIQUE (device_id, profile_version)
+);
+
+DO $device_profile_constraints$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'device_operating_profiles_no_overlap'
+          AND conrelid = 'device_operating_profiles'::regclass
+    ) THEN
+        ALTER TABLE device_operating_profiles
+            ADD CONSTRAINT device_operating_profiles_no_overlap
+            EXCLUDE USING gist (
+                device_id WITH =,
+                tstzrange(effective_from, effective_to, '[)') WITH &&
+            );
+    END IF;
+END;
+$device_profile_constraints$;
+
+CREATE INDEX IF NOT EXISTS idx_device_operating_profiles_effective
+ON device_operating_profiles(device_id, effective_from, effective_to);
 
 CREATE TABLE IF NOT EXISTS approval_requests (
     request_id UUID PRIMARY KEY,
@@ -398,15 +513,50 @@ CREATE TABLE IF NOT EXISTS environmental_reports (
     failure_code VARCHAR(100),
     generation_attempt_id UUID,
     lease_expires_at TIMESTAMPTZ,
+    schema_version VARCHAR(80) NOT NULL DEFAULT 'periodic-report-v1',
+    content_checksum_sha256 CHAR(64),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMPTZ,
     CHECK (period_end > period_start),
+    CHECK (content_checksum_sha256 IS NULL OR content_checksum_sha256 ~ '^[0-9a-f]{64}$'),
+    CHECK (
+        schema_version <> 'b7-esg-reports-v1'
+        OR status <> 'completed'
+        OR content_checksum_sha256 IS NOT NULL
+    ),
     UNIQUE (report_type, period_start, period_end, timezone)
 );
 
 ALTER TABLE IF EXISTS environmental_reports
     ADD COLUMN IF NOT EXISTS generation_attempt_id UUID,
-    ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS schema_version VARCHAR(80) NOT NULL DEFAULT 'periodic-report-v1',
+    ADD COLUMN IF NOT EXISTS content_checksum_sha256 CHAR(64);
+
+DO $report_checksum_constraints$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'environmental_reports_checksum_format'
+          AND conrelid = 'environmental_reports'::regclass
+    ) THEN
+        ALTER TABLE environmental_reports ADD CONSTRAINT environmental_reports_checksum_format
+            CHECK (content_checksum_sha256 IS NULL OR content_checksum_sha256 ~ '^[0-9a-f]{64}$');
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'environmental_reports_v1_checksum_required'
+          AND conrelid = 'environmental_reports'::regclass
+    ) THEN
+        ALTER TABLE environmental_reports ADD CONSTRAINT environmental_reports_v1_checksum_required
+            CHECK (
+                schema_version <> 'b7-esg-reports-v1'
+                OR status <> 'completed'
+                OR content_checksum_sha256 IS NOT NULL
+            );
+    END IF;
+END;
+$report_checksum_constraints$;
 
 CREATE INDEX IF NOT EXISTS idx_environmental_reports_type_created
 ON environmental_reports(report_type, created_at DESC);
@@ -466,4 +616,22 @@ VALUES
     ('FILTER-04', 'VinUni Air Filter S04', 'ventilation_filter', 'S04', 'offline', TRUE),
     ('FILTER-05', 'Hai Au Air Filter S05', 'ventilation_filter', 'S05', 'offline', TRUE)
 ON CONFLICT (device_id) DO NOTHING;
+
+INSERT INTO device_operating_profiles (
+    profile_id, device_id, profile_version, effective_from, effective_to,
+    airflow_m3_per_hour, boost_power_kw, eco_power_kw,
+    calibration_source, is_simulated
+)
+VALUES (
+    '50000000-0000-0000-0000-000000000001', 'FILTER-01',
+    'filter-01-simulator-profile-v1', '2026-01-01T00:00:00+07:00', NULL,
+    12000, 4.8, 1.2,
+    'simulator_seed_b7_esg_reports_v1_not_field_calibration', TRUE
+)
+ON CONFLICT (device_id, profile_version) DO UPDATE SET
+    airflow_m3_per_hour = EXCLUDED.airflow_m3_per_hour,
+    boost_power_kw = EXCLUDED.boost_power_kw,
+    eco_power_kw = EXCLUDED.eco_power_kw,
+    calibration_source = EXCLUDED.calibration_source,
+    is_simulated = TRUE;
 

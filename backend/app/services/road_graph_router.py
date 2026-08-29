@@ -8,11 +8,12 @@ graphs, origin snapping with distance gates, and multi-candidate generation.
 from __future__ import annotations
 
 import copy
+import hashlib
 import heapq
 import json
 import math
 import os
-import urllib.request
+from pathlib import Path
 from typing import Any
 
 try:
@@ -902,8 +903,8 @@ class RoadGraphRouter:
         avoid_sensor: str | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         adj: dict[str, list[dict[str, Any]]] = {n: [] for n in cls.NODES}
-        if not station_pm25_map:
-            station_pm25_map = {station_id: 0.0 for station_id in cls.STATION_COORDINATES}
+        if not station_pm25_map and environmental_weight != 0:
+            raise ValueError("environment-weighted routing requires grounded PM2.5 station values")
 
         for edge in cls.EDGES:
             if avoid_sensor and edge.get("sensor_id") == avoid_sensor:
@@ -917,10 +918,14 @@ class RoadGraphRouter:
             u, v = edge["from"], edge["to"]
             dist_m = cls.calculate_polyline_distance_m(edge["coords"])
             midpoint = edge["coords"][len(edge["coords"]) // 2]
-            pm25 = cls.interpolate_pm25_at_point(midpoint[0], midpoint[1], station_pm25_map)
+            pm25 = (
+                cls.interpolate_pm25_at_point(midpoint[0], midpoint[1], station_pm25_map)
+                if station_pm25_map
+                else None
+            )
 
             # Environmental cost weight: Distance * (1 + beta * PM2.5 / 50.0)
-            cost = dist_m * (1.0 + (environmental_weight * (pm25 / 50.0)))
+            cost = dist_m if pm25 is None else dist_m * (1.0 + (environmental_weight * (pm25 / 50.0)))
 
             # Bidirectional road edges
             adj[u].append({
@@ -929,7 +934,7 @@ class RoadGraphRouter:
                 "dist_m": dist_m,
                 "coords": edge["coords"],
                 "name": edge["name"],
-                "pm25": round(pm25, 1),
+                "pm25": round(pm25, 1) if pm25 is not None else None,
                 "edge_id": edge["id"],
             })
             rev_coords = list(reversed(edge["coords"]))
@@ -939,7 +944,7 @@ class RoadGraphRouter:
                 "dist_m": dist_m,
                 "coords": rev_coords,
                 "name": edge["name"],
-                "pm25": round(pm25, 1),
+                "pm25": round(pm25, 1) if pm25 is not None else None,
                 "edge_id": edge["id"],
             })
 
@@ -1042,7 +1047,12 @@ class RoadGraphRouter:
                     found = True
                     break
             if not found:
-                sub = cls.find_path_dijkstra(u, v, activity=activity)
+                sub = cls.find_path_dijkstra(
+                    u,
+                    v,
+                    environmental_weight=0,
+                    activity=activity,
+                )
                 if sub["coords"]:
                     if coords:
                         coords.extend(sub["coords"][1:])
@@ -1069,12 +1079,14 @@ class RoadGraphRouter:
         Task Section 8 & 13: Generates 3-5 grounded OSM road candidates from origin.
         Strictly builds polylines on the real street network without cross-block shortcuts.
         """
+        if not station_pm25_map:
+            raise ValueError("route candidates require grounded PM2.5 station values")
         snap_info = cls.snap_origin_to_network(origin_lat, origin_lng, activity=activity)
         start_node = snap_info["node_id"]
         snap_dist_m = snap_info["snap_distance_m"]
         snapped_coord = snap_info["snapped_coordinate"]
 
-        # If origin is beyond snap gate, return empty list (triggers snap distance exceeded fallback)
+        # If origin is beyond the snap gate, fail closed with no candidate geometry.
         if not snap_info["is_valid"]:
             return []
 
@@ -1472,5 +1484,51 @@ class RoadGraphRouter:
         )
         return tailored
 
+
+def _load_packaged_graph() -> dict[str, Any]:
+    configured = os.getenv("ROAD_GRAPH_SNAPSHOT_PATH", "").strip()
+    candidates = [Path(configured)] if configured else [
+        Path(__file__).resolve().parents[2] / "data" / "ocean-park-1-road-graph.json",
+        Path(__file__).resolve().parents[3] / "data" / "ocean-park-1-road-graph.json",
+    ]
+    graph_path = next((path for path in candidates if path.is_file()), None)
+    if graph_path is None:
+        raise RuntimeError("packaged road graph snapshot is unavailable")
+    graph = json.loads(graph_path.read_text(encoding="utf-8"))
+    metadata = graph.get("metadata") or {}
+    expected_checksum = str(metadata.get("checksum_sha256") or "")
+    canonical_graph = copy.deepcopy(graph)
+    canonical_graph["metadata"].pop("checksum_sha256", None)
+    canonical = json.dumps(canonical_graph, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    actual_checksum = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if not expected_checksum or actual_checksum != expected_checksum:
+        raise RuntimeError("packaged road graph checksum mismatch")
+    if metadata.get("source") != "curated_demo_graph":
+        raise RuntimeError("unreviewed road graph source")
+    nodes = graph.get("nodes")
+    edges = graph.get("edges")
+    if not isinstance(nodes, dict) or not isinstance(edges, list) or not nodes or not edges:
+        raise RuntimeError("packaged road graph is incomplete")
+    edge_ids: set[str] = set()
+    for edge in edges:
+        edge_id = str(edge.get("id") or "")
+        if (
+            not edge_id
+            or edge_id in edge_ids
+            or edge.get("from") not in nodes
+            or edge.get("to") not in nodes
+            or len(edge.get("coords") or []) < 2
+        ):
+            raise RuntimeError("packaged road graph topology is invalid")
+        edge_ids.add(edge_id)
+    return graph
+
+
+PACKAGED_GRAPH = _load_packaged_graph()
+RoadGraphRouter.STATION_COORDINATES = PACKAGED_GRAPH["station_coordinates"]
+RoadGraphRouter.NODES = PACKAGED_GRAPH["nodes"]
+RoadGraphRouter.EDGES = PACKAGED_GRAPH["edges"]
+RoadGraphRouter.CANONICAL_CIRCUITS = PACKAGED_GRAPH["circuits"]
+RoadGraphRouter.GRAPH_METADATA = PACKAGED_GRAPH["metadata"]
 
 road_graph_router = RoadGraphRouter()

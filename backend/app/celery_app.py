@@ -21,6 +21,7 @@ celery_app = Celery(
         "app.tasks.agent_tasks",
         "app.tasks.forecast_tasks",
         "app.tasks.notification_tasks",
+        "app.tasks.predictive_warning_tasks",
         "app.tasks.report_tasks",
     ],
 )
@@ -39,6 +40,10 @@ celery_app.conf.update(
     result_expires=int(os.getenv("CELERY_RESULT_EXPIRES", "3600")),
     worker_prefetch_multiplier=1,
     beat_schedule={
+        "airguard-predictive-warning-evaluate": {
+            "task": "airguard.predictive_warning.evaluate",
+            "schedule": float(os.getenv("PREDICTIVE_WARNING_EVALUATION_INTERVAL_SECONDS", "900")),
+        },
         "airguard-daily-environmental-report": {
             "task": "airguard.report.generate",
             "schedule": crontab(hour=0, minute=10),

@@ -8,6 +8,7 @@ from ..celery_app import celery_app
 from ..services.database import Database, ServiceError
 from ..services.report_generator_service import DEFAULT_REPORT_TIMEZONE, ReportGeneratorService
 from ..services.report_narrative_service import HttpReportNarrator
+from ..services.report_policy import report_policy_from_environment
 from ..services.report_repository import DEFAULT_REPORT_LEASE_SECONDS, PostgresReportRepository
 from .task_support import RETRY_TASK_OPTIONS, TransientTaskError
 
@@ -39,7 +40,11 @@ def build_report_service_from_environment() -> ReportGeneratorService:
             timeout_seconds=timeout_seconds,
             service_token=os.getenv("REPORT_NARRATIVE_SERVICE_TOKEN"),
         )
-    return ReportGeneratorService(repository, narrator=narrator)
+    return ReportGeneratorService(
+        repository,
+        narrator=narrator,
+        policy=report_policy_from_environment(),
+    )
 
 
 def _report_lease_seconds() -> int:
@@ -120,6 +125,6 @@ def _json_safe(value: Any) -> Any:
         return value.isoformat()
     if isinstance(value, dict):
         return {str(key): _json_safe(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [_json_safe(item) for item in value]
     return value

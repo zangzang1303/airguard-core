@@ -44,6 +44,55 @@ environmental alert invokes the Agent without any resident chat request. After a
 live-LLM analysis, the Agent creates one `pending` proposal for Manager review. If the provider
 fails, the alert stays active and the audited result is a skip, not a deterministic proposal.
 
+## Personalized alert and clean-running route demo (B7-02)
+
+1. Start the base stack and confirm at least three stations are `online`, `fresh`, `valid`, and
+   sourced from `simulator`. Do not continue this scenario with fixture fallback.
+2. Call `POST /api/v1/exposure/inhaled-mass` for S01, `running`, 30 minutes. Confirm the response
+   uses `estimated_inhaled_mass_ug`, includes source/time/policy/disclaimer, and does not describe
+   absorbed dose or a medical conclusion.
+3. Select an origin on the map and ask the Agent for a 5 km running route. Compare the Agent
+   `highlight_route` with `POST /api/v1/routes/clean-running`: route ID, geometry, segment doses,
+   totals and graph provenance must be identical. Source must remain `curated_demo_graph`.
+4. As a resident, enable only `predictive_email_enabled`; leave the environmental opt-in unchanged
+   to demonstrate independent consent. Preference writes require the session CSRF token.
+5. As Manager, call predictive evaluate with `dry_run=true` first and verify no notification job is
+   created. Enable the feature flag only for the controlled async demo, then evaluate a qualifying
+   station with `dry_run=false` during the 30–60 minute lead window.
+6. The worker must revalidate the current snapshot, forecast quality, active-alert state and
+   recipient consent immediately before the Resend/mock call. Repeating the same episode/severity/user
+   must reuse the idempotency key instead of sending again.
+7. Open the generated URL. It must contain only `panel`, `station_id`, and
+   `predictive_warning_id`; the app flies to the backend station, opens detail, and checklist PUT
+   requires authentication plus CSRF. The checklist never creates a device command.
+
+Run the async path with `docker compose --profile async-jobs up -d --build`. If the Docker daemon,
+PostgreSQL, Redis/RabbitMQ, or Resend mock is unavailable, record the exact blocker and do not mark
+the Compose integration as passed. Provider `accepted` is not inbox-delivery proof.
+
+## ESG periodic report demo (B7-05)
+
+1. Run the migration chain twice and confirm `20260829_007_esg_reports.sql` reports only safe
+   existing-object notices on the second pass. Query `device_operating_profiles` and show that the
+   `FILTER-01` seed is versioned, simulated and explicitly not field calibration.
+2. Start `docker compose --profile async-jobs up -d --build`. Daily Beat remains 00:10 and weekly
+   Beat remains Monday 00:20 in `REPORT_TIMEZONE`. Manual and Beat requests for the same half-open
+   identity must return the same report ID.
+3. Sign in as Manager, open Reports, generate a weekly report and select `all_stations`, then one
+   station. Confirm every persisted view contains 168 cells; N/A cells are hatched and do not use a
+   good-air color. Tooltip shows sample/expected counts, coverage and station counts.
+4. Keep QCVN, WHO and internal 85 percent KPI in separate UI blocks. QCVN must say
+   `not_comparable`; WHO must be labeled guideline; no annual compliance conclusion is allowed.
+5. If there are no qualifying ACK/profile/windows, confirm both ESG values are null with
+   `insufficient_data` and a reason code while the report itself remains completed. Never substitute
+   zero or an environmental default.
+6. Exercise an unavailable or malformed narrative provider. The entire live narrative must fall
+   back to `deterministic_grounded`; statistics, checksum and export remain available.
+7. Download Markdown, HTML and PDF. Confirm all contain the same report ID and SHA-256 as the API.
+   Exports must not trigger measurement/device source queries. Render the PDF with Poppler before the
+   demo and inspect A4 pages, Vietnamese glyphs, repeated table headers, watermark, disclaimer and
+   the vector 7x24 matrix.
+
 ## Roles
 
 Presenter; operator; log observer; fallback owner. Capture message/request/proposal ids.
