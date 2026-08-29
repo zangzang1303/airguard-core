@@ -6,12 +6,12 @@ export interface HorizonStepOption {
   label: string;
 }
 
-/** The product timeline has five discrete positions, not five linear hours. */
+/** Labels stay sparse while the range exposes every hourly forecast step. */
 export const ALL_HORIZON_STEPS: HorizonStepOption[] = [
   { hours: 0, label: "Hiện tại" },
-  { hours: 1, label: "+1h" },
-  { hours: 3, label: "+3h" },
   { hours: 6, label: "+6h" },
+  { hours: 12, label: "+12h" },
+  { hours: 18, label: "+18h" },
   { hours: 24, label: "+24h" },
 ];
 
@@ -25,18 +25,6 @@ export interface TimelineSliderProps {
   titleProps?: any;
 }
 
-function getStepIndex(hours: number): number {
-  const exactIndex = ALL_HORIZON_STEPS.findIndex((step) => step.hours === hours);
-  if (exactIndex >= 0) return exactIndex;
-
-  // Keep the control usable if an older caller still holds the removed +2h value.
-  return ALL_HORIZON_STEPS.reduce((closestIndex, step, index) => {
-    const closestDistance = Math.abs(ALL_HORIZON_STEPS[closestIndex].hours - hours);
-    const distance = Math.abs(step.hours - hours);
-    return distance < closestDistance ? index : closestIndex;
-  }, 0);
-}
-
 export const TimelineSlider: React.FC<TimelineSliderProps> = ({
   value,
   onChange,
@@ -46,8 +34,7 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
   label = "Thời gian dự báo",
   titleProps,
 }) => {
-  const stepIndex = getStepIndex(value);
-  const currentStep = ALL_HORIZON_STEPS[stepIndex];
+  const currentHour = Math.max(0, Math.min(24, Math.round(value)));
   const isDisabled = disabled || loading;
 
   return (
@@ -59,17 +46,17 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
         </div>
         <div className="timeline-slider-current-value">
           {loading && <RefreshCw size={13} className="spin-icon" aria-label="Đang tải" />}
-          <span>{currentStep.hours === 0 ? "Hiện tại (0h)" : `Dự báo ${currentStep.label}`}</span>
+          <span>{currentHour === 0 ? "Hiện tại (0h)" : `Dự báo +${currentHour}h`}</span>
         </div>
       </div>
 
       <div className="timeline-slider-control">
         <div className="timeline-slider-track-wrap">
           <div className="timeline-slider-ticks" aria-hidden="true">
-            {ALL_HORIZON_STEPS.map((step, index) => (
+            {ALL_HORIZON_STEPS.map((step) => (
               <span
                 key={step.hours}
-                style={{ left: `${(index / (ALL_HORIZON_STEPS.length - 1)) * 100}%` }}
+                style={{ left: `${(step.hours / 24) * 100}%` }}
               />
             ))}
           </div>
@@ -77,29 +64,26 @@ export const TimelineSlider: React.FC<TimelineSliderProps> = ({
             className="timeline-slider-input"
             type="range"
             min={0}
-            max={ALL_HORIZON_STEPS.length - 1}
+            max={24}
             step={1}
-            value={stepIndex}
+            value={currentHour}
             disabled={isDisabled}
             aria-label={label}
-            aria-valuetext={currentStep.hours === 0 ? "Dữ liệu hiện tại" : `Dự báo ${currentStep.label}`}
-            onChange={(event) => {
-              const nextStep = ALL_HORIZON_STEPS[Number(event.target.value)];
-              if (nextStep) onChange(nextStep.hours);
-            }}
+            aria-valuetext={currentHour === 0 ? "Dữ liệu hiện tại" : `Dự báo +${currentHour}h`}
+            onChange={(event) => onChange(Number(event.target.value))}
           />
         </div>
         <div className="timeline-slider-labels">
-          {ALL_HORIZON_STEPS.map((step, index) => (
+          {ALL_HORIZON_STEPS.map((step) => (
             <button
               type="button"
               key={step.hours}
-              className={`timeline-slider-mark${index === stepIndex ? " is-active" : ""}`}
+              className={`timeline-slider-mark${step.hours === currentHour ? " is-active" : ""}`}
               disabled={isDisabled}
               onClick={() => onChange(step.hours)}
               title={`Chuyển sang mốc ${step.label}`}
-              aria-pressed={index === stepIndex}
-              style={{ left: `${(index / (ALL_HORIZON_STEPS.length - 1)) * 100}%` }}
+              aria-pressed={step.hours === currentHour}
+              style={{ left: `${(step.hours / 24) * 100}%` }}
             >
               <span>{step.label}</span>
             </button>

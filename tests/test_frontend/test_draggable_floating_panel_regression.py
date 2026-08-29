@@ -14,6 +14,7 @@ from pathlib import Path
 FRONTEND_ROOT = Path(__file__).resolve().parent.parent.parent / "frontend" / "src"
 HOOK_FILE = FRONTEND_ROOT / "features" / "floating" / "useDraggableFloatingPanel.ts"
 SUPER_MAP_FILE = FRONTEND_ROOT / "features" / "map" / "SuperMap.tsx"
+TIMELINE_DOCK_FILE = FRONTEND_ROOT / "features" / "map" / "DraggableTimelineDock.tsx"
 TIMELINE_SLIDER_FILE = FRONTEND_ROOT / "features" / "stations" / "TimelineSlider.tsx"
 FORECAST_DRAWER_FILE = FRONTEND_ROOT / "features" / "drawers" / "StationForecastDrawer.tsx"
 
@@ -47,7 +48,7 @@ class TestSuperMapTimelineDockContract:
     """Test suite for SuperMap timeline dock dragging configuration."""
 
     def setup_method(self):
-        self.content = SUPER_MAP_FILE.read_text(encoding="utf-8")
+        self.content = TIMELINE_DOCK_FILE.read_text(encoding="utf-8")
 
     def test_timeline_dock_uses_base_transform_translate_x_50(self):
         """DraggableTimelineDock must pass baseTransform: 'translateX(-50%)' to useDraggableFloatingPanel."""
@@ -55,9 +56,9 @@ class TestSuperMapTimelineDockContract:
         assert 'baseTransform: "translateX(-50%)"' in self.content
 
     def test_timeline_slider_is_not_wrapped_in_no_drag_div(self):
-        """SuperMap must not wrap TimelineSlider inside a data-no-drag='true' or no-drag container."""
+        """Timeline dock must not wrap TimelineSlider inside a no-drag container."""
         pattern = r'<div[^>]*className="[^"]*no-drag[^"]*"[^>]*>\s*<TimelineSlider'
-        assert not re.search(pattern, self.content), "TimelineSlider must not be wrapped in no-drag container in SuperMap"
+        assert not re.search(pattern, self.content), "TimelineSlider must not be wrapped in no-drag container"
         assert 'data-no-drag="true"' not in self.content or '<TimelineSlider' not in self.content.split('data-no-drag="true"')[1].split('/>')[0]
 
 

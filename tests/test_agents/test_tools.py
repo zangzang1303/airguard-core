@@ -47,7 +47,7 @@ def test_tool_input_validation_station_and_hours():
     with pytest.raises(ValidationError):
         CurrentPm25Input(station_id="S99")
     with pytest.raises(ValidationError):
-        Pm25ForecastInput(station_id="S01", hours=4)
+        Pm25ForecastInput(station_id="S01", hours=25)
 
 
 @pytest.mark.asyncio

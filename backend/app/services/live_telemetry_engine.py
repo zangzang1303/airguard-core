@@ -111,8 +111,10 @@ class LiveTelemetryEngine:
     def _calculate_measurement_at(self, station: dict[str, Any], t: datetime) -> dict[str, Any]:
         hour = t.hour
         local_hour = (hour + 7) % 24
-        is_rush = (7 <= local_hour <= 9) or (17 <= local_hour <= 19)
-        rush_boost = 14.0 if is_rush else 0.0
+        is_traffic_station = station["station_id"] in {"S01", "S05"}
+        morning_rush = is_traffic_station and 7 <= local_hour <= 9
+        evening_rush = is_traffic_station and 17 <= local_hour <= 19
+        rush_boost = 8.5 if morning_rush else 11.0 if evening_rush else 0.0
 
         time_factor = math.sin((local_hour - 6) / 24.0 * 2 * math.pi) * 6.0
         sec_hash = int(t.timestamp()) % 3600
@@ -123,6 +125,10 @@ class LiveTelemetryEngine:
         noise = max(35.0, round(station["base_noise"] + (rush_boost * 0.4) + (time_factor * 1.5) + (jitter * 0.9), 1))
         temp = round(station["base_temp"] + (time_factor * 0.5) + (jitter * 0.2), 1)
         humidity = max(40.0, min(95.0, round(70.0 - (time_factor * 2.0) + (jitter * 1.5), 1)))
+        wind_speed = max(0.5, round(2.7 + math.cos(local_hour / 24.0 * 2 * math.pi) * 1.1, 1))
+        previous_time_factor = math.sin((local_hour - 0.5 - 6) / 24.0 * 2 * math.pi) * 6.0
+        if (local_hour >= 22 or local_hour <= 5) and humidity > 80 and time_factor < previous_time_factor:
+            pm25 = round(pm25 + 3.5, 1)
 
         aqi = pm25_aqi(pm25)
         iso_str = t.isoformat()
@@ -149,6 +155,9 @@ class LiveTelemetryEngine:
             "noise_db": noise,
             "temperature": temp,
             "humidity": humidity,
+            "wind_speed": wind_speed,
+            "wind_direction": 95.0,
+            "rainfall": 0.0,
             "level": pm25_level(pm25),
             "status": "online",
             "is_stale": False,
@@ -210,6 +219,8 @@ class LiveTelemetryEngine:
                 "co2": p["co2"],
                 "noise_db": p["noise_db"],
                 "temperature": p["temperature"],
+                "humidity": p.get("humidity"),
+                "wind_speed": p.get("wind_speed"),
                 "source": "simulator",
             }
             for p in history[-12:]

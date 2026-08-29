@@ -1,5 +1,12 @@
 # Task B7-01: Dự Báo Ô Nhiễm 1–24h Đa Biến, Khung Giờ Vàng & Animation Tua Nhanh
 
+> **Trạng thái triển khai (29/08/2026): Hoàn thành code và automated verification bằng lightweight additive Fourier.** Tên
+> class `ProphetForecastService` được giữ tương thích import, nhưng model/source/API ghi rõ đây
+> không phải thư viện Prophet. Benchmark time-aligned đạt PM2.5 MAE cải thiện 75,6% trên holdout
+> 24h từ chuỗi simulator 72h. API, Agent 1–24h, golden windows, Play/Pause 800ms, confidence chart
+> và frontend production build đã được kiểm thử tự động; checklist thao tác trình duyệt vẫn cần
+> chạy trong buổi nghiệm thu live.
+
 > **Người phụ trách:** AI / ML Engineer & Frontend Lead  
 > **Thời hạn dự kiến:** Ngày 1  
 > **Mục tiêu:** 
@@ -67,5 +74,5 @@
 ## 3. TIÊU CHUẨN NGHIỆM THU (ACCEPTANCE CRITERIA)
 
 1. ✅ Sai số MAE của Prophet cải thiện $\ge 7\%$ so với baseline trên tập test 72h.
-2. ✅ Animation Play 24h chạy mượt mà, không bị giật lag hoặc memory leak.
+2. 🟡 Animation Play 24h đã pass contract test và production build; độ mượt/memory leak cần xác nhận bằng checklist trình duyệt live khi Docker daemon hoạt động.
 3. ✅ Khung Giờ Vàng được tính toán tự động và có căn cứ khoa học rõ ràng.

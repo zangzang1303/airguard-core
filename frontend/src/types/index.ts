@@ -227,6 +227,8 @@ export interface HistoryPoint {
 
 export interface ForecastHorizon {
   horizon: string;
+  hour_offset?: number;
+  forecast_at?: string;
   pm25_predicted: number | null;
   range: [number | null, number | null];
   value?: number | null;
@@ -244,6 +246,35 @@ export interface ForecastData {
   model_name?: string;
   limitations?: string[];
   forecasts: ForecastHorizon[];
+}
+
+export interface GoldenAirWindow {
+  start_at: string;
+  end_at: string;
+  duration_hours: number;
+  minimum_aqi: number;
+  average_aqi: number;
+  minimum_wind_speed: number;
+}
+
+export interface GoldenWindowsData {
+  station_id: string;
+  generated_at: string;
+  source: string;
+  model_name: string;
+  criteria: {
+    maximum_aqi: number;
+    minimum_wind_speed: number;
+    minimum_duration_hours: number;
+  };
+  best_window: GoldenAirWindow | null;
+  candidate_windows: GoldenAirWindow[];
+  worst_window: {
+    forecast_at: string;
+    aqi: number;
+    wind_speed: number;
+  };
+  limitations: string[];
 }
 
 export interface Alert {

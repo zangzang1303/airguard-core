@@ -14,9 +14,9 @@ The AI-002 release gate covers:
 - AQI-first current-station responses that enumerate PM2.5, CO₂, noise and temperature from the same fresh snapshot;
 - transparent handling of backend outage, empty history, stale, offline, invalid and invalid arguments;
 - rejection of missing freshness, timezone-less environmental timestamps, stale weather and stale forecast;
-- baseline-only 1–3 hour forecast routing: AQI and PM2.5 retain backend metric, provenance, model,
-  timezone-aware generation/forecast times, freshness, confidence and limitations; 24-hour/cả ngày
-  requests are refused without calling a forecast tool;
+- 1–24 hour forecast routing: 1–3h uses the baseline and 4–24h uses the extended additive model;
+  AQI and PM2.5 retain backend metric, provenance, model, timezone-aware generation/forecast times,
+  freshness, confidence and limitations; requests above 24h are refused without a tool call;
 - simulator/fixture transparency for current, history, compare, weather, forecast and alert answers;
 - clarification for missing station context;
 - bounded social conversation for greeting, acknowledgement, wellbeing, capability and farewell;

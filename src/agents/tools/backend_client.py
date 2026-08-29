@@ -134,7 +134,11 @@ class BackendToolClient:
             request_id,
             "GET",
             f"/api/v1/stations/{args.station_id}/forecast",
-            params={"hours": args.hours, "metric": args.metric, "model": "baseline"},
+            params={
+                "hours": args.hours,
+                "metric": args.metric,
+                "model": "baseline" if args.hours <= 3 else "extended",
+            },
         )
 
     async def get_active_alerts(self, payload: Mapping[str, Any], request_id: str | None = None) -> ToolEnvelope | ToolError:

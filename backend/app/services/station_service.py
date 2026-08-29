@@ -187,6 +187,69 @@ class StationService:
                 {"station_id": station_id},
             ) from exc
 
+    def get_extended_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
+        """Return up to seven days of hourly, valid simulator aggregates.
+
+        The extended model needs daily seasonality. Aggregating in PostgreSQL keeps
+        the query bounded even when the sensor simulator publishes every 10 seconds.
+        """
+        station = self.get_station(station_id)
+        if station.get("status") != "online" or station.get("is_stale") is True:
+            raise ServiceError(
+                "insufficient_fresh_data",
+                "Fresh online station data is required for extended forecasting",
+                503,
+                {"station_id": station_id},
+            )
+        try:
+            with self.db.connection() as conn:
+                with dict_cursor(conn) as cur:
+                    cur.execute(
+                        """
+                        SELECT *
+                        FROM (
+                            SELECT date_trunc('hour', measured_at) AS measured_at,
+                                   AVG(pm25) AS pm25,
+                                   AVG(co2) AS co2,
+                                   AVG(noise_db) AS noise_db,
+                                   AVG(temperature) AS temperature,
+                                   AVG(humidity) AS humidity,
+                                   AVG(wind_speed) AS wind_speed,
+                                   MIN(source) AS source
+                            FROM measurements
+                            WHERE station_id = %s
+                              AND quality_flag = 'valid'
+                              AND source = 'simulator'
+                              AND measured_at >= NOW() - INTERVAL '7 days'
+                            GROUP BY date_trunc('hour', measured_at)
+                            ORDER BY measured_at DESC
+                            LIMIT 168
+                        ) hourly
+                        ORDER BY measured_at ASC
+                        """,
+                        (station_id,),
+                    )
+                    rows = [dict(row) for row in cur.fetchall()]
+            if len(rows) < 12:
+                raise ServiceError(
+                    "insufficient_extended_forecast_history",
+                    "At least twelve hourly simulator measurements are required",
+                    503,
+                    {"station_id": station_id, "required": 12, "available": len(rows)},
+                )
+            for item in rows:
+                item["aqi"] = pm25_aqi(item.get("pm25"))
+            return rows
+        except ServiceError:
+            raise
+        except Exception as exc:
+            raise ServiceError(
+                "extended_forecast_history_unavailable",
+                "Extended forecast history is unavailable",
+                503,
+                {"station_id": station_id},
+            ) from exc
+
     def compare_stations(self, station_ids: list[str]) -> dict[str, Any]:
         ids = list(dict.fromkeys(station_ids))
         if not ids or len(ids) > 5:

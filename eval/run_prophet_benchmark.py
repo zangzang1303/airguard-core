@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """
-AirGuard AI - Time-Series ML & Prophet Benchmark Evaluator (B5-ML-01)
+AirGuard AI - Extended Additive Forecast Benchmark Evaluator (B7-01)
 Compares MAE and RMSE performance between damped linear trend baseline and
-Prophet-inspired Additive Fourier ML across all stations and horizons (1h to 24h).
+the dependency-free additive Fourier model across all stations at 1h to 24h.
 """
 
 from __future__ import annotations
 
-import json
 import math
-import os
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add repo root to path
@@ -20,9 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
+from backend.app.services.forecast_service import trend_forecast
 from backend.app.services.live_telemetry_engine import live_engine
 from backend.app.services.prophet_forecast_service import prophet_service
-from backend.app.services.forecast_service import trend_forecast
 
 
 def calculate_mae(actuals: list[float], predictions: list[float]) -> float:
@@ -36,36 +34,40 @@ def calculate_rmse(actuals: list[float], predictions: list[float]) -> float:
 def run_benchmark() -> dict:
     stations = ["S01", "S02", "S03", "S04", "S05"]
     metrics = ["pm25", "aqi", "co2", "noise_db"]
-    
+
     results = {}
-    
+
     total_baseline_mae = []
     total_prophet_mae = []
     total_baseline_rmse = []
     total_prophet_rmse = []
 
     print("=" * 70)
-    print("  AIRGUARD AI - FORECAST MODEL BENCHMARK (B5-ML-01)")
+    print("  AIRGUARD AI - EXTENDED FORECAST BENCHMARK (B7-01)")
     print("=" * 70)
 
     for st_id in stations:
         history = live_engine.get_history(st_id, hours=72)
         if len(history) < 20:
             continue
-            
-        # 80/20 Train-Test Split
-        split_idx = int(len(history) * 0.8)
+
+        # Hold out the newest 24 hours from the 72-hour series. Measurements
+        # arrive every 30 minutes, while both evaluated outputs are hourly.
+        split_idx = max(24, len(history) - 48)
         train_data = history[:split_idx]
         test_data = history[split_idx:]
-        
-        test_hours = min(24, len(test_data))
-        
+
+        test_hours = min(24, len(test_data) // 2)
+
         st_results = {}
         for metric in metrics:
-            actuals = [p.get(metric, 40.0) for p in test_data[:test_hours]]
+            # +1h corresponds to the second 30-minute point after the training
+            # origin, not the first point in the holdout.
+            actuals = [test_data[(hour * 2) - 1].get(metric) for hour in range(1, test_hours + 1)]
+            actuals = [float(value) for value in actuals if value is not None]
             if not actuals:
                 continue
-                
+
             # 1. Baseline Model (Damped Linear Trend)
             try:
                 base_res = trend_forecast(train_data, min(3, test_hours), metric=metric)
@@ -75,25 +77,25 @@ def run_benchmark() -> dict:
                     base_preds.append(base_preds[-1] if base_preds else actuals[0])
             except Exception:
                 base_preds = [actuals[0]] * test_hours
-                
-            # 2. Prophet ML Model (Additive Fourier + Diurnal Seasonality)
+
+            # 2. Extended additive model (Fourier + explicit demo interactions)
             prophet_res = prophet_service.forecast(st_id, train_data, hours=test_hours, metric=metric)
             prophet_preds = [item["predicted_value"] for item in prophet_res.get("horizons", [])]
-            
+
             # Trim to common length
             n = min(len(actuals), len(base_preds), len(prophet_preds))
             act = actuals[:n]
             b_pred = base_preds[:n]
             p_pred = prophet_preds[:n]
-            
+
             b_mae = calculate_mae(act, b_pred)
             p_mae = calculate_mae(act, p_pred)
             b_rmse = calculate_rmse(act, b_pred)
             p_rmse = calculate_rmse(act, p_pred)
-            
+
             mae_improvement = ((b_mae - p_mae) / b_mae * 100.0) if b_mae > 0 else 0.0
             rmse_improvement = ((b_rmse - p_rmse) / b_rmse * 100.0) if b_rmse > 0 else 0.0
-            
+
             st_results[metric] = {
                 "baseline_mae": round(b_mae, 2),
                 "prophet_mae": round(p_mae, 2),
@@ -102,12 +104,12 @@ def run_benchmark() -> dict:
                 "prophet_rmse": round(p_rmse, 2),
                 "rmse_improvement_pct": round(rmse_improvement, 1),
             }
-            
+
             total_baseline_mae.append(b_mae)
             total_prophet_mae.append(p_mae)
             total_baseline_rmse.append(b_rmse)
             total_prophet_rmse.append(p_rmse)
-            
+
         results[st_id] = st_results
 
     pm25_b_mae = [results[s]["pm25"]["baseline_mae"] for s in results if "pm25" in results[s]]
@@ -131,7 +133,7 @@ def run_benchmark() -> dict:
     avg_rmse_imp = ((avg_b_rmse - avg_p_rmse) / avg_b_rmse * 100.0) if avg_b_rmse > 0 else 0.0
 
     summary = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "total_test_series": len(total_baseline_mae),
         "pm25_baseline_mae": round(avg_pm25_b, 2),
         "pm25_prophet_mae": round(avg_pm25_p, 2),
@@ -148,29 +150,33 @@ def run_benchmark() -> dict:
         "stations": results,
     }
 
-    print(f"PM2.5 MAE: Baseline {summary['pm25_baseline_mae']} -> Prophet {summary['pm25_prophet_mae']} (Cải thiện +{summary['pm25_improvement_pct']}%)")
-    print(f"AQI MAE: Baseline {summary['aqi_baseline_mae']} -> Prophet {summary['aqi_prophet_mae']} (Cải thiện +{summary['aqi_improvement_pct']}%)")
-    print(f"Overall MAE: Baseline {summary['overall_baseline_mae']} -> Prophet {summary['overall_prophet_mae']} (Cải thiện +{summary['overall_mae_improvement_pct']}%)")
+    summary["acceptance_threshold_pct"] = 7.0
+    summary["acceptance_passed"] = summary["pm25_improvement_pct"] >= 7.0
+    print(f"PM2.5 MAE: Baseline {summary['pm25_baseline_mae']} -> Extended {summary['pm25_prophet_mae']} (Cải thiện {summary['pm25_improvement_pct']}%)")
+    print(f"AQI MAE: Baseline {summary['aqi_baseline_mae']} -> Extended {summary['aqi_prophet_mae']} (Cải thiện {summary['aqi_improvement_pct']}%)")
+    print(f"Overall MAE: Baseline {summary['overall_baseline_mae']} -> Extended {summary['overall_prophet_mae']} (Cải thiện {summary['overall_mae_improvement_pct']}%)")
+    print(f"Acceptance PM2.5 >= 7%: {'PASS' if summary['acceptance_passed'] else 'FAIL'}")
     print("=" * 70)
 
     # Write Markdown Report
-    report_md = f"""# Báo cáo Đánh giá Benchmark Mô hình Dự báo (B5-ML-01)
+    acceptance_label = "ĐẠT" if summary["acceptance_passed"] else "CHƯA ĐẠT"
+    report_md = f"""# Báo cáo Đánh giá Benchmark Mô hình Dự báo (B7-01)
 
-> **Mô hình:** `prophet_time_series_v1` (Additive Fourier Time-Series & Diurnal Seasonality)  
-> **Baseline:** `damped_linear_trend_v1`  
-> **Thời điểm đánh giá:** {summary['timestamp']}  
-> **Phạm vi kiểm thử:** 5 trạm quan trắc (S01 - S05), các chân trời dự báo 1h, 3h, 6h, 12h, 24h.
+> **Mô hình:** `extended_additive_fourier_v3` (Additive Fourier nhẹ; không phải thư viện Prophet)
+> **Baseline:** `damped_linear_trend_v1`
+> **Thời điểm đánh giá:** {summary['timestamp']}
+> **Phạm vi kiểm thử:** holdout 24 giờ mới nhất từ chuỗi simulator 72 giờ, 5 trạm S01-S05.
 
 ---
 
 ## 1. Tổng quan Kết quả Hiệu năng
 
-| Chỉ số Dự báo | Baseline Tuyến tính | Prophet Time-Series ML | Mức độ Cải thiện (%) | Đạt chuẩn DoD (>= 15%) |
+| Chỉ số Dự báo | Baseline Tuyến tính | Extended Additive | Mức độ Cải thiện (%) | Ngưỡng B7-01 (>= 7%) |
 |---|:---:|:---:|:---:|:---:|
-| **PM2.5 (MAE)** | **{summary['pm25_baseline_mae']} µg/m³** | **{summary['pm25_prophet_mae']} µg/m³** | **+{summary['pm25_improvement_pct']}%** | ✅ **ĐẠT** |
-| **AQI (MAE)** | **{summary['aqi_baseline_mae']}** | **{summary['aqi_prophet_mae']}** | **+{summary['aqi_improvement_pct']}%** | ✅ **ĐẠT** |
-| **Toàn diện Multi-Metric (MAE)** | **{summary['overall_baseline_mae']}** | **{summary['overall_prophet_mae']}** | **+{summary['overall_mae_improvement_pct']}%** | ✅ **ĐẠT** |
-| **Toàn diện Multi-Metric (RMSE)** | **{summary['overall_baseline_rmse']}** | **{summary['overall_prophet_rmse']}** | **+{summary['overall_rmse_improvement_pct']}%** | ✅ **ĐẠT** |
+| **PM2.5 (MAE)** | **{summary['pm25_baseline_mae']} µg/m³** | **{summary['pm25_prophet_mae']} µg/m³** | **{summary['pm25_improvement_pct']}%** | **{acceptance_label}** |
+| **AQI (MAE)** | **{summary['aqi_baseline_mae']}** | **{summary['aqi_prophet_mae']}** | **{summary['aqi_improvement_pct']}%** | Tham khảo |
+| **Toàn diện Multi-Metric (MAE)** | **{summary['overall_baseline_mae']}** | **{summary['overall_prophet_mae']}** | **{summary['overall_mae_improvement_pct']}%** | Tham khảo |
+| **Toàn diện Multi-Metric (RMSE)** | **{summary['overall_baseline_rmse']}** | **{summary['overall_prophet_rmse']}** | **{summary['overall_rmse_improvement_pct']}%** | Tham khảo |
 
 ---
 
@@ -189,7 +195,7 @@ def run_benchmark() -> dict:
 ## 3. Phân tích Nguyên nhân Cải thiện
 1. **Khả năng nắm bắt chu kỳ ngày/đêm:** Baseline chỉ ngoại suy đường thẳng nên sai lệch lớn khi bước qua các khung giờ giao thời; trong khi mô hình Fourier nắm bắt chính xác dao động nhiệt độ và độ ẩm theo chu kỳ 24 giờ.
 2. **Xử lý xung đột giờ cao điểm:** Mô hình cộng thêm hệ số giao thông buổi sáng (07:00–09:00) và buổi chiều (17:00–19:00), giảm thiểu hiện tượng underfitting tại các nút giao S01 và S05.
-3. **Độ trễ phản hồi (Inference Latency):** Thời gian sinh dự báo cho 24 bước thời gian trung bình **< 15ms**, tối ưu hoàn hảo cho Web API và Agent Tool Calling.
+3. **Minh bạch mô hình:** Tên class legacy được giữ để tương thích import, nhưng API/source luôn ghi rõ đây là additive Fourier heuristic từ dữ liệu simulator.
 """
 
     report_path = Path(__file__).resolve().parent.parent / "docs" / "evidence" / "forecast-model-evaluation.md"
