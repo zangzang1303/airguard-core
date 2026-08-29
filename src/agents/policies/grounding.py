@@ -35,8 +35,8 @@ A bare validated station id (for example, S01) requests that station's current s
 For best-station questions, AQI is the overall index: best means the lowest AQI, while
 worst/highest means the highest AQI across S01-S05.
 
-The canonical forecast scope is AQI or PM2.5 for 1-3 hours. Do not call any forecast tool
-for horizons above 3 hours, including 13 hours.
+The forecast scope is AQI or PM2.5 for 1-24 hours. Horizons above 3 hours use the
+extended additive simulator model and must preserve its provenance and limitations.
 
 Tool allowlist: current=get_current_pm25; compare=compare_stations;
 history=get_station_history; forecast=get_pm25_forecast; active_alerts=get_active_alerts;
@@ -212,8 +212,8 @@ def _social_decision(query: str) -> RouteDecision | None:
     elif normalized in capabilities:
         kind = "capabilities"
         response = (
-            "Mình hỗ trợ AQI/trạm hiện tại, so sánh trạm, dự báo baseline 1–3 giờ, cảnh báo và "
-            "khuyến nghị grounded từ dữ liệu demo/mô phỏng. Mình không dự báo dài hạn, chẩn đoán "
+            "Mình hỗ trợ AQI/trạm hiện tại, so sánh trạm, dự báo 1–24 giờ, cảnh báo và "
+            "khuyến nghị grounded từ dữ liệu demo/mô phỏng. Mình không dự báo quá 24 giờ, chẩn đoán "
             "hay điều khiển thiết bị."
         )
     else:
@@ -230,6 +230,7 @@ def _has_explicit_domain_request(query: str) -> bool:
             "aqi", "pm2.5", "pm25", "co2", "co₂", "chat luong khong khi", "moi truong",
             "o nhiem", "bui min", "tieng on", "nhiet do", "thoi tiet", "canh bao", "du bao",
             "so sanh", "tram", "sensor", "chay bo", "ngoai troi", "cung duong", "lo trinh",
+            "sang mai", "ngay mai", "mo cua", "khung gio vang",
         ),
     )
 
@@ -574,7 +575,18 @@ def route_query(
             return _clarify(
                 "Không có user_id để lấy hồ sơ từ backend. Hãy đăng nhập hoặc xác nhận hồ sơ trước khi cá nhân hóa."
             )
-        hours = _hours(plain, 3)
+        extended_recommendation = _contains_any(
+            plain,
+            ("hom nay", "ca ngay", "sang mai", "ngay mai", "today", "all day", "tomorrow"),
+        )
+        hours = _hours(plain, 24 if extended_recommendation else 3)
+        if not 1 <= hours <= 24:
+            return RouteDecision(
+                intent=Intent.RECOMMENDATION,
+                refusal_category=RefusalCategory.CONTRACT_REFUSAL,
+                reason_code=RefusalReasonCode.FORECAST_HORIZON_UNSUPPORTED,
+                direct_response="AirGuard hỗ trợ dự báo từ 1 đến 24 giờ; horizon yêu cầu nằm ngoài contract.",
+            )
         return RouteDecision(
             intent=Intent.RECOMMENDATION,
             tool_calls=[
@@ -593,10 +605,7 @@ def route_query(
                 {"user_id": user_id},
                 {"station_ids": ["S01", "S02", "S03", "S04", "S05"]},
             ],
-            # "Hôm nay" is broader than the approved forecast contract.  We
-            # can still answer for the evidence-backed next 1--3 hours, but
-            # the composer must disclose that it is not an all-day judgement.
-            recommendation_window_limited=_contains_any(plain, ("hom nay", "ca ngay", "today", "all day")),
+            recommendation_window_limited=False,
         )
 
     if _contains_any(plain, ("so sanh", "compare", "khac nhau")):
@@ -617,21 +626,38 @@ def route_query(
             tool_arguments=[{"station_id": stations[0], "hours": _hours(plain, 24)}],
         )
 
-    if _contains_any(plain, ("du bao", "forecast", "gio toi", "sap toi")):
+    if _contains_any(
+        plain,
+        ("du bao", "forecast", "gio toi", "sap toi", "sang mai", "ngay mai", "mo cua", "khung gio vang"),
+    ):
         if not stations:
             return _clarify("Bạn muốn xem dự báo của trạm nào (S01-S05)?")
-        hours = _hours(plain, 3)
-        if not 1 <= hours <= 3 or "ca ngay" in plain:
+        extended_window = _contains_any(
+            plain,
+            ("ca ngay", "sang mai", "ngay mai", "mo cua", "khung gio vang", "24 gio"),
+        )
+        golden_window_request = _contains_any(
+            plain,
+            ("mo cua", "khung gio vang", "sang mai", "ngay mai"),
+        )
+        hours = _hours(plain, 24 if extended_window else 3)
+        if not 1 <= hours <= 24:
             return RouteDecision(
                 intent=Intent.FORECAST,
                 refusal_category=RefusalCategory.CONTRACT_REFUSAL,
                 reason_code=RefusalReasonCode.FORECAST_HORIZON_UNSUPPORTED,
-                direct_response="AirGuard chỉ hỗ trợ dự báo baseline 1–3 giờ cho MVP; không có dự báo 24 giờ hoặc cả ngày.",
+                direct_response="AirGuard hỗ trợ dự báo từ 1 đến 24 giờ; horizon yêu cầu nằm ngoài contract.",
             )
         return RouteDecision(
             intent=Intent.FORECAST,
             tool_calls=[ToolName.GET_PM25_FORECAST],
-            tool_arguments=[{"station_id": stations[0], "hours": hours, "metric": _forecast_metric(plain)}],
+            tool_arguments=[
+                {
+                    "station_id": stations[0],
+                    "hours": hours,
+                    "metric": "aqi" if golden_window_request else _forecast_metric(plain),
+                }
+            ],
         )
 
     if _contains_any(plain, ("canh bao", "alert")):

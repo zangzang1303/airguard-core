@@ -42,10 +42,8 @@ async def test_aqi_and_pm25_routes_preserve_metric_and_horizon():
     "query",
     [
         "Dự báo S01 trong 0 giờ tới?",
-        "Dự báo S01 trong 4 giờ tới?",
-        "Dự báo S01 trong 9 giờ tới?",
-        "Dự báo 24 giờ tới ở S01?",
-        "Dự báo cả ngày ở S01?",
+        "Dự báo S01 trong 25 giờ tới?",
+        "Dự báo S01 trong 99 giờ tới?",
     ],
 )
 async def test_unsupported_forecast_horizon_is_contract_refusal_without_tool_call(query):
@@ -61,9 +59,31 @@ async def test_unsupported_forecast_horizon_is_contract_refusal_without_tool_cal
     assert result["trace"]["tools"] == []
     assert result["trace"]["refusal_category"] == "contract_refusal"
     assert result["trace"]["reason_code"] == "forecast_horizon_unsupported"
-    assert "1–3 giờ" in result["answer"]
+    assert "1 đến 24 giờ" in result["answer"]
     assert "forecast" not in result["answer"].lower()
     assert "22.4" not in result["answer"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("query", "expected_metric"),
+    [
+        ("Dự báo 24 giờ tới ở S01?", "pm25"),
+        ("Dự báo cả ngày ở S01?", "pm25"),
+        ("Sáng mai mấy giờ mở cửa sổ tốt nhất ở S01?", "aqi"),
+    ],
+)
+async def test_extended_forecast_routes_and_summarizes_grounded_window(query, expected_metric):
+    result = await build_graph(FakeBackendToolClient()).ainvoke({"query": query})
+
+    assert result["used_tools"] == ["get_pm25_forecast"]
+    assert result["route"]["tool_arguments"] == [
+        {"station_id": "S01", "hours": 24, "metric": expected_metric}
+    ]
+    assert "extended_additive_fourier_v3" in result["answer"]
+    assert "Mốc thấp nhất" in result["answer"]
+    assert "đỉnh cần tránh" in result["answer"]
+    assert "fixture_forecast" in result["answer"]
 
 
 def test_forecast_assessment_preserves_backend_metadata():

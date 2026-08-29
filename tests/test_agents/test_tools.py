@@ -46,7 +46,7 @@ def test_tool_input_validation_station_and_hours():
     with pytest.raises(ValidationError):
         CurrentPm25Input(station_id="S99")
     with pytest.raises(ValidationError):
-        Pm25ForecastInput(station_id="S01", hours=4)
+        Pm25ForecastInput(station_id="S01", hours=25)
 
 
 @pytest.mark.asyncio
@@ -548,12 +548,6 @@ async def test_create_proposal_maps_backend_payload_header_and_response_id():
             "evidence": {
                 "items": [
                     {
-                        "aqi": None,
-                        "aqi_category": None,
-                        "pm25": None,
-                        "co2": None,
-                        "noise_db": None,
-                        "temperature": None,
                         "source_tool": "get_current_pm25",
                         "evidence_id": None,
                         "station_id": "S02",
@@ -571,12 +565,6 @@ async def test_create_proposal_maps_backend_payload_header_and_response_id():
                         "severity": None,
                     },
                     {
-                        "aqi": None,
-                        "aqi_category": None,
-                        "pm25": None,
-                        "co2": None,
-                        "noise_db": None,
-                        "temperature": None,
                         "source_tool": "get_active_alerts",
                         "evidence_id": "alert-S02-001",
                         "station_id": "S02",

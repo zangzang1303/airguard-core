@@ -13,13 +13,13 @@ AirGuard AI là MVP giám sát chất lượng môi trường tại Vinhomes Oce
 | PM2.5, CO₂, tiếng ồn, nhiệt độ | Có trong simulator, validation, DB, API, lịch sử và UI |
 | Dashboard realtime | Polling 30 giây khi tab hiển thị, có refresh và trạng thái fixture/error |
 | Bản đồ khu vực | 5 trạm, vùng nhiệt trực quan, ranh giới Ocean Park 1, nền xám ngoài phạm vi |
-| Dự báo 1–3 giờ | Damped linear trend từ tối thiểu 3 điểm fresh; hỗ trợ AQI, PM2.5, CO₂, tiếng ồn, nhiệt độ |
+| Dự báo 1–24 giờ | Baseline 1–3h; extended additive Fourier 1–24h từ simulator, có khoảng tin cậy và khung giờ vàng |
 | Cảnh báo | Rule Engine deterministic cho 5 chỉ số và sensor offline |
 | Khuyến nghị | Rule-owned recommendation trong alert; Agent recommendation theo profile và evidence cùng request |
 | AI Agent | Conversation gate + LangGraph/tool calling; xã giao có kiểm soát, grounded answer và deterministic fallback khi không có provider key |
 | HITL | Proposal bắt đầu `pending`; chỉ Manager approve/reject; có audit và device simulator |
 | Notification | Resend Email API khi cấu hình; proposal báo Manager/Admin và environmental alert báo cư dân theo nhóm hồ sơ; mặc định provider `disabled` |
-| Prophet/LSTM | Chưa triển khai |
+| Prophet/LSTM | Không cài Prophet/LSTM; extended forecast là heuristic additive Fourier và được ghi nhãn rõ |
 | Mô hình lan truyền khoa học | Chưa có; vùng nhiệt chỉ trực quan hóa cường độ quanh trạm |
 
 ## Kiến trúc

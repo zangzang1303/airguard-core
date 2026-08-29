@@ -270,8 +270,54 @@ def _compose_weather(data_items: list[Mapping[str, Any]]) -> str:
 def _compose_forecast(data_items: list[Mapping[str, Any]]) -> str:
     data = data_items[0]
     assessment = assess_forecast(dict(data))
+    raw_items = list(data["items"])
+    extended_summary = ""
+    if len(raw_items) > 6:
+        valued_items = [item for item in raw_items if item.get("value") is not None]
+        peak = max(valued_items, key=lambda item: float(item["value"]))
+        lowest = min(valued_items, key=lambda item: float(item["value"]))
+        eligible = [
+            data["metric"] == "aqi"
+            and float(item["value"]) <= 50
+            and item.get("weather_context") is not None
+            and item["weather_context"].get("wind_speed") is not None
+            and float(item["weather_context"]["wind_speed"]) >= 2.0
+            for item in valued_items
+        ]
+        windows: list[list[Mapping[str, Any]]] = []
+        start = 0
+        while start < len(valued_items):
+            if not eligible[start]:
+                start += 1
+                continue
+            end = start
+            while end + 1 < len(valued_items) and eligible[end + 1]:
+                end += 1
+            if end - start + 1 >= 2:
+                windows.append(valued_items[start : end + 1])
+            start = end + 1
+        golden = min(
+            windows,
+            key=lambda window: sum(float(item["value"]) for item in window) / len(window),
+        ) if windows else None
+        golden_text = (
+            f"Khung giờ vàng: {golden[0]['forecast_at']} đến {golden[-1]['forecast_at']}, "
+            f"AQI thấp nhất {min(float(item['value']) for item in golden):g}, gió tối thiểu "
+            f"{min(float(item['weather_context']['wind_speed']) for item in golden):g} m/s. "
+            if golden
+            else "Không có ít nhất 2 giờ liên tục thỏa AQI ≤50 và gió ≥2 m/s. "
+            if data["metric"] == "aqi"
+            else ""
+        )
+        summary_unit = "AQI" if data["metric"] == "aqi" else "µg/m³"
+        extended_summary = (
+            f" {golden_text}Mốc thấp nhất {lowest['forecast_at']} ({lowest['value']:g} {summary_unit}); "
+            f"đỉnh cần tránh {peak['forecast_at']} ({peak['value']:g} {summary_unit})."
+        )
+        sample_hours = {1, 6, 12, 18, 24}
+        raw_items = [item for item in raw_items if int(item.get("hour", 0)) in sample_hours]
     points = []
-    for item in data["items"]:
+    for item in raw_items:
         horizon = item.get("forecast_at") or f"+{item.get('hour')} giờ"
         unit = "AQI" if data["metric"] == "aqi" else "µg/m³"
         if item.get("value") is not None:
@@ -292,7 +338,7 @@ def _compose_forecast(data_items: list[Mapping[str, Any]]) -> str:
     return (
         f"Dự báo {data['metric'].upper()} cho {data['station_id']} (không phải quan sát hiện tại): {'; '.join(points)}. "
         f"Metadata: {', '.join(metadata)}. Xu hướng: {assessment.trend}. "
-        f"{SIMULATOR_NOTICE}{limitation}"
+        f"{SIMULATOR_NOTICE}{extended_summary}{limitation}"
     )
 
 
@@ -367,7 +413,7 @@ def _compose_recommendation(
     limitation = f" Giới hạn dự báo: {'; '.join(assessment.limitations)}." if assessment.limitations else ""
     time_scope = (
         " AirGuard không có đủ contract để đánh giá toàn bộ hôm nay; thời điểm phù hợp chỉ được chọn "
-        "trong cửa sổ forecast baseline 1–3 giờ ở trên."
+        "trong cửa sổ dự báo 1–24 giờ ở trên."
         if recommendation_window_limited
         else ""
     )

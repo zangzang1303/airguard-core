@@ -10,10 +10,10 @@ import { UserLocationMarker } from "./UserLocationMarker";
 import { SubZoneLabels } from "./SubZoneLabels";
 import { AqiLegend, MapLegendVariant } from "./AqiLegend";
 import { HeatmapLayer } from "../stations/HeatmapLayer";
-import { TimelineSlider } from "../stations/TimelineSlider";
 import { mapActionController } from "./MapActionController";
 import { useFloatingPanelContext, useDraggableFloatingPanel } from "../floating";
 import { Crosshair, X } from "lucide-react";
+import { DraggableTimelineDock } from "./DraggableTimelineDock";
 
 interface SuperMapProps {
   stations: Station[];
@@ -132,28 +132,6 @@ const DraggableLegendOverlay: React.FC<{
   );
 };
 
-const DraggableTimelineDock: React.FC<{
-  forecastHour: number;
-  onForecastHourChange: (hours: number) => void;
-}> = ({ forecastHour, onForecastHourChange }) => {
-  const { containerProps, handleProps } = useDraggableFloatingPanel({
-    panelId: "timeline",
-    group: "widget",
-    baseTransform: "translateX(-50%)",
-  });
-
-  return (
-    <div {...containerProps} className="map-timeline-floating-dock">
-      <TimelineSlider
-        value={forecastHour}
-        onChange={onForecastHourChange}
-        label="Thanh trượt dự báo lan truyền"
-        titleProps={handleProps}
-      />
-    </div>
-  );
-};
-
 export const SuperMap: React.FC<SuperMapProps> = ({
   stations,
   selectedStationId,
@@ -183,7 +161,6 @@ export const SuperMap: React.FC<SuperMapProps> = ({
   const [dispersionLoading, setDispersionLoading] = useState(false);
   const [dispersionError, setDispersionError] = useState<string | null>(null);
   const heatmapRetryRef = useRef<(() => void) | null>(null);
-
   const handleHeatmapDataChange = useCallback(
     (data: SpatialHeatmapResponse | null, loading: boolean, error: string | null) => {
       setDispersionData(data);
@@ -303,6 +280,8 @@ export const SuperMap: React.FC<SuperMapProps> = ({
       {/* Floating Map Forecast Timeline Control Dock (Bottom Center) */}
       {onForecastHourChange && viewMode === "heatmap" && (layerConfig.showForecastTimeline ?? true) && (
         <DraggableTimelineDock
+          stationId={selectedStationId}
+          currentAqi={stations.find((station) => station.station_id === selectedStationId)?.aqi ?? null}
           forecastHour={forecastHour}
           onForecastHourChange={onForecastHourChange}
         />

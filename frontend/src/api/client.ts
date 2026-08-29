@@ -18,6 +18,7 @@ import {
   SpatialHeatmapResponse,
   SpatialHeatmapPoint,
   EmailDeliveryStatus,
+  GoldenWindowsData,
 } from "../types";
 import { resolveApiBaseUrl } from "./apiBaseUrl";
 import { extractAgentReply } from "./agentResponseHelper.js";
@@ -639,7 +640,7 @@ export const api = {
     stationId: string,
     metric: ForecastData["metric"] = "pm25",
     hours = 3,
-    model: "baseline" = "baseline",
+    model: "baseline" | "extended" = "baseline",
   ): Promise<ForecastData> => {
     try {
       const data = await apiFetch<any>(
@@ -656,7 +657,13 @@ export const api = {
         source: data.source,
         confidence: typeof data.confidence === "number" ? `${Math.round(data.confidence * 100)}%` : data.confidence,
         model_name: data.model_name,
-        limitations: data.limitations ?? data.trend_summary,
+        limitations: Array.isArray(data.limitations)
+          ? data.limitations
+          : data.limitations
+            ? [String(data.limitations)]
+            : data.trend_summary
+              ? [String(data.trend_summary)]
+              : [],
         forecasts: items.map((item: any) => {
           const predicted = item.predicted_value ?? item.value ?? item.pm25 ?? null;
           const minVal = item.lower_bound ?? item.value_min ?? item.pm25_min ?? predicted;
@@ -664,6 +671,8 @@ export const api = {
           const h = item.hours_ahead ?? item.hour_offset ?? 1;
           return {
             horizon: `${h} hour`,
+            hour_offset: h,
+            forecast_at: item.forecast_at ?? item.timestamp,
             pm25_predicted: predicted,
             range: [minVal, maxVal] as [number | null, number | null],
             value: predicted,
@@ -676,6 +685,12 @@ export const api = {
     } catch {
       throw new Error("Forecast API unavailable");
     }
+  },
+
+  getGoldenWindows: async (stationId: string): Promise<GoldenWindowsData> => {
+    return apiFetch<GoldenWindowsData>(
+      `/api/v1/forecast/golden-windows?station_id=${encodeURIComponent(stationId)}`,
+    );
   },
 
   getAlerts: async (): Promise<Alert[]> => {

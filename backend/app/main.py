@@ -43,6 +43,7 @@ from .services.geospatial_agent_service import geospatial_agent
 from .services.ingestion_service import MeasurementIngestionService
 from .services.job_service import get_job, mark_job_failed, reserve_job
 from .services.live_telemetry_engine import live_engine
+from .services.prophet_forecast_service import prophet_service
 from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
 from .services.report_repository import PostgresReportRepository
@@ -977,13 +978,28 @@ def get_spatial_heatmap(
 @app.get("/api/v1/stations/{station_id}/forecast")
 def get_station_forecast(
     station_id: str,
-    hours: int = Query(default=3, ge=1, le=3),
+    hours: int = Query(default=3, ge=1, le=24),
     metric: Literal["pm25", "aqi", "co2", "noise_db", "temperature"] = Query(default="pm25"),
-    model: Literal["baseline"] = Query(default="baseline"),
+    model: Literal["baseline", "extended"] = Query(default="baseline"),
 ) -> dict:
-    history = station_service.get_forecast_history(station_id)
+    if model == "baseline" and hours > 3:
+        raise ServiceError(
+            "forecast_horizon_unsupported",
+            "The baseline model supports only 1-3 hours; use model=extended for 1-24 hours",
+            422,
+            {"hours": hours, "model": model},
+        )
+    history = (
+        station_service.get_forecast_history(station_id)
+        if model == "baseline"
+        else station_service.get_extended_forecast_history(station_id)
+    )
     try:
-        forecast = trend_forecast(history, hours, metric=metric)
+        forecast = (
+            trend_forecast(history, hours, metric=metric)
+            if model == "baseline"
+            else prophet_service.forecast(station_id, history, hours, metric)
+        )
     except InsufficientForecastHistory as exc:
         raise ServiceError(
             "insufficient_forecast_history",
@@ -991,7 +1007,35 @@ def get_station_forecast(
             503,
             {"station_id": station_id},
         ) from exc
+    except ValueError as exc:
+        raise ServiceError(
+            "invalid_extended_forecast_input",
+            str(exc),
+            422,
+            {"station_id": station_id, "model": model},
+        ) from exc
     return {"station_id": station_id, "horizon_hours": hours, "is_stale": False, **forecast, "timestamp": datetime.now(UTC).isoformat()}
+
+
+@app.get("/api/v1/forecast/golden-windows")
+def get_golden_windows(
+    station_id: str = Query(..., pattern=r"^S0[1-5]$"),
+    minimum_wind_speed: float = Query(default=2.0, ge=0, le=20),
+) -> dict:
+    history = station_service.get_extended_forecast_history(station_id)
+    try:
+        forecast = prophet_service.forecast(station_id, history, 24, "aqi")
+        return prophet_service.golden_windows(
+            forecast,
+            minimum_wind_speed=minimum_wind_speed,
+        )
+    except ValueError as exc:
+        raise ServiceError(
+            "golden_window_unavailable",
+            str(exc),
+            503,
+            {"station_id": station_id},
+        ) from exc
 
 
 @app.get("/api/v1/users/{user_id}/profile", response_model=UserProfileResponse)

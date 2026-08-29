@@ -143,7 +143,7 @@ async def test_sensitive_self_description_routes_to_recommendation_but_backend_p
 
 
 @pytest.mark.asyncio
-async def test_today_running_recommendation_is_limited_to_the_forecast_contract():
+async def test_today_running_recommendation_uses_extended_forecast_contract():
     graph = build_graph(FakeBackendToolClient())
     result = await graph.ainvoke(
         {
@@ -153,12 +153,12 @@ async def test_today_running_recommendation_is_limited_to_the_forecast_contract(
         }
     )
 
-    assert result["route"]["recommendation_window_limited"] is True
+    assert result["route"]["recommendation_window_limited"] is False
     assert result["route"]["tool_arguments"][2] == {
-        "station_id": "S03", "hours": 3, "metric": "pm25"
+        "station_id": "S03", "hours": 24, "metric": "pm25"
     }
     assert "khung dự báo phù hợp nhất" in result["answer"]
-    assert "không có đủ contract để đánh giá toàn bộ hôm nay" in result["answer"]
+    assert "không có đủ contract để đánh giá toàn bộ hôm nay" not in result["answer"]
 
 
 @pytest.mark.asyncio

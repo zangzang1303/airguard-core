@@ -9,11 +9,11 @@ import pytest
 from src.agents.graph import build_graph
 from src.agents.nodes.orchestration import generate_explanation_node
 from src.agents.policies.grounding import Intent, SafetyCategory, route_query
-from src.api.routes import agent_status
 from src.agents.response_composer import INSUFFICIENT_DATA_MESSAGE, compose_response
 from src.agents.tools.contracts import ToolEnvelope, ToolError, ToolErrorCode, ToolName
 from src.agents.tools.fake_adapter import DEFAULT_FIXTURES, FakeBackendToolClient
 from src.agents.trace import emit_trace
+from src.api.routes import agent_status
 
 
 class OutageAdapter(FakeBackendToolClient):
@@ -719,7 +719,7 @@ async def test_social_response_skips_llm_and_keeps_deterministic_text(monkeypatc
     ("query", "kind", "required"),
     [
         ("Cảm ơn bạn nhé", "acknowledgement", "Cảm ơn bạn"),
-        ("Bạn có thể giúp gì cho tôi?", "capabilities", "1–3 giờ"),
+        ("Bạn có thể giúp gì cho tôi?", "capabilities", "1–24 giờ"),
         ("Bạn có khỏe không?", "wellbeing", "không có sức khỏe hay cảm xúc"),
     ],
 )
@@ -803,12 +803,12 @@ async def test_live_llm_deadline_returns_grounded_fallback_before_proxy_timeout(
 
 
 @pytest.mark.asyncio
-async def test_invalid_tool_argument_returns_insufficient_data():
+async def test_forecast_above_supported_horizon_is_refused():
     graph = build_graph(FakeBackendToolClient())
-    result = await graph.ainvoke({"query": "Dự báo S01 trong 9 giờ"})
+    result = await graph.ainvoke({"query": "Dự báo S01 trong 25 giờ"})
 
     assert result["used_tools"] == []
-    assert "1–3 giờ" in result["answer"]
+    assert "1 đến 24 giờ" in result["answer"]
     assert result["trace"]["final_outcome"] == "refused"
 
 

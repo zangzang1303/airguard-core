@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-TOOL_REGISTRY_VERSION = "2026-08-27.forecast-baseline-only"
+TOOL_REGISTRY_VERSION = "2026-08-29.extended-forecast-v1"
 TOOL_REGISTRY_OWNER = "ai-agent"
 STATION_IDS = {"S01", "S02", "S03", "S04", "S05"}
 
@@ -104,7 +104,7 @@ class WeatherContextInput(StrictModel):
 
 
 class Pm25ForecastInput(CurrentPm25Input):
-    hours: int = Field(default=3, ge=1, le=3)
+    hours: int = Field(default=3, ge=1, le=24)
     metric: Literal["aqi", "pm25"] = "pm25"
 
 
@@ -255,14 +255,24 @@ class WeatherContext(BackendOutputModel):
     is_stale: bool
 
 
+class ForecastWeatherContext(BackendOutputModel):
+    humidity: float | None = Field(default=None, ge=0, le=100)
+    temperature: float | None = None
+    wind_speed: float | None = Field(default=None, ge=0, le=60)
+    temperature_drop_c: float | None = None
+    nocturnal_inversion_applied: bool = False
+    traffic_rush_applied: bool = False
+
+
 class ForecastPoint(BackendOutputModel):
     forecast_at: AwareDatetime
-    hour: int = Field(..., ge=1, le=3, validation_alias=AliasChoices("hour", "hour_offset"))
+    hour: int = Field(..., ge=1, le=24, validation_alias=AliasChoices("hour", "hour_offset"))
     value: float | None = Field(default=None, ge=0, validation_alias=AliasChoices("value", "pm25"))
     value_min: float | None = Field(default=None, ge=0, validation_alias=AliasChoices("value_min", "pm25_min"))
     value_max: float | None = Field(default=None, ge=0, validation_alias=AliasChoices("value_max", "pm25_max"))
     confidence: float = Field(..., ge=0, le=1)
     source: str = Field(..., min_length=1, max_length=100)
+    weather_context: ForecastWeatherContext | None = None
 
     @model_validator(mode="after")
     def has_time_and_value(self) -> ForecastPoint:
@@ -280,7 +290,7 @@ class ForecastPoint(BackendOutputModel):
 class Pm25Forecast(BackendOutputModel):
     station_id: str
     metric: Literal["aqi", "pm25"]
-    horizon_hours: int = Field(..., ge=1, le=3)
+    horizon_hours: int = Field(..., ge=1, le=24)
     generated_at: AwareDatetime
     model_name: str = Field(..., min_length=1)
     model_version: str = Field(..., min_length=1)
@@ -289,7 +299,7 @@ class Pm25Forecast(BackendOutputModel):
     is_stale: Literal[False]
     confidence: float = Field(..., ge=0, le=1)
     limitations: list[str] = Field(..., min_length=1)
-    items: list[ForecastPoint] = Field(..., min_length=1, max_length=3)
+    items: list[ForecastPoint] = Field(..., min_length=1, max_length=24)
 
     @field_validator("station_id")
     @classmethod
@@ -500,7 +510,7 @@ TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
     ),
     ToolName.GET_PM25_FORECAST: ToolSpec(
         name=ToolName.GET_PM25_FORECAST,
-        description="Fetch a baseline 1 to 3 hour AQI or PM2.5 forecast for one station.",
+        description="Fetch a grounded AQI or PM2.5 forecast: baseline for 1-3h, extended additive model for 4-24h.",
         input_schema=Pm25ForecastInput,
         output_schema=Pm25Forecast,
         method="GET",

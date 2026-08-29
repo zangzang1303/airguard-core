@@ -241,11 +241,21 @@ class FakeBackendToolClient:
             current = self.fixtures["current"][args.station_id]
             base = current["aqi"] if args.metric == "aqi" else current["pm25"]
             items = [
-                {"hour": hour, "forecast_at": (FIXED_NOW + timedelta(hours=hour)).isoformat(), "value": round(base + hour * 0.8, 2), "value_min": round(base + hour * 0.3, 2), "value_max": round(base + hour * 1.3, 2), "confidence": 0.7, "source": "fixture_forecast"}
+                {
+                    "hour": hour,
+                    "forecast_at": (FIXED_NOW + timedelta(hours=hour)).isoformat(),
+                    "value": round(base + hour * 0.8, 2),
+                    "value_min": round(base + hour * 0.3, 2),
+                    "value_max": round(base + hour * 1.3, 2),
+                    "confidence": 0.7,
+                    "source": "fixture_forecast",
+                    "weather_context": {"humidity": 72.0, "temperature": 30.0, "wind_speed": 2.4},
+                }
                 for hour in range(1, args.hours + 1)
             ]
+            model_name = "damped_linear_trend_v1" if args.hours <= 3 else "extended_additive_fourier_v3"
             data = Pm25Forecast.model_validate(
-                {"station_id": args.station_id, "metric": args.metric, "horizon_hours": args.hours, "generated_at": FIXED_NOW.isoformat(), "model_name": "damped_linear_trend_v1", "model_version": "damped_linear_trend_v1", "source": "fixture_forecast", "freshness": "fresh", "is_stale": False, "confidence": 0.7, "limitations": ["Fixture simulator forecast."], "items": items}
+                {"station_id": args.station_id, "metric": args.metric, "horizon_hours": args.hours, "generated_at": FIXED_NOW.isoformat(), "model_name": model_name, "model_version": model_name, "source": "fixture_forecast", "freshness": "fresh", "is_stale": False, "confidence": 0.7, "limitations": ["Fixture simulator forecast."], "items": items}
             ).model_dump(mode="json")
         except KeyError:
             return self._error(ToolName.GET_PM25_FORECAST, request_id, ToolErrorCode.NOT_FOUND, "Station fixture not found.")

@@ -31,7 +31,8 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/internal/ingestion/evaluate-alerts` | internal alert catch-up for one/all stations | 200 | 404/503 |
 | GET `/alerts?status=&station_id=` | alert list/filter; performs rule catch-up for AQI, PM2.5, CO₂, noise, temperature and sensor availability | 200 | 422/503 |
 | POST `/alerts/{id}/resolve` | manager-only manual alert resolution | 200 | 403/404/503 |
-| GET `/stations/{id}/forecast?hours=1..3&metric=pm25|aqi|co2|noise_db|temperature&model=baseline` | damped linear-trend forecast from at least 3 fresh valid measurements of the selected metric; defaults to PM2.5 and `model=baseline` | 200 | 404/422/503 |
+| GET `/stations/{id}/forecast?hours=1..24&metric=pm25|aqi|co2|noise_db|temperature&model=baseline|extended` | `baseline` is restricted to 1–3h; `extended` returns 1–24 hourly additive-Fourier simulator forecasts from fresh hourly history | 200 | 404/422/503 |
+| GET `/forecast/golden-windows?station_id=S01..S05&minimum_wind_speed=0..20` | best contiguous ≥2h AQI≤50 window satisfying the wind gate, all candidates and the 24h peak; uses only the extended model | 200 | 404/422/503 |
 | GET `/weather/current` | weather context with explicit source/fallback | 200 | 503 |
 | GET `/spatial/heatmap?metric=aqi|pm25|co2|noise_db|temperature&forecast_hour=0..24` | grounded wind-adjusted IDW grid from at least three fresh valid online stations | 200 | 422/503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
@@ -89,16 +90,22 @@ system-of-record reads with an in-memory simulator snapshot. The `timestamp` ret
 `/stations/{id}/current` is the measurement observation time, not the API request time. Frontend
 clients must show loading, empty or retryable error states instead of rendering fixture values as live.
 
-## Short-term forecast response
+## Forecast response
 
-The canonical Agent forecast is the `baseline` model only, for 1–3 hours and `metric=aqi|pm25`.
+The 1–3 hour `baseline` remains the conservative short-term model. `model=extended` supports
+1–24 hours and is selected by the Agent for horizons above 3 hours. Extended results use
+`extended_additive_fourier_v3`; they must never be labelled as the third-party Prophet package.
+Both models support `metric=aqi|pm25` for the Agent.
 Its response preserves `station_id`, `metric`, `horizon_hours`, timezone-aware `generated_at`,
 `model_name`, `model_version`, `source`, `freshness="fresh"`, `is_stale=false`, numeric
 `confidence`, `limitations`, and ordered `items`. Each item has `hour`/`hour_offset`, timezone-aware
 `forecast_at`, `value` (or complete `value_min`/`value_max`), numeric `confidence`, and `source`.
 The Agent may accept the legacy PM2.5 field aliases from this endpoint only during typed validation;
-it must not infer a source, timestamp, value, freshness, or metadata that is absent. A 24-hour/cả ngày
-request is refused by the Agent without a tool call because it is outside the MVP forecast contract.
+it must not infer a source, timestamp, value, freshness, or metadata that is absent. A request above
+24 hours is refused by the Agent without a tool call. Extended points additionally
+carry projected `weather_context` used by the golden-window rule. Golden-window responses preserve
+station/model/source/generated time, explicit criteria, nullable `best_window`, candidates,
+`worst_window` and limitations.
 
 ## Environmental alert response
 
