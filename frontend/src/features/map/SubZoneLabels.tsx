@@ -27,6 +27,10 @@ function createPoiIcon(category: string, isSelected: boolean): L.DivIcon {
   if (category === "landmark") iconEmoji = "🏢";
   if (category === "residential") iconEmoji = "🏘️";
   if (category === "gate") iconEmoji = "🚪";
+  if (category === "gym" || category === "indoor_fitness") iconEmoji = "🏋️";
+  if (category === "pool") iconEmoji = "🏊";
+  if (category === "bus") iconEmoji = "🚌";
+  if (category === "bike") iconEmoji = "🚲";
 
   return L.divIcon({
     className: "custom-poi-marker",
@@ -38,6 +42,24 @@ function createPoiIcon(category: string, isSelected: boolean): L.DivIcon {
     iconSize: [22, 22],
     iconAnchor: [11, 11],
   });
+}
+
+function getCategoryLabel(category: string): string {
+  switch (category) {
+    case "university": return "Trường học";
+    case "lake": return "Mặt nước / Hồ";
+    case "park": return "Công viên / Cây xanh";
+    case "mall": return "Trung tâm thương mại";
+    case "landmark": return "Biểu tượng / Landmark";
+    case "residential": return "Khu dân cư";
+    case "gate": return "Cổng chào";
+    case "gym":
+    case "indoor_fitness": return "Phòng tập trong nhà";
+    case "pool": return "Bể bơi";
+    case "bus": return "Trạm xe VinBus";
+    case "bike": return "Trạm xe đạp công cộng";
+    default: return "Địa danh";
+  }
 }
 
 export const SubZoneLabels: React.FC<SubZoneLabelsProps> = ({
@@ -65,7 +87,7 @@ export const SubZoneLabels: React.FC<SubZoneLabelsProps> = ({
           >
             <Tooltip direction="bottom" offset={[0, 8]} opacity={0.92} permanent={false}>
               <div className="poi-tooltip">
-                <div className="poi-category-tag">Địa danh · {poi.category}</div>
+                <div className="poi-category-tag">{getCategoryLabel(poi.category)}</div>
                 <div className="poi-title">{poi.name}</div>
                 {poi.subdivision && <div className="poi-sub">{poi.subdivision}</div>}
               </div>

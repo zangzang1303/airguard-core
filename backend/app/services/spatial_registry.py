@@ -579,6 +579,218 @@ class SpatialRegistry:
             "suitable_activities": ["walking", "dining_outdoor"],
             "description": "Tuyến phố thương mại Sao Biển 24 dẫn thẳng ra quảng trường biển hồ.",
         },
+        # --- Phòng tập trong nhà & Thể thao điều hòa ---
+        {
+            "id": "poi_vinuni_sports",
+            "area_id": "area_vinuni",
+            "name": "Trung tâm Thể thao & Bể bơi trong nhà VinUni",
+            "short_name": "VinUni Sports Complex",
+            "category": "indoor_fitness",
+            "latitude": 20.9892,
+            "longitude": 105.9475,
+            "sensor_id": "S04",
+            "is_interpolated": False,
+            "source_sensors": ["S04"],
+            "aliases": [
+                "phòng tập vinuni", "gym vinuni", "thể thao vinuni", "bể bơi vinuni",
+                "vinuni sports", "nhà thi đấu vinuni", "trung tâm thể thao vinuni"
+            ],
+            "suitable_activities": ["indoor_sports", "swimming", "treadmill"],
+            "description": "Nhà thi đấu đa năng điều hòa lọc khí tươi HEPA và cụm bể bơi tiêu chuẩn Olympic.",
+        },
+        {
+            "id": "poi_sapphire_pool",
+            "area_id": "area_sapphire",
+            "name": "Bể bơi 4 mùa Mái kính Sapphire Rooftop",
+            "short_name": "Bể bơi 4 mùa Sapphire",
+            "category": "pool",
+            "latitude": 20.9980,
+            "longitude": 105.9435,
+            "sensor_id": "S02",
+            "is_interpolated": False,
+            "source_sensors": ["S02"],
+            "aliases": [
+                "bể bơi sapphire", "be boi sapphire", "bể bơi 4 mùa", "be boi 4 mua",
+                "bể bơi mái kính", "bể bơi rooftop", "hồ bơi sapphire"
+            ],
+            "suitable_activities": ["swimming", "indoor_recovery"],
+            "description": "Bể bơi 4 mùa nước ấm trong nhà mái kính panorama, không lo khói bụi và thời tiết.",
+        },
+        {
+            "id": "poi_vincom_fitness",
+            "area_id": "area_vincom",
+            "name": "Trung tâm Thể hình & Yoga Vincom Mega Mall",
+            "short_name": "Vincom Mega Fitness",
+            "category": "gym",
+            "latitude": 20.9965,
+            "longitude": 105.9572,
+            "sensor_id": "S05",
+            "is_interpolated": True,
+            "source_sensors": ["S05", "S03"],
+            "aliases": [
+                "gym vincom", "phòng tập vincom", "fitness vincom", "yoga vincom",
+                "elite vincom", "phòng gym mega mall"
+            ],
+            "suitable_activities": ["fitness", "yoga", "indoor_treadmill"],
+            "description": "Phòng tập Gym & Yoga điều hòa cao cấp nhìn thẳng ra biển hồ Crystal Lagoons.",
+        },
+        {
+            "id": "poi_zenpark_clubhouse",
+            "area_id": "area_zenpark",
+            "name": "Nhà Sinh hoạt Thể thao Trong nhà The Zenpark",
+            "short_name": "Zenpark Sports Clubhouse",
+            "category": "indoor_fitness",
+            "latitude": 20.9940,
+            "longitude": 105.9398,
+            "sensor_id": "S02",
+            "is_interpolated": True,
+            "source_sensors": ["S02", "S01"],
+            "aliases": [
+                "clubhouse zenpark", "thể thao zenpark", "phòng tập zenpark", "bóng bàn zenpark"
+            ],
+            "suitable_activities": ["indoor_sports", "table_tennis", "yoga"],
+            "description": "Khu tập thể thao trong nhà, bóng bàn, bida và yoga điều hòa riêng cho cư dân Zenpark.",
+        },
+        # --- Trạm xe buýt điện VinBus ---
+        {
+            "id": "poi_bus_megamall",
+            "area_id": "area_vincom",
+            "name": "Điểm đón xe bus điện VinBus - Vincom Mega Mall",
+            "short_name": "Trạm VinBus Mega Mall",
+            "category": "bus_station",
+            "latitude": 20.9970,
+            "longitude": 105.9565,
+            "sensor_id": "S05",
+            "is_interpolated": True,
+            "source_sensors": ["S05"],
+            "aliases": [
+                "trạm vinbus mega mall", "vinbus vincom", "xe bus vincom", "bến xe bus vincom",
+                "điểm đón vinbus mega mall", "vinbus e01", "vinbus e02", "vinbus e03"
+            ],
+            "suitable_activities": ["transit", "commute"],
+            "description": "Trạm trung chuyển xe bus điện VinBus kết nối các tuyến E01, E02, E03 và nội khu OCP01.",
+        },
+        {
+            "id": "poi_bus_technopark",
+            "area_id": "area_technopark",
+            "name": "Trạm xe bus điện VinBus - Tòa tháp TechnoPark",
+            "short_name": "Trạm VinBus TechnoPark",
+            "category": "bus_station",
+            "latitude": 20.9880,
+            "longitude": 105.9425,
+            "sensor_id": "S04",
+            "is_interpolated": True,
+            "source_sensors": ["S04"],
+            "aliases": [
+                "trạm vinbus technopark", "vinbus technopark", "xe bus technopark", "xe buýt technopark"
+            ],
+            "suitable_activities": ["transit", "commute"],
+            "description": "Trạm đón trả xe buýt điện thông minh trước sảnh tòa tháp văn phòng TechnoPark.",
+        },
+        {
+            "id": "poi_bus_vinuni",
+            "area_id": "area_vinuni",
+            "name": "Trạm xe bus điện VinBus - Cổng chính VinUniversity",
+            "short_name": "Trạm VinBus VinUni",
+            "category": "bus_station",
+            "latitude": 20.9905,
+            "longitude": 105.9460,
+            "sensor_id": "S04",
+            "is_interpolated": False,
+            "source_sensors": ["S04"],
+            "aliases": [
+                "trạm vinbus vinuni", "vinbus vinuni", "xe bus vinuni", "xe buýt vinuni"
+            ],
+            "suitable_activities": ["transit", "commute"],
+            "description": "Điểm dừng xe bus điện phục vụ sinh viên, giảng viên và khách tham quan đại học VinUni.",
+        },
+        {
+            "id": "poi_bus_sapphire",
+            "area_id": "area_sapphire",
+            "name": "Trạm xe bus điện VinBus - Phân khu Sapphire 2",
+            "short_name": "Trạm VinBus Sapphire",
+            "category": "bus_station",
+            "latitude": 20.9982,
+            "longitude": 105.9442,
+            "sensor_id": "S02",
+            "is_interpolated": False,
+            "source_sensors": ["S02"],
+            "aliases": [
+                "trạm vinbus sapphire", "vinbus sapphire", "xe bus sapphire", "xe buýt sapphire s2"
+            ],
+            "suitable_activities": ["transit", "commute"],
+            "description": "Trạm xe bus điện kết nối cụm tòa căn hộ Sapphire 1 & Sapphire 2.",
+        },
+        # --- Trạm mượn xe đạp công cộng thông minh (TNGo) ---
+        {
+            "id": "poi_bike_ngoc_trai",
+            "area_id": "area_ngoc_trai",
+            "name": "Trạm mượn xe đạp công cộng - Biển Hồ Ngọc Trai",
+            "short_name": "Trạm Xe đạp Hồ Ngọc Trai",
+            "category": "bike_rental",
+            "latitude": 20.9958,
+            "longitude": 105.9510,
+            "sensor_id": "S03",
+            "is_interpolated": False,
+            "source_sensors": ["S03"],
+            "aliases": [
+                "xe đạp hồ ngọc trai", "trạm xe đạp ngọc trai", "thuê xe đạp ngọc trai",
+                "mượn xe đạp hồ ngọc trai", "xe đạp tngo ngọc trai"
+            ],
+            "suitable_activities": ["cycling", "outdoor_exercise"],
+            "description": "Trạm xe đạp công cộng thông minh phục vụ dạo bộ, tập thể dục quanh bờ cát trắng hồ 24.5ha.",
+        },
+        {
+            "id": "poi_bike_san_ho",
+            "area_id": "area_san_ho",
+            "name": "Trạm mượn xe đạp công cộng - Công viên San Hô",
+            "short_name": "Trạm Xe đạp San Hô",
+            "category": "bike_rental",
+            "latitude": 20.9865,
+            "longitude": 105.9485,
+            "sensor_id": "S04",
+            "is_interpolated": True,
+            "source_sensors": ["S04", "S01"],
+            "aliases": [
+                "xe đạp san hô", "trạm xe đạp san hô", "thuê xe đạp san hô", "mượn xe đạp san hô"
+            ],
+            "suitable_activities": ["cycling", "outdoor_exercise"],
+            "description": "Trạm mượn xe đạp dạo công viên sinh thái ven sông San Hô.",
+        },
+        {
+            "id": "poi_bike_hai_au",
+            "area_id": "area_hai_au",
+            "name": "Trạm mượn xe đạp công cộng - Quảng trường Hải Âu",
+            "short_name": "Trạm Xe đạp Hải Âu",
+            "category": "bike_rental",
+            "latitude": 20.9938,
+            "longitude": 105.9592,
+            "sensor_id": "S05",
+            "is_interpolated": False,
+            "source_sensors": ["S05"],
+            "aliases": [
+                "xe đạp hải âu", "trạm xe đạp hải âu", "thuê xe đạp hải âu", "mượn xe đạp hải âu"
+            ],
+            "suitable_activities": ["cycling", "outdoor_exercise"],
+            "description": "Điểm mượn xe đạp dạo biển hồ nước mặn Crystal Lagoons và khu phố thương mại.",
+        },
+        {
+            "id": "poi_bike_sapphire",
+            "area_id": "area_sapphire",
+            "name": "Trạm mượn xe đạp công cộng - Đại lộ Sapphire",
+            "short_name": "Trạm Xe đạp Sapphire",
+            "category": "bike_rental",
+            "latitude": 20.9968,
+            "longitude": 105.9422,
+            "sensor_id": "S02",
+            "is_interpolated": False,
+            "source_sensors": ["S02"],
+            "aliases": [
+                "xe đạp sapphire", "trạm xe đạp sapphire", "thuê xe đạp sapphire", "mượn xe đạp sapphire"
+            ],
+            "suitable_activities": ["cycling", "outdoor_exercise"],
+            "description": "Trạm xe đạp nội khu kết nối các cụm sân thể thao và vườn Nhật Sapphire.",
+        },
     ]
 
     SPATIAL_RELATIONSHIPS = [
