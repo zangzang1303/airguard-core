@@ -10,7 +10,7 @@ from .database import Database, dict_cursor
 VENTILATION_POLICY_VERSION = "ventilation-continuity-v1"
 ECO_RECOVERY_POLICY_VERSION = "ventilation-recovery-v1"
 TIMED_DEVICE_ACTIONS = frozenset({"ventilation_boost", "air_purifier_on"})
-ALLOWED_DEVICE_ACTIONS = frozenset({*TIMED_DEVICE_ACTIONS, "eco_mode"})
+ALLOWED_DEVICE_ACTIONS = frozenset({*TIMED_DEVICE_ACTIONS, "eco_mode", "standby"})
 
 
 @dataclass(frozen=True)
@@ -52,6 +52,8 @@ class VentilationService:
         co2_threshold: float = 1000.0,
         trigger_duration_seconds: int = 15 * 60,
         recovery_duration_seconds: int = 20 * 60,
+        safe_pm25_threshold: float = 25.0,
+        safe_co2_threshold: float = 700.0,
         stale_after_seconds: int = 300,
         max_gap_seconds: int = 60,
         default_duration_minutes: int = 45,
@@ -64,6 +66,12 @@ class VentilationService:
         self.co2_threshold = float(co2_threshold)
         self.trigger_duration_seconds = max(1, int(trigger_duration_seconds))
         self.recovery_duration_seconds = max(1, int(recovery_duration_seconds))
+        self.safe_pm25_threshold = float(safe_pm25_threshold)
+        self.safe_co2_threshold = float(safe_co2_threshold)
+        if self.safe_pm25_threshold <= 0 or self.safe_pm25_threshold >= self.pm25_threshold:
+            raise ValueError("safe_pm25_threshold must be positive and below pm25_threshold")
+        if self.safe_co2_threshold <= 0 or self.safe_co2_threshold >= self.co2_threshold:
+            raise ValueError("safe_co2_threshold must be positive and below co2_threshold")
         self.stale_after_seconds = max(1, int(stale_after_seconds))
         self.max_gap_seconds = max(1, min(int(max_gap_seconds), self.stale_after_seconds))
         if not 5 <= int(default_duration_minutes) <= 180:
@@ -386,8 +394,8 @@ class VentilationService:
         return (
             pm25 is not None
             and co2 is not None
-            and float(pm25) <= self.pm25_threshold
-            and float(co2) <= self.co2_threshold
+            and float(pm25) < self.safe_pm25_threshold
+            and float(co2) < self.safe_co2_threshold
         )
 
     @staticmethod

@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-TOOL_REGISTRY_VERSION = "2026-08-27.forecast-baseline-only"
+TOOL_REGISTRY_VERSION = "2026-08-29.ventilation-status-v1"
 TOOL_REGISTRY_OWNER = "ai-agent"
 STATION_IDS = {"S01", "S02", "S03", "S04", "S05"}
 
@@ -29,6 +29,7 @@ class ToolName(StrEnum):
     GET_USER_PROFILE = "get_user_profile"
     CREATE_WARNING_PROPOSAL = "create_warning_proposal"
     GET_SPATIAL_AIR_QUALITY = "get_spatial_air_quality"
+    GET_VENTILATION_DEVICES_STATUS = "get_ventilation_devices_status"
 
 
 class ToolErrorCode(StrEnum):
@@ -341,6 +342,65 @@ class ActiveAlerts(BackendOutputModel):
     items: list[ActiveAlert]
 
 
+class VentilationDevicesInput(StrictModel):
+    station_id: str | None = None
+
+    @field_validator("station_id")
+    @classmethod
+    def optional_station_known(cls, value: str | None) -> str | None:
+        return validate_station_id(value) if value else value
+
+
+class VentilationEffectiveness(BackendOutputModel):
+    baseline_pm25: float | None = Field(default=None, ge=0)
+    current_pm25: float | None = Field(default=None, ge=0)
+    pm25_reduction_percent: float | None = None
+    baseline_co2: float | None = Field(default=None, ge=0)
+    current_co2: float | None = Field(default=None, ge=0)
+    co2_reduction_percent: float | None = None
+    measured_at: AwareDatetime | None = None
+
+
+class VentilationCommandSummary(BackendOutputModel):
+    command_intent_id: str
+    approval_request_id: str
+    command_id: str | None = None
+    action: str
+    status: str
+    ack_status: str | None = None
+    approved_by: str | None = None
+    approved_at: AwareDatetime | None = None
+
+
+class VentilationDeviceStatus(BackendOutputModel):
+    device_id: str
+    device_name: str
+    station_id: str
+    station_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    operating_mode: Literal["RUNNING_BOOST", "AIR_PURIFIER_ON", "ECO_MODE", "STANDBY"]
+    is_active: bool
+    is_simulated: Literal[True]
+    started_at: AwareDatetime | None = None
+    ends_at: AwareDatetime | None = None
+    duration_minutes: int | None = Field(default=None, ge=5, le=180)
+    intensity_percent: int | None = Field(default=None, ge=1, le=100)
+    remaining_seconds: int = Field(default=0, ge=0)
+    effectiveness: VentilationEffectiveness | None = None
+    latest_command: VentilationCommandSummary | None = None
+    source: Literal["simulator"]
+
+    @field_validator("station_id")
+    @classmethod
+    def station_id_known(cls, value: str) -> str:
+        return validate_station_id(value)
+
+
+class VentilationDevicesStatus(BackendOutputModel):
+    items: list[VentilationDeviceStatus]
+
+
 class UserProfile(BackendOutputModel):
     user_id: str
     group: Literal["normal", "sensitive", "outdoor_sport"] = Field(
@@ -541,5 +601,16 @@ TOOL_REGISTRY: dict[ToolName, ToolSpec] = {
         output_schema=SpatialAirQuality,
         method="GET",
         endpoint="/api/v1/spatial/heatmap?metric={metric}&forecast_hour={forecast_hour}",
+    ),
+    ToolName.GET_VENTILATION_DEVICES_STATUS: ToolSpec(
+        name=ToolName.GET_VENTILATION_DEVICES_STATUS,
+        description=(
+            "Fetch backend-grounded simulated ventilation device mode, approved runtime, "
+            "remaining time, and measured PM2.5/CO2 effectiveness. This tool is read-only."
+        ),
+        input_schema=VentilationDevicesInput,
+        output_schema=VentilationDevicesStatus,
+        method="GET",
+        endpoint="/api/v1/ventilation-devices",
     ),
 }

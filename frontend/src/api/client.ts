@@ -18,6 +18,7 @@ import {
   SpatialHeatmapResponse,
   SpatialHeatmapPoint,
   EmailDeliveryStatus,
+  VentilationDevice,
 } from "../types";
 import { resolveApiBaseUrl } from "./apiBaseUrl";
 import { extractAgentReply } from "./agentResponseHelper.js";
@@ -329,6 +330,7 @@ function mapProposal(request: Record<string, any>): Proposal {
     ventilation_boost: "Tăng cường thông gió",
     air_purifier_on: "Bật hệ thống lọc không khí",
     eco_mode: "Đưa thiết bị về chế độ tiết kiệm",
+    standby: "Dừng thiết bị về chế độ chờ",
   };
   const deviceId = request.device_id ?? rawControl.device_id ?? null;
   const proposedAction = request.proposed_action ?? rawControl.action;
@@ -740,6 +742,29 @@ export const api = {
     return data.items.map(mapProposal);
   },
 
+  getVentilationDevices: async (stationId?: string): Promise<VentilationDevice[]> => {
+    const query = stationId ? `?station_id=${encodeURIComponent(stationId)}` : "";
+    const data = await apiFetch<{ items: VentilationDevice[] }>(`/api/v1/ventilation-devices${query}`);
+    return data.items;
+  },
+
+  createVentilationDeviceProposal: async (
+    deviceId: string,
+    action: "eco_mode" | "standby",
+    reason: string,
+    idempotencyKey: string,
+  ): Promise<Proposal> => {
+    const data = await apiFetch<Record<string, any>>(
+      `/api/v1/devices/${encodeURIComponent(deviceId)}/proposals`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ action, reason }),
+      },
+    );
+    return mapProposal(data);
+  },
+
   approveProposal: async (proposalId: string, version: number, note: string, _actor?: DemoApiActor): Promise<Proposal> => {
     const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/approve`, {
       method: "POST",
@@ -975,6 +1000,8 @@ export const approveProposal = (proposalId: string, version: number, note = "App
   api.approveProposal(proposalId, version, note);
 export const rejectProposal = (proposalId: string, version: number, note = "Rejected by manager") =>
   api.rejectProposal(proposalId, version, note);
+export const fetchVentilationDevices = api.getVentilationDevices;
+export const createVentilationDeviceProposal = api.createVentilationDeviceProposal;
 export const sendAgentChat = async (message: string, userId = "USR-002"): Promise<{ response: string; message?: string }> => {
   const res = await api.sendAgentMessage(message, null, userId);
   return { response: res.reply };

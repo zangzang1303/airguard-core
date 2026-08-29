@@ -26,6 +26,8 @@ from src.agents.tools.contracts import (
     ToolName,
     UserProfile,
     UserProfileInput,
+    VentilationDevicesInput,
+    VentilationDevicesStatus,
     WarningProposal,
     WarningProposalInput,
     WeatherContext,
@@ -168,6 +170,46 @@ DEFAULT_FIXTURES: dict[str, Any] = {
             "source": "fixture",
         },
     },
+    "ventilation_devices": {
+        "items": [
+            {
+                "device_id": "FILTER-01",
+                "device_name": "Simulated outdoor filtration unit",
+                "station_id": "S03",
+                "station_name": "Ven Hồ Ngọc Trai",
+                "latitude": 20.9953,
+                "longitude": 105.95,
+                "operating_mode": "RUNNING_BOOST",
+                "is_active": True,
+                "is_simulated": True,
+                "started_at": (FIXED_NOW - timedelta(minutes=22)).isoformat(),
+                "ends_at": (FIXED_NOW + timedelta(minutes=23)).isoformat(),
+                "duration_minutes": 45,
+                "intensity_percent": 80,
+                "remaining_seconds": 1380,
+                "effectiveness": {
+                    "baseline_pm25": 88.0,
+                    "current_pm25": 38.0,
+                    "pm25_reduction_percent": 56.8,
+                    "baseline_co2": 1100.0,
+                    "current_co2": 520.0,
+                    "co2_reduction_percent": 52.7,
+                    "measured_at": FIXED_NOW.isoformat(),
+                },
+                "latest_command": {
+                    "command_intent_id": "intent-fixture-001",
+                    "approval_request_id": "proposal-fixture-001",
+                    "command_id": "command-fixture-001",
+                    "action": "ventilation_boost",
+                    "status": "succeeded",
+                    "ack_status": "succeeded",
+                    "approved_by": "manager-fixture",
+                    "approved_at": (FIXED_NOW - timedelta(minutes=22)).isoformat(),
+                },
+                "source": "simulator",
+            }
+        ]
+    },
 }
 
 
@@ -273,6 +315,23 @@ class FakeBackendToolClient:
         except ValidationError as exc:
             return self._validation_error(ToolName.GET_USER_PROFILE, request_id, exc)
         return ToolEnvelope(tool_name=ToolName.GET_USER_PROFILE, request_id=request_id, data=data)
+
+    async def get_ventilation_devices_status(
+        self, payload: Mapping[str, Any], request_id: str = "fixture-request"
+    ) -> ToolEnvelope | ToolError:
+        try:
+            args = VentilationDevicesInput.model_validate(payload)
+            items = self.fixtures["ventilation_devices"]["items"]
+            if args.station_id:
+                items = [item for item in items if item["station_id"] == args.station_id]
+            data = VentilationDevicesStatus.model_validate({"items": items}).model_dump(mode="json")
+        except ValidationError as exc:
+            return self._validation_error(ToolName.GET_VENTILATION_DEVICES_STATUS, request_id, exc)
+        return ToolEnvelope(
+            tool_name=ToolName.GET_VENTILATION_DEVICES_STATUS,
+            request_id=request_id,
+            data=data,
+        )
 
     async def create_warning_proposal(
         self, payload: Mapping[str, Any], request_id: str = "fixture-request"

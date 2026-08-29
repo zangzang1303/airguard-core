@@ -154,6 +154,7 @@ def publish_approved_device_command(
         payload = {
             "command_id": command_id,
             "device_id": device_id,
+            "station_id": approval.get("station_id"),
             "action": command,
             "approval_id": approval_request_id,
             "idempotency_key": idempotency_key,

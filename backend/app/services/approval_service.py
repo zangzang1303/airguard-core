@@ -668,6 +668,7 @@ class ApprovalService:
 
         raw_control = evidence.get("control")
         control = dict(raw_control) if isinstance(raw_control, dict) else {}
+        assessment = None
         if proposed_action == "eco_mode":
             assessment = self.ventilation_service.assess_recovery(station_id)
             if not assessment.eligible:
@@ -684,7 +685,7 @@ class ApprovalService:
                     "Eco recovery evidence does not match the latest eligible boost",
                     409,
                 )
-        else:
+        elif proposed_action in TIMED_DEVICE_ACTIONS:
             assessment = self.ventilation_service.assess_trigger(station_id)
             if not assessment.eligible:
                 raise ServiceError(
@@ -736,7 +737,14 @@ class ApprovalService:
             requested_device_id=requested_device_id,
         )
         normalized = dict(evidence)
-        normalized["ventilation_policy"] = assessment.as_evidence()
+        if assessment is not None:
+            normalized["ventilation_policy"] = assessment.as_evidence()
+        elif proposed_action == "standby":
+            normalized["ventilation_policy"] = {
+                "eligible": True,
+                "reason_code": "manager_requested_safe_stop",
+                "policy_version": "ventilation-standby-hitl-v1",
+            }
         normalized["control"] = {
             **control,
             "action": proposed_action,
