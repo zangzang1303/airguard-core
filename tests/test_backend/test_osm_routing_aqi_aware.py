@@ -286,3 +286,67 @@ class TestOSMRoutingAQIAware:
 
         assert any(e["to"] == "N_ZENPARK_GARDEN" for e in running_adj["N_ZENPARK_GATE"])
         assert not any(e["to"] == "N_ZENPARK_GARDEN" for e in cycling_adj["N_ZENPARK_GATE"])
+
+    # -------------------------------------------------------------
+    # T11: Forecast Time-Aware Context & Action Chips
+    # -------------------------------------------------------------
+    def test_t11_forecast_time_aware_query(
+        self,
+        geospatial_agent: GeospatialAgentService,
+    ) -> None:
+        snapshots = _mock_grounded_snapshots()
+        res = geospatial_agent.process_query(
+            message="Tìm đoạn đường chạy bộ phù hợp nhất tối nay lúc 20:00",
+            station_snapshots=snapshots,
+        )
+        assert res["intent"] in {"recommend_running_route", "recommend_personalized_running_route"}
+        assert "route" in res or "best_route" in res
+        route = res.get("route") or res.get("best_route")
+        assert route["distance_km"] > 0
+        assert len(route["coordinates"]) >= 2
+        # Follow-up actions should be present
+        assert len(res.get("follow_up_actions", [])) >= 1
+
+    # -------------------------------------------------------------
+    # T12: Output Contract Completeness (Section 21)
+    # -------------------------------------------------------------
+    def test_t12_route_output_contract_completeness(
+        self,
+        router: RoadGraphRouter,
+        scoring: EnvironmentalScoringEngine,
+    ) -> None:
+        snapshots = _mock_grounded_snapshots()
+        station_pm25 = {s: d["pm25"] for s, d in snapshots.items()}
+
+        candidates = router.generate_candidate_routes_from_origin(
+            origin_lat=20.9938,
+            origin_lng=105.9485,
+            target_km=3.0,
+            station_pm25_map=station_pm25,
+            activity="running",
+        )
+        ranked = scoring.rank_route_candidates(
+            candidates=candidates,
+            station_data_map=snapshots,
+            user_group="normal",
+            target_km=3.0,
+        )
+        assert len(ranked) >= 1
+        best = ranked[0]
+
+        # Verify all required Section 21 fields
+        required_fields = [
+            "id", "distance_km", "distance_m", "mean_aqi", "max_aqi",
+            "p90_aqi", "distance_above_threshold_m", "access_distance_m",
+            "score", "coordinates", "edge_ids", "environment_segments",
+        ]
+        for field in required_fields:
+            assert field in best, f"Missing required contract field: {field}"
+
+        assert isinstance(best["coordinates"], list)
+        assert len(best["coordinates"]) >= 2
+        assert isinstance(best["edge_ids"], list)
+        assert len(best["edge_ids"]) >= 1
+        assert isinstance(best["environment_segments"], list)
+        assert len(best["environment_segments"]) >= 1
+
