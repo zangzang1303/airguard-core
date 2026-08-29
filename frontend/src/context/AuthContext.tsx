@@ -8,6 +8,7 @@ export type ScreenType =
   | "admin-users"
   | "admin-regions"
   | "admin-devices"
+  | "admin-reports"
   | "admin-settings"
   | "admin-coming-soon"
   | "station-detail"
@@ -89,6 +90,11 @@ interface AuthContextType {
   navigateTo: (screen: ScreenType, params?: { stationId?: string }) => void;
 }
 
+const authenticatedLandingScreen = (): ScreenType =>
+  typeof window !== "undefined" && window.location.pathname.includes("reports")
+    ? "admin-reports"
+    : "dashboard";
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -153,7 +159,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         : "Vinhomes Ocean Park 1"
     );
     setIsAuthenticated(true);
-    setCurrentScreen("dashboard");
+    setCurrentScreen(authenticatedLandingScreen());
   };
 
   // Check existing session & load config on mount
@@ -190,7 +196,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const meData = await api.getMe();
           if (mounted && meData.user) {
             applyUser(meData.user);
-            setCurrentScreen("dashboard");
             return;
           }
         } catch {
@@ -226,7 +231,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (meData.user) {
         applyUser(meData.user);
         setAuthMessage(null);
-        setCurrentScreen("dashboard");
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
         return { success: true, message: `Đăng nhập thành công.` };
       }
@@ -246,7 +250,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (meData.user) {
         applyUser(meData.user);
         setAuthMessage(null);
-        setCurrentScreen("dashboard");
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
         return { success: true, message: `Đăng nhập thành công với vai trò ${meData.user.role}.` };
       }

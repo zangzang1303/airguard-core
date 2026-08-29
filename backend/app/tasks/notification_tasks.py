@@ -56,6 +56,7 @@ def send_notification_job(
     idempotency_key: str,
     subject: str | None = None,
     email_type: str = "proposal_notification",
+    html: str | None = None,
 ) -> dict:
     task_id = self.request.id
 
@@ -69,7 +70,7 @@ def send_notification_job(
             recipient=recipient,
             subject=resolved_subject,
             text=message,
-            html=None,
+            html=html,
             email_type=email_type,
             idempotency_key=idempotency_key,
         )

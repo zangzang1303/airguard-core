@@ -28,6 +28,14 @@ class Settings:
     auto_proposal_enabled: bool
     resident_alert_notifications_enabled: bool
     resident_alert_notification_cooldown_seconds: int
+    predictive_warning_policy_version: str
+    predictive_warning_notifications_enabled: bool
+    predictive_warning_evaluation_interval_seconds: int
+    predictive_warning_lead_minutes: int
+    predictive_warning_lead_tolerance_minutes: int
+    predictive_warning_min_confidence: float
+    predictive_warning_forecast_max_age_seconds: int
+    predictive_warning_clear_evaluations: int
     proposal_pending_ttl_seconds: int
     auto_proposal_stations: tuple[str, ...]
     ventilation_trigger_seconds: int
@@ -36,6 +44,10 @@ class Settings:
     ventilation_intensity_percent: int
     ventilation_max_gap_seconds: int
     report_timezone: str
+    report_policy_version: str
+    report_expected_sample_interval_seconds: int
+    report_minimum_coverage_ratio: float
+    report_matrix_min_eligible_stations: int
     report_narrative_endpoint: str | None
     report_narrative_timeout_seconds: float
     report_narrative_service_token: str | None
@@ -106,6 +118,44 @@ class Settings:
         )
         if not 60 <= resident_alert_notification_cooldown_seconds <= 86400:
             raise ValueError("RESIDENT_ALERT_NOTIFICATION_COOLDOWN_SECONDS must be between 60 and 86400")
+        predictive_warning_policy_version = os.getenv(
+            "PREDICTIVE_WARNING_POLICY_VERSION",
+            "predictive-warning-policy-v1",
+        ).strip()
+        if not predictive_warning_policy_version:
+            raise ValueError("PREDICTIVE_WARNING_POLICY_VERSION must not be empty")
+        predictive_notifications_raw = os.getenv(
+            "PREDICTIVE_WARNING_NOTIFICATIONS_ENABLED",
+            "false",
+        ).strip().lower()
+        if predictive_notifications_raw not in {"true", "false"}:
+            raise ValueError("PREDICTIVE_WARNING_NOTIFICATIONS_ENABLED must be true or false")
+        predictive_evaluation_interval = int(
+            os.getenv("PREDICTIVE_WARNING_EVALUATION_INTERVAL_SECONDS", "900")
+        )
+        if not 300 <= predictive_evaluation_interval <= 3600:
+            raise ValueError("PREDICTIVE_WARNING_EVALUATION_INTERVAL_SECONDS must be between 300 and 3600")
+        predictive_lead_minutes = int(os.getenv("PREDICTIVE_WARNING_LEAD_MINUTES", "45"))
+        if not 15 <= predictive_lead_minutes <= 120:
+            raise ValueError("PREDICTIVE_WARNING_LEAD_MINUTES must be between 15 and 120")
+        predictive_lead_tolerance = int(
+            os.getenv("PREDICTIVE_WARNING_LEAD_TOLERANCE_MINUTES", "15")
+        )
+        if not 0 <= predictive_lead_tolerance <= 30:
+            raise ValueError("PREDICTIVE_WARNING_LEAD_TOLERANCE_MINUTES must be between 0 and 30")
+        predictive_min_confidence = float(os.getenv("PREDICTIVE_WARNING_MIN_CONFIDENCE", "0.60"))
+        if not 0 <= predictive_min_confidence <= 1:
+            raise ValueError("PREDICTIVE_WARNING_MIN_CONFIDENCE must be between 0 and 1")
+        predictive_forecast_max_age = int(
+            os.getenv("PREDICTIVE_WARNING_FORECAST_MAX_AGE_SECONDS", "900")
+        )
+        if not 60 <= predictive_forecast_max_age <= 3600:
+            raise ValueError("PREDICTIVE_WARNING_FORECAST_MAX_AGE_SECONDS must be between 60 and 3600")
+        predictive_clear_evaluations = int(
+            os.getenv("PREDICTIVE_WARNING_CLEAR_EVALUATIONS", "2")
+        )
+        if not 1 <= predictive_clear_evaluations <= 8:
+            raise ValueError("PREDICTIVE_WARNING_CLEAR_EVALUATIONS must be between 1 and 8")
         proposal_pending_ttl_seconds = int(os.getenv("PROPOSAL_PENDING_TTL_SECONDS", "3600"))
         if proposal_pending_ttl_seconds <= 0:
             raise ValueError("PROPOSAL_PENDING_TTL_SECONDS must be positive")
@@ -147,6 +197,24 @@ class Settings:
             ZoneInfo(report_timezone)
         except (ZoneInfoNotFoundError, ValueError) as exc:
             raise ValueError("REPORT_TIMEZONE must be a valid IANA timezone") from exc
+        report_policy_version = os.getenv("REPORT_POLICY_VERSION", "b7-esg-reports-v1").strip()
+        if not report_policy_version:
+            raise ValueError("REPORT_POLICY_VERSION must not be empty")
+        report_expected_sample_interval_seconds = int(
+            os.getenv("REPORT_EXPECTED_SAMPLE_INTERVAL_SECONDS", "10")
+        )
+        if not 1 <= report_expected_sample_interval_seconds <= 3600:
+            raise ValueError("REPORT_EXPECTED_SAMPLE_INTERVAL_SECONDS must be between 1 and 3600")
+        report_minimum_coverage_ratio = float(
+            os.getenv("REPORT_MINIMUM_COVERAGE_RATIO", "0.75")
+        )
+        if not 0 < report_minimum_coverage_ratio <= 1:
+            raise ValueError("REPORT_MINIMUM_COVERAGE_RATIO must be greater than 0 and at most 1")
+        report_matrix_min_eligible_stations = int(
+            os.getenv("REPORT_MATRIX_MIN_ELIGIBLE_STATIONS", "3")
+        )
+        if not 1 <= report_matrix_min_eligible_stations <= 5:
+            raise ValueError("REPORT_MATRIX_MIN_ELIGIBLE_STATIONS must be between 1 and 5")
         report_narrative_endpoint = os.getenv("REPORT_NARRATIVE_ENDPOINT", "").strip() or None
         report_narrative_timeout_seconds = float(os.getenv("REPORT_NARRATIVE_TIMEOUT_SECONDS", "5"))
         if report_narrative_timeout_seconds <= 0:
@@ -215,6 +283,14 @@ class Settings:
             auto_proposal_enabled=auto_proposal_raw == "true",
             resident_alert_notifications_enabled=resident_alert_notifications_raw == "true",
             resident_alert_notification_cooldown_seconds=resident_alert_notification_cooldown_seconds,
+            predictive_warning_policy_version=predictive_warning_policy_version,
+            predictive_warning_notifications_enabled=predictive_notifications_raw == "true",
+            predictive_warning_evaluation_interval_seconds=predictive_evaluation_interval,
+            predictive_warning_lead_minutes=predictive_lead_minutes,
+            predictive_warning_lead_tolerance_minutes=predictive_lead_tolerance,
+            predictive_warning_min_confidence=predictive_min_confidence,
+            predictive_warning_forecast_max_age_seconds=predictive_forecast_max_age,
+            predictive_warning_clear_evaluations=predictive_clear_evaluations,
             proposal_pending_ttl_seconds=proposal_pending_ttl_seconds,
             auto_proposal_stations=auto_proposal_stations,
             ventilation_trigger_seconds=ventilation_trigger_seconds,
@@ -223,6 +299,10 @@ class Settings:
             ventilation_intensity_percent=ventilation_intensity_percent,
             ventilation_max_gap_seconds=ventilation_max_gap_seconds,
             report_timezone=report_timezone,
+            report_policy_version=report_policy_version,
+            report_expected_sample_interval_seconds=report_expected_sample_interval_seconds,
+            report_minimum_coverage_ratio=report_minimum_coverage_ratio,
+            report_matrix_min_eligible_stations=report_matrix_min_eligible_stations,
             report_narrative_endpoint=report_narrative_endpoint,
             report_narrative_timeout_seconds=report_narrative_timeout_seconds,
             report_narrative_service_token=report_narrative_service_token,

@@ -31,8 +31,9 @@
 }
 
 .auth-unified-container--register {
-  max-width: 880px;
-  min-height: 640px;
+  /* The registration screen now has one column, so size the card around the form. */
+  max-width: 520px;
+  min-height: auto;
 }
 
 /* Standalone Auth Card (for Register, Verify, Forgot, Reset) */
@@ -291,6 +292,12 @@
   outline: none;
   font-size: 0.86rem;
   color: #0f172a;
+}
+
+/* Edge adds its own password-reveal control; use the app's one consistent control instead. */
+.auth-input-wrap input[type="password"]::-ms-reveal,
+.auth-input-wrap input[type="password"]::-ms-clear {
+  display: none;
 }
 
 .auth-select {

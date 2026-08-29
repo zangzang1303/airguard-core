@@ -78,7 +78,7 @@ const SuperAppMain: React.FC<{
   connectionStatus,
   lastUpdated,
 }) => {
-  const { role, userGroup, demoMode } = useAuth();
+  const { role, userGroup, demoMode, navigateTo } = useAuth();
   const isManager = role === "manager" || role === "admin";
   const canUseDemoControl = isManager && Boolean(demoMode);
 
@@ -91,6 +91,21 @@ const SuperAppMain: React.FC<{
 
   // Map controls
   const [flyToTarget, setFlyToTarget] = useState<[number, number] | null>(null);
+  const predictiveWarningId = typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("predictive_warning_id");
+
+  useEffect(() => {
+    if (!predictiveWarningId || stations.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("panel") !== "alerts") return;
+    const stationId = params.get("station_id");
+    const station = stations.find((item) => item.station_id === stationId);
+    if (!station) return;
+    setSelectedStationId(station.station_id);
+    setFlyToTarget([station.latitude, station.longitude]);
+    setActiveDrawer("alerts");
+  }, [predictiveWarningId, stations]);
 
   // Layer Configuration State
   const [layerConfig, setLayerConfig] = useState<MapLayerConfig>({
@@ -463,6 +478,7 @@ const SuperAppMain: React.FC<{
         onOpenProfile={() => setActiveDrawer("health-profile")}
         onOpenManagerDrawer={() => setActiveDrawer("manager-approval")}
         onOpenAudit={() => setActiveDrawer("audit")}
+        onOpenReports={() => navigateTo("admin-reports")}
         onAskAiWithQuery={handleAskAiWithQuery}
         onSetUserLocation={handleSetUserLocation}
         onLocateGps={handleLocateGps}
@@ -617,6 +633,7 @@ const SuperAppMain: React.FC<{
           onRetry={refreshData}
           onClose={() => setActiveDrawer(null)}
           onShowAlertOnMap={handleShowAlertOnMap}
+          predictiveWarningId={predictiveWarningId}
         />
       )}
 
@@ -711,6 +728,8 @@ const AppContent: React.FC = () => {
         setCurrentScreen("reset-password");
       } else if (pathname.includes("forgot-password")) {
         setCurrentScreen("forgot-password");
+      } else if (pathname.includes("reports")) {
+        setCurrentScreen("admin-reports");
       }
     }
   }, [setCurrentScreen]);
@@ -866,62 +885,59 @@ const AppContent: React.FC = () => {
     if (currentScreen === "admin-users") return <UserManagement />;
     if (currentScreen === "admin-regions") return <RegionStations />;
     if (currentScreen === "admin-devices") return <IotDevices />;
-    if ((currentScreen as string) === "admin-reports" || (currentScreen as string) === "reports") return <ReportViewer />;
+    if (currentScreen === "admin-reports") return <ReportViewer />;
     if (currentScreen === "admin-settings") return <AdminDashboard />;
     return null;
   };
 
   const specialOverlay = renderScreenOverlay();
 
-  return (
-    <>
-      <SuperAppMain
-        stations={stations}
-        alerts={alerts}
-        proposals={proposals}
-        loading={loading}
-        loadError={loadError}
-        proposalLoadError={proposalLoadError}
-        refreshData={refreshData}
-        connectionStatus={connectionStatus}
-        lastUpdated={lastUpdated}
-      />
-      {specialOverlay && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 3000,
-            background: "#f8fafc",
-            overflowY: "auto",
-            padding: "20px",
-          }}
-        >
-          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-            <button
-              onClick={() => navigateTo("dashboard")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                background: "#1e293b",
-                color: "#fff",
-                border: "none",
-                borderRadius: "20px",
-                padding: "8px 16px",
-                cursor: "pointer",
-                fontWeight: 600,
-                fontSize: "0.85rem",
-                marginBottom: "16px",
-              }}
-            >
-              <ArrowLeft size={16} /> Trở về Bản đồ
-            </button>
-            {specialOverlay}
-          </div>
+  if (specialOverlay) {
+    return (
+      <div
+        className="special-screen-overlay"
+        style={{
+          background: "#f8fafc",
+        }}
+      >
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <button
+            onClick={() => navigateTo("dashboard")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "#1e293b",
+              color: "#fff",
+              border: "none",
+              borderRadius: "20px",
+              padding: "8px 16px",
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: "0.85rem",
+              marginBottom: "16px",
+            }}
+          >
+            <ArrowLeft size={16} /> Trở về Bản đồ
+          </button>
+          {specialOverlay}
         </div>
-      )}
-    </>
+      </div>
+    );
+  }
+
+  return (
+    <SuperAppMain
+      stations={stations}
+      alerts={alerts}
+      proposals={proposals}
+      loading={loading}
+      loadError={loadError}
+      proposalLoadError={proposalLoadError}
+      refreshData={refreshData}
+      connectionStatus={connectionStatus}
+      lastUpdated={lastUpdated}
+    />
   );
 };
 

@@ -39,6 +39,7 @@ const screenMetadata: Record<ScreenType, { label: string }> = {
   "admin-users": { label: "Quản lý người dùng" },
   "admin-regions": { label: "Khu vực & Trạm" },
   "admin-devices": { label: "Thiết bị IoT" },
+  "admin-reports": { label: "Báo cáo môi trường" },
   "admin-settings": { label: "Cài đặt" },
   "station-detail": {
     label: "Chi tiết trạm",

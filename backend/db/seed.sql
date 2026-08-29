@@ -73,3 +73,21 @@ ON CONFLICT (user_id) DO UPDATE SET
 INSERT INTO devices (device_id, device_name, device_type, station_id, status, is_simulated)
 VALUES ('FILTER-01', 'Simulated outdoor filtration unit', 'air_filter', 'S03', 'offline', TRUE)
 ON CONFLICT (device_id) DO NOTHING;
+
+INSERT INTO device_operating_profiles (
+    profile_id, device_id, profile_version, effective_from, effective_to,
+    airflow_m3_per_hour, boost_power_kw, eco_power_kw,
+    calibration_source, is_simulated
+)
+VALUES (
+    '50000000-0000-0000-0000-000000000001', 'FILTER-01',
+    'filter-01-simulator-profile-v1', '2026-01-01T00:00:00+07:00', NULL,
+    12000, 4.8, 1.2,
+    'simulator_seed_b7_esg_reports_v1_not_field_calibration', TRUE
+)
+ON CONFLICT (device_id, profile_version) DO UPDATE SET
+    airflow_m3_per_hour = EXCLUDED.airflow_m3_per_hour,
+    boost_power_kw = EXCLUDED.boost_power_kw,
+    eco_power_kw = EXCLUDED.eco_power_kw,
+    calibration_source = EXCLUDED.calibration_source,
+    is_simulated = TRUE;

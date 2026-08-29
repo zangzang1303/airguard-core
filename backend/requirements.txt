@@ -10,4 +10,5 @@ httpx==0.28.1
 argon2-cffi==23.1.0
 tzdata==2025.2
 reportlab==4.2.5
+pypdf==5.1.0
 resend==2.36.0
