@@ -14,6 +14,7 @@ def test_device_command_requires_server_approval_reference() -> None:
         {
             "command_id": "cmd-1",
             "device_id": "FILTER-01",
+            "station_id": "S03",
             "action": "ventilation_boost",
             "approval_id": "approval-1",
             "idempotency_key": "approval:approval-1:v2",
@@ -31,6 +32,7 @@ def test_device_command_rejects_missing_approval_reference() -> None:
     payload = {
         "command_id": "cmd-1",
         "device_id": "FILTER-01",
+        "station_id": "S03",
         "action": "ventilation_boost",
         "idempotency_key": "key-1",
         "timestamp": "2026-08-08T10:00:00+00:00",
@@ -50,6 +52,7 @@ def test_device_command_rejects_naive_timestamp() -> None:
     payload = {
         "command_id": "cmd-1",
         "device_id": "FILTER-01",
+        "station_id": "S03",
         "action": "eco_mode",
         "approval_id": "approval-1",
         "idempotency_key": "key-1",
@@ -68,6 +71,7 @@ def test_timed_device_command_requires_duration_and_intensity() -> None:
     payload = {
         "command_id": "cmd-2",
         "device_id": "FILTER-01",
+        "station_id": "S03",
         "action": "ventilation_boost",
         "approval_id": "approval-2",
         "idempotency_key": "approval:approval-2:v2",
@@ -86,6 +90,7 @@ def test_device_command_action_is_allowlisted() -> None:
     payload = {
         "command_id": "cmd-3",
         "device_id": "FILTER-01",
+        "station_id": "S03",
         "action": "notify_station_area_users",
         "approval_id": "approval-3",
         "idempotency_key": "approval:approval-3:v2",

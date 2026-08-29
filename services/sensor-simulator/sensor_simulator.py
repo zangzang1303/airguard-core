@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import random
 import signal
-import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from typing import Any
-
 
 import paho.mqtt.client as mqtt
 
@@ -25,6 +24,12 @@ RUN_ID = os.getenv("SENSOR_RUN_ID") or uuid.uuid4().hex[:10]
 STATION_CATALOG_PATH = Path(os.getenv("STATION_CATALOG_PATH", "/app/data/stations.json"))
 VIETNAM_TZ = timezone(timedelta(hours=7))
 stop_event = Event()
+ventilation_lock = Lock()
+active_ventilation: dict[str, dict[str, Any]] = {}
+PM25_CLEAN_TARGET = float(os.getenv("VENTILATION_PM25_CLEAN_TARGET", "15"))
+CO2_CLEAN_TARGET = float(os.getenv("VENTILATION_CO2_CLEAN_TARGET", "450"))
+PM25_DECAY_RATE = float(os.getenv("VENTILATION_PM25_DECAY_RATE", "0.08"))
+CO2_DECAY_RATE = float(os.getenv("VENTILATION_CO2_DECAY_RATE", "0.06"))
 
 if RANDOM_SEED is not None:
     random.seed(int(RANDOM_SEED))
@@ -88,6 +93,77 @@ def simulate_pm25(station: dict[str, Any], counter: int, now: datetime) -> tuple
     return round(max(1, value), 2), weather
 
 
+def apply_ventilation_feedback(
+    station_id: str,
+    pm25: float,
+    co2: float,
+    now: datetime,
+) -> tuple[float, float]:
+    """Apply the Task-4 demo decay only while an approved simulated cycle is active."""
+    with ventilation_lock:
+        state = active_ventilation.get(station_id)
+        if state is None:
+            return pm25, co2
+        ends_at = datetime.fromisoformat(str(state["ends_at"]))
+        if now.astimezone(UTC) >= ends_at.astimezone(UTC):
+            active_ventilation.pop(station_id, None)
+            return pm25, co2
+        if state.get("baseline_pm25") is None:
+            state["baseline_pm25"] = float(pm25)
+            state["baseline_co2"] = float(co2)
+        started_at = datetime.fromisoformat(str(state["started_at"]))
+        elapsed_minutes = max(
+            0.0,
+            (now.astimezone(UTC) - started_at.astimezone(UTC)).total_seconds() / 60.0,
+        )
+        intensity_scale = max(0.1, float(state.get("intensity_percent") or 80) / 80.0)
+        baseline_pm25 = max(PM25_CLEAN_TARGET, float(state["baseline_pm25"]))
+        baseline_co2 = max(CO2_CLEAN_TARGET, float(state["baseline_co2"]))
+        reduced_pm25 = (
+            (baseline_pm25 - PM25_CLEAN_TARGET)
+            * math.exp(-PM25_DECAY_RATE * intensity_scale * elapsed_minutes)
+            + PM25_CLEAN_TARGET
+        )
+        reduced_co2 = (
+            (baseline_co2 - CO2_CLEAN_TARGET)
+            * math.exp(-CO2_DECAY_RATE * intensity_scale * elapsed_minutes)
+            + CO2_CLEAN_TARGET
+        )
+        return round(min(pm25, reduced_pm25), 2), round(min(co2, reduced_co2), 1)
+
+
+def handle_device_status(raw: dict[str, Any]) -> None:
+    station_id = str(raw.get("station_id") or "").upper()
+    mode = str(raw.get("device_state") or "").upper()
+    if station_id not in {"S01", "S02", "S03", "S04", "S05"}:
+        return
+    with ventilation_lock:
+        if raw.get("status") not in {"succeeded", "duplicate"}:
+            return
+        if mode not in {"RUNNING_BOOST", "AIR_PURIFIER_ON"}:
+            active_ventilation.pop(station_id, None)
+            return
+        started_at = raw.get("started_at") or raw.get("timestamp")
+        ends_at = raw.get("ends_at")
+        duration_minutes = raw.get("duration_minutes")
+        if not ends_at and started_at and duration_minutes:
+            ends_at = (
+                datetime.fromisoformat(str(started_at)).astimezone(UTC)
+                + timedelta(minutes=int(duration_minutes))
+            ).isoformat()
+        if not started_at or not ends_at:
+            return
+        active_ventilation[station_id] = {
+            "device_id": raw.get("device_id"),
+            "command_id": raw.get("command_id"),
+            "started_at": str(started_at),
+            "ends_at": str(ends_at),
+            "intensity_percent": int(raw.get("intensity_percent") or 80),
+            "baseline_pm25": None,
+            "baseline_co2": None,
+        }
+
+
 def publish_station_status(client: mqtt.Client, station_id: str, timestamp: str, status: str = "online", reason: str | None = None) -> None:
     topic = f"airguard/stations/{station_id}/status"
     payload: dict[str, Any] = {"station_id": station_id, "status": status, "timestamp": timestamp, "source": "simulator"}
@@ -101,6 +177,12 @@ def publish_measurement(client: mqtt.Client, station: dict[str, Any], counter: i
     station_id = station["station_id"]
     now = datetime.fromisoformat(timestamp)
     pm25, weather = simulate_pm25(station, counter, now)
+    pm25, weather["co2"] = apply_ventilation_feedback(
+        station_id,
+        pm25,
+        float(weather["co2"]),
+        now,
+    )
     message_counter = counter - 1 if duplicate and counter > 1 else counter
     topic = f"airguard/stations/{station_id}/measurements"
     payload = {
@@ -126,6 +208,19 @@ def main() -> None:
 
     stations = load_stations()
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+
+    def on_connect(connected_client, userdata, flags, reason_code, properties=None):
+        if reason_code == 0:
+            connected_client.subscribe("airguard/devices/+/status", qos=MQTT_QOS)
+
+    def on_message(_client, _userdata, message):
+        try:
+            handle_device_status(json.loads(message.payload.decode("utf-8")))
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            print(f"device-status ignored reason={type(exc).__name__}", flush=True)
+
+    client.on_connect = on_connect
+    client.on_message = on_message
     client.reconnect_delay_set(min_delay=1, max_delay=30)
     client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
     client.loop_start()

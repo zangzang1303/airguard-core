@@ -38,11 +38,11 @@ def test_settings_enable_automatic_agent_proposals_by_default() -> None:
             os.environ["AUTO_PROPOSAL_ENABLED"] = previous
 
 
-def test_settings_use_thirty_second_ventilation_trigger_by_default() -> None:
+def test_settings_use_fifteen_minute_ventilation_trigger_by_default() -> None:
     previous_seconds = os.environ.pop("VENTILATION_TRIGGER_SECONDS", None)
     previous_minutes = os.environ.pop("VENTILATION_TRIGGER_MINUTES", None)
     try:
-        assert Settings.load().ventilation_trigger_seconds == 30
+        assert Settings.load().ventilation_trigger_seconds == 15 * 60
     finally:
         if previous_seconds is not None:
             os.environ["VENTILATION_TRIGGER_SECONDS"] = previous_seconds

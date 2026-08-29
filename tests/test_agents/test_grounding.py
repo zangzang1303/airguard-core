@@ -9,11 +9,15 @@ import pytest
 from src.agents.graph import build_graph
 from src.agents.nodes.orchestration import generate_explanation_node
 from src.agents.policies.grounding import Intent, SafetyCategory, route_query
-from src.api.routes import agent_status
-from src.agents.response_composer import INSUFFICIENT_DATA_MESSAGE, compose_response
+from src.agents.response_composer import (
+    INSUFFICIENT_DATA_MESSAGE,
+    _format_metric_change,
+    compose_response,
+)
 from src.agents.tools.contracts import ToolEnvelope, ToolError, ToolErrorCode, ToolName
 from src.agents.tools.fake_adapter import DEFAULT_FIXTURES, FakeBackendToolClient
 from src.agents.trace import emit_trace
+from src.api.routes import agent_status
 
 
 class OutageAdapter(FakeBackendToolClient):
@@ -193,6 +197,12 @@ class SpatialOutageAdapter(FakeBackendToolClient):
             [ToolName.GET_USER_PROFILE],
             [{"user_id": "demo-user"}],
         ),
+        (
+            "Quạt thông gió ở S03 đã chạy được bao lâu, hiệu quả ra sao?",
+            Intent.DEVICE_STATUS,
+            [ToolName.GET_VENTILATION_DEVICES_STATUS],
+            [{"station_id": "S03"}],
+        ),
     ],
 )
 def test_intent_router_allow_lists_tool_arguments(query, intent, tools, arguments):
@@ -200,6 +210,25 @@ def test_intent_router_allow_lists_tool_arguments(query, intent, tools, argument
     assert decision.intent == intent
     assert decision.tool_calls == tools
     assert decision.tool_arguments == arguments
+
+
+@pytest.mark.asyncio
+async def test_ventilation_status_answer_is_grounded_in_runtime_and_effectiveness_tool() -> None:
+    result = await build_graph(FakeBackendToolClient()).ainvoke(
+        {"query": "Quạt thông gió ở S03 đã chạy được bao lâu, hiệu quả ra sao?"}
+    )
+
+    assert result["used_tools"] == ["get_ventilation_devices_status"]
+    assert "FILTER-01" in result["answer"]
+    assert "còn khoảng 23 phút" in result["answer"]
+    assert "PM2.5 giảm từ 88 xuống 38" in result["answer"]
+    assert result["sources"][0]["source"] == "simulator"
+
+
+def test_ventilation_effectiveness_does_not_call_an_increase_a_reduction() -> None:
+    assert _format_metric_change("PM2.5", 25.69, 37.64, "µg/m³") == (
+        "PM2.5 tăng từ 25.69 lên 37.64 µg/m³ (46.5%)"
+    )
 
 
 def test_spatial_router_resolves_named_location_comparison() -> None:

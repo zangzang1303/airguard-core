@@ -32,6 +32,8 @@ class Settings:
     auto_proposal_stations: tuple[str, ...]
     ventilation_trigger_seconds: int
     ventilation_recovery_minutes: int
+    ventilation_safe_pm25_threshold: float
+    ventilation_safe_co2_threshold: float
     ventilation_default_duration_minutes: int
     ventilation_intensity_percent: int
     ventilation_max_gap_seconds: int
@@ -125,9 +127,11 @@ class Settings:
             if trigger_seconds_raw
             else int(legacy_trigger_minutes_raw) * 60
             if legacy_trigger_minutes_raw
-            else 30
+            else 15 * 60
         )
         ventilation_recovery_minutes = int(os.getenv("VENTILATION_RECOVERY_MINUTES", "20"))
+        ventilation_safe_pm25_threshold = float(os.getenv("VENTILATION_SAFE_PM25_THRESHOLD", "25"))
+        ventilation_safe_co2_threshold = float(os.getenv("VENTILATION_SAFE_CO2_THRESHOLD", "700"))
         ventilation_default_duration_minutes = int(os.getenv("VENTILATION_DEFAULT_DURATION_MINUTES", "45"))
         ventilation_intensity_percent = int(os.getenv("VENTILATION_INTENSITY_PERCENT", "80"))
         ventilation_max_gap_seconds = int(os.getenv("VENTILATION_MAX_GAP_SECONDS", "60"))
@@ -135,6 +139,10 @@ class Settings:
             raise ValueError("VENTILATION_TRIGGER_SECONDS must be between 10 and 7200")
         if not 1 <= ventilation_recovery_minutes <= 180:
             raise ValueError("VENTILATION_RECOVERY_MINUTES must be between 1 and 180")
+        if not 0 < ventilation_safe_pm25_threshold < warning:
+            raise ValueError("VENTILATION_SAFE_PM25_THRESHOLD must be positive and below PM25_WARNING_THRESHOLD")
+        if not 0 < ventilation_safe_co2_threshold < co2_warning:
+            raise ValueError("VENTILATION_SAFE_CO2_THRESHOLD must be positive and below CO2_WARNING_THRESHOLD")
         if not 5 <= ventilation_default_duration_minutes <= 180:
             raise ValueError("VENTILATION_DEFAULT_DURATION_MINUTES must be between 5 and 180")
         if not 1 <= ventilation_intensity_percent <= 100:
@@ -219,6 +227,8 @@ class Settings:
             auto_proposal_stations=auto_proposal_stations,
             ventilation_trigger_seconds=ventilation_trigger_seconds,
             ventilation_recovery_minutes=ventilation_recovery_minutes,
+            ventilation_safe_pm25_threshold=ventilation_safe_pm25_threshold,
+            ventilation_safe_co2_threshold=ventilation_safe_co2_threshold,
             ventilation_default_duration_minutes=ventilation_default_duration_minutes,
             ventilation_intensity_percent=ventilation_intensity_percent,
             ventilation_max_gap_seconds=ventilation_max_gap_seconds,

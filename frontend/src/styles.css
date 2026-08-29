@@ -7416,3 +7416,177 @@ html {
     min-height: 50px;
   }
 }
+
+/* Task B7-04 — manager-only ventilation device map layer */
+.ventilation-marker-host {
+  background: transparent;
+  border: 0;
+}
+
+.ventilation-marker {
+  position: relative;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.96);
+  border-radius: 50%;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+  color: #fff;
+}
+
+.ventilation-marker--boost {
+  background: linear-gradient(145deg, #06b6d4, #2563eb);
+}
+
+.ventilation-marker--eco {
+  background: linear-gradient(145deg, #22c55e, #15803d);
+}
+
+.ventilation-marker--standby {
+  background: linear-gradient(145deg, #94a3b8, #64748b);
+}
+
+.ventilation-marker__fan {
+  position: relative;
+  z-index: 2;
+  font-size: 27px;
+  line-height: 1;
+}
+
+.ventilation-marker--boost .ventilation-marker__fan {
+  animation: ventilation-fan-spin 1.6s linear infinite;
+}
+
+.ventilation-marker__pulse {
+  position: absolute;
+  inset: -5px;
+  border: 2px solid rgba(34, 211, 238, 0.7);
+  border-radius: 50%;
+  opacity: 0;
+}
+
+.ventilation-marker--boost .ventilation-marker__pulse {
+  animation: ventilation-pulse 1.8s ease-out infinite;
+}
+
+@keyframes ventilation-fan-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ventilation-pulse {
+  0% { opacity: 0.8; transform: scale(0.8); }
+  75%, 100% { opacity: 0; transform: scale(1.55); }
+}
+
+.device-detail-drawer {
+  width: min(420px, calc(100vw - 24px));
+}
+
+.device-header {
+  background: linear-gradient(135deg, #ecfeff, #eff6ff);
+}
+
+.ventilation-device-body {
+  display: grid;
+  gap: 16px;
+}
+
+.device-mode-hero {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 16px;
+  border: 1px solid #bae6fd;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #ecfeff, #eff6ff);
+}
+
+.device-mode-hero.mode-eco_mode { border-color: #bbf7d0; background: #f0fdf4; }
+.device-mode-hero.mode-standby { border-color: #e2e8f0; background: #f8fafc; }
+.device-mode-hero > div { display: grid; gap: 3px; }
+.device-mode-hero small { color: #64748b; font-size: 0.68rem; font-weight: 750; text-transform: uppercase; }
+.device-mode-hero strong { color: #0f172a; font-size: 1.05rem; }
+.device-mode-hero span { color: #475569; font-size: 0.75rem; }
+.device-mode-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 14px; background: #0891b2; color: #fff; }
+
+.device-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.device-kpi-grid article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #0891b2;
+}
+
+.device-kpi-grid article span { color: #64748b; font-size: 0.69rem; }
+.device-kpi-grid article strong { grid-column: 1 / -1; color: #0f172a; font-size: 1rem; }
+
+.device-detail-section {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.device-detail-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 0.84rem;
+}
+
+.effectiveness-grid { display: grid; gap: 9px; }
+.effectiveness-grid > div { display: grid; gap: 3px; padding: 10px; border-radius: 10px; background: #f0fdf4; }
+.effectiveness-grid span { color: #64748b; font-size: 0.68rem; }
+.effectiveness-grid strong { color: #14532d; font-size: 0.78rem; }
+.effectiveness-grid em { color: #15803d; font-size: 0.7rem; font-style: normal; font-weight: 700; }
+
+.device-command-history { display: grid; gap: 8px; margin: 0; }
+.device-command-history div { display: flex; justify-content: space-between; gap: 14px; font-size: 0.72rem; }
+.device-command-history dt { color: #64748b; }
+.device-command-history dd { margin: 0; color: #1e293b; text-align: right; font-weight: 650; }
+.device-empty-copy { margin: 0; color: #64748b; font-size: 0.75rem; }
+
+.device-hitl-actions { display: grid; gap: 9px; }
+.device-hitl-actions > div { display: flex; gap: 8px; color: #475569; font-size: 0.71rem; line-height: 1.45; }
+.device-action-button, .device-refresh-button { display: flex; min-height: 42px; align-items: center; justify-content: center; gap: 7px; border-radius: 11px; font: inherit; font-size: 0.76rem; font-weight: 750; cursor: pointer; }
+.device-action-button { border: 0; color: #fff; }
+.device-action-button.eco { background: linear-gradient(135deg, #22c55e, #15803d); }
+.device-action-button.stop { background: linear-gradient(135deg, #f97316, #dc2626); }
+.device-action-button:disabled { opacity: 0.55; cursor: wait; }
+.device-refresh-button { border: 1px solid #cbd5e1; background: #fff; color: #334155; }
+.device-action-notice { padding: 10px 12px; border-radius: 10px; background: #ecfdf5; color: #166534; font-size: 0.72rem; }
+.device-action-notice.is-error { background: #fef2f2; color: #b91c1c; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ventilation-marker--boost .ventilation-marker__fan,
+  .ventilation-marker--boost .ventilation-marker__pulse { animation: none; }
+}
+
+.heatmap-update-status {
+  position: absolute;
+  left: 50%;
+  top: 5.5rem;
+  z-index: 720;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(9, 18, 32, 0.88);
+  color: #e2e8f0;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.75rem;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.22);
+  pointer-events: none;
+}

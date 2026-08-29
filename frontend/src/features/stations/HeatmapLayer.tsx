@@ -130,7 +130,15 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
     return offscreenCanvas.toDataURL();
   }, [data, activeLayer, isActive]);
 
-  if (!isActive || !overlayDataUrl) return null;
+  if (!isActive) return null;
+  if (loading && !overlayDataUrl) {
+    return (
+      <div className="heatmap-update-status" role="status" aria-live="polite">
+        Đang cập nhật mô hình…
+      </div>
+    );
+  }
+  if (!overlayDataUrl) return null;
 
   return (
     <Pane

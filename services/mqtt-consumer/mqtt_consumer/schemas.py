@@ -57,10 +57,21 @@ class DeviceStatusPayload(BaseModel):
     status: Literal["succeeded", "rejected", "failed", "duplicate"]
     timestamp: datetime
     is_simulated: Literal[True]
-    device_state: Literal["RUNNING_BOOST", "AIR_PURIFIER_ON", "ECO_MODE"] | None = None
+    device_state: Literal["RUNNING_BOOST", "AIR_PURIFIER_ON", "ECO_MODE", "STANDBY"] | None = None
+    station_id: str | None = Field(default=None, pattern=r"^S0[1-5]$")
+    action: Literal["ventilation_boost", "air_purifier_on", "eco_mode", "standby"] | None = None
+    started_at: datetime | None = None
+    ends_at: datetime | None = None
+    duration_minutes: int | None = Field(default=None, ge=5, le=180)
+    intensity_percent: int | None = Field(default=None, ge=1, le=100)
     reason: str | None = Field(default=None, max_length=200)
 
     @field_validator("timestamp")
     @classmethod
     def timestamp_has_timezone(cls, value: datetime) -> datetime:
         return _require_timezone(value)
+
+    @field_validator("started_at", "ends_at")
+    @classmethod
+    def optional_timestamp_has_timezone(cls, value: datetime | None) -> datetime | None:
+        return _require_timezone(value) if value is not None else None
