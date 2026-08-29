@@ -114,15 +114,6 @@ export function createDispersionOffscreenCanvas(
       const lon = extent.lonMin + (x + 0.5) * lonStep;
       const idx = (y * width + x) * 4;
 
-      // Strict clipping to Ocean Park 1 polygon
-      if (!isPointInBoundaryPolygon(lat, lon, boundaryPolygon)) {
-        data[idx] = 0;
-        data[idx + 1] = 0;
-        data[idx + 2] = 0;
-        data[idx + 3] = 0;
-        continue;
-      }
-
       if (gridPoints.length === 0) continue;
       const val = interpolateValueFromGrid(lat, lon, gridPoints);
 
@@ -137,6 +128,23 @@ export function createDispersionOffscreenCanvas(
   }
 
   ctx.putImageData(imgData, 0, 0);
+
+  // Apply clean vector polygon clipping via destination-in to avoid dark anti-alias fringe
+  if (boundaryPolygon && boundaryPolygon.length > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.beginPath();
+    boundaryPolygon.forEach(([lat, lon], i) => {
+      const px = ((lon - extent.lonMin) / (extent.lonMax - extent.lonMin)) * width;
+      const py = ((extent.latMax - lat) / (extent.latMax - extent.latMin)) * height;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   return canvas;
 }
 

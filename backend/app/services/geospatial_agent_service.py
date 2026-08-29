@@ -9,7 +9,7 @@ from .database import ServiceError
 from .environmental_scoring import environmental_scoring
 from .prophet_forecast_service import prophet_service
 from .response_composer import ResponseComposer, ResponseValidator, aqi_category_vi
-from .spatial_registry import spatial_registry
+from .spatial_registry import normalize_text, spatial_registry
 from .temporal_resolver import temporal_resolver
 
 logger = logging.getLogger(__name__)
@@ -44,12 +44,20 @@ class GeospatialAgentService:
         station_histories: dict[str, list[dict[str, Any]]] | None = None,
     ) -> dict[str, Any]:
         map_context = map_context or {}
-        q = message.lower().strip()
+
+        # Check for conversational correction (e.g. "Ý là hỏi chung cả khu Ocean Park 1")
+        is_correction, cleaned_message = conversation_state_manager.detect_correction(message)
+        if is_correction:
+            conversation_state_manager.invalidate_conflicting_context(conversation_id, new_scope="ocp1")
+            q = cleaned_message.lower().strip()
+        else:
+            q = message.lower().strip()
 
         conversation = conversational_agent.classify(
-            message,
+            cleaned_message if is_correction else message,
             station_id=station_id,
             map_context=map_context,
+            conversation_id=conversation_id,
         )
         if conversation.intent != "domain":
             return conversational_agent.deterministic_response(conversation, request_id=request_id)
@@ -345,8 +353,95 @@ class GeospatialAgentService:
         if unrecognized_loc and not explicit_poi:
             return self._handle_unknown_location_intent(unrecognized_loc, request_id)
 
-        # Contextual Follow-up & Clarification Resolution via ConversationStateManager
+        # Contextual Follow-up & Deep Dialogue Resolution via ConversationStateManager
         mentioned_pois = spatial_registry.find_all_pois_in_query(q)
+        turn_res = conversation_state_manager.resolve_conversation_turn(
+            conversation_id=conversation_id,
+            message=cleaned_message if is_correction else message,
+            map_context=map_context,
+        )
+
+        if turn_res.get("resolution_type") == "reject_pending_action":
+            composed = ResponseComposer.compose_action_cancelled(request_id=request_id)
+            return {
+                "answer": composed["answer"],
+                "response": composed["response"],
+                "intent": "conversation.reject",
+                "time_context": time_ctx,
+                "data_mode": time_ctx["type"],
+                "evidence": [],
+                "map_actions": [],
+                "follow_up_actions": composed["follow_up_actions"],
+                "request_id": request_id,
+            }
+
+        if turn_res.get("resolution_type") == "reference" and turn_res.get("needs_clarification"):
+            cands = turn_res.get("clarification_candidates", [])
+            composed = ResponseComposer.compose_ambiguous_reference_clarification(cands, request_id=request_id)
+            return {
+                "answer": composed["answer"],
+                "response": composed["response"],
+                "intent": "conversation.clarification",
+                "time_context": time_ctx,
+                "data_mode": time_ctx["type"],
+                "evidence": [],
+                "map_actions": [{"type": "clear_ai_layer"}],
+                "follow_up_actions": composed["follow_up_actions"],
+                "request_id": request_id,
+            }
+
+        if turn_res.get("resolution_type") == "accept_pending_action":
+            act = turn_res.get("resolved_intent")
+            if act in {"find_nearby_indoor_places", "recommend_indoor_activity"}:
+                safety_eval = {"warning": "hoạt động thể thao an toàn trong không gian điều hòa lọc khí"}
+                return self._handle_indoor_pivot_intent(
+                    safety_eval=safety_eval,
+                    user_location=user_loc,
+                    time_ctx=time_ctx,
+                    request_id=request_id,
+                    conversation_id=conversation_id,
+                )
+
+        if turn_res.get("resolution_type") == "answer_slot":
+            s_name = turn_res.get("slot_name")
+            s_val = turn_res.get("slot_value")
+            if s_name == "activity_subtype":
+                safety_eval = {"warning": "tập luyện an toàn trong không gian điều hòa lọc khí"}
+                return self._handle_indoor_pivot_intent(
+                    safety_eval=safety_eval,
+                    user_location=user_loc,
+                    time_ctx=time_ctx,
+                    request_id=request_id,
+                    activity_subtype=str(s_val),
+                    conversation_id=conversation_id,
+                )
+            elif s_name == "indoor_outdoor_choice":
+                if s_val == "indoor":
+                    conversation_state_manager.set_awaiting_slot(
+                        conversation_id, "activity_subtype", for_intent="find_nearby_indoor_places", options=["gym", "đi bộ"]
+                    )
+                    composed = ResponseComposer.compose_slot_prompt("activity_subtype", for_intent="find_nearby_indoor_places", request_id=request_id)
+                    return {
+                        "answer": composed["answer"],
+                        "response": composed["response"],
+                        "intent": "conversation.answer_slot",
+                        "time_context": time_ctx,
+                        "data_mode": time_ctx["type"],
+                        "evidence": [],
+                        "map_actions": [],
+                        "follow_up_actions": composed["follow_up_actions"],
+                        "request_id": request_id,
+                    }
+            elif s_name == "distance_km":
+                target_distance_km = float(s_val)
+
+        if turn_res.get("resolution_type") == "modify":
+            m_params = turn_res.get("modified_params", {})
+            if "distance_km" in m_params:
+                target_distance_km = float(m_params["distance_km"])
+            if "avoid_location" in m_params:
+                q = f"tránh {m_params['avoid_location']}"
+
         followup_res = conversation_state_manager.resolve_followup(
             conversation_id=conversation_id,
             current_query=q,
@@ -380,6 +475,36 @@ class GeospatialAgentService:
                 c_b = followup_res.get("reference_poi")
                 if c_a and c_b:
                     return self._handle_comparison_intent(q, ranked_pois, time_ctx, request_id, candidates=[c_a, c_b], conversation_id=conversation_id)
+
+        # Cycling / Alternative Activity Inquiry ("tôi có thể đạp xe thay vì chạy bộ ko")
+        is_cycling_inquiry = any(w in q for w in ["dap xe", "xe dap", "cycling", "dap xe thay vi", "thay vi chay bo"])
+        if is_cycling_inquiry:
+            headline = "🚴 **Được chứ. Bạn có thể đạp xe ngoài trời hoặc chuyển sang tập luyện trong nhà.**"
+            advice = "Nếu muốn, mình có thể giúp bạn tìm khu vực trong nhà thuận tiện hơn gần vị trí hiện tại."
+            conversation_state_manager.set_pending_action(
+                conversation_id,
+                "find_nearby_indoor_places",
+                known_slots={"activity_type": "indoor", "origin": origin_label},
+                required_slots=["origin"],
+            )
+            conversation_state_manager.set_awaiting_slot(
+                conversation_id,
+                "indoor_outdoor_choice",
+                for_intent="activity_choice",
+                options=["ngoài trời", "trong nhà"],
+            )
+            summary = f"{headline}\n\n{advice}"
+            return {
+                "answer": {"headline": headline, "summary": summary, "details": advice, "recommendation": advice},
+                "response": summary,
+                "intent": "recommend_activity_alternative",
+                "time_context": time_ctx,
+                "data_mode": time_ctx["type"],
+                "evidence": [],
+                "map_actions": [],
+                "follow_up_actions": ["Tìm khu vực trong nhà", "Đạp xe ngoài trời", "Kiểm tra AQI"],
+                "request_id": request_id,
+            }
 
         # Intent: Best Time to Exercise / Run Tonight (Decision Engine)
         is_best_time_inquiry = any(
@@ -547,17 +672,21 @@ class GeospatialAgentService:
         if is_indoor_inquiry:
             return self._handle_explicit_indoor_intent(q, ranked_pois, time_ctx, request_id, user_loc=user_loc, conversation_id=conversation_id)
 
-        # Intent 0: Running Route Recommendation (Personalized or General)
+        # Intent 0: Running / Walking / Cycling Route Recommendation
+        is_cycling = any(w in q for w in ["đạp xe", "xe đạp", "cycling", "đua xe"])
+        if is_cycling:
+            activity = "cycling"
+
         is_route_query = (
-            any(w in q for w in ["đoạn đường", "cung đường", "tuyến đường", "lộ trình", "đường chạy", "chạy bộ ở đâu", "tuyến chạy", "chạy ở đâu", "tuyến nào", "đường nào", "chạy bộ"])
+            any(w in q for w in ["đoạn đường", "cung đường", "tuyến đường", "lộ trình", "đường chạy", "chạy bộ ở đâu", "tuyến chạy", "chạy ở đâu", "tuyến nào", "đường nào", "chạy bộ", "đạp xe", "xe đạp"])
             or target_distance_km is not None
-            or (activity == "running" and any(w in q for w in ["đường", "tuyến", "đoạn", "ở đâu", "lộ trình", "nơi nào", "chỗ nào"]))
+            or (activity in {"running", "walking", "cycling"} and any(w in q for w in ["đường", "tuyến", "đoạn", "ở đâu", "lộ trình", "nơi nào", "chỗ nào"]))
         )
         if is_route_query:
             from .road_graph_router import road_graph_router
 
-            start_node, snap_dist_m = road_graph_router.find_nearest_node(origin_lat, origin_lng)
-            max_origin_snap_distance = 250.0  # meters
+            start_node, snap_dist_m = road_graph_router.find_nearest_node(origin_lat, origin_lng, activity=activity)
+            max_origin_snap_distance = 400.0 if activity == "cycling" else 250.0  # meters
 
             # Structured Debug Logging for Routing Origin Trace
             logger.info(
@@ -567,6 +696,7 @@ class GeospatialAgentService:
                         "query": message,
                         "origin_source": origin_source,
                         "origin_label": origin_label,
+                        "activity": activity,
                         "clicked_origin": {"lat": origin_lat, "lng": origin_lng},
                         "agent_origin": {"lat": origin_lat, "lng": origin_lng},
                         "routing_origin": {"lat": origin_lat, "lng": origin_lng},
@@ -582,7 +712,7 @@ class GeospatialAgentService:
                 )
             )
 
-            # Max Snap Distance check (Section 8)
+            # Max Snap Distance check (Section 6 & 8)
             if snap_dist_m > max_origin_snap_distance:
                 headline = f"📍 **Mình chưa tìm thấy lối chạy bộ phù hợp đủ gần điểm bạn chọn (cách trục đường gần nhất khoảng {int(snap_dist_m)} m).**"
                 advice = "Bạn có thể chọn một điểm gần các trục đường nội khu, công viên hoặc dải ven hồ trong khu đô thị Vinhomes Ocean Park 1 để mình vẽ lộ trình chính xác hơn."
@@ -620,7 +750,22 @@ class GeospatialAgentService:
                 station_pm25_map=station_pm25_map,
                 origin_source=origin_source,
                 origin_label=origin_label,
+                activity=activity,
             )
+
+            if not candidates:
+                too_far_comp = ResponseComposer.compose_too_far_route(origin_label=origin_label, request_id=request_id)
+                return {
+                    "answer": too_far_comp["answer"],
+                    "response": too_far_comp["response"],
+                    "intent": "recommend_running_route",
+                    "time_context": time_ctx,
+                    "data_mode": time_ctx["type"],
+                    "origin": {"source": origin_source, "lat": origin_lat, "lng": origin_lng, "label": origin_label},
+                    "evidence": [],
+                    "map_actions": [],
+                    "request_id": request_id,
+                }
 
             # 2. Continuous Line-Integral Spatial Environmental Scoring along polyline coordinates
             ranked_routes = environmental_scoring.rank_route_candidates(
@@ -631,12 +776,18 @@ class GeospatialAgentService:
             )
 
             if not ranked_routes:
-                raise ServiceError(
-                    "running_route_unavailable",
-                    "No grounded road-network candidate is available from the selected origin",
-                    503,
-                    {"origin_source": origin_source},
-                )
+                too_far_comp = ResponseComposer.compose_too_far_route(origin_label=origin_label, request_id=request_id)
+                return {
+                    "answer": too_far_comp["answer"],
+                    "response": too_far_comp["response"],
+                    "intent": "recommend_running_route",
+                    "time_context": time_ctx,
+                    "data_mode": time_ctx["type"],
+                    "origin": {"source": origin_source, "lat": origin_lat, "lng": origin_lng, "label": origin_label},
+                    "evidence": [],
+                    "map_actions": [],
+                    "request_id": request_id,
+                }
 
             best_route = ranked_routes[0]
 
@@ -650,11 +801,18 @@ class GeospatialAgentService:
                 user_group=user_group,
             )
             if not safety_eval["safe"]:
+                if conversation_id:
+                    conversation_state_manager.set_pending_action(
+                        conversation_id,
+                        "find_nearby_indoor_places",
+                        known_slots={"origin": origin_label},
+                    )
                 return self._handle_indoor_pivot_intent(
                     safety_eval=safety_eval,
                     user_location=(origin_lat, origin_lng),
                     time_ctx=time_ctx,
                     request_id=request_id,
+                    conversation_id=conversation_id,
                 )
 
             return self._handle_running_route_intent(
@@ -667,9 +825,31 @@ class GeospatialAgentService:
                 conversation_id=conversation_id,
             )
 
-        # Intent C: Specific Metric Focus (Noise, Temp, PM2.5/CO2) or Single Location / Follow-up Inquiry
-        is_noise_inquiry = any(w in q for w in ["độ ồn", "tiếng ồn", "ồn không", "yên tĩnh", "ồn ào", "ồn thế nào"])
-        is_temp_inquiry = any(w in q for w in ["nhiệt độ", "nóng không", "mát không", "nhiệt độ bao nhiêu", "bao nhiêu độ"])
+        # Intent OVERVIEW: General Area Overview (Vinhomes Ocean Park 1)
+        detected_scope = spatial_registry.resolve_scope(q)
+        is_area_overview = (
+            spatial_registry.is_overview_inquiry(q)
+            or (
+                detected_scope
+                and detected_scope.get("id") == "ocp1"
+                and not any(sup in q for sup in spatial_registry.RANKING_SUPERLATIVES)
+                and not is_worst_inquiry
+                and not is_comparison
+                and not is_route_query
+                and not is_indoor_inquiry
+            )
+        )
+        if is_area_overview and not any(sup in q for sup in spatial_registry.RANKING_SUPERLATIVES) and not is_worst_inquiry:
+            return self._handle_overview_intent(
+                station_data_map=station_data_map,
+                candidate_pois=candidate_pois,
+                time_ctx=time_ctx,
+                request_id=request_id,
+                conversation_id=conversation_id,
+            )
+
+        is_noise_inquiry = any(w in q for w in ["độ ồn", "tiếng ồn", "ồn không", "yên tĩnh", "ồn ào", "ồn thế nào", "do on", "tieng on", "on khong"])
+        is_temp_inquiry = any(w in q for w in ["nhiệt độ", "nóng không", "mát không", "nhiệt độ bao nhiêu", "bao nhiêu độ", "nhiet do", "nong khong", "mat khong"])
 
         target_poi = None
         explicit_station_id = self._extract_explicit_station_id(q)
@@ -693,6 +873,14 @@ class GeospatialAgentService:
                 }
         elif explicit_poi:
             target_poi = next((p for p in ranked_pois if p["id"] == explicit_poi["id"]), explicit_poi)
+        elif turn_res.get("target_poi"):
+            t_poi = turn_res["target_poi"]
+            target_poi = next((p for p in ranked_pois if p["id"] == t_poi.get("id")), t_poi)
+        elif conversation_id:
+            conv_st = conversation_state_manager.get_or_create_state(conversation_id)
+            if conv_st.active_entities:
+                t_poi = conv_st.active_entities[0]
+                target_poi = next((p for p in ranked_pois if p["id"] == t_poi.get("id")), t_poi)
         elif map_context.get("selected_location"):
             sel_id = map_context["selected_location"]
             target_poi = next(
@@ -723,9 +911,11 @@ class GeospatialAgentService:
                 or map_context.get("selected_location")
                 or map_context.get("selected_sensor")
                 or station_id
+                or turn_res.get("resolution_type") == "reference"
                 or any(w in q for w in [
                     "thế nào", "sao", "chất lượng", "bao nhiêu", "có tốt",
                     "chỗ này", "ở đây", "khu này", "nơi này", "vị trí này",
+                    "ở đó", "chỗ đó", "khu đó", "nơi đó", "ô nhiễm",
                     "thì sao", "như nào", "aqi", "pm25", "pm2.5", "không khí"
                 ])
             )
@@ -737,10 +927,138 @@ class GeospatialAgentService:
         if is_temp_inquiry:
             return self._handle_specific_temp_intent(ranked_pois[0], time_ctx, request_id)
 
-        # Intent D: Best Location / Outdoor Activity Recommendation (Default rich flow)
-        return self._handle_recommendation_intent(
-            ranked_pois, activity, time_ctx, request_id, user_group, user_loc=user_loc, conversation_id=conversation_id
+        # Intent D: Best Location / Outdoor Activity Recommendation
+        q_norm = normalize_text(q)
+        is_ranking_best = (
+            any(sup in q_norm for sup in spatial_registry.RANKING_SUPERLATIVES)
+            or any(w in q_norm for w in ["chay", "di bo", "tap the thao", "tap the duc", "ra ngoai", "hoat dong", "khuyen nghi", "goi y", "nen di", "dia diem nao", "khu nao", "trong lanh", "sach", "sach nhat", "tot nhat"])
+            or activity in {"running", "walking", "outdoor_exercise"}
         )
+        if is_ranking_best:
+            return self._handle_recommendation_intent(
+                ranked_pois, activity, time_ctx, request_id, user_group, user_loc=user_loc, conversation_id=conversation_id
+            )
+
+        # Fallback for unrecognized queries: prompt clarification instead of guessing VinUni
+        composed = ResponseComposer.compose_unknown_inquiry(request_id=request_id)
+        conversation_state_manager.update_state(
+            conversation_id=conversation_id,
+            intent="conversation.unknown",
+            query=message,
+        )
+        return {
+            "answer": composed["answer"],
+            "response": composed["response"],
+            "intent": "conversation.unknown",
+            "time_context": time_ctx,
+            "data_mode": time_ctx["type"],
+            "evidence": [],
+            "map_actions": [],
+            "follow_up_actions": composed["follow_up_actions"],
+            "request_id": request_id,
+        }
+
+    # -------------------------------------------------------------
+    # INTENT HANDLER: Area Overview (Whole Ocean Park 1)
+    # -------------------------------------------------------------
+    def _handle_overview_intent(
+        self,
+        station_data_map: dict[str, dict[str, Any]],
+        candidate_pois: list[dict[str, Any]],
+        time_ctx: dict[str, Any],
+        request_id: str,
+        conversation_id: str = "",
+    ) -> dict[str, Any]:
+        sorted_stations = sorted(station_data_map.values(), key=lambda s: s.get("aqi", 0))
+        best_station = sorted_stations[0]
+        worst_station = sorted_stations[-1]
+
+        valid_aqis = [s.get("aqi", 0) for s in sorted_stations if s.get("aqi") is not None]
+        overall_aqi = round(sum(valid_aqis) / len(valid_aqis)) if valid_aqis else best_station.get("aqi", 50)
+
+        # POI representatives
+        sorted_pois = sorted(candidate_pois, key=lambda p: p.get("aqi", 0))
+        best_poi = sorted_pois[0] if sorted_pois else best_station
+        worst_poi = sorted_pois[-1] if sorted_pois else worst_station
+
+        composed = ResponseComposer.compose_overview(
+            overall_aqi=overall_aqi,
+            best_station_or_poi=best_poi,
+            worst_station_or_poi=worst_poi,
+            station_count=len(sorted_stations),
+            time_ctx=time_ctx,
+            request_id=request_id,
+        )
+
+        all_lats = [s["latitude"] for s in sorted_stations]
+        all_lngs = [s["longitude"] for s in sorted_stations]
+        bounds = [
+            [min(all_lats) - 0.004, min(all_lngs) - 0.004],
+            [max(all_lats) + 0.004, max(all_lngs) + 0.004],
+        ]
+
+        map_actions = [
+            {"type": "clear_ai_layer"},
+            {"type": "show_heatmap", "metric": "aqi", "data_mode": time_ctx["type"]},
+            {
+                "type": "fit_bounds",
+                "bounds": bounds,
+                "padding": [40, 40],
+            },
+        ]
+
+        for st in sorted_stations:
+            map_actions.append({
+                "type": "highlight_sensor",
+                "sensor_id": st["station_id"],
+                "target_id": st["station_id"],
+                "lat": st["latitude"],
+                "lng": st["longitude"],
+                "name": st.get("name") or st["station_id"],
+                "aqi": st.get("aqi"),
+                "pm25": st.get("pm25"),
+                "style": "recommended" if st["station_id"] == best_station["station_id"] else ("avoid" if st["station_id"] == worst_station["station_id"] else "alternative"),
+            })
+
+        evidence = [
+            {
+                "source": "forecast" if time_ctx["is_forecast"] else "sensor",
+                "station_id": st["station_id"],
+                "metric": "aqi",
+                "value": st.get("aqi"),
+                "timestamp": st.get("timestamp"),
+            }
+            for st in sorted_stations
+        ]
+
+        conversation_state_manager.update_state(
+            conversation_id=conversation_id,
+            intent="environment.overview",
+            scope="ocp1",
+            entities=[best_poi, worst_poi],
+            time_context=time_ctx,
+        )
+
+        return {
+            "answer": composed["answer"],
+            "response": composed["response"],
+            "intent": "environment.overview",
+            "scope": {
+                "type": "area",
+                "id": "ocp1",
+                "name": "Vinhomes Ocean Park 1",
+            },
+            "overall_aqi": overall_aqi,
+            "best_location": {"id": best_poi.get("id"), "name": best_poi.get("short_name"), "aqi": best_poi.get("aqi")},
+            "worst_location": {"id": worst_poi.get("id"), "name": worst_poi.get("short_name"), "aqi": worst_poi.get("aqi")},
+            "station_count": len(sorted_stations),
+            "time_context": time_ctx,
+            "data_mode": time_ctx["type"],
+            "evidence": evidence,
+            "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
+            "request_id": request_id,
+        }
 
     # -------------------------------------------------------------
     # INTENT HANDLER: Weather / Rain / Precipitation (Out of Scope with Microclimate Context)
@@ -1169,11 +1487,18 @@ class GeospatialAgentService:
             user_group=user_group,
         )
         if not safety_eval["safe"]:
+            if conversation_id:
+                conversation_state_manager.set_pending_action(
+                    conversation_id,
+                    "find_nearby_indoor_places",
+                    known_slots={"origin": best["short_name"]},
+                )
             return self._handle_indoor_pivot_intent(
                 safety_eval=safety_eval,
                 user_location=user_loc,
                 time_ctx=time_ctx,
                 request_id=request_id,
+                conversation_id=conversation_id,
             )
 
         alt = ranked_pois[1] if len(ranked_pois) > 1 else best
@@ -1681,9 +2006,13 @@ class GeospatialAgentService:
         user_location: tuple[float, float] | None,
         time_ctx: dict[str, Any],
         request_id: str,
+        activity_subtype: str | None = None,
+        conversation_id: str = "",
     ) -> dict[str, Any]:
         time_label = time_ctx["label"]
-        venues = spatial_registry.list_indoor_venues()
+        venues = spatial_registry.list_indoor_venues(activity_type=activity_subtype)
+        if not venues:
+            venues = spatial_registry.list_indoor_venues()
 
         # Rank indoor venues by proximity to user
         if user_location:
@@ -1757,12 +2086,22 @@ class GeospatialAgentService:
             },
         ]
 
+        if conversation_id:
+            conversation_state_manager.update_state(
+                conversation_id=conversation_id,
+                intent="recommend_indoor_activity",
+                activity_type="indoor",
+                activity_subtype=activity_subtype,
+                entities=[best_v, alt_v],
+            )
+
         return {
             "answer": composed["answer"],
             "response": composed["response"],
             "intent": "recommend_indoor_activity",
             "time_context": time_ctx,
             "data_mode": time_ctx["type"],
+            "indoor_venues": venues,
             "safety_evaluation": safety_eval,
             "evidence": [
                 {"source": "indoor_catalog", "venue_id": best_v["id"], "name": best_v["name"]},

@@ -61,6 +61,195 @@ class ResponseComposer:
         }
 
     @staticmethod
+    def compose_assistant_identity(kind: str = "identity_age", request_id: str = "") -> dict[str, Any]:
+        """Task Social: Assistant Identity (age, who, creator)."""
+        if kind == "identity_age":
+            headline = "Mình là trợ lý AI nên không có tuổi như con người 😊"
+            advice = "Mình được thiết kế để hỗ trợ bạn về chất lượng không khí, địa điểm và lộ trình trong Vinhomes Ocean Park 1."
+            summary = f"{headline}\n\n{advice}"
+        else:
+            headline = "Mình là **AirGuard Geospatial AI**, trợ lý AI hỗ trợ bạn kiểm tra chất lượng không khí, địa điểm và lộ trình trong Vinhomes Ocean Park 1."
+            advice = "Bạn có thể hỏi mình về chỉ số AQI, so sánh khu vực hoặc tìm đường đi bộ, chạy bộ trong khu đô thị."
+            summary = headline
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "social.assistant_identity",
+            "follow_up_actions": [
+                "🏫 VinUni không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
+    def compose_capabilities(request_id: str = "") -> dict[str, Any]:
+        """Task Social: Capability inquiry."""
+        headline = "Mình có thể giúp bạn:"
+        details = (
+            "• Kiểm tra chất lượng không khí theo từng khu vực tại Ocean Park 1\n"
+            "• So sánh chất lượng không khí giữa các địa điểm\n"
+            "• Xem dự báo AQI ngắn hạn 1–3 giờ\n"
+            "• Tìm cung đường đi bộ/chạy bộ tối ưu mức độ trong lành\n"
+            "• Định vị và hiển thị kết quả trực quan trên bản đồ"
+        )
+        summary = f"{headline}\n{details}"
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": details,
+                "highlights": [],
+                "recommendation": "",
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.capability",
+            "follow_up_actions": [
+                "🏫 VinUni không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
+    def compose_smalltalk(kind: str = "acknowledgement", request_id: str = "") -> dict[str, Any]:
+        """Task Social: Smalltalk (thanks, wellbeing, farewell)."""
+        if kind == "acknowledgement":
+            summary = "Không có gì 😊 Nếu cần, bạn cứ hỏi mình về không khí hoặc địa điểm trong Ocean Park 1 nhé!"
+        elif kind == "farewell":
+            summary = "Tạm biệt bạn! Hẹn gặp lại khi bạn cần hỗ trợ từ AirGuard 👋"
+        elif kind == "wellbeing":
+            summary = "Mình là trợ lý AI nên luôn sẵn sàng hoạt động để hỗ trợ bạn! Hôm nay bạn muốn kiểm tra khu vực nào ở Ocean Park 1 không?"
+        else:
+            summary = "Rất vui được trò chuyện cùng bạn! Bạn cần mình hỗ trợ gì về môi trường Ocean Park 1 không?"
+
+        return {
+            "answer": {
+                "headline": summary,
+                "summary": summary,
+                "details": "",
+                "highlights": [],
+                "recommendation": "",
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "social.smalltalk",
+            "follow_up_actions": [
+                "🏫 VinUni không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
+    def compose_unknown_inquiry(request_id: str = "") -> dict[str, Any]:
+        """Task Fallback: Prompt for clarification on unknown query."""
+        summary = "Bạn muốn mình kiểm tra **chất lượng không khí**, **một địa điểm**, hay **một cung đường** trong Ocean Park 1?"
+        return {
+            "answer": {
+                "headline": summary,
+                "summary": summary,
+                "details": "",
+                "highlights": [],
+                "recommendation": "",
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.unknown",
+            "follow_up_actions": [
+                "🏫 VinUni không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
+    def compose_overview(
+        overall_aqi: int | float,
+        best_station_or_poi: dict[str, Any],
+        worst_station_or_poi: dict[str, Any],
+        station_count: int,
+        time_ctx: dict[str, Any],
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Task Fix: Overview of the entire Vinhomes Ocean Park 1 area."""
+        time_label = time_ctx.get("label", "hiện tại")
+        overall_val = int(round(float(overall_aqi)))
+        cat_vi = aqi_category_vi(overall_val)
+
+        best_name = best_station_or_poi.get("short_name") or best_station_or_poi.get("name", "VinUni")
+        best_aqi = int(round(float(best_station_or_poi.get("aqi", 0))))
+        best_id = best_station_or_poi.get("sensor_id") or best_station_or_poi.get("station_id", "")
+
+        worst_name = worst_station_or_poi.get("short_name") or worst_station_or_poi.get("name", "Trục Đa Tốn")
+        worst_aqi = int(round(float(worst_station_or_poi.get("aqi", 0))))
+        worst_id = worst_station_or_poi.get("sensor_id") or worst_station_or_poi.get("station_id", "")
+
+        best_tag = f"{best_name} ({best_id})" if best_id else best_name
+        worst_tag = f"{worst_name} ({worst_id})" if worst_id else worst_name
+
+        headline = f"🌿 **Chất lượng không khí tại Ocean Park 1 {time_label} nhìn chung ở mức {cat_vi}.**"
+
+        highlights_text = (
+            f"• **AQI đại diện toàn khu:** {overall_val}\n"
+            f"• **Khu có AQI thấp nhất:** {best_tag} — AQI {best_aqi}\n"
+            f"• **Khu có AQI cao nhất:** {worst_tag} — AQI {worst_aqi}"
+        )
+
+        advice = (
+            "Chất lượng không khí đang có sự phân hóa giữa các phân khu. "
+            "Nếu bạn muốn hoạt động ngoài trời, nên ưu tiên các khu vực có chỉ số thấp và hạn chế thời gian ở vùng gần trục giao thông có chỉ số cao hơn."
+        )
+        map_feedback = "🗺️ Mình đã hiển thị tổng quan chất lượng không khí toàn Ocean Park 1 trên bản đồ."
+        data_note = "*Dữ liệu mô phỏng AirGuard AI · cập nhật vừa xong.*"
+
+        summary = f"{headline}\n\n{highlights_text}\n\n{advice}\n\n{map_feedback}\n\n{data_note}"
+
+        highlights_data = [
+            {"label": "AQI đại diện", "value": str(overall_val), "description": cat_vi},
+            {"label": "Khu thấp nhất", "value": best_tag, "description": f"AQI {best_aqi}"},
+            {"label": "Khu cao nhất", "value": worst_tag, "description": f"AQI {worst_aqi}"},
+        ]
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": f"{highlights_text}\n\n{advice}",
+                "highlights": highlights_data,
+                "recommendation": advice,
+                "map_feedback": map_feedback,
+                "data_note": data_note,
+            },
+            "response": summary,
+            "intent": "environment.overview",
+            "follow_up_actions": [
+                f"🏫 {best_name} không khí thế nào?",
+                "⚠️ Khu nào đang ô nhiễm nhất?",
+                "🏃 Tìm đường chạy bộ 3 km",
+                "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
+            ],
+        }
+
+    @staticmethod
     def compose_worst_location(
         worst_poi: dict[str, Any],
         best_poi: dict[str, Any] | None,
@@ -283,18 +472,25 @@ class ResponseComposer:
         request_id: str = "",
         is_personalized: bool = False,
     ) -> dict[str, Any]:
-        """Task 10.6: Running Route Recommendation."""
+        """Task 10.6 & Section 23: Running Route Recommendation."""
         dist = best_route.get("distance_km", 3.1)
-        avg_aqi = int(best_route.get("aqi", 55))
+        avg_aqi = int(round(best_route.get("mean_aqi") or best_route.get("aqi", 55)))
+        p90_aqi = int(round(best_route.get("p90_aqi") or best_route.get("max_aqi", avg_aqi)))
         avg_cat = aqi_category_vi(avg_aqi)
         route_name = best_route.get("name") or best_route.get("short_name", "VinUni → Hồ Ngọc Trai")
+        snap_m = int(best_route.get("snap_distance_m", 25))
+        access_m = int(best_route.get("access_distance_m", 0))
 
-        headline = f"🏃 **Mình đã tìm được một cung đường khoảng {dist} km có chất lượng không khí phù hợp hơn.**"
+        start_desc = f"cách vị trí hiện tại khoảng {snap_m} m" if snap_m > 5 else "ngay tại điểm bạn đã chọn"
+
+        headline = f"🏃 **Mình đã tìm được một tuyến khoảng {dist} km bám theo các đường đi bộ thực tế quanh khu {route_name}.**"
 
         highlights_text = (
             f"- **Cự ly:** khoảng {dist} km\n"
             f"- **AQI trung bình trên tuyến:** {avg_aqi}\n"
-            f"- **Khu vực chính:** {origin_label} → {route_name}"
+            f"- **AQI cao nhất trên tuyến:** {p90_aqi}\n"
+            f"- **Khu vực chính:** {origin_label} → {route_name}\n"
+            f"- **Điểm xuất phát:** {start_desc}"
         )
 
         advice = "Tuyến này giúp hạn chế đi qua các vùng đang có AQI cao hơn."
@@ -303,16 +499,17 @@ class ResponseComposer:
 
         summary = f"{headline}\n\n{highlights_text}\n\n{advice}\n\n{map_feedback}\n\n{data_note}"
         details = (
-            f"• **Điểm xuất phát:** {origin_label}.\n"
+            f"• **Điểm xuất phát:** {origin_label} ({start_desc}).\n"
             f"• **Lộ trình:** {route_name} ({dist} km).\n"
-            f"• **Chỉ số:** AQI trung bình {avg_aqi} ({avg_cat}).\n"
+            f"• **Chỉ số:** AQI trung bình {avg_aqi} ({avg_cat}), đỉnh P90 {p90_aqi}.\n"
             f"• **Khuyến nghị:** {advice}\n\n{map_feedback}"
         )
 
         highlights_data = [
             {"label": "Cự ly", "value": f"khoảng {dist} km"},
             {"label": "AQI trung bình trên tuyến", "value": str(avg_aqi), "description": avg_cat},
-            {"label": "Khu vực chính", "value": f"{origin_label} → {route_name}"},
+            {"label": "AQI cao nhất", "value": str(p90_aqi)},
+            {"label": "Điểm xuất phát", "value": start_desc},
         ]
 
         intent_name = "recommend_personalized_running_route" if is_personalized else "recommend_running_route"
@@ -335,6 +532,77 @@ class ResponseComposer:
                 "5 km",
                 "Đổi điểm xuất phát",
                 "Xem dự báo tối nay",
+            ],
+        }
+
+    @staticmethod
+    def compose_too_far_route(
+        origin_label: str = "",
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Task Section 23: Too Far Route Fallback."""
+        headline = "📍 **Tuyến có chất lượng không khí tốt hơn hiện nằm khá xa vị trí của bạn nên mình không ưu tiên phương án đó.**"
+        advice = "Mình có thể tìm một tuyến gần hơn hoặc gợi ý hoạt động trong nhà gần vị trí hiện tại."
+        summary = f"{headline}\n\n{advice}"
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "*AirGuard AI.*",
+            },
+            "response": summary,
+            "intent": "route.too_far",
+            "follow_up_actions": [
+                "🏠 Tìm hoạt động trong nhà",
+                "🏃 Tìm tuyến gần hơn",
+                "⏱️ Xem dự báo 1-3 giờ tới",
+            ],
+        }
+
+    @staticmethod
+    def compose_no_safe_route_fallback(
+        reason: str = "aqi_unhealthy",
+        forecast_better_hour: str | None = None,
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Task Section 18 & 19: Unsafe Route or Network Fallback."""
+        headline = "⚠️ **Hiện tại mình chưa tìm được một tuyến chạy ngoài trời đủ phù hợp quanh vị trí của bạn.**"
+        explanation = "Các tuyến gần nhất đều đi qua khu vực có AQI cao hơn mức ưu tiên."
+
+        time_advice = f"\n- xem lại tuyến vào khoảng {forecast_better_hour} khi chất lượng không khí được dự báo cải thiện;" if forecast_better_hour else "\n- chờ thời điểm AQI giảm;"
+
+        options_text = (
+            f"{explanation}\n\n"
+            "Bạn có thể:"
+            f"{time_advice}"
+            "\n- chọn một khu vực gần hơn;"
+            "\n- hoặc chuyển sang hoạt động trong nhà."
+        )
+
+        indoor_offer = "🏠 Nếu muốn, mình có thể tìm lựa chọn trong nhà gần bạn."
+        summary = f"{headline}\n\n{options_text}\n\n{indoor_offer}"
+
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": options_text,
+                "highlights": [],
+                "recommendation": indoor_offer,
+                "map_feedback": "",
+                "data_note": "*Dữ liệu cảnh báo an toàn AirGuard AI.*",
+            },
+            "response": summary,
+            "intent": "recommend_indoor_activity",
+            "follow_up_actions": [
+                "🏠 Tìm địa điểm trong nhà gần đây",
+                "⏱️ Xem dự báo không khí",
+                "📍 Đổi vị trí xuất phát",
             ],
         }
 
@@ -411,6 +679,7 @@ class ResponseComposer:
             "Một vài lựa chọn trong nhà:\n"
             f"- 🏋️ **Gym hoặc chạy máy:** {best_v['name']}\n"
             "- 🧘 **Yoga / giãn cơ**\n"
+            "- 🏊 **Bể bơi 4 mùa hoặc thể thao nội khu**\n"
             f"- 🛍️ **Đi bộ trong khu thương mại:** {alt_v['name']}\n"
             "- 🏠 **Tập luyện nhẹ trong nhà**"
         )
@@ -819,6 +1088,105 @@ class ResponseComposer:
                 "Đổi điểm xuất phát",
                 "Xem dự báo tối nay",
             ],
+        }
+
+    @staticmethod
+    def compose_action_cancelled(request_id: str = "") -> dict[str, Any]:
+        """User rejects or cancels a pending dialogue offer/action."""
+        headline = "👌 **Đã hủy đề xuất.**"
+        advice = "Nếu cần hỗ trợ thêm về chất lượng không khí, địa điểm hay lộ trình tại Ocean Park 1, bạn cứ nhắn mình nhé!"
+        summary = f"{headline}\n\n{advice}"
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.reject",
+            "follow_up_actions": [
+                "Kiểm tra chất lượng không khí",
+                "Tìm đường chạy bộ",
+                "So sánh các địa điểm",
+            ],
+            "request_id": request_id,
+        }
+
+    @staticmethod
+    def compose_slot_prompt(
+        slot_name: str,
+        for_intent: str = "",
+        options: list[str] | None = None,
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Prompts the user for a specific missing slot without generic clarification."""
+        if slot_name == "distance_km":
+            headline = "🏃 **Bạn muốn chạy khoảng bao nhiêu km?**"
+            advice = "Gợi ý: bạn có thể chọn **2 km**, **3 km**, hoặc **5 km**."
+            follow_ups = ["2 km", "3 km", "5 km"]
+        elif slot_name == "origin":
+            headline = "📍 **Bạn muốn xuất phát từ vị trí nào?**"
+            advice = "Bạn có thể chọn khu vực cụ thể (như **Khu Sapphire**, **VinUni**, **Hồ Ngọc Trai**) hoặc dùng vị trí hiện tại."
+            follow_ups = ["Khu Sapphire", "VinUni", "Hồ Ngọc Trai", "Vị trí hiện tại"]
+        elif slot_name == "activity_subtype":
+            headline = "🏠 **Bạn muốn ưu tiên loại hình thể thao nào trong nhà?**"
+            advice = "Bạn có thể chọn **Phòng Gym / Fitness** hoặc **Khu đi bộ trong nhà**."
+            follow_ups = ["Phòng Gym / Fitness", "Đi bộ trong nhà", "Xem tất cả"]
+        elif slot_name == "indoor_outdoor_choice":
+            headline = "🚴 **Bạn muốn vận động ngoài trời hay trong không gian trong nhà?**"
+            advice = "Mình có thể tìm tuyến đường thoáng đãng ngoài trời hoặc gợi ý các khu tập luyện trong nhà có điều hòa lọc khí."
+            follow_ups = ["Vận động ngoài trời", "Tập trong nhà"]
+        else:
+            headline = f"📝 **Bạn muốn cung cấp thêm thông tin về {slot_name}?**"
+            advice = "Vui lòng cho mình biết để hoàn tất gợi ý phù hợp nhất."
+            follow_ups = options or []
+
+        summary = f"{headline}\n\n{advice}"
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.answer_slot",
+            "follow_up_actions": follow_ups,
+            "request_id": request_id,
+        }
+
+    @staticmethod
+    def compose_ambiguous_reference_clarification(
+        candidates: list[dict[str, Any]],
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Asks user to disambiguate between multiple referred locations."""
+        c1_name = candidates[0].get("short_name", "Địa điểm 1")
+        c2_name = candidates[1].get("short_name", "Địa điểm 2") if len(candidates) > 1 else "địa điểm khác"
+        headline = f"🤔 **Bạn muốn đi tới {c1_name} hay {c2_name}?**"
+        advice = f"Do bạn vừa đề cập đến cả **{c1_name}** và **{c2_name}**, bạn muốn mình hướng dẫn lộ trình tới địa điểm nào?"
+        summary = f"{headline}\n\n{advice}"
+        return {
+            "answer": {
+                "headline": headline,
+                "summary": summary,
+                "details": advice,
+                "highlights": [],
+                "recommendation": advice,
+                "map_feedback": "",
+                "data_note": "",
+            },
+            "response": summary,
+            "intent": "conversation.clarification",
+            "follow_up_actions": [c1_name, c2_name],
+            "request_id": request_id,
         }
 
 

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Calendar, Layers, MapPin, Menu, MessageSquarePlus, Sparkles } from "lucide-react";
+import React from "react";
+import { Calendar, Layers, MapPin, MessageSquarePlus, Sparkles } from "lucide-react";
 import { ActiveDrawerType } from "../../types/superApp";
 
 interface BottomActionDockProps {
@@ -15,11 +15,7 @@ export const BottomActionDock: React.FC<BottomActionDockProps> = ({
   onToggleLayers,
   onOpenDrawer,
 }) => {
-  const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const hasUtilityDrawerOpen = ["near-me", "today", "community-report"].includes(activeDrawer ?? "");
-
-  const openUtilityDrawer = (drawer: ActiveDrawerType) => {
-    setIsMoreOpen(false);
+  const toggleDrawer = (drawer: ActiveDrawerType) => {
     onOpenDrawer(activeDrawer === drawer ? null : drawer);
   };
 
@@ -29,7 +25,6 @@ export const BottomActionDock: React.FC<BottomActionDockProps> = ({
         type="button"
         className={`dock-action-btn ${isLayersOpen ? "active" : ""}`}
         onClick={() => {
-          setIsMoreOpen(false);
           onToggleLayers();
         }}
         title="Lớp hiển thị bản đồ"
@@ -38,33 +33,57 @@ export const BottomActionDock: React.FC<BottomActionDockProps> = ({
       >
         <div className="dock-icon-wrap">
           <Layers size={18} aria-hidden="true" />
-          {isLayersOpen && <span className="dock-active-dot" aria-hidden="true" />}
         </div>
         <span className="dock-label">Lớp bản đồ</span>
       </button>
 
       <button
         type="button"
-        className={`dock-action-btn ${hasUtilityDrawerOpen || isMoreOpen ? "active" : ""}`}
-        onClick={() => setIsMoreOpen((open) => !open)}
-        title="Mở thêm công cụ bản đồ"
-        aria-label="Mở thêm công cụ bản đồ"
-        aria-expanded={isMoreOpen}
-        aria-controls="dock-more-menu"
+        className={`dock-action-btn ${activeDrawer === "near-me" ? "active" : ""}`}
+        onClick={() => toggleDrawer("near-me")}
+        title="Chất lượng không khí quanh bạn"
+        aria-label="Mở Gần tôi"
+        aria-pressed={activeDrawer === "near-me"}
       >
         <div className="dock-icon-wrap">
-          <Menu size={18} aria-hidden="true" />
-          {hasUtilityDrawerOpen && <span className="dock-active-dot" aria-hidden="true" />}
+          <MapPin size={18} aria-hidden="true" />
         </div>
-        <span className="dock-label">Khám phá</span>
+        <span className="dock-label">Gần tôi</span>
+      </button>
+
+      <button
+        type="button"
+        className={`dock-action-btn ${activeDrawer === "today" ? "active" : ""}`}
+        onClick={() => toggleDrawer("today")}
+        title="Tóm tắt môi trường trong ngày"
+        aria-label="Mở Hôm nay"
+        aria-pressed={activeDrawer === "today"}
+      >
+        <div className="dock-icon-wrap">
+          <Calendar size={18} aria-hidden="true" />
+        </div>
+        <span className="dock-label">Hôm nay</span>
+      </button>
+
+      <button
+        type="button"
+        className={`dock-action-btn ${activeDrawer === "community-report" ? "active" : ""}`}
+        onClick={() => toggleDrawer("community-report")}
+        title="Gửi phản ánh cộng đồng"
+        aria-label="Mở Phản ánh"
+        aria-pressed={activeDrawer === "community-report"}
+      >
+        <div className="dock-icon-wrap">
+          <MessageSquarePlus size={18} aria-hidden="true" />
+        </div>
+        <span className="dock-label">Phản ánh</span>
       </button>
 
       <button
         type="button"
         className={`dock-action-btn ai-highlight-btn ${activeDrawer === "ai-chat" ? "active" : ""}`}
         onClick={() => {
-          setIsMoreOpen(false);
-          onOpenDrawer(activeDrawer === "ai-chat" ? null : "ai-chat");
+          toggleDrawer("ai-chat");
         }}
         title="Trò chuyện với trợ lý môi trường AI"
         aria-label="Hỏi Trợ lý AirGuard AI"
@@ -72,27 +91,10 @@ export const BottomActionDock: React.FC<BottomActionDockProps> = ({
       >
         <div className="dock-icon-wrap">
           <Sparkles size={18} aria-hidden="true" />
-          {activeDrawer === "ai-chat" && <span className="dock-active-dot ai-dot" aria-hidden="true" />}
         </div>
         <span className="dock-label">Hỏi AI</span>
       </button>
 
-      {isMoreOpen && (
-        <div id="dock-more-menu" className="dock-more-menu" role="menu" aria-label="Công cụ bổ sung">
-          <button type="button" role="menuitem" onClick={() => openUtilityDrawer("near-me")}>
-            <MapPin size={17} aria-hidden="true" />
-            <span><strong>Gần tôi</strong><small>Chất lượng không khí quanh bạn</small></span>
-          </button>
-          <button type="button" role="menuitem" onClick={() => openUtilityDrawer("today")}>
-            <Calendar size={17} aria-hidden="true" />
-            <span><strong>Hôm nay</strong><small>Tóm tắt môi trường trong ngày</small></span>
-          </button>
-          <button type="button" role="menuitem" onClick={() => openUtilityDrawer("community-report")}>
-            <MessageSquarePlus size={17} aria-hidden="true" />
-            <span><strong>Phản ánh</strong><small>Gửi phản ánh cộng đồng</small></span>
-          </button>
-        </div>
-      )}
     </nav>
   );
 };

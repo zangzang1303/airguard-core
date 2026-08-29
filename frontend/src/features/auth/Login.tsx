@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../api/client";
 import { formatAuthError, isEmailNotVerifiedError } from "../../utils/authErrors";
+import { AuthShell } from "./AuthShell";
 import "./auth.css";
 
 // Icons
@@ -230,8 +231,7 @@ export const Login: React.FC = () => {
   const isAnySubmitting = submitting || googleLoading || demoSubmitting !== null;
 
   return (
-    <div className="auth-layout">
-      <div className="auth-unified-container">
+    <AuthShell>
         {/* LEFT COLUMN: Main Login Form */}
         <div className="auth-column-main">
           {/* Brand Header */}
@@ -640,7 +640,6 @@ export const Login: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </AuthShell>
   );
 };

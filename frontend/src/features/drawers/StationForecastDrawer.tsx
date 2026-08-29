@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Clock3, Database, Sparkles, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, Clock3, Minus, Sparkles, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react";
 
 import { api } from "../../api/client";
 import { DataQualityBadge } from "../../components/common/DataQualityBadge";
@@ -111,6 +111,11 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
   const rangeMax = targetForecast?.value_max ?? targetForecast?.range?.[1] ?? null;
   const displayedValue = forecastHour === 0 ? currentValue : forecastValue;
 
+  const trendDiff = useMemo(() => {
+    if (forecastHour === 0 || forecastValue == null || currentValue == null) return null;
+    return forecastValue - currentValue;
+  }, [forecastHour, forecastValue, currentValue]);
+
   return (
     <aside {...containerProps} className="contextual-drawer right-drawer station-forecast-drawer" aria-label={`Dự báo trạm ${station.station_name}`}>
       <div className="drawer-header-bar">
@@ -119,7 +124,7 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
           <h2 className="drawer-main-title">{station.station_name}</h2>
           <div className="drawer-sub-meta">
             <Clock3 size={13} aria-hidden="true" />
-            <span>{station.station_id} · dữ liệu backend</span>
+            <span>{station.station_id} · dữ liệu trạm</span>
           </div>
         </div>
         <button className="no-drag drawer-close-btn" data-no-drag="true" onClick={onClose} aria-label="Đóng dự báo trạm">
@@ -173,7 +178,7 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
             <Clock3 size={19} aria-hidden="true" />
             <div>
               <strong>Chưa có dữ liệu cho mốc này</strong>
-              <p>Backend chưa trả giá trị dự báo +{forecastHour}h. Không suy diễn hoặc lặp lại giá trị hiện tại.</p>
+              <p>Hệ thống chưa trả giá trị dự báo +{forecastHour}h cho chỉ số này.</p>
             </div>
           </div>
         )}
@@ -202,18 +207,33 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
                     <dt>Độ tin cậy</dt>
                     <dd>{formatConfidence(targetForecast.confidence ?? forecast.confidence)}</dd>
                   </div>
-                  <div>
-                    <dt>Mô hình</dt>
-                    <dd>{forecast.model_name || "Không khả dụng"}</dd>
-                  </div>
-                  <div>
-                    <dt>Nguồn</dt>
-                    <dd><Database size={13} aria-hidden="true" /> {forecast.source || "Không khả dụng"}</dd>
-                  </div>
+                  {trendDiff != null && (
+                    <div>
+                      <dt>Biến động dự kiến</dt>
+                      <dd className={`trend-tag ${trendDiff > 0 ? "is-up" : trendDiff < 0 ? "is-down" : "is-flat"}`}>
+                        {trendDiff > 0 ? (
+                          <>
+                            <TrendingUp size={14} aria-hidden="true" />
+                            <span>+{trendDiff.toFixed(2)} {METRICS[metric].unit}</span>
+                          </>
+                        ) : trendDiff < 0 ? (
+                          <>
+                            <TrendingDown size={14} aria-hidden="true" />
+                            <span>{trendDiff.toFixed(2)} {METRICS[metric].unit}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Minus size={14} aria-hidden="true" />
+                            <span>Không đổi</span>
+                          </>
+                        )}
+                      </dd>
+                    </div>
+                  )}
                 </dl>
                 {forecast.limitations?.length ? (
                   <div className="forecast-drawer-limitations">
-                    <strong>Giới hạn mô hình</strong>
+                    <strong>Lưu ý dự báo</strong>
                     <p>{forecast.limitations.join(" · ")}</p>
                   </div>
                 ) : null}
@@ -222,7 +242,7 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
 
             {forecastHour === 0 && (
               <p className="forecast-drawer-current-note">
-                Đây là phép đo hiện tại từ nguồn {station.source || "không khả dụng"}, không phải giá trị dự báo.
+                Đây là phép đo thực tế từ trạm, không phải giá trị dự báo.
               </p>
             )}
           </section>

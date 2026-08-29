@@ -32,9 +32,10 @@ export type MapLayerVisibilityKey =
   | "showCommunityReports"
   | "showConnectionStatus"
   | "showStationOverview"
-  | "showDispersionInfo"
   | "showDemoControl"
-  | "showForecastTimeline";
+  | "showForecastTimeline"
+  | "showAirQualityNow"
+  | "showMapLegend";
 
 export interface MapLayerConfig {
   activeEnvironmentalLayer: EnvironmentalLayerType;
@@ -47,9 +48,10 @@ export interface MapLayerConfig {
   showCommunityReports: boolean;
   showConnectionStatus: boolean;
   showStationOverview: boolean;
-  showDispersionInfo: boolean;
   showDemoControl?: boolean;
   showForecastTimeline?: boolean;
+  showAirQualityNow?: boolean;
+  showMapLegend?: boolean;
 }
 
 export interface PlacePOI {
