@@ -277,6 +277,9 @@ def test_quick_approve_reuses_retry_key_and_creates_exactly_one_intent() -> None
     assert retried["reused"] is True
     assert retried["command_intent"]["command_intent_id"] == first_intent_id
     assert len([row for row in db.audit_rows if row["action"] == "approval.quick_approve"]) == 1
+    audit = next(row for row in db.audit_rows if row["action"] == "approval.quick_approve")
+    assert audit["details"]["station_id"] == "S03"
+    assert audit["details"]["proposed_action"] == "ventilation_boost"
     assert first["review_mode"] == retried["review_mode"] == "quick"
     assert first["review_idempotency_key"] == retried["review_idempotency_key"] == "quick-key-001"
 
