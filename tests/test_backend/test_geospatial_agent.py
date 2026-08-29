@@ -607,3 +607,28 @@ def test_comparison_between_interpolated_and_physical_poi():
     assert "An Đào" in res["answer"]["summary"]
     assert any(c["name"] == "An Đào" for c in res["candidates"])
     assert any(c["name"] == "Hồ Ngọc Trai" for c in res["candidates"])
+
+
+def test_ocean_park_area_overview_intent():
+    """
+    Test asking general questions about Ocean Park 1 / toàn khu / OCP1
+    resolves to environment.overview intent instead of unknown location error.
+    """
+    agent = demo_agent()
+    live_engine.update_station("S01", {"pm25": 10.0, "aqi": 35, "co2": 400.0, "noise_db": 40.0, "temperature": 25.0})
+    live_engine.update_station("S02", {"pm25": 12.0, "aqi": 40, "co2": 420.0, "noise_db": 42.0, "temperature": 25.5})
+    live_engine.update_station("S03", {"pm25": 50.0, "aqi": 115, "co2": 750.0, "noise_db": 58.0, "temperature": 29.0})
+
+    queries = [
+        "Chất lượng không khí hiện tại ở Ocean Park 1?",
+        "Chất lượng không khí ở Ocean Park 1",
+        "Không khí tại Vinhomes Ocean Park 1 thế nào?",
+        "Không khí toàn khu hiện tại thế nào?",
+    ]
+
+    for q in queries:
+        res = agent.process_query(q)
+        assert res["intent"] == "environment.overview", f"Failed on query: {q}"
+        assert "Ocean Park 1" in res["answer"]["headline"]
+        assert any(a["type"] == "show_heatmap" for a in res["map_actions"])
+

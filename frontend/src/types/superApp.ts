@@ -57,7 +57,19 @@ export interface MapLayerConfig {
 export interface PlacePOI {
   id: string;
   name: string;
-  category: "lake" | "park" | "university" | "residential" | "mall" | "landmark" | "gate";
+  category:
+    | "lake"
+    | "park"
+    | "university"
+    | "residential"
+    | "mall"
+    | "landmark"
+    | "gate"
+    | "gym"
+    | "bus"
+    | "bike"
+    | "pool"
+    | "indoor_fitness";
   subdivision?: string;
   latitude: number;
   longitude: number;

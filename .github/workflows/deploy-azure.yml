@@ -14,17 +14,17 @@ permissions:
 
 jobs:
   deploy:
-    if: github.repository == 'zangzang1303/airguard-core'
+    if: github.repository == 'zangzang1303/airguard-core' || github.repository == 'AI20K-Build-Phase-Cohort-3/P-074'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
       name: azure-demo
-      url: https://airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com
+      url: https://airguard-074-app.indonesiacentral.cloudapp.azure.com
     env:
-      AZURE_HOST: airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com
+      AZURE_HOST: airguard-074-app.indonesiacentral.cloudapp.azure.com
       AZURE_USER: azureuser
-      EXPECTED_HOST_FINGERPRINT: SHA256:wEFnhVWz/ol8InOzQfId7SADiMmJBQP6dBPWut1PCHY
-      PUBLIC_READY_URL: https://airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com/backend/ready
+      EXPECTED_HOST_FINGERPRINT: SHA256:D5MnGvRyv/ndemdd9poD3so3eil6F9kVQ03QYU6/iJE
+      PUBLIC_READY_URL: https://airguard-074-app.indonesiacentral.cloudapp.azure.com/backend/ready
 
     steps:
       - name: Check out source
@@ -35,7 +35,7 @@ jobs:
       - name: Validate public Compose configuration
         env:
           POSTGRES_PASSWORD: compose-validation-only
-          DEMO_DOMAIN: airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com
+          DEMO_DOMAIN: airguard-074-app.indonesiacentral.cloudapp.azure.com
         run: docker compose -f docker-compose.public-demo.yml config --quiet
 
       - name: Configure restricted SSH identity
