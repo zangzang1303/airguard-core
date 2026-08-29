@@ -54,7 +54,11 @@ Required fields: `station_id`, `status`, `timestamp`, `source`. Status is `onlin
 
 ## Device command
 
-Topic `airguard/devices/{device_id}/command`: command_id, device_id, action, approval_id, idempotency_key, timestamp. Dispatcher only publishes approved commands; simulator rejects malformed/unknown/duplicate commands. Status topic returns command_id, device_id, status, timestamp, `is_simulated=true`; the consumer persists the latest device status in `devices`.
+Topic `airguard/devices/{device_id}/command`: `command_id`, `device_id`, `station_id`, `action`, `approval_id`, `idempotency_key`, timezone-aware `timestamp`, optional `duration_minutes` and `intensity_percent`. Dispatcher only publishes approved commands; simulator rejects malformed/unknown/duplicate commands. The action allow-list is `ventilation_boost|air_purifier_on|eco_mode|standby`.
+
+Status topic `airguard/devices/{device_id}/status` returns `command_id`, `device_id`, `station_id`, `status`, `device_state`, `action`, `timestamp`, `started_at`, optional `ends_at`, duration/intensity and `is_simulated=true`. `device_state` is `RUNNING_BOOST|AIR_PURIFIER_ON|ECO_MODE|STANDBY`. The consumer correlates it to the persisted approved command and stores/audits the ACK.
+
+While an acknowledged timed cycle is active, the sensor simulator applies the labeled Task-4 decay model to simulator output: PM2.5 tends toward 15 µg/m³ with rate 0.08/minute and CO₂ tends toward 450 ppm with rate 0.06/minute, scaled by configured intensity. The cycle expires at `ends_at`; this is demo feedback, not a physical dispersion model.
 
 ## Tool contracts
-Tools map only to backend services: current, history, compare, weather, forecast, alerts, profile, create proposal. Mutating proposal tool needs idempotency key and evidence; never retry blindly.
+Tools map only to backend services: current, history, compare, weather, forecast, alerts, profile, read-only ventilation-device status, and create proposal. Mutating proposal tools need idempotency keys and evidence; never retry blindly.

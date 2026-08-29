@@ -353,7 +353,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         <Activity size={16} /> {routeAction.short_name || routeAction.name}
                       </div>
                       <div className="ai-route-header-badge">
-                        {routeAction.distance_km} KM • {routeAction.score}/100 ĐIỂM
+                        {routeAction.distance_km} KM
                       </div>
                     </div>
                     <div className="ai-route-body">
@@ -363,23 +363,25 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                           <div className="ai-metric-stat-val">{routeAction.distance_km} km</div>
                         </div>
                         <div className="ai-metric-stat-box">
-                          <div className="ai-metric-stat-label">AQI</div>
-                          <div className="ai-metric-stat-val" style={{ color: "#10b981" }}>Tốt</div>
+                          <div className="ai-metric-stat-label">PM2.5 hít vào ước tính</div>
+                          <div className="ai-metric-stat-val">{routeAction.estimated_inhaled_mass_ug ?? "N/A"} µg</div>
                         </div>
                         <div className="ai-metric-stat-box">
                           <div className="ai-metric-stat-label">Thời gian</div>
-                          <div className="ai-metric-stat-val">~{Math.round(routeAction.distance_km * 6.5)} ph</div>
+                          <div className="ai-metric-stat-val">{routeAction.duration_minutes ?? "N/A"} phút</div>
                         </div>
                         <div className="ai-metric-stat-box">
-                          <div className="ai-metric-stat-label">Bề mặt</div>
-                          <div className="ai-metric-stat-val">Êm ái</div>
+                          <div className="ai-metric-stat-label">Giảm so với đối chứng</div>
+                          <div className="ai-metric-stat-val">
+                            {routeAction.exposure_reduction_pct == null ? "N/A" : `${routeAction.exposure_reduction_pct}%`}
+                          </div>
                         </div>
                       </div>
 
                       <div className="ai-route-timeline">
                         <div className="ai-timeline-row">
                           <div className="ai-timeline-dot"></div>
-                          <span><strong>Xuất phát:</strong> {msg.intent === "recommend_personalized_running_route" ? "Vị trí của bạn" : "Điểm xuất phát tối ưu"}</span>
+                          <span><strong>Nguồn graph:</strong> {routeAction.graph_source ?? "N/A"}</span>
                         </div>
                         <div className="ai-timeline-row">
                           <div className="ai-timeline-dot" style={{ background: "#06b6d4" }}></div>

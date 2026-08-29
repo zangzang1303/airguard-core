@@ -128,6 +128,7 @@ def test_auto_proposal_uses_live_llm_before_creating_pending_proposal() -> None:
     assert "warning proposal" in agent.calls[1]["message"]
     assert audit.records[-1]["action"] == "agent.auto_proposal.create"
     assert audit.records[-1]["details"]["proposal_id"] == "proposal-001"
+    assert audit.records[-1]["details"]["station_id"] == "S02"
     assert notifier.calls == [
         {
             "proposal_id": "proposal-001",
@@ -159,6 +160,7 @@ def test_auto_proposal_uses_grounded_deterministic_fallback_when_live_llm_is_una
     assert approvals.created[0]["evidence"]["automation"]["generation_mode"] == "deterministic_grounded"
     assert audit.records[-1]["action"] == "agent.auto_proposal.create"
     assert audit.records[-1]["details"]["generation_mode"] == "deterministic_grounded"
+    assert audit.records[-1]["details"]["station_id"] == "S02"
     assert notifier.calls[0]["proposal_id"] == "eco-proposal-001"
 
 
@@ -184,10 +186,11 @@ def test_safe_recovery_creates_pending_eco_proposal_without_agent_or_dispatch() 
     approvals = FakeApprovalService()
     agent = FakeAgentService([])
     notifier = FakeNotifier()
+    audit = FakeAuditService()
     service = AutomaticProposalService(
         agent_service=agent,
         approval_service=approvals,
-        audit_service=FakeAuditService(),
+        audit_service=audit,
         enabled=True,
         proposal_notifier=notifier,
     )
@@ -209,6 +212,7 @@ def test_safe_recovery_creates_pending_eco_proposal_without_agent_or_dispatch() 
     assert agent.calls == []
     assert approvals.created[0]["proposed_action"] == "eco_mode"
     assert approvals.created[0]["idempotency_key"] == "eco-recovery:intent-1:v1"
+    assert audit.records[-1]["details"]["station_id"] == "S02"
     assert notifier.calls[0]["proposed_action"] == "eco_mode"
 
 

@@ -175,7 +175,11 @@ class AutomaticProposalService:
                 action="agent.auto_proposal.create",
                 alert_id=alert_id,
                 correlation_id=correlation_id,
-                details={"proposal_id": proposal_id, "generation_mode": generation_mode},
+                details={
+                    "proposal_id": proposal_id,
+                    "generation_mode": generation_mode,
+                    "station_id": station_id,
+                },
             )
             self._notify_proposal(
                 proposal_id=str(proposal_id),
@@ -248,6 +252,7 @@ class AutomaticProposalService:
                 "proposal_id": str(proposal["request_id"]),
                 "proposed_action": "eco_mode",
                 "source_command_intent_id": str(source_intent_id),
+                "station_id": station_id,
                 "reused": bool(proposal.get("reused")),
             },
         )

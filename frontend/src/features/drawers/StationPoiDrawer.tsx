@@ -59,8 +59,10 @@ export const StationPoiDrawer: React.FC<StationPoiDrawerProps> = ({
 
   if (!station && !poi) return null;
 
-  const title = station ? station.station_name : poi?.name || "Chi tiết vị trí";
-  const subtitle = station ? `Cảm biến ${station.station_id} · Ocean Park 1` : poi?.subdivision || "Vinhomes Ocean Park 1";
+  const title = poi ? poi.name : (station ? station.station_name : "Chi tiết vị trí");
+  const subtitle = poi
+    ? `${poi.subdivision || "Vinhomes Ocean Park 1"}${station ? ` · Cảm biến tham chiếu ${station.station_id}` : ""}`
+    : (station ? `Cảm biến ${station.station_id} · Ocean Park 1` : "Vinhomes Ocean Park 1");
   const hasUsableCurrentData = Boolean(station && station.status === "online" && !station.is_stale);
 
   const aqiVal = hasUsableCurrentData && station ? station.aqi ?? null : null;
@@ -135,6 +137,13 @@ export const StationPoiDrawer: React.FC<StationPoiDrawerProps> = ({
             <HeroIcon size={32} className="indicator-icon" />
           </div>
         </div>
+
+        {/* POI Description Box */}
+        {poi?.description && (
+          <div style={{ padding: "10px 14px", background: "rgba(59, 130, 246, 0.06)", borderLeft: "3px solid #3b82f6", borderRadius: "6px", margin: "12px 0", fontSize: "0.82rem", color: "var(--text-secondary, #334155)", lineHeight: "1.45" }}>
+            <p style={{ margin: 0 }}>{poi.description}</p>
+          </div>
+        )}
 
         {/* Data Quality & Source Metadata Bar */}
         {station && (

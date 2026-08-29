@@ -114,3 +114,23 @@
 3. ✅ Khi quạt bật Boost, số liệu PM2.5/CO2 tại trạm đó giảm thực tế và bản đồ nhiệt Heatmap đổi màu theo thời gian thực.
 4. ✅ AI Agent trả lời chính xác thời gian chạy, thời gian còn lại và khuyến nghị bật/tắt hợp lý.
 5. ✅ 100% lệnh điều khiển thiết bị được bảo vệ bởi HITL và lưu vết vào Audit Trail.
+
+---
+
+## 4. TRẠNG THÁI TRIỂN KHAI (29/08/2026)
+
+- ✅ Continuity gate mặc định 15 phút; recovery gate nghiêm ngặt `PM2.5 < 25` và `CO2 < 700` liên tục 20 phút.
+- ✅ Device simulator ACK kèm station/action/thời gian chạy; sensor simulator áp dụng exponential decay cho PM2.5 và CO2 đến khi hết chu kỳ 45 phút.
+- ✅ API trạng thái thiết bị trả mode, countdown, lệnh/người duyệt gần nhất và hiệu quả đo trước/sau ACK.
+- ✅ Layer thiết bị và drawer chỉ được render cho Manager/Admin; thao tác Eco/Standby chỉ tạo proposal `pending`.
+- ✅ Agent có tool `get_ventilation_devices_status` và trả lời grounded về thời gian chạy, thời gian còn lại, xu hướng hiệu quả.
+- ✅ MQTT dispatch, ACK correlation và audit append-only tiếp tục đi qua luồng approval server-side hiện có.
+
+### Kết quả kiểm tra
+
+- `584 passed`: toàn bộ `tests/test_backend`, `tests/test_agents`, `tests/test_iot`.
+- `176 passed`: bộ test trọng tâm Task 4 và các contract liên quan.
+- `9 passed`: contract map/heatmap refresh của Task 4.
+- `ruff check`, `compileall`, `git diff --check`, `npm run build`, `docker compose config --quiet`: đạt.
+- Smoke test Compose: backend và Agent health đạt; `/api/v1/ventilation-devices?station_id=S03` trả dữ liệu simulator; Agent gọi đúng tool trạng thái thiết bị.
+- Bộ frontend toàn repo còn 11 regression contract cũ ngoài Task 4 (navigation/search/default legend) sau khi đã sửa lỗi heatmap refresh thuộc Task 4.

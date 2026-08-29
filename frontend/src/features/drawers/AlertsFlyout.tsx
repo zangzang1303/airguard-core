@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { AlertTriangle, Bell, CheckCircle, MapPin, RefreshCw, X } from "lucide-react";
 
 import { Alert, Station } from "../../types";
+import { PredictiveWarningCard } from "../alerts/AlertList";
 import { useDraggableFloatingPanel } from "../floating";
 
 interface AlertsFlyoutProps {
@@ -12,6 +13,7 @@ interface AlertsFlyoutProps {
   onRetry: () => Promise<void>;
   onClose: () => void;
   onShowAlertOnMap: (stationId: string) => void;
+  predictiveWarningId?: string | null;
 }
 
 const SEVERITY_LABEL: Record<Alert["severity"], string> = {
@@ -31,6 +33,7 @@ export const AlertsFlyout: React.FC<AlertsFlyoutProps> = ({
   onRetry,
   onClose,
   onShowAlertOnMap,
+  predictiveWarningId,
 }) => {
   const { containerProps, handleProps } = useDraggableFloatingPanel({
     panelId: "alerts",
@@ -84,6 +87,12 @@ export const AlertsFlyout: React.FC<AlertsFlyoutProps> = ({
       )}
 
       <div className="alerts-list-scroll">
+        {predictiveWarningId && (
+          <PredictiveWarningCard
+            episodeId={predictiveWarningId}
+            onFocusStation={onShowAlertOnMap}
+          />
+        )}
         {loading && alerts.length === 0 ? (
           <div className="alerts-loading-state" role="status">
             <RefreshCw size={24} className="spin-icon" aria-hidden="true" />

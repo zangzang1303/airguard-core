@@ -292,6 +292,41 @@ export interface Alert {
   created_at: string;
 }
 
+export interface NotificationPreferences {
+  environmental_email_enabled: boolean;
+  predictive_email_enabled: boolean;
+}
+
+export interface PredictiveChecklistItem {
+  item_key: string;
+  completed: boolean;
+  updated_at: string | null;
+}
+
+export interface PredictiveWarningEpisode {
+  episode_id: string;
+  station_id: string;
+  metric: "pm25";
+  status: "active" | "observed" | "resolved" | "expired";
+  severity: "warning" | "critical";
+  threshold_value: number;
+  forecast_target_at: string;
+  predicted_value: number;
+  predicted_min: number;
+  predicted_max: number;
+  confidence: number;
+  model_version: string;
+  source: string;
+  policy_version: string;
+}
+
+export interface PredictiveWarningDetail {
+  episode: PredictiveWarningEpisode;
+  checklist: PredictiveChecklistItem[];
+  disclaimer: string;
+  contract_version: "b7-personalized-alerts-v1";
+}
+
 export interface Evidence {
   aqi?: number;
   aqi_category?: string;
@@ -307,7 +342,7 @@ export interface Proposal {
   station_id: string;
   request_type?: string;
   device_id?: string | null;
-  proposed_action?: "notify_station_area_users" | "ventilation_boost" | "air_purifier_on" | "eco_mode";
+  proposed_action?: "notify_station_area_users" | "ventilation_boost" | "air_purifier_on" | "eco_mode" | "standby";
   duration_minutes?: number | null;
   severity: string;
   target: string;
@@ -404,6 +439,100 @@ export interface ReportVentilationStatistics {
 export interface ReportDataQualityStatistics {
   source_labels: string[];
   disclaimer: string;
+  active_station_ids?: string[];
+  coverage_policy?: {
+    expected_sample_interval_seconds: number;
+    minimum_coverage_ratio: number;
+  };
+}
+
+export interface ReportPolicySnapshot {
+  report_policy_version: string;
+  expected_sample_interval_seconds: number;
+  minimum_coverage_ratio: number;
+  matrix_min_eligible_stations: number;
+  good_hour_policy_version: string;
+  good_hour_target_ratio: number;
+  reference_policy_version: string;
+  esg_formula_version: string;
+  matrix_color_scale_version: string;
+}
+
+export interface ReportEstimate {
+  value: number | null;
+  status: "complete" | "insufficient_data";
+  reason_code: string | null;
+  formula_version: string;
+  unit: "kg" | "kWh";
+  inputs: Array<Record<string, unknown>>;
+  eligible_cycle_count?: number;
+  eligible_interval_count?: number;
+}
+
+export interface ReportReferenceStationDay {
+  station_id: string;
+  local_date: string;
+  avg_pm25_ug_m3: number | null;
+  valid_sample_count: number;
+  expected_sample_count: number;
+  coverage_ratio: number;
+  eligible_hour_count: number;
+  applicable_hour_count: number;
+  status: "eligible" | "insufficient_data";
+  qcvn: {
+    threshold: number;
+    unit: "ug/Nm3";
+    status: "not_comparable" | "insufficient_data";
+    relation: null;
+    not_legally_comparable: true;
+  };
+  who: {
+    threshold: number;
+    unit: "ug/m3";
+    status: "below_reference" | "above_reference" | "insufficient_data";
+    is_legal_standard: false;
+  };
+  good_hour_kpi: {
+    policy_version: string;
+    good_hour_count: number;
+    eligible_hour_count: number;
+    good_hour_rate: number | null;
+    target_ratio: number;
+    target_met: boolean | null;
+    status: "available" | "insufficient_data";
+    is_compliance_metric: false;
+  };
+}
+
+export interface WeeklyMatrixCell {
+  local_date: string;
+  local_hour: number;
+  value: number | null;
+  valid_sample_count: number;
+  expected_sample_count: number;
+  coverage_ratio: number;
+  eligible_station_count: number;
+  active_station_count: number;
+  status: "eligible" | "insufficient_data" | "not_applicable";
+}
+
+export interface WeeklyMatrixView {
+  station_selector: string;
+  cells: WeeklyMatrixCell[];
+}
+
+export interface WeeklyMatrixStatistics {
+  status: "available" | "not_applicable" | "legacy_unavailable";
+  metric: "pm25";
+  unit: "ug/m3";
+  station_options: string[];
+  views: WeeklyMatrixView[];
+  color_scale: {
+    version: "pm25-fixed-scale-v1";
+    clamp: boolean;
+    stops: number[];
+    palette?: string[];
+  };
 }
 
 export interface ReportStatistics {
@@ -413,6 +542,17 @@ export interface ReportStatistics {
   proposals: ReportProposalStatistics;
   ventilation: ReportVentilationStatistics;
   data_quality: ReportDataQualityStatistics;
+  policy_snapshot?: ReportPolicySnapshot;
+  esg_metrics?: {
+    estimated_pm25_removed_kg: ReportEstimate;
+    estimated_energy_saved_kwh: ReportEstimate;
+    acknowledged_intervals?: Array<Record<string, unknown>>;
+  };
+  reference_comparison?: {
+    station_days: ReportReferenceStationDay[];
+    annual_compliance_evaluated: false;
+  };
+  weekly_matrix?: WeeklyMatrixStatistics;
 }
 
 export interface Report {
@@ -422,6 +562,8 @@ export interface Report {
   period_end: string;
   timezone: string;
   status: ReportStatus;
+  schema_version?: string;
+  content_checksum_sha256?: string | null;
   statistics: ReportStatistics;
   evidence_summary: Record<string, unknown>;
   narrative: string;
@@ -460,11 +602,63 @@ export interface AuditLogEntry {
   id: string;
   time: string;
   actor: string;
+  actor_type?: string;
+  actor_role?: string;
   action: string;
   target: string;
+  entity_type?: string;
+  entity_id?: string;
+  station_id?: string;
   outcome: string;
   correlation_id: string;
   detail?: string;
+}
+
+export type VentilationOperatingMode = "RUNNING_BOOST" | "AIR_PURIFIER_ON" | "ECO_MODE" | "STANDBY";
+
+export interface VentilationEffectiveness {
+  baseline_pm25: number | null;
+  current_pm25: number | null;
+  pm25_reduction_percent: number | null;
+  baseline_co2: number | null;
+  current_co2: number | null;
+  co2_reduction_percent: number | null;
+  measured_at: string | null;
+}
+
+export interface VentilationCommandSummary {
+  command_intent_id: string;
+  approval_request_id: string;
+  command_id?: string | null;
+  action: string;
+  status: string;
+  ack_status?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  review_note?: string | null;
+}
+
+export interface VentilationDevice {
+  device_id: string;
+  device_name: string;
+  device_type: string;
+  station_id: string;
+  station_name?: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  status: string;
+  operating_mode: VentilationOperatingMode;
+  is_active: boolean;
+  is_simulated: true;
+  last_seen_at?: string | null;
+  started_at?: string | null;
+  ends_at?: string | null;
+  duration_minutes?: number | null;
+  intensity_percent?: number | null;
+  remaining_seconds: number;
+  effectiveness?: VentilationEffectiveness | null;
+  latest_command?: VentilationCommandSummary | null;
+  source: "simulator";
 }
 
 

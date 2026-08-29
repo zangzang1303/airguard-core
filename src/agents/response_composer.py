@@ -50,6 +50,7 @@ def compose_response(
         Intent.USER_PROFILE: _compose_profile,
         Intent.PROPOSAL: _compose_proposal_gate,
         Intent.IMPACT: _compose_impact,
+        Intent.DEVICE_STATUS: _compose_ventilation_status,
     }
     if decision.intent == Intent.RECOMMENDATION:
         try:
@@ -166,6 +167,15 @@ def _passes_quality_gate(intent: Intent, data_items: list[Mapping[str, Any]]) ->
         )
     if intent == Intent.PROPOSAL:
         return _measurement_is_usable(data_items[0])
+    if intent == Intent.DEVICE_STATUS:
+        items = data_items[0].get("items", [])
+        return bool(items) and all(
+            item.get("source") == "simulator"
+            and item.get("device_id")
+            and item.get("station_id")
+            and item.get("operating_mode")
+            for item in items
+        )
     return True
 
 
@@ -215,6 +225,70 @@ def _compose_impact(data_items: list[Mapping[str, Any]]) -> str:
         f"{assessment.summary} Căn cứ cùng request: {contributors}. "
         f"Thời điểm {data['updated_at']}; nguồn {data['source']}; policy {assessment.policy_version}. "
         f"Đây là đánh giá vận hành từ dữ liệu simulator, không phải chẩn đoán sức khỏe hay cảnh báo khẩn cấp."
+    )
+
+
+def _compose_ventilation_status(data_items: list[Mapping[str, Any]]) -> str:
+    devices = data_items[0]["items"]
+    device = next((item for item in devices if item.get("is_active")), devices[0])
+    mode_labels = {
+        "RUNNING_BOOST": "Boost",
+        "AIR_PURIFIER_ON": "lọc khí tăng cường",
+        "ECO_MODE": "Eco Mode",
+        "STANDBY": "Standby",
+    }
+    mode = mode_labels.get(str(device["operating_mode"]), str(device["operating_mode"]))
+    remaining_seconds = int(device.get("remaining_seconds") or 0)
+    duration_minutes = int(device.get("duration_minutes") or 0)
+    elapsed_minutes = max(0, duration_minutes - (remaining_seconds + 59) // 60) if duration_minutes else 0
+    runtime = (
+        f"đã chạy khoảng {elapsed_minutes} phút, còn khoảng {(remaining_seconds + 59) // 60} phút"
+        if device.get("is_active") and duration_minutes
+        else "hiện không có chu kỳ tăng cường đang chạy"
+    )
+    effectiveness = device.get("effectiveness") or {}
+    effect_parts: list[str] = []
+    if effectiveness.get("baseline_pm25") is not None and effectiveness.get("current_pm25") is not None:
+        effect_parts.append(
+            _format_metric_change(
+                "PM2.5",
+                effectiveness["baseline_pm25"],
+                effectiveness["current_pm25"],
+                "µg/m³",
+            )
+        )
+    if effectiveness.get("baseline_co2") is not None and effectiveness.get("current_co2") is not None:
+        effect_parts.append(
+            _format_metric_change(
+                "CO₂",
+                effectiveness["baseline_co2"],
+                effectiveness["current_co2"],
+                "ppm",
+            )
+        )
+    effect = "; ".join(effect_parts) if effect_parts else "chưa đủ cặp số đo để kết luận hiệu quả"
+    return (
+        f"Thiết bị {device['device_id']} tại {device['station_id']} đang ở chế độ {mode}, {runtime}. "
+        f"Theo telemetry mô phỏng cùng request: {effect}. "
+        "Mọi thay đổi chế độ vẫn phải qua proposal pending và BQL phê duyệt; đây không phải thiết bị thật."
+    )
+
+
+def _format_metric_change(metric: str, baseline: Any, current: Any, unit: str) -> str:
+    baseline_value = float(baseline)
+    current_value = float(current)
+    if current_value < baseline_value:
+        direction = "giảm"
+        connector = "xuống"
+    elif current_value > baseline_value:
+        direction = "tăng"
+        connector = "lên"
+    else:
+        return f"{metric} không đổi ở {current_value:g} {unit}"
+    change_percent = abs(current_value - baseline_value) / baseline_value * 100 if baseline_value else 0
+    return (
+        f"{metric} {direction} từ {baseline_value:g} {connector} {current_value:g} {unit} "
+        f"({change_percent:.1f}%)"
     )
 
 
@@ -592,6 +666,17 @@ def _sources(intent: Intent, tool_results: list[Mapping[str, Any]]) -> list[dict
                     "source": data.get("source"),
                 }
             )
+        elif tool_name == "get_ventilation_devices_status":
+            for item in data.get("items", []):
+                effectiveness = item.get("effectiveness") or {}
+                sources.append(
+                    {
+                        "tool_name": tool_name,
+                        "station_id": item.get("station_id"),
+                        "observed_at": effectiveness.get("measured_at") or item.get("started_at"),
+                        "source": item.get("source"),
+                    }
+                )
         elif tool_name == "get_current_pm25" and data.get("station_id"):
             sources.append(_measurement_source(tool_name, data))
     return sources

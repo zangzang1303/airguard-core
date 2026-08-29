@@ -60,14 +60,16 @@ class UserService:
             with dict_cursor(conn) as cur:
                 cur.execute(
                     """
-                    SELECT user_id, email, sensitivity_group
-                    FROM users
-                    WHERE role = 'resident'
-                      AND is_active = TRUE
-                      AND email_verified_at IS NOT NULL
-                      AND email IS NOT NULL
-                      AND BTRIM(email) <> ''
-                    ORDER BY user_id
+                    SELECT u.user_id, u.email, u.sensitivity_group
+                    FROM users u
+                    JOIN resident_notification_preferences p ON p.user_id = u.user_id
+                    WHERE u.role = 'resident'
+                      AND u.is_active = TRUE
+                      AND u.email_verified_at IS NOT NULL
+                      AND u.email IS NOT NULL
+                      AND BTRIM(u.email) <> ''
+                      AND p.environmental_email_enabled = TRUE
+                    ORDER BY u.user_id
                     """
                 )
                 return [

@@ -21,6 +21,7 @@ from src.agents.tools.contracts import (
     ToolErrorCode,
     ToolName,
     UserProfileInput,
+    VentilationDevicesInput,
     WarningProposalInput,
     WeatherContextInput,
 )
@@ -168,6 +169,23 @@ class BackendToolClient:
             request_id,
             "GET",
             f"/api/v1/users/{args.user_id}/profile",
+        )
+
+    async def get_ventilation_devices_status(
+        self, payload: Mapping[str, Any], request_id: str | None = None
+    ) -> ToolEnvelope | ToolError:
+        request_id = request_id or self._new_request_id()
+        try:
+            args = VentilationDevicesInput.model_validate(payload)
+        except ValidationError as exc:
+            return self._validation_error(ToolName.GET_VENTILATION_DEVICES_STATUS, request_id, exc)
+        params = {"station_id": args.station_id} if args.station_id else None
+        return await self._request_and_validate(
+            ToolName.GET_VENTILATION_DEVICES_STATUS,
+            request_id,
+            "GET",
+            "/api/v1/ventilation-devices",
+            params=params,
         )
 
     async def create_warning_proposal(

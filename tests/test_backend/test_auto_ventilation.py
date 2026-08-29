@@ -292,7 +292,7 @@ def test_offline_station_blocks_trigger_and_recovery_even_with_fresh_valid_measu
 
 def test_safe_recovery_requires_succeeded_boost_and_twenty_continuous_minutes() -> None:
     now = datetime(2026, 8, 21, 5, tzinfo=UTC)
-    rows = continuous_rows(now, minutes=20, pm25=50, co2=1000)
+    rows = continuous_rows(now, minutes=20, pm25=24.9, co2=699)
     intent = {
         "command_intent_id": "intent-001",
         "device_id": "FILTER-01",
@@ -316,7 +316,7 @@ def test_safe_recovery_requires_succeeded_boost_and_twenty_continuous_minutes() 
 
 def test_safe_recovery_requires_correlated_succeeded_acknowledgement() -> None:
     now = datetime(2026, 8, 21, 5, tzinfo=UTC)
-    rows = continuous_rows(now, minutes=20, pm25=50, co2=1000)
+    rows = continuous_rows(now, minutes=20, pm25=24.9, co2=699)
     intent = {
         "command_intent_id": "intent-without-ack",
         "device_id": "FILTER-01",
@@ -337,6 +337,35 @@ def test_safe_recovery_requires_correlated_succeeded_acknowledgement() -> None:
     assert result.eligible is False
     assert result.reason_code == "boost_acknowledgement_missing"
     assert result.source_command_intent_id == "intent-without-ack"
+
+
+def test_safe_recovery_uses_strict_pm25_and_co2_thresholds() -> None:
+    now = datetime(2026, 8, 21, 5, tzinfo=UTC)
+    intent = {
+        "command_intent_id": "intent-boundary",
+        "device_id": "FILTER-01",
+        "station_id": "S03",
+        "command": "ventilation_boost",
+        "status": "succeeded",
+        "created_at": now - timedelta(minutes=30),
+        "dispatched_at": now - timedelta(minutes=30),
+        "ack_status": "succeeded",
+        "acknowledged_at": now - timedelta(minutes=30),
+    }
+
+    pm25_boundary = VentilationService(
+        FakeDatabase(continuous_rows(now, minutes=20, pm25=25, co2=699), [intent]),
+        max_gap_seconds=60,
+    ).assess_recovery("S03", reference_at=now)
+    co2_boundary = VentilationService(
+        FakeDatabase(continuous_rows(now, minutes=20, pm25=24.9, co2=700), [intent]),
+        max_gap_seconds=60,
+    ).assess_recovery("S03", reference_at=now)
+
+    assert pm25_boundary.eligible is False
+    assert pm25_boundary.reason_code == "safe_values_not_continuous"
+    assert co2_boundary.eligible is False
+    assert co2_boundary.reason_code == "safe_values_not_continuous"
 
 
 def test_recovery_missing_co2_or_without_succeeded_boost_is_blocked() -> None:

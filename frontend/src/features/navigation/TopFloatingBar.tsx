@@ -1,5 +1,5 @@
 import React from "react";
-import { Wind, Bell, User, ShieldCheck, FileClock, Wifi, WifiOff, RefreshCw, EyeOff } from "lucide-react";
+import { Wind, Bell, User, ShieldCheck, FileClock, FileBarChart2, Wifi, WifiOff, RefreshCw, EyeOff } from "lucide-react";
 import { PlaceSearchOmnibox } from "./PlaceSearchOmnibox";
 import { Station } from "../../types";
 import { PlacePOI } from "../../types/superApp";
@@ -24,6 +24,7 @@ interface TopFloatingBarProps {
   onOpenProfile: () => void;
   onOpenManagerDrawer: () => void;
   onOpenAudit?: () => void;
+  onOpenReports?: () => void;
   onAskAiWithQuery: (query: string) => void;
   onSetUserLocation?: (
     coords: [number, number],
@@ -53,6 +54,7 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   onOpenProfile,
   onOpenManagerDrawer,
   onOpenAudit,
+  onOpenReports,
   onAskAiWithQuery,
   onSetUserLocation,
   onLocateGps,
@@ -226,6 +228,17 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
                 aria-label="Mở Nhật ký Audit Log"
               >
                 <FileClock size={18} aria-hidden="true" />
+              </button>
+            )}
+            {onOpenReports && (
+              <button
+                type="button"
+                className="top-icon-btn"
+                onClick={onOpenReports}
+                title="Báo cáo môi trường định kỳ"
+                aria-label="Mở Báo cáo môi trường định kỳ"
+              >
+                <FileBarChart2 size={18} aria-hidden="true" />
               </button>
             )}
           </>

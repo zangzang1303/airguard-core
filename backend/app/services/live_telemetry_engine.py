@@ -93,6 +93,7 @@ class LiveTelemetryEngine:
         self._history: dict[str, list[dict[str, Any]]] = {s["station_id"]: [] for s in self.STATION_DEFINITIONS}
         self._demo_overrides: dict[str, dict[str, float]] = {}
         self._demo_override_started_at: dict[str, datetime] = {}
+        self._ventilation_cycles: dict[str, dict[str, Any]] = {}
         self._bootstrap_history()
 
     def _bootstrap_history(self) -> None:
@@ -179,6 +180,7 @@ class LiveTelemetryEngine:
                 m["level"] = pm25_level(float(m["pm25"]))
                 m["demo_override"] = True
                 m["demo_override_note"] = "Demo operator override; automatic simulator remains running."
+            m = self._apply_ventilation_feedback(m, now)
             self._history[st_id].append(m)
             if len(self._history[st_id]) > 200:
                 self._history[st_id] = self._history[st_id][-200:]
@@ -272,11 +274,79 @@ class LiveTelemetryEngine:
     def apply_demo_override(self, station: dict[str, Any]) -> dict[str, Any]:
         override = self._demo_overrides.get(str(station.get("station_id")))
         if not override:
-            return station
+            return self._apply_ventilation_feedback(dict(station), datetime.now(UTC))
         updated = {**station, **override, "demo_override": True, "demo_override_note": "Demo operator override; automatic simulator remains running."}
         updated["aqi"] = pm25_aqi(float(updated["pm25"]))
         updated["aqi_category"] = aqi_category(updated["aqi"])
         updated["level"] = pm25_level(float(updated["pm25"]))
+        return self._apply_ventilation_feedback(updated, datetime.now(UTC))
+
+    def sync_ventilation_devices(self, devices: list[dict[str, Any]]) -> None:
+        active_stations: set[str] = set()
+        for device in devices:
+            station_id = str(device.get("station_id") or "")
+            command = device.get("latest_command") or {}
+            command_id = command.get("command_id") or command.get("command_intent_id")
+            if not station_id or not command_id or not device.get("is_active"):
+                continue
+            active_stations.add(station_id)
+            existing = self._ventilation_cycles.get(station_id)
+            if existing and existing.get("command_id") == command_id:
+                continue
+            self._ventilation_cycles[station_id] = {
+                "command_id": command_id,
+                "started_at": device.get("started_at"),
+                "ends_at": device.get("ends_at"),
+                "intensity_percent": device.get("intensity_percent") or 80,
+                "baseline_pm25": None,
+                "baseline_co2": None,
+            }
+        for station_id in tuple(self._ventilation_cycles):
+            if station_id not in active_stations:
+                self._ventilation_cycles.pop(station_id, None)
+
+    def _apply_ventilation_feedback(self, measurement: dict[str, Any], now: datetime) -> dict[str, Any]:
+        station_id = str(measurement.get("station_id") or "")
+        cycle = self._ventilation_cycles.get(station_id)
+        if not cycle or measurement.get("pm25") is None or measurement.get("co2") is None:
+            return measurement
+        started_at_raw = cycle.get("started_at")
+        ends_at_raw = cycle.get("ends_at")
+        if not started_at_raw or not ends_at_raw:
+            return measurement
+        started_at = datetime.fromisoformat(str(started_at_raw)).astimezone(UTC)
+        ends_at = datetime.fromisoformat(str(ends_at_raw)).astimezone(UTC)
+        if now >= ends_at:
+            self._ventilation_cycles.pop(station_id, None)
+            return measurement
+        if cycle.get("baseline_pm25") is None:
+            cycle["baseline_pm25"] = float(measurement["pm25"])
+            cycle["baseline_co2"] = float(measurement["co2"])
+        elapsed_minutes = max(0.0, (now - started_at).total_seconds() / 60.0)
+        intensity_scale = max(0.1, float(cycle.get("intensity_percent") or 80) / 80.0)
+        pm25_target = 15.0
+        co2_target = 450.0
+        pm25 = (
+            (max(pm25_target, float(cycle["baseline_pm25"])) - pm25_target)
+            * math.exp(-0.08 * intensity_scale * elapsed_minutes)
+            + pm25_target
+        )
+        co2 = (
+            (max(co2_target, float(cycle["baseline_co2"])) - co2_target)
+            * math.exp(-0.06 * intensity_scale * elapsed_minutes)
+            + co2_target
+        )
+        updated = dict(measurement)
+        updated["pm25"] = round(min(float(measurement["pm25"]), pm25), 1)
+        updated["co2"] = round(min(float(measurement["co2"]), co2), 1)
+        updated["aqi"] = pm25_aqi(updated["pm25"])
+        updated["aqi_category"] = aqi_category(updated["aqi"])
+        updated["level"] = pm25_level(updated["pm25"])
+        updated["ventilation_feedback"] = {
+            "command_id": cycle["command_id"],
+            "model": "task4_exponential_decay_v1",
+            "is_simulated": True,
+        }
         return updated
 
 

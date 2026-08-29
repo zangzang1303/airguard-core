@@ -36,8 +36,9 @@ import { AlertsFlyout } from "./features/drawers/AlertsFlyout";
 import { HealthProfileDrawer } from "./features/drawers/HealthProfileDrawer";
 import { CommunityReportModal } from "./features/drawers/CommunityReportModal";
 import { ManagerApprovalDrawer } from "./features/drawers/ManagerApprovalDrawer";
+import { DeviceDetailDrawer } from "./features/drawers/DeviceDetailDrawer";
 import { FloatingPanelProvider } from "./features/floating";
-import { Station, Alert, Proposal } from "./types";
+import { Station, Alert, Proposal, VentilationDevice } from "./types";
 import {
   ActiveDrawerType,
   MapLayerConfig,
@@ -52,6 +53,8 @@ import {
   fetchProposals,
   approveProposal,
   rejectProposal,
+  fetchVentilationDevices,
+  createVentilationDeviceProposal,
 } from "./api/client";
 import { RefreshCw, TriangleAlert, ArrowLeft, CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
 import "./theme.css";
@@ -67,6 +70,7 @@ const SuperAppMain: React.FC<{
   refreshData: () => Promise<void>;
   connectionStatus: "connected" | "updating" | "disconnected";
   lastUpdated: Date | null;
+  refreshRevision: number;
 }> = ({
   stations,
   alerts,
@@ -77,8 +81,9 @@ const SuperAppMain: React.FC<{
   refreshData,
   connectionStatus,
   lastUpdated,
+  refreshRevision,
 }) => {
-  const { role, userGroup, demoMode } = useAuth();
+  const { role, userGroup, demoMode, navigateTo } = useAuth();
   const isManager = role === "manager" || role === "admin";
   const canUseDemoControl = isManager && Boolean(demoMode);
 
@@ -88,9 +93,28 @@ const SuperAppMain: React.FC<{
   const [isLayersOpen, setIsLayersOpen] = useState(false);
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [selectedPoi, setSelectedPoi] = useState<PlacePOI | null>(null);
+  const [ventilationDevices, setVentilationDevices] = useState<VentilationDevice[]>([]);
+  const [selectedVentilationDeviceId, setSelectedVentilationDeviceId] = useState<string | null>(null);
+  const [ventilationDeviceError, setVentilationDeviceError] = useState<string | null>(null);
+  const [ventilationDeviceLoading, setVentilationDeviceLoading] = useState(false);
 
   // Map controls
   const [flyToTarget, setFlyToTarget] = useState<[number, number] | null>(null);
+  const predictiveWarningId = typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("predictive_warning_id");
+
+  useEffect(() => {
+    if (!predictiveWarningId || stations.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("panel") !== "alerts") return;
+    const stationId = params.get("station_id");
+    const station = stations.find((item) => item.station_id === stationId);
+    if (!station) return;
+    setSelectedStationId(station.station_id);
+    setFlyToTarget([station.latitude, station.longitude]);
+    setActiveDrawer("alerts");
+  }, [predictiveWarningId, stations]);
 
   // Layer Configuration State
   const [layerConfig, setLayerConfig] = useState<MapLayerConfig>({
@@ -108,7 +132,37 @@ const SuperAppMain: React.FC<{
     showForecastTimeline: false,
     showAirQualityNow: false,
     showMapLegend: false,
+    showVentilationDevices: true,
   });
+
+  const loadVentilationDevices = useCallback(async () => {
+    if (!isManager) {
+      setVentilationDevices([]);
+      return;
+    }
+    setVentilationDeviceLoading(true);
+    try {
+      const devices = await fetchVentilationDevices();
+      setVentilationDevices(devices);
+      setVentilationDeviceError(null);
+    } catch (deviceError: any) {
+      setVentilationDeviceError(deviceError?.message || "Không thể tải trạng thái thiết bị thông gió.");
+    } finally {
+      setVentilationDeviceLoading(false);
+    }
+  }, [isManager]);
+
+  useEffect(() => {
+    void loadVentilationDevices();
+    if (!isManager) return;
+    const timer = window.setInterval(() => void loadVentilationDevices(), 10_000);
+    return () => window.clearInterval(timer);
+  }, [isManager, loadVentilationDevices]);
+
+  const selectedVentilationDevice = useMemo(
+    () => ventilationDevices.find((device) => device.device_id === selectedVentilationDeviceId) ?? null,
+    [selectedVentilationDeviceId, ventilationDevices],
+  );
 
   // User Health Profile State
   const [healthProfile, setHealthProfile] = useState<HealthProfile>({
@@ -420,8 +474,11 @@ const SuperAppMain: React.FC<{
         criticalStationIds={criticalStationIds}
         selectedPoi={selectedPoi}
         layerConfig={layerConfig}
+        ventilationDevices={ventilationDevices}
+        isManager={isManager}
         flyToTarget={flyToTarget}
         forecastHour={forecastHour}
+        refreshRevision={refreshRevision}
         userCoords={userLocation}
         userLocationAccuracy={userLocationAccuracy}
         userLocationName={userLocationName}
@@ -430,6 +487,11 @@ const SuperAppMain: React.FC<{
         onForecastHourChange={setForecastHour}
         onSelectStation={handleSelectStation}
         onSelectPoi={handleSelectPoi}
+        onSelectVentilationDevice={(device) => {
+          setSelectedVentilationDeviceId(device.device_id);
+          setActiveDrawer("device-detail");
+          setIsLayersOpen(false);
+        }}
         onOpenNearMe={() => setActiveDrawer("near-me")}
         onCancelPicking={handleCancelPickingOnMap}
         onMapClickLocation={handleMapClickLocation}
@@ -463,6 +525,7 @@ const SuperAppMain: React.FC<{
         onOpenProfile={() => setActiveDrawer("health-profile")}
         onOpenManagerDrawer={() => setActiveDrawer("manager-approval")}
         onOpenAudit={() => setActiveDrawer("audit")}
+        onOpenReports={() => navigateTo("admin-reports")}
         onAskAiWithQuery={handleAskAiWithQuery}
         onSetUserLocation={handleSetUserLocation}
         onLocateGps={handleLocateGps}
@@ -617,6 +680,7 @@ const SuperAppMain: React.FC<{
           onRetry={refreshData}
           onClose={() => setActiveDrawer(null)}
           onShowAlertOnMap={handleShowAlertOnMap}
+          predictiveWarningId={predictiveWarningId}
         />
       )}
 
@@ -644,6 +708,25 @@ const SuperAppMain: React.FC<{
           onReject={handleRejectProposal}
           onClose={() => setActiveDrawer(null)}
           onOpenAudit={() => setActiveDrawer("audit")}
+        />
+      )}
+
+      {activeDrawer === "device-detail" && isManager && selectedVentilationDevice && (
+        <DeviceDetailDrawer
+          device={selectedVentilationDevice}
+          loading={ventilationDeviceLoading}
+          error={ventilationDeviceError}
+          onClose={() => setActiveDrawer(null)}
+          onRefresh={loadVentilationDevices}
+          onCreateProposal={async (action, reason) => {
+            await createVentilationDeviceProposal(
+              selectedVentilationDevice.device_id,
+              action,
+              reason,
+              `device-${selectedVentilationDevice.device_id}-${action}-${Date.now()}`,
+            );
+            await Promise.all([loadVentilationDevices(), refreshData()]);
+          }}
         />
       )}
 
@@ -697,6 +780,7 @@ const AppContent: React.FC = () => {
   const [proposalLoadError, setProposalLoadError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "updating" | "disconnected">("updating");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshRevision, setRefreshRevision] = useState(0);
 
   const isManager = role === "manager" || role === "admin";
 
@@ -711,6 +795,8 @@ const AppContent: React.FC = () => {
         setCurrentScreen("reset-password");
       } else if (pathname.includes("forgot-password")) {
         setCurrentScreen("forgot-password");
+      } else if (pathname.includes("reports")) {
+        setCurrentScreen("admin-reports");
       }
     }
   }, [setCurrentScreen]);
@@ -729,6 +815,7 @@ const AppContent: React.FC = () => {
       setLoadError(null);
       setConnectionStatus("connected");
       setLastUpdated(new Date());
+      setRefreshRevision((revision) => revision + 1);
 
       if (isManager) {
         try {
@@ -866,62 +953,59 @@ const AppContent: React.FC = () => {
     if (currentScreen === "admin-users") return <UserManagement />;
     if (currentScreen === "admin-regions") return <RegionStations />;
     if (currentScreen === "admin-devices") return <IotDevices />;
-    if ((currentScreen as string) === "admin-reports" || (currentScreen as string) === "reports") return <ReportViewer />;
+    if (currentScreen === "admin-reports") return <ReportViewer />;
     if (currentScreen === "admin-settings") return <AdminDashboard />;
     return null;
   };
 
   const specialOverlay = renderScreenOverlay();
 
-  return (
-    <>
-      <SuperAppMain
-        stations={stations}
-        alerts={alerts}
-        proposals={proposals}
-        loading={loading}
-        loadError={loadError}
-        proposalLoadError={proposalLoadError}
-        refreshData={refreshData}
-        connectionStatus={connectionStatus}
-        lastUpdated={lastUpdated}
-      />
-      {specialOverlay && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 3000,
-            background: "#f8fafc",
-            overflowY: "auto",
-            padding: "20px",
-          }}
-        >
-          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-            <button
-              onClick={() => navigateTo("dashboard")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                background: "#1e293b",
-                color: "#fff",
-                border: "none",
-                borderRadius: "20px",
-                padding: "8px 16px",
-                cursor: "pointer",
-                fontWeight: 600,
-                fontSize: "0.85rem",
-                marginBottom: "16px",
-              }}
-            >
-              <ArrowLeft size={16} /> Trở về Bản đồ
-            </button>
-            {specialOverlay}
-          </div>
+  if (specialOverlay) {
+    return (
+      <div
+        className="special-screen-overlay"
+        style={{
+          background: "#f8fafc",
+        }}
+      >
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <button
+            onClick={() => navigateTo("dashboard")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "#1e293b",
+              color: "#fff",
+              border: "none",
+              borderRadius: "20px",
+              padding: "8px 16px",
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: "0.85rem",
+              marginBottom: "16px",
+            }}
+          >
+            <ArrowLeft size={16} /> Trở về Bản đồ
+          </button>
+          {specialOverlay}
         </div>
-      )}
-    </>
+      </div>
+    );
+  }
+
+  return (
+    <SuperAppMain
+      stations={stations}
+      alerts={alerts}
+      proposals={proposals}
+      loading={loading}
+      loadError={loadError}
+      proposalLoadError={proposalLoadError}
+      refreshData={refreshData}
+      connectionStatus={connectionStatus}
+      lastUpdated={lastUpdated}
+    />
   );
 };
 

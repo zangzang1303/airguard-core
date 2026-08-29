@@ -231,31 +231,6 @@ export const Register: React.FC = () => {
         </div>
       </section>
 
-      <aside className="auth-column-demo" aria-label="Giới thiệu AirGuard AI">
-        <div className="demo-panel-inner auth-register-aside">
-          <div className="demo-selector-header">
-            <div className="demo-title-row">
-              <ShieldCheck size={16} aria-hidden="true" />
-              <h3>AirGuard AI cho cư dân</h3>
-            </div>
-            <p>Đăng ký để cá nhân hóa trải nghiệm theo dõi chất lượng môi trường quanh bạn.</p>
-          </div>
-          <div className="prod-benefits-stack">
-            <div className="prod-benefit-item">
-              <strong>Theo dõi đa chỉ số</strong>
-              <p>Xem AQI, PM2.5, CO₂, nhiệt độ và độ ồn từ các trạm mô phỏng trong khu vực.</p>
-            </div>
-            <div className="prod-benefit-item">
-              <strong>Nhận cảnh báo phù hợp</strong>
-              <p>Chọn nhóm người dùng để nhận nội dung cảnh báo và khuyến nghị phù hợp hơn.</p>
-            </div>
-            <div className="prod-benefit-item">
-              <strong>Dữ liệu minh bạch</strong>
-              <p>AirGuard AI là MVP dùng dữ liệu mô phỏng, không phải hệ thống quan trắc chính thức.</p>
-            </div>
-          </div>
-        </div>
-      </aside>
     </AuthShell>
   );
 };

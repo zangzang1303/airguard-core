@@ -23,7 +23,7 @@ Use only authorized backend tool results from the current request. You are not a
 monitoring agency, medical practitioner, device actuator, or HITL approver.
 
 Classify exactly one primary intent: current, compare, history, forecast, active_alerts,
-recommendation, warning_proposal, weather, social, clarification, safety_refusal, or
+ventilation_status, recommendation, warning_proposal, weather, social, clarification, safety_refusal, or
 out_of_scope. insufficient_data is a terminal outcome, not an intent. Safety refusal takes
 precedence over proposal, recommendation, data intents, social, and other direct responses.
 
@@ -42,6 +42,7 @@ Tool allowlist: current=get_current_pm25; compare=compare_stations;
 history=get_station_history; forecast=get_pm25_forecast; active_alerts=get_active_alerts;
 weather=get_weather_context. Recommendation retrieves get_user_profile first, then current,
 weather, forecast, and alerts; compare only when the backend profile is outdoor_sport.
+Ventilation status uses read-only get_ventilation_devices_status and never dispatches a command.
 Warning proposal uses current and alerts, then backend eligibility, then
 create_warning_proposal. Social, clarification, safety_refusal, and out_of_scope call no tools.
 
@@ -73,6 +74,7 @@ class Intent(StrEnum):
     IMPACT = "impact"
     SPATIAL = "spatial"
     PROPOSAL = "proposal"
+    DEVICE_STATUS = "ventilation_status"
     GREETING = "greeting"
     SOCIAL = "social"
     CLARIFICATION = "clarification"
@@ -230,7 +232,7 @@ def _has_explicit_domain_request(query: str) -> bool:
             "aqi", "pm2.5", "pm25", "co2", "co₂", "chat luong khong khi", "moi truong",
             "o nhiem", "bui min", "tieng on", "nhiet do", "thoi tiet", "canh bao", "du bao",
             "so sanh", "tram", "sensor", "chay bo", "ngoai troi", "cung duong", "lo trinh",
-            "sang mai", "ngay mai", "mo cua", "khung gio vang",
+            "thong gio", "quat", "ventilation", "air filter", "tot dan",
         ),
     )
 
@@ -246,7 +248,10 @@ def _stations(query: str) -> list[str]:
 # canonicalized against data/stations.json and backend/db/schema.sql, where S04
 # is named "Khuôn viên VinUni".  Do not add fuzzy matching here: an unknown
 # place must remain a clarification rather than being silently assigned a station.
-_STATION_ENTITY_ALIASES: tuple[tuple[str, str], ...] = (("vinuni", "S04"),)
+_STATION_ENTITY_ALIASES: tuple[tuple[str, str], ...] = (
+    ("vinuni", "S04"),
+    ("ho ngoc trai", "S03"),
+)
 
 
 def _station_entity_ids(query: str) -> list[str]:
@@ -387,6 +392,28 @@ def route_query(
         and normalized_context in {"S01", "S02", "S03", "S04", "S05"}
     ):
         stations = [normalized_context]
+    device_terms = ("thong gio", "quat", "ventilation", "air filter", "may loc")
+    device_status_terms = (
+        "trang thai",
+        "dang chay",
+        "chay duoc bao lau",
+        "con lai",
+        "hieu qua",
+        "giam",
+        "eco",
+        "standby",
+        "hoat dong",
+        "tot dan",
+    )
+    if (
+        _contains_any(plain, device_terms) and _contains_any(plain, device_status_terms)
+    ) or (_contains_any(plain, ("khong khi dang tot dan", "khong khi tot dan")) and bool(stations)):
+        arguments: dict[str, Any] = {"station_id": stations[0]} if stations else {}
+        return RouteDecision(
+            intent=Intent.DEVICE_STATUS,
+            tool_calls=[ToolName.GET_VENTILATION_DEVICES_STATUS],
+            tool_arguments=[arguments],
+        )
     if _contains_any(
         plain,
         (

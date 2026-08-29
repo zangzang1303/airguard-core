@@ -1,13 +1,102 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Lightbulb, MapPin, RefreshCw, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Lightbulb, MapPin, RefreshCw, TriangleAlert } from "lucide-react";
 import { api } from "../../api/client";
 import { AlertFilters } from "../../components/common/AlertFilters";
 import { Button } from "../../components/common/Button";
 import { PageHeader } from "../../components/common/PageHeader";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { useAuth } from "../../context/AuthContext";
-import { Alert, Station } from "../../types";
+import { Alert, PredictiveWarningDetail, Station } from "../../types";
 import { SEVERITY_LABEL, formatVnDateTime } from "../../utils/datetime";
+
+const CHECKLIST_LABELS: Record<string, string> = {
+  close_windows: "Đóng cửa sổ và cửa ban công",
+  bring_laundry_inside: "Đưa quần áo đang phơi vào trong",
+  reduce_outdoor_activity: "Cân nhắc giảm hoạt động ngoài trời",
+  check_air_purifier: "Kiểm tra máy lọc không khí",
+};
+
+export const PredictiveWarningCard: React.FC<{
+  episodeId: string;
+  onFocusStation?: (stationId: string) => void;
+}> = ({ episodeId, onFocusStation }) => {
+  const { role } = useAuth();
+  const [detail, setDetail] = useState<PredictiveWarningDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [savingItem, setSavingItem] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api.getPredictiveWarning(episodeId)
+      .then((response) => { if (active) setDetail(response); })
+      .catch(() => { if (active) setError("Không thể tải chi tiết cảnh báo dự báo."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [episodeId]);
+
+  const updateChecklist = async (itemKey: string, completed: boolean) => {
+    if (!detail || role !== "resident") return;
+    setSavingItem(itemKey);
+    setError(null);
+    try {
+      const response = await api.updatePredictiveWarningChecklist(episodeId, itemKey, completed);
+      setDetail({
+        ...detail,
+        checklist: detail.checklist.map((item) => item.item_key === itemKey ? response.item : item),
+      });
+    } catch {
+      setError("Không thể lưu checklist. Hãy kiểm tra phiên đăng nhập và thử lại.");
+    } finally {
+      setSavingItem(null);
+    }
+  };
+
+  if (loading) return <div className="skeleton-card skeleton-card--md" role="status" aria-label="Đang tải cảnh báo dự báo" />;
+  if (error && !detail) return <div className="alert-box alert-error" role="alert">{error}</div>;
+  if (!detail) return <div className="empty-state">Không có dữ liệu cảnh báo dự báo.</div>;
+
+  const episode = detail.episode;
+  return (
+    <section className={`profile-card predictive-warning-detail level-${episode.severity}`}>
+      <div className="profile-section-heading profile-section-heading--compact">
+        <TriangleAlert size={22} aria-hidden="true" />
+        <div>
+          <span className="dashboard-eyebrow">Cảnh báo dự báo · {episode.status}</span>
+          <h2>{episode.station_id} · PM2.5 {episode.predicted_value} µg/m³</h2>
+          <p>
+            Khoảng {episode.predicted_min}–{episode.predicted_max} µg/m³ · độ tin cậy {Math.round(episode.confidence * 100)}%
+          </p>
+        </div>
+      </div>
+      <p>Nguồn: {episode.source} · Model: {episode.model_version} · Policy: {episode.policy_version}</p>
+      <p>{detail.disclaimer}</p>
+      {onFocusStation && (
+        <Button type="button" variant="outline" size="sm" onClick={() => onFocusStation(episode.station_id)}>
+          <MapPin size={15} aria-hidden="true" /> Xem trạm trên bản đồ
+        </Button>
+      )}
+      <fieldset className="predictive-checklist">
+        <legend>Checklist hành động cá nhân</legend>
+        {detail.checklist.map((item) => (
+          <label key={item.item_key}>
+            <input
+              type="checkbox"
+              checked={item.completed}
+              disabled={role !== "resident" || savingItem === item.item_key}
+              onChange={(event) => updateChecklist(item.item_key, event.target.checked)}
+            />
+            <span>{CHECKLIST_LABELS[item.item_key] ?? item.item_key}</span>
+            {item.completed && <CheckCircle2 size={15} aria-label="Đã hoàn thành" />}
+          </label>
+        ))}
+      </fieldset>
+      {role !== "resident" && <p className="text-muted">Manager chỉ có quyền xem checklist.</p>}
+      {error && <div className="alert-box alert-error" role="alert">{error}</div>}
+    </section>
+  );
+};
 
 export const AlertList: React.FC = () => {
   const { navigateTo } = useAuth();
@@ -18,6 +107,9 @@ export const AlertList: React.FC = () => {
   const [search, setSearch] = useState("");
   const [filterSeverity, setFilterSeverity] = useState("all");
   const [filterStatus, setFilterStatus] = useState("active");
+  const predictiveWarningId = typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("predictive_warning_id");
 
   const fetchAlerts = async () => {
     setLoading(true);
@@ -112,6 +204,10 @@ export const AlertList: React.FC = () => {
           setSortBy("newest");
         }}
       />
+
+      {predictiveWarningId && (
+        <PredictiveWarningCard episodeId={predictiveWarningId} onFocusStation={handleFocusStation} />
+      )}
 
 
       {error && (
