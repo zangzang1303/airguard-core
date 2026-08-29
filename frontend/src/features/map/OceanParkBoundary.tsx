@@ -20,7 +20,7 @@ export const OceanParkBoundary: React.FC<OceanParkBoundaryProps> = ({ showBounda
         pathOptions={{
           color: "transparent",
           fillColor: "#ffffff",
-          fillOpacity: 0.70,
+          fillOpacity: 0.78,
           fillRule: "evenodd",
           interactive: false,
         }}
@@ -30,9 +30,9 @@ export const OceanParkBoundary: React.FC<OceanParkBoundaryProps> = ({ showBounda
       <Polygon
         positions={OCEAN_PARK_1_BOUNDARY}
         pathOptions={{
-          color: "#10b981",
-          weight: 6,
-          opacity: 0.35,
+          color: "#059669",
+          weight: 7,
+          opacity: 0.55,
           fillColor: "transparent",
           interactive: false,
         }}
@@ -42,10 +42,10 @@ export const OceanParkBoundary: React.FC<OceanParkBoundaryProps> = ({ showBounda
       <Polygon
         positions={OCEAN_PARK_1_BOUNDARY}
         pathOptions={{
-          color: "#047857",
-          weight: 2.5,
-          dashArray: "7 5",
-          fillColor: "rgba(16, 185, 129, 0.03)",
+          color: "#065f46",
+          weight: 3,
+          dashArray: "8 5",
+          fillColor: "rgba(16, 185, 129, 0.05)",
           fillOpacity: 1,
           interactive: false,
         }}
