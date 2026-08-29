@@ -35,12 +35,12 @@ function createPoiIcon(category: string, isSelected: boolean): L.DivIcon {
   return L.divIcon({
     className: "custom-poi-marker",
     html: `
-      <div class="poi-marker-badge ${isSelectedClass}" role="img" aria-label="Địa danh: ${category}">
+      <div class="poi-marker-badge poi-cat-${category} ${isSelectedClass}" role="img" aria-label="Địa danh: ${category}">
         <span class="poi-emoji" aria-hidden="true">${iconEmoji}</span>
       </div>
     `,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
   });
 }
 

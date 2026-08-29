@@ -20,20 +20,32 @@ export const OceanParkBoundary: React.FC<OceanParkBoundaryProps> = ({ showBounda
         pathOptions={{
           color: "transparent",
           fillColor: "#ffffff",
-          fillOpacity: 0.72,
+          fillOpacity: 0.70,
           fillRule: "evenodd",
           interactive: false,
         }}
       />
 
-      {/* Vinhomes Ocean Park 1 Zone Highlight: Crisp Emerald Border */}
+      {/* Outer Ambient Glow Outline for Ocean Park 1 */}
       <Polygon
         positions={OCEAN_PARK_1_BOUNDARY}
         pathOptions={{
-          color: "#059669",
+          color: "#10b981",
+          weight: 6,
+          opacity: 0.35,
+          fillColor: "transparent",
+          interactive: false,
+        }}
+      />
+
+      {/* Vinhomes Ocean Park 1 Main Crisp Emerald Dashed Border */}
+      <Polygon
+        positions={OCEAN_PARK_1_BOUNDARY}
+        pathOptions={{
+          color: "#047857",
           weight: 2.5,
-          dashArray: "6 4",
-          fillColor: "rgba(16, 185, 129, 0.04)",
+          dashArray: "7 5",
+          fillColor: "rgba(16, 185, 129, 0.03)",
           fillOpacity: 1,
           interactive: false,
         }}

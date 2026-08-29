@@ -140,7 +140,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({
       <ImageOverlay
         url={overlayDataUrl}
         bounds={DISPERSION_BOUNDS}
-        opacity={0.78}
+        opacity={0.46}
       />
     </Pane>
   );
