@@ -10,6 +10,7 @@ export type ActiveDrawerType =
   | "health-profile"
   | "community-report"
   | "manager-approval"
+  | "device-detail"
   | "directions"
   | "audit";
 
@@ -35,7 +36,8 @@ export type MapLayerVisibilityKey =
   | "showDemoControl"
   | "showForecastTimeline"
   | "showAirQualityNow"
-  | "showMapLegend";
+  | "showMapLegend"
+  | "showVentilationDevices";
 
 export interface MapLayerConfig {
   activeEnvironmentalLayer: EnvironmentalLayerType;
@@ -52,12 +54,25 @@ export interface MapLayerConfig {
   showForecastTimeline?: boolean;
   showAirQualityNow?: boolean;
   showMapLegend?: boolean;
+  showVentilationDevices?: boolean;
 }
 
 export interface PlacePOI {
   id: string;
   name: string;
-  category: "lake" | "park" | "university" | "residential" | "mall" | "landmark" | "gate";
+  category:
+    | "lake"
+    | "park"
+    | "university"
+    | "residential"
+    | "mall"
+    | "landmark"
+    | "gate"
+    | "gym"
+    | "bus"
+    | "bike"
+    | "pool"
+    | "indoor_fitness";
   subdivision?: string;
   latitude: number;
   longitude: number;

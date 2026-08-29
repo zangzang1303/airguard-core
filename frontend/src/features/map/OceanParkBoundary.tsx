@@ -14,26 +14,38 @@ export const OceanParkBoundary: React.FC<OceanParkBoundaryProps> = ({ showBounda
       name="ocean-park-boundary"
       style={{ zIndex: 360, pointerEvents: "none" }}
     >
-      {/* Outer Geographic Context Mask (soft muted overlay outside boundary) */}
+      {/* Outer Geographic Context Mask (soft bright white wash outside boundary to fade out external areas) */}
       <Polygon
         positions={[MAP_OUTER_MASK, [...OCEAN_PARK_1_BOUNDARY].reverse()]}
         pathOptions={{
           color: "transparent",
-          fillColor: "#1e293b",
-          fillOpacity: 0.16,
+          fillColor: "#ffffff",
+          fillOpacity: 0.78,
           fillRule: "evenodd",
           interactive: false,
         }}
       />
 
-      {/* Vinhomes Ocean Park 1 Zone Highlight: Mint Tint + Emerald Border */}
+      {/* Outer Ambient Glow Outline for Ocean Park 1 */}
       <Polygon
         positions={OCEAN_PARK_1_BOUNDARY}
         pathOptions={{
-          color: "#20A77A",
-          weight: 2.5,
+          color: "#059669",
+          weight: 7,
+          opacity: 0.55,
+          fillColor: "transparent",
+          interactive: false,
+        }}
+      />
+
+      {/* Vinhomes Ocean Park 1 Main Crisp Emerald Dashed Border */}
+      <Polygon
+        positions={OCEAN_PARK_1_BOUNDARY}
+        pathOptions={{
+          color: "#065f46",
+          weight: 3,
           dashArray: "8 5",
-          fillColor: "rgba(28, 170, 125, 0.09)",
+          fillColor: "rgba(16, 185, 129, 0.05)",
           fillOpacity: 1,
           interactive: false,
         }}

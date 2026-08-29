@@ -310,6 +310,19 @@ export const MapLayersPopover: React.FC<MapLayersPopoverProps> = ({
               />
             </label>
 
+            <label className="toggle-item-row" htmlFor="toggle-ventilation-devices">
+              <div className="toggle-label-wrap">
+                <Wind size={15} />
+                <span>Hiển thị thiết bị thông gió</span>
+              </div>
+              <input
+                id="toggle-ventilation-devices"
+                type="checkbox"
+                checked={config.showVentilationDevices ?? true}
+                onChange={() => toggleFeature("showVentilationDevices")}
+              />
+            </label>
+
             {/* Điều khiển dữ liệu demo (Chỉ khi demoMode=true) */}
             {canUseDemoControl && (
               <label className="toggle-item-row" htmlFor="toggle-demo-control">

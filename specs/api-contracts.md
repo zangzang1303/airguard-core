@@ -56,6 +56,8 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/audit-logs` | manager read-only audit query | 200 | 403/503 |
 | GET `/devices` | simulated device list | 200 | 503 |
 | GET `/devices/{id}/status` | simulated device status | 200 | 404/503 |
+| GET `/ventilation-devices` | runtime/countdown/effectiveness for simulated ventilation devices; optional station filter | 200 | 422/503 |
+| POST `/devices/{id}/proposals` | Manager creates pending Eco/Standby HITL proposal | 201 | 401/403/404/409/422/503 |
 | GET `/reports?type=daily|weekly&limit=&offset=` | manager report list | 200 | 401/403/422/503 |
 | GET `/reports/{id}` | manager report detail from one persisted record | 200 | 401/403/404/422/503 |
 | POST `/reports/generate` | manager manual deterministic report generation | 201 | 401/403/409/422/503 |
@@ -190,17 +192,18 @@ For a focused demo, `AUTO_PROPOSAL_STATIONS=S03` matches the `spike` scenario an
 Other stations may still produce backend alerts, but their alerts do not schedule Agent proposals.
 
 For auto ventilation, only `pm25_threshold` and `co2_threshold` alerts qualify. The Rule Engine must
-also prove a continuous valid/fresh window longer than or equal to 30 seconds with PM2.5 strictly
+also prove a continuous valid/fresh window longer than or equal to 15 minutes with PM2.5 strictly
 above 50 µg/m³ or CO₂ strictly above 1000 ppm. The canonical action is
 `ventilation_boost`; the backend resolves `device_id` from its device registry and applies the
 default `duration_minutes=45` and `intensity_percent=80`. LLM output cannot choose a device,
 threshold, duration or intensity. The additive device action allow-list is
-`ventilation_boost|air_purifier_on|eco_mode`; timed actions accept 5..180 minutes. Existing
+`ventilation_boost|air_purifier_on|eco_mode|standby`; timed actions accept 5..180 minutes. Existing
 non-device warning actions remain readable for compatibility.
 
-After a successfully acknowledged boost, a continuous 20-minute valid window at or below both safe
-thresholds may create one idempotent `pending` `eco_mode` proposal. It still requires Manager
-approval and never dispatches automatically.
+After a successfully acknowledged boost, a continuous 20-minute valid window with PM2.5 strictly
+below 25 µg/m³ and CO₂ strictly below 700 ppm may create one idempotent `pending` `eco_mode`
+proposal. It still requires Manager approval and never dispatches automatically. These recovery
+thresholds are configured independently from the alert/trigger thresholds.
 
 ## Ingestion response
 
@@ -228,6 +231,13 @@ Ventilation proposal/approval responses add `device_id`, canonical `proposed_act
 publication and device acknowledgement are separate states. The dispatcher persists `command_id`;
 the consumer correlates the simulator status event to that command and audits success, rejection or
 failure. UI must not show `RUNNING_BOOST` until the acknowledged device state is returned.
+
+`GET /ventilation-devices` returns simulated devices with station coordinates, acknowledged
+`operating_mode`, `started_at`, `ends_at`, `remaining_seconds`, configured intensity and measured
+before/current PM2.5/CO₂ effectiveness. Optional `station_id=S01..S05` filters the read-only Agent
+tool response. `POST /devices/{device_id}/proposals` is Manager/Admin-only, requires CSRF plus an
+idempotency key, and creates a pending `eco_mode` or `standby` proposal; it never dispatches in the
+same request.
 
 Creating an automatic ventilation or recovery proposal enqueues at most one Manager notification
 per active Manager/Admin recipient, keyed by `(proposal_id, recipient_user_id)`. Notification is an

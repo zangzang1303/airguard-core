@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { SpatialHeatmapResponse, Station } from "../../types";
+import { SpatialHeatmapResponse, Station, VentilationDevice } from "../../types";
 import { MapLayerConfig, PlacePOI } from "../../types/superApp";
 import { MAP_CENTER_OCEAN_PARK } from "./poiData";
 import { OceanParkBoundary } from "./OceanParkBoundary";
@@ -14,6 +14,7 @@ import { TimelineSlider } from "../stations/TimelineSlider";
 import { mapActionController } from "./MapActionController";
 import { useFloatingPanelContext, useDraggableFloatingPanel } from "../floating";
 import { Crosshair, X } from "lucide-react";
+import { VentilationDeviceMarkers } from "./VentilationDeviceMarkers";
 
 interface SuperMapProps {
   stations: Station[];
@@ -21,6 +22,8 @@ interface SuperMapProps {
   criticalStationIds: ReadonlySet<string>;
   selectedPoi: PlacePOI | null;
   layerConfig: MapLayerConfig;
+  ventilationDevices?: VentilationDevice[];
+  isManager?: boolean;
   flyToTarget: [number, number] | null;
   forecastHour?: number;
   refreshRevision?: number;
@@ -32,6 +35,7 @@ interface SuperMapProps {
   onForecastHourChange?: (hours: number) => void;
   onSelectStation: (stationId: string) => void;
   onSelectPoi: (poi: PlacePOI) => void;
+  onSelectVentilationDevice?: (device: VentilationDevice) => void;
   onOpenNearMe: () => void;
   onCancelPicking?: () => void;
   onMapClickLocation?: (coords: [number, number]) => void;
@@ -160,6 +164,8 @@ export const SuperMap: React.FC<SuperMapProps> = ({
   criticalStationIds,
   selectedPoi,
   layerConfig,
+  ventilationDevices = [],
+  isManager = false,
   flyToTarget,
   forecastHour = 0,
   refreshRevision = 0,
@@ -171,6 +177,7 @@ export const SuperMap: React.FC<SuperMapProps> = ({
   onForecastHourChange,
   onSelectStation,
   onSelectPoi,
+  onSelectVentilationDevice,
   onOpenNearMe,
   onCancelPicking,
   onMapClickLocation,
@@ -273,6 +280,13 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           onSelectStation={onSelectStation}
           showSensors={layerConfig.showSensors}
           activeMetric={layerConfig.activeEnvironmentalLayer}
+        />
+
+        {/* Manager-only simulated ventilation infrastructure layer. */}
+        <VentilationDeviceMarkers
+          devices={ventilationDevices}
+          visible={Boolean(isManager && layerConfig.showVentilationDevices && onSelectVentilationDevice)}
+          onSelectDevice={(device) => onSelectVentilationDevice?.(device)}
         />
 
         {/* Resident Location Pin ("You") */}

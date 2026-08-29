@@ -4,7 +4,7 @@ set -euo pipefail
 readonly REPO_DIR="/home/azureuser/airguard-core"
 readonly ENV_FILE="/home/azureuser/airguard-demo.env"
 readonly COMPOSE_FILE="docker-compose.public-demo.yml"
-readonly PUBLIC_READY_URL="https://airguard-074-demo-2302.indonesiacentral.cloudapp.azure.com/backend/ready"
+readonly PUBLIC_READY_URL="https://airguard-074-app.indonesiacentral.cloudapp.azure.com/backend/ready"
 
 if [[ "${SSH_ORIGINAL_COMMAND:-}" =~ ^deploy[[:space:]]([0-9a-f]{40})$ ]]; then
   readonly TARGET_COMMIT="${BASH_REMATCH[1]}"

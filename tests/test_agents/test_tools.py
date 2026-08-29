@@ -37,6 +37,7 @@ def test_tool_registry_has_all_required_tools():
         ToolName.GET_USER_PROFILE,
         ToolName.CREATE_WARNING_PROPOSAL,
         ToolName.GET_SPATIAL_AIR_QUALITY,
+        ToolName.GET_VENTILATION_DEVICES_STATUS,
     }
 
 
@@ -87,6 +88,29 @@ async def test_fake_adapter_validates_without_llm_or_db():
     invalid = await adapter.get_station_history({"station_id": "S01", "hours": 73}, request_id="req-2")
     assert isinstance(invalid, ToolError)
     assert invalid.code == ToolErrorCode.VALIDATION_ERROR
+
+
+@pytest.mark.asyncio
+async def test_ventilation_status_tool_is_typed_and_station_scoped():
+    fixture = await FakeBackendToolClient().get_ventilation_devices_status(
+        {"station_id": "S03"}, request_id="ventilation-fixture"
+    )
+    assert fixture.ok is True
+    assert fixture.data["items"][0]["remaining_seconds"] == 1380
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/ventilation-devices"
+        assert dict(request.url.params) == {"station_id": "S03"}
+        return httpx.Response(200, json=fixture.data)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://backend") as http_client:
+        result = await BackendToolClient("http://backend", client=http_client).get_ventilation_devices_status(
+            {"station_id": "S03"}, request_id="ventilation-adapter"
+        )
+
+    assert result.ok is True
+    assert result.data["items"][0]["operating_mode"] == "RUNNING_BOOST"
+    assert result.data["items"][0]["source"] == "simulator"
 
 
 @pytest.mark.asyncio
@@ -548,12 +572,6 @@ async def test_create_proposal_maps_backend_payload_header_and_response_id():
             "evidence": {
                 "items": [
                     {
-                        "aqi": None,
-                        "aqi_category": None,
-                        "pm25": None,
-                        "co2": None,
-                        "noise_db": None,
-                        "temperature": None,
                         "source_tool": "get_current_pm25",
                         "evidence_id": None,
                         "station_id": "S02",
@@ -571,12 +589,6 @@ async def test_create_proposal_maps_backend_payload_header_and_response_id():
                         "severity": None,
                     },
                     {
-                        "aqi": None,
-                        "aqi_category": None,
-                        "pm25": None,
-                        "co2": None,
-                        "noise_db": None,
-                        "temperature": None,
                         "source_tool": "get_active_alerts",
                         "evidence_id": "alert-S02-001",
                         "station_id": "S02",

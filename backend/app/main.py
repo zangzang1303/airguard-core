@@ -141,6 +141,11 @@ class ApprovalReviewRequest(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
 
 
+class DeviceControlProposalRequest(BaseModel):
+    action: Literal["eco_mode", "standby"]
+    reason: str = Field(..., min_length=5, max_length=1000)
+
+
 class ReportGenerateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -423,6 +428,8 @@ ventilation_service = VentilationService(
     co2_threshold=settings.co2_warning_threshold,
     trigger_duration_seconds=settings.ventilation_trigger_seconds,
     recovery_duration_seconds=settings.ventilation_recovery_minutes * 60,
+    safe_pm25_threshold=settings.ventilation_safe_pm25_threshold,
+    safe_co2_threshold=settings.ventilation_safe_co2_threshold,
     stale_after_seconds=settings.stale_after_seconds,
     max_gap_seconds=settings.ventilation_max_gap_seconds,
     default_duration_minutes=settings.ventilation_default_duration_minutes,
@@ -516,6 +523,7 @@ async def _telemetry_ticker() -> None:
         try:
             from .services.live_telemetry_engine import live_engine
 
+            live_engine.sync_ventilation_devices(device_service.list_devices())
             live_engine.tick()
         except Exception:
             pass
@@ -1802,10 +1810,68 @@ def get_devices() -> dict:
     return {"items": device_service.list_devices()}
 
 
+@app.get("/api/v1/ventilation-devices")
+def get_ventilation_devices(
+    station_id: str | None = Query(default=None, pattern=r"^S0[1-5]$"),
+) -> dict:
+    return {
+        "items": device_service.list_ventilation_devices(station_id=station_id),
+        "timestamp": datetime.now(UTC).isoformat(),
+        "source": "simulator",
+    }
+
+
 
 @app.get("/api/v1/devices/{device_id}/status")
 def get_device_status(device_id: str) -> dict:
     return device_service.get_status(device_id)
+
+
+@app.post("/api/v1/devices/{device_id}/proposals", status_code=201)
+def create_device_control_proposal(
+    request: Request,
+    device_id: str,
+    body: DeviceControlProposalRequest,
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=8, max_length=200),
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    validate_csrf(request)
+    device = device_service.get_status(device_id)
+    station_id = device.get("station_id")
+    if not station_id:
+        raise ServiceError("device_station_required", "Device is not mapped to a station", 409)
+    latest_command = device.get("latest_command") or {}
+    evidence: dict[str, Any] = {
+        "source": "backend_device_registry",
+        "device_status": {
+            "device_id": device_id,
+            "operating_mode": device.get("operating_mode"),
+            "started_at": device.get("started_at"),
+            "ends_at": device.get("ends_at"),
+        },
+        "control": {"action": body.action},
+    }
+    if body.action == "eco_mode" and latest_command.get("command_intent_id"):
+        evidence["source_command_intent_id"] = latest_command["command_intent_id"]
+    proposal = approval_service.create_request(
+        request_type="device_control_proposal",
+        station_id=str(station_id),
+        device_id=device_id,
+        proposed_action=body.action,
+        reason=body.reason,
+        evidence=evidence,
+        created_by=str(current_user["user_id"]),
+        correlation_id=_request_id(request),
+        idempotency_key=f"manager-device:{device_id}:{body.action}:{idempotency_key}",
+    )
+    if not proposal.get("reused"):
+        _enqueue_manager_proposal_notification(
+            proposal_id=str(proposal["request_id"]),
+            station_id=str(station_id),
+            proposed_action=body.action,
+            correlation_id=_request_id(request),
+        )
+    return proposal
 
 
 

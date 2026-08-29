@@ -311,7 +311,7 @@ export interface Proposal {
   station_id: string;
   request_type?: string;
   device_id?: string | null;
-  proposed_action?: "notify_station_area_users" | "ventilation_boost" | "air_purifier_on" | "eco_mode";
+  proposed_action?: "notify_station_area_users" | "ventilation_boost" | "air_purifier_on" | "eco_mode" | "standby";
   duration_minutes?: number | null;
   severity: string;
   target: string;
@@ -571,11 +571,63 @@ export interface AuditLogEntry {
   id: string;
   time: string;
   actor: string;
+  actor_type?: string;
+  actor_role?: string;
   action: string;
   target: string;
+  entity_type?: string;
+  entity_id?: string;
+  station_id?: string;
   outcome: string;
   correlation_id: string;
   detail?: string;
+}
+
+export type VentilationOperatingMode = "RUNNING_BOOST" | "AIR_PURIFIER_ON" | "ECO_MODE" | "STANDBY";
+
+export interface VentilationEffectiveness {
+  baseline_pm25: number | null;
+  current_pm25: number | null;
+  pm25_reduction_percent: number | null;
+  baseline_co2: number | null;
+  current_co2: number | null;
+  co2_reduction_percent: number | null;
+  measured_at: string | null;
+}
+
+export interface VentilationCommandSummary {
+  command_intent_id: string;
+  approval_request_id: string;
+  command_id?: string | null;
+  action: string;
+  status: string;
+  ack_status?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  review_note?: string | null;
+}
+
+export interface VentilationDevice {
+  device_id: string;
+  device_name: string;
+  device_type: string;
+  station_id: string;
+  station_name?: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  status: string;
+  operating_mode: VentilationOperatingMode;
+  is_active: boolean;
+  is_simulated: true;
+  last_seen_at?: string | null;
+  started_at?: string | null;
+  ends_at?: string | null;
+  duration_minutes?: number | null;
+  intensity_percent?: number | null;
+  remaining_seconds: number;
+  effectiveness?: VentilationEffectiveness | null;
+  latest_command?: VentilationCommandSummary | null;
+  source: "simulator";
 }
 
 

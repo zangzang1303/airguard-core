@@ -271,6 +271,7 @@ Tool registry:
 - `get_pm25_forecast`
 - `get_active_alerts`
 - `get_user_profile`
+- `get_ventilation_devices_status` — trạng thái ACK, công suất, thời gian chạy/còn lại và hiệu quả PM2.5/CO₂ của thiết bị mô phỏng.
 - `create_warning_proposal`
 
 Luồng trả lời:
