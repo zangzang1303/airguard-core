@@ -1053,7 +1053,8 @@ class SpatialRegistry:
             "tuyen nao", "duong nao", "doan nao", "lo trinh nao", "cung duong nao",
             "day", "o day", "cho nay", "khu nay", "noi nay", "vi tri nay", "nay", "do", "kia",
             "the nao", "bao nhieu", "sao", "gi", "ra sao", "nhu the nao", "thi sao",
-            "ocean park", "ocean park 1", "vinhomes", "vinhomes ocean park",
+            "ocean park", "ocean park 1", "vinhomes", "vinhomes ocean park", "vinhomes ocean park 1",
+            "ocp", "ocp1", "toan ocp", "toan ocp1", "toan khu", "ca khu", "khu do thi", "toan bo khu do thi",
             "ngoai troi", "trong nha", "ha noi", "viet nam", "hien tai",
             "toi nay", "chieu nay", "sang nay", "ngay mai", "hom nay",
             "luc nay", "bay gio", "tam thoi", "co tot khong", "tot khong",
@@ -1068,7 +1069,7 @@ class SpatialRegistry:
 
         # Specific regex targeting prepositional location inquiries like "tại ABCXYZ", "ở khu ABCXYZ"
         patterns = [
-            r"\b(?:tai|tai khu|khu|phan khu|khu vuc|dia diem|o(?!\s+(?:nhiem|to|du|day)))\s+([a-zA-Z0-9\s_]{2,30})",
+            r"(?<!hien\s)\b(?:tai\s+khu|tai\s+phan\s+khu|tai\s+khu\s+vuc|tai\s+dia\s+diem|tai|khu|phan\s+khu|khu\s+vuc|dia\s+diem|(?<!\w)o(?!\s+(?:nhiem|to|du|day)))\s+([a-zA-Z0-9\s_]{2,30})",
         ]
 
         for pat in patterns:
@@ -1082,7 +1083,7 @@ class SpatialRegistry:
                 ).strip()
 
                 # Strip leading location prefix words
-                candidate = re.sub(r"^(?:khu|phan khu|khu vuc|dia diem)\s+", "", candidate).strip()
+                candidate = re.sub(r"^(?:o|tai|khu|phan khu|khu vuc|dia diem)\s+", "", candidate).strip()
 
                 if not candidate or len(candidate) < 2:
                     continue
@@ -1090,7 +1091,7 @@ class SpatialRegistry:
                 if candidate in general_query_phrases:
                     continue
 
-                if any(candidate == p for p in ["vuc nao", "vuc", "phan khu nao", "diem nao", "noi nao", "nay", "day"]):
+                if any(candidate == p for p in ["vuc nao", "vuc", "phan khu nao", "diem nao", "noi nao", "nay", "day", "ocean park", "ocean park 1", "ocp", "ocp1", "vinhomes ocean park", "vinhomes ocean park 1"]):
                     continue
 
                 # Check if candidate matches a known POI
@@ -1099,7 +1100,7 @@ class SpatialRegistry:
                     return poi_match, None
 
                 # Check if candidate is an overview phrase
-                if any(cand_overview in candidate for cand_overview in ["toan khu", "ca khu", "chung", "toan ocean park", "tong quan"]):
+                if any(cand_overview in candidate for cand_overview in ["toan khu", "ca khu", "chung", "toan ocean park", "toan ocean park 1", "tong quan", "ocean park", "ocean park 1", "ocp", "ocp1"]):
                     return None, None
 
                 # Return candidate as unrecognized location if it contains substantive words
@@ -1151,6 +1152,12 @@ class SpatialRegistry:
         "toan bo ocean park",
         "toan bo khu do thi",
         "toan khu do thi",
+        "ocean park 1",
+        "ocean park",
+        "vinhomes ocean park 1",
+        "vinhomes ocean park",
+        "ocp1",
+        "ocp",
     ]
 
     RANKING_SUPERLATIVES = [
@@ -1251,8 +1258,10 @@ class SpatialRegistry:
 
         # General questions like "Chất lượng không khí Ocean Park 1 thế nào?" or "Không khí hôm nay thế nào?"
         if ("ocean park" in q_norm or "ocp" in q_norm or "khong khi" in q_norm or "chat luong" in q_norm) and not cls.find_poi_by_name(query):
-            if any(w in q_norm for w in ["the nao", "ra sao", "nhu the nao", "sao", "bao nhieu", "co tot khong", "tot khong"]):
+            if any(w in q_norm for w in ["the nao", "ra sao", "nhu the nao", "sao", "bao nhieu", "co tot khong", "tot khong", "hien tai", "nhu nao", "the nao roi"]):
                 return True
+
+        return False
 
     INDOOR_VENUES = [
         {
