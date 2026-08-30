@@ -43,6 +43,21 @@ const formatVnDateTime = (isoString?: string): string => {
   }
 };
 
+const severityLabel = (severity?: string): string => {
+  if (severity === "critical") return "KHẨN CẤP";
+  if (severity === "warning") return "CẦN LƯU Ý";
+  return "CẦN XEM XÉT";
+};
+
+const proposalCreatorLabel = (createdBy?: string): string => {
+  if (createdBy === "ai_agent" || createdBy === "system-alert-agent") return "Trợ lý AirGuard";
+  if (!createdBy) return "Hệ thống AirGuard";
+  return "Quản lý AirGuard";
+};
+
+const evidenceValue = (value: number | undefined, unit: string): string =>
+  value == null ? "Chưa có số liệu" : `${value} ${unit}`;
+
 export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
   proposals,
   loadError,
@@ -173,7 +188,7 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
             const isProcessing = processingId === p.proposal_id;
             const isFailedDispatch = p.dispatch_status === "failed";
             const isSucceededDispatch = p.dispatch_status === "succeeded";
-            const severityLevel = p.severity || "warning";
+            const severityLevel = p.severity === "critical" ? "critical" : "warning";
 
             return (
               <div key={p.proposal_id} className="proposal-item-card">
@@ -185,19 +200,15 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
                   </div>
                   <div className={`proposal-severity-pill severity-${severityLevel}`}>
                     {severityLevel === "critical" ? <AlertTriangle size={12} /> : <Info size={12} />}
-                    <span>{severityLevel.toUpperCase()}</span>
+                    <span>{severityLabel(p.severity)}</span>
                   </div>
                 </div>
 
-                {/* Proposal Metadata Strip */}
+                {/* Decision-relevant metadata only; technical identifiers remain in the audit log. */}
                 <div className="proposal-meta-strip">
-                  <span>ID: <code>{p.proposal_id}</code></span>
-                  <span className="meta-divider">•</span>
-                  <span>Phiên bản: <code>v{p.version}</code></span>
-                  <span className="meta-divider">•</span>
                   <span><Clock size={12} /> {formatVnDateTime(p.created_at)}</span>
                   <span className="meta-divider">•</span>
-                  <span>Người tạo: <code>{p.created_by || "Không có dữ liệu"}</code></span>
+                  <span>Đề xuất bởi {proposalCreatorLabel(p.created_by)}</span>
                 </div>
 
                 {/* Action & Target Content */}
@@ -211,7 +222,7 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
                     <span className="field-value">{p.action}</span>
                   </div>
                   <div className="proposal-field-block">
-                    <span className="field-label">Cơ sở lý do:</span>
+                    <span className="field-label">Vì sao cần phê duyệt?</span>
                     <p className="field-rationale">{p.rationale}</p>
                   </div>
                 </div>
@@ -224,22 +235,22 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
                   <div className="evidence-grid-2col">
                     <div className="evidence-metric-item">
                       <span className="ev-label">PM2.5:</span>
-                      <strong className="ev-val">{p.evidence?.pm25 ?? "—"} µg/m³</strong>
+                      <strong className="ev-val">{evidenceValue(p.evidence?.pm25, "µg/m³")}</strong>
                     </div>
                     <div className="evidence-metric-item">
                       <span className="ev-label">AQI:</span>
-                      <strong className="ev-val">{p.evidence?.aqi ?? "—"}{p.evidence?.aqi_category ? ` (${p.evidence.aqi_category})` : ""}</strong>
+                      <strong className="ev-val">{p.evidence?.aqi ?? "Chưa có số liệu"}</strong>
                     </div>
                     {p.evidence?.co2 != null && (
                       <div className="evidence-metric-item">
                         <span className="ev-label">CO₂:</span>
-                        <strong className="ev-val">{p.evidence.co2} ppm</strong>
+                        <strong className="ev-val">{evidenceValue(p.evidence.co2, "ppm")}</strong>
                       </div>
                     )}
                     {p.evidence?.noise_db != null && (
                       <div className="evidence-metric-item">
                         <span className="ev-label">Tiếng ồn:</span>
-                        <strong className="ev-val">{p.evidence.noise_db} dB</strong>
+                        <strong className="ev-val">{evidenceValue(p.evidence.noise_db, "dB")}</strong>
                       </div>
                     )}
                   </div>
@@ -338,7 +349,7 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
           <div className="modal-content" role="dialog" aria-modal="true" style={{ padding: "24px", maxWidth: "440px", borderRadius: "16px" }}>
             <h3 style={{ marginBottom: "12px", fontSize: "1.1rem", fontWeight: 700 }}>Xác nhận Phê duyệt Đề xuất</h3>
             <p style={{ fontSize: "0.88rem", color: "#475569", lineHeight: 1.5, marginBottom: "16px" }}>
-              Bạn có chắc chắn muốn phê duyệt đề xuất <strong>#{confirmingApproveProposal.proposal_id}</strong> (Hành động: <em>{confirmingApproveProposal.action}</em> cho trạm {confirmingApproveProposal.station_id})?
+              Bạn có chắc chắn muốn <strong>{confirmingApproveProposal.action.toLowerCase()}</strong> cho {confirmingApproveProposal.target.toLowerCase()}?
               <br />
               <small style={{ color: "#64748b", marginTop: 6, display: "block" }}>
                 Quyết định phê duyệt sẽ được ghi nhận vào Audit Log.
@@ -372,7 +383,7 @@ export const ManagerApprovalDrawer: React.FC<ManagerApprovalDrawerProps> = ({
               Xác nhận Từ chối Đề xuất
             </h3>
             <p style={{ fontSize: "0.88rem", color: "#475569", lineHeight: 1.5, marginBottom: "12px" }}>
-              Từ chối đề xuất <strong>#{confirmingRejectProposal.proposal_id}</strong>.
+              Bạn có chắc chắn muốn từ chối đề xuất <strong>{confirmingRejectProposal.action.toLowerCase()}</strong> cho {confirmingRejectProposal.target.toLowerCase()}?
             </p>
             <div style={{ background: "#fef2f2", padding: "10px 12px", borderRadius: 8, fontSize: "0.84rem", color: "#991b1b", marginBottom: 16 }}>
               Lý do từ chối ghi nhận: <em>"{rejectNote}"</em>

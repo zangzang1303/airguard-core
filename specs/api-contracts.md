@@ -23,7 +23,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/stations/{id}` | station latest state | 200 | 404/503 |
 | GET `/stations/{id}/current` | latest valid fresh measurement | 200 | 404/503 |
 | GET `/demo/station-overrides` | active demo-only station overrides; manager/admin session required | 200 | 401/403 |
-| PUT `/demo/stations/{id}/override` | set demo-only PM2.5, CO₂, noise and temperature values; manager/admin session required; the backend timestamps the override so the configured continuity gate can evaluate it without rewriting measurement history | 200 | 401/403/404/422 |
+| PUT `/demo/stations/{id}/override` | set demo-only PM2.5, CO₂, noise and temperature values; manager/admin session required; the backend timestamps the override so the configured continuity gate can evaluate it without rewriting measurement history. The simulator ticker re-evaluates active overrides every 10 seconds and, after `VENTILATION_TRIGGER_SECONDS`, creates only a pending HITL proposal when the PM2.5/CO₂ policy qualifies. The 200 response includes `ventilation_trigger.required_duration_seconds`, `continuous_duration_seconds` and `status` (`waiting_continuity` or `eligible`). | 200 | 401/403/404/422 |
 | DELETE `/demo/stations/{id}/override` | remove a demo override and return to automatic simulation; manager/admin session required | 200 | 401/403 |
 | GET `/stations/{id}/history?hours=1..72` | ordered valid history | 200 | 404/422/503 |
 | POST `/stations/compare` | compare current fresh values for 1..5 stations | 200 | 404/422/503 |
@@ -39,8 +39,8 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/routes/clean-running` | canonical deterministic graph route and segment inhaled-mass estimate | 200 | 422/503 |
 | GET `/users/{id}/profile` | user group/profile for personalization | 200 | 404/503 |
 | PATCH `/auth/profile` | authenticated user updates own display name and recommendation group | 200 | 401/403/422/404 |
-| GET `/auth/notification-preferences` | authenticated user reads independent environmental/predictive email opt-ins | 200 | 401/503 |
-| PATCH `/auth/notification-preferences` | authenticated user changes only the two boolean opt-ins; CSRF required | 200 | 401/403/422/503 |
+| GET `/auth/notification-preferences` | authenticated user reads environmental, predictive and daily-weather-digest email opt-ins | 200 | 401/503 |
+| PATCH `/auth/notification-preferences` | authenticated user changes only these boolean opt-ins; CSRF required | 200 | 401/403/422/503 |
 | GET `/users` | manager/admin reads persisted user accounts | 200 | 401/403/503 |
 | PATCH `/users/{id}` | admin changes role and/or active status with reason, CSRF and audit | 200 | 401/403/404/409/422/503 |
 | POST `/agent/chat` | grounded Agent response through backend-to-Agent proxy | 200 | 422/503 |
@@ -106,10 +106,12 @@ Structured failures use the standard envelope. Task-specific reason codes are
 
 ## Predictive warning and notification preference contract
 
-Both preference flags default to false. `PATCH /auth/notification-preferences` rejects unknown or
+All preference flags default to false. `PATCH /auth/notification-preferences` rejects unknown or
 non-boolean fields, requires session plus double-submit CSRF, and audits only the internal user ID
 and changed field names. Observed alert email filters `environmental_email_enabled=true`; predictive
 email independently filters an active, verified resident with `predictive_email_enabled=true`.
+The 07:00 daily digest independently filters an active, verified resident with
+`daily_weather_digest_enabled=true`; it is sent only when the backend feature flag is enabled.
 
 Predictive candidates require a fresh valid online simulator current snapshot and a fresh baseline
 forecast no older than 900 seconds with confidence at least 0.60. The earliest 1-2 hour item whose
@@ -384,11 +386,14 @@ must not synthesize AQI, PM2.5, CO₂, noise, temperature, timestamp or a defaul
 exception handler.
 
 For a grounded running-route response, the `highlight_route` map action contains the audited road-graph
-`coordinates` for the running route. When the request origin is snapped to that graph, it also contains
-`approach_coordinates: [[origin_lat, origin_lng], [snapped_lat, snapped_lng]]`,
-`approach_kind: "origin_to_graph_snap"`, and optional `approach_distance_m`. Clients render this as a
-visually distinct dashed estimated-access line; it is not part of the running-route distance, exposure
-calculation, or turn-by-turn routing geometry.
+`coordinates` for the running route. When the selected origin is snapped to the graph, it also contains
+`approach_coordinates`, `approach_kind: "origin_to_graph_snap"`, and optional `approach_distance_m`.
+`approach_coordinates` begins at the selected origin, reaches the nearest point on an auditable road edge,
+then follows that edge to the first route coordinate. Clients may render only the edge-based part after the
+first coordinate as a visually distinct dashed access line; they must not derive or render the initial
+off-graph straight connector as navigation. The final point must equal the first route coordinate, never a
+route destination. It is not part of route distance, exposure calculation, or turn-by-turn guidance.
+Clients may add non-geometric direction arrows along the returned route coordinates.
 
 Basic social messages are intercepted before profile, geospatial, telemetry or LLM access. Their
 response adds `conversation_kind`, has empty `used_tools`, `tool_arguments`, `sources`/`evidence`

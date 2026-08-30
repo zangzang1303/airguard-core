@@ -310,6 +310,19 @@ export async function apiFetch<T>(
   }
 }
 
+function humanizeProposalRationale(reason: unknown, proposedAction: unknown): string {
+  const value = typeof reason === "string" ? reason.trim() : "";
+  if (!value) return "Cần Quản lý xem xét trước khi thực hiện hành động này.";
+
+  if (
+    proposedAction === "ventilation_boost" &&
+    value.includes("Backend-confirmed PM2.5/CO2 threshold continuity")
+  ) {
+    return "PM2.5 hoặc CO₂ đã vượt ngưỡng liên tục. Cần Quản lý phê duyệt trước khi hệ thống mô phỏng tăng cường thông gió.";
+  }
+  return value;
+}
+
 function mapProposal(request: Record<string, any>): Proposal {
   const rawEvidence = request.evidence ?? {};
   const rawControl =
@@ -321,7 +334,7 @@ function mapProposal(request: Record<string, any>): Proposal {
     ...rawEvidence,
     aqi: rawEvidence.aqi ?? currentEvidence.aqi,
     aqi_category: rawEvidence.aqi_category ?? currentEvidence.aqi_category,
-    pm25: rawEvidence.pm25 ?? currentEvidence.observed_value,
+    pm25: rawEvidence.pm25 ?? currentEvidence.pm25 ?? currentEvidence.observed_value ?? rawEvidence.observed_value,
     co2: rawEvidence.co2 ?? currentEvidence.co2,
     noise_db: rawEvidence.noise_db ?? currentEvidence.noise_db,
     observed_at: rawEvidence.observed_at ?? currentEvidence.measured_at,
@@ -359,9 +372,9 @@ function mapProposal(request: Record<string, any>): Proposal {
     duration_minutes:
       request.duration_minutes ?? request.command_intent?.duration_minutes ?? rawControl.duration_minutes ?? null,
     severity: evidence.severity ?? "unknown",
-    target: deviceId ?? request.station_id ?? "Không xác định",
+    target: deviceId ? `Thiết bị thông gió tại ${request.station_id ?? "trạm đã chọn"}` : request.station_id ?? "Không xác định",
     action: actionLabels[proposedAction] ?? proposedAction,
-    rationale: request.reason ?? "Backend không cung cấp lý do.",
+    rationale: humanizeProposalRationale(request.reason, proposedAction),
     status: request.status,
     created_at: request.created_at,
     created_by: request.created_by,
@@ -697,8 +710,9 @@ export const api = {
     );
   },
 
-  getAlerts: async (): Promise<Alert[]> => {
-    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/alerts");
+  getAlerts: async (status?: "active" | "resolved"): Promise<Alert[]> => {
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>(`/api/v1/alerts${query}`);
     return data.items.map((alert) => ({
       alert_id: alert.alert_id,
       station_id: alert.station_id,

@@ -42,6 +42,7 @@ services:
         -f /migrations/20260830_008_manager_activity_log.sql
         -f /migrations/20260830_009_vietnamese_ventilation_labels.sql
         -f /migrations/20260830_010_manager_manual_device_control.sql
+        -f /migrations/20260830_011_daily_weather_digest.sql
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,6 +114,7 @@ services:
       AUTO_PROPOSAL_ENABLED: ${AUTO_PROPOSAL_ENABLED:-true}
       RESIDENT_ALERT_NOTIFICATIONS_ENABLED: ${RESIDENT_ALERT_NOTIFICATIONS_ENABLED:-false}
       RESIDENT_ALERT_NOTIFICATION_COOLDOWN_SECONDS: ${RESIDENT_ALERT_NOTIFICATION_COOLDOWN_SECONDS:-3600}
+      DAILY_WEATHER_DIGEST_NOTIFICATIONS_ENABLED: ${DAILY_WEATHER_DIGEST_NOTIFICATIONS_ENABLED:-false}
       PREDICTIVE_WARNING_POLICY_VERSION: ${PREDICTIVE_WARNING_POLICY_VERSION:-predictive-warning-policy-v1}
       PREDICTIVE_WARNING_NOTIFICATIONS_ENABLED: ${PREDICTIVE_WARNING_NOTIFICATIONS_ENABLED:-false}
       PREDICTIVE_WARNING_EVALUATION_INTERVAL_SECONDS: ${PREDICTIVE_WARNING_EVALUATION_INTERVAL_SECONDS:-900}
@@ -288,6 +290,70 @@ services:
       - mqtt
     restart: unless-stopped
 
+  device-simulator-s01:
+    build:
+      context: ./services/device-simulator
+    container_name: airguard-device-simulator-s01
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      DEVICE_ID: FILTER-S01
+      DEVICE_STATE_PATH: /data/processed-keys.json
+    volumes:
+      - device_state_s01:/data
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+
+  device-simulator-s02:
+    build:
+      context: ./services/device-simulator
+    container_name: airguard-device-simulator-s02
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      DEVICE_ID: FILTER-02
+      DEVICE_STATE_PATH: /data/processed-keys.json
+    volumes:
+      - device_state_s02:/data
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+
+  device-simulator-s04:
+    build:
+      context: ./services/device-simulator
+    container_name: airguard-device-simulator-s04
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      DEVICE_ID: FILTER-04
+      DEVICE_STATE_PATH: /data/processed-keys.json
+    volumes:
+      - device_state_s04:/data
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+
+  device-simulator-s05:
+    build:
+      context: ./services/device-simulator
+    container_name: airguard-device-simulator-s05
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      DEVICE_ID: FILTER-05
+      DEVICE_STATE_PATH: /data/processed-keys.json
+    volumes:
+      - device_state_s05:/data
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+
 
   celery-worker:
     build:
@@ -320,6 +386,7 @@ services:
       PM25_ALERT_RULE_VERSION: ${PM25_ALERT_RULE_VERSION:-pm25-threshold-v1}
       PREDICTIVE_WARNING_POLICY_VERSION: ${PREDICTIVE_WARNING_POLICY_VERSION:-predictive-warning-policy-v1}
       PREDICTIVE_WARNING_NOTIFICATIONS_ENABLED: ${PREDICTIVE_WARNING_NOTIFICATIONS_ENABLED:-false}
+      DAILY_WEATHER_DIGEST_NOTIFICATIONS_ENABLED: ${DAILY_WEATHER_DIGEST_NOTIFICATIONS_ENABLED:-false}
       PREDICTIVE_WARNING_LEAD_MINUTES: ${PREDICTIVE_WARNING_LEAD_MINUTES:-45}
       PREDICTIVE_WARNING_LEAD_TOLERANCE_MINUTES: ${PREDICTIVE_WARNING_LEAD_TOLERANCE_MINUTES:-15}
       PREDICTIVE_WARNING_MIN_CONFIDENCE: ${PREDICTIVE_WARNING_MIN_CONFIDENCE:-0.60}
@@ -331,6 +398,11 @@ services:
       RESEND_FROM_NAME: ${RESEND_FROM_NAME:-AirGuard AI}
       RESEND_REPLY_TO: ${RESEND_REPLY_TO:-}
       RESEND_TIMEOUT_SECONDS: ${RESEND_TIMEOUT_SECONDS:-10}
+      WEATHER_API_BASE_URL: ${WEATHER_API_BASE_URL:-}
+      WEATHER_TIMEOUT_SECONDS: ${WEATHER_TIMEOUT_SECONDS:-3}
+      WEATHER_LATITUDE: ${WEATHER_LATITUDE:-20.993}
+      WEATHER_LONGITUDE: ${WEATHER_LONGITUDE:-105.944}
+      WEATHER_MAX_AGE_SECONDS: ${WEATHER_MAX_AGE_SECONDS:-3600}
     depends_on:
       postgres:
         condition: service_healthy
@@ -379,4 +451,8 @@ services:
 volumes:
   postgres_data:
   device_state:
+  device_state_s01:
+  device_state_s02:
+  device_state_s04:
+  device_state_s05:
 

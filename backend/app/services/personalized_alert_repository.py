@@ -25,7 +25,7 @@ class PersonalizedAlertRepository:
                 with dict_cursor(conn) as cur:
                     cur.execute(
                         """
-                        SELECT environmental_email_enabled, predictive_email_enabled
+                        SELECT environmental_email_enabled, predictive_email_enabled, daily_weather_digest_enabled
                         FROM resident_notification_preferences
                         WHERE user_id = %s
                         """,
@@ -35,6 +35,7 @@ class PersonalizedAlertRepository:
             return {
                 "environmental_email_enabled": bool(row and row["environmental_email_enabled"]),
                 "predictive_email_enabled": bool(row and row["predictive_email_enabled"]),
+                "daily_weather_digest_enabled": bool(row and row["daily_weather_digest_enabled"]),
             }
         except ServiceError:
             raise
@@ -50,24 +51,27 @@ class PersonalizedAlertRepository:
                     cur.execute(
                         """
                         INSERT INTO resident_notification_preferences (
-                            user_id, environmental_email_enabled, predictive_email_enabled
-                        ) VALUES (%s, %s, %s)
+                            user_id, environmental_email_enabled, predictive_email_enabled, daily_weather_digest_enabled
+                        ) VALUES (%s, %s, %s, %s)
                         ON CONFLICT (user_id) DO UPDATE SET
                             environmental_email_enabled = EXCLUDED.environmental_email_enabled,
                             predictive_email_enabled = EXCLUDED.predictive_email_enabled,
+                            daily_weather_digest_enabled = EXCLUDED.daily_weather_digest_enabled,
                             updated_at = NOW()
-                        RETURNING environmental_email_enabled, predictive_email_enabled
+                        RETURNING environmental_email_enabled, predictive_email_enabled, daily_weather_digest_enabled
                         """,
                         (
                             user_id,
                             merged["environmental_email_enabled"],
                             merged["predictive_email_enabled"],
+                            merged["daily_weather_digest_enabled"],
                         ),
                     )
                     row = cur.fetchone()
             return {
                 "environmental_email_enabled": bool(row["environmental_email_enabled"]),
                 "predictive_email_enabled": bool(row["predictive_email_enabled"]),
+                "daily_weather_digest_enabled": bool(row["daily_weather_digest_enabled"]),
             }
         except ServiceError:
             raise
@@ -80,8 +84,15 @@ class PersonalizedAlertRepository:
     def list_environmental_recipients(self) -> list[dict[str, str]]:
         return self._list_recipients("environmental_email_enabled")
 
+    def list_daily_weather_digest_recipients(self) -> list[dict[str, str]]:
+        return self._list_recipients("daily_weather_digest_enabled")
+
     def _list_recipients(self, preference_column: str) -> list[dict[str, str]]:
-        if preference_column not in {"predictive_email_enabled", "environmental_email_enabled"}:
+        if preference_column not in {
+            "predictive_email_enabled",
+            "environmental_email_enabled",
+            "daily_weather_digest_enabled",
+        }:
             raise ValueError("unsupported preference column")
         try:
             with self.db.connection() as conn:

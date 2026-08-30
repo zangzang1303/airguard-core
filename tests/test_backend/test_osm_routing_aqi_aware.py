@@ -120,6 +120,9 @@ class TestOSMRoutingAQIAware:
         assert snap_info["is_valid"] is True
         assert snap_info["snap_distance_m"] < 50.0
         assert snap_info["node_id"] == "N_LAKE_WEST_ENTRY"
+        assert snap_info["access_coordinates"][0] == [near_lat, near_lng]
+        assert snap_info["access_coordinates"][-1] == snap_info["snapped_coordinate"]
+        assert len(snap_info["road_snap_coordinate"]) == 2
 
     # -------------------------------------------------------------
     # T04: Snap Too Far Gate (> 250m)

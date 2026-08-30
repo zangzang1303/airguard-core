@@ -166,7 +166,8 @@ def test_distance_and_detour_precision():
         route_action = next(action for action in res["map_actions"] if action["type"] == "highlight_route")
         assert route_action["approach_kind"] == "origin_to_graph_snap"
         assert route_action["approach_coordinates"][0] == [20.9975, 105.9430]
-        assert route_action["approach_coordinates"][1] == route_action["coordinates"][0]
+        assert len(route_action["approach_coordinates"]) >= 2
+        assert route_action["approach_coordinates"][-1] == route_action["coordinates"][0]
 
 
 def test_vinuni_dense_loop_is_used_for_a_three_kilometre_request():

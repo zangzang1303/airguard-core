@@ -811,18 +811,30 @@ const AppContent: React.FC = () => {
   const refreshData = useCallback(async () => {
     setLoading(true);
     setConnectionStatus("updating");
+    // Alerts are supplementary to the map. Start this request concurrently,
+    // but never make a slow or unavailable alert history block station data.
+    const activeAlertsRequest = fetchAlerts("active")
+      .then((items) => ({ items, error: null as Error | null }))
+      .catch((error) => ({
+        items: [] as Alert[],
+        error: error instanceof Error ? error : new Error("Không thể tải cảnh báo đang hiệu lực."),
+      }));
     try {
-      const [stationRes, alertRes] = await Promise.all([
-        fetchStations(),
-        fetchAlerts(),
-      ]);
-
+      const stationRes = await fetchStations();
       setStations(Array.isArray(stationRes) ? stationRes : []);
-      setAlerts(Array.isArray(alertRes) ? alertRes : []);
       setLoadError(null);
       setConnectionStatus("connected");
       setLastUpdated(new Date());
       setRefreshRevision((revision) => revision + 1);
+      // Once stations are available, render the map immediately. The alert
+      // request may still be resolving, but it is not required map evidence.
+      setLoading(false);
+
+      const alertResult = await activeAlertsRequest;
+      setAlerts(alertResult.items);
+      if (alertResult.error) {
+        console.warn("Active alerts are unavailable; keeping station map visible:", alertResult.error);
+      }
 
       if (isManager) {
         try {

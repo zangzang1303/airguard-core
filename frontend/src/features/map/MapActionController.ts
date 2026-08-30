@@ -20,6 +20,77 @@ export interface MapAction {
 
 export type OverlayChangeListener = (hasOverlay: boolean) => void;
 
+const DIRECTION_MARKER_INTERVAL_METERS = 130;
+const MAX_DIRECTION_MARKERS = 8;
+
+function distanceMeters(from: [number, number], to: [number, number]): number {
+  const earthRadiusMeters = 6_371_000;
+  const degreesToRadians = Math.PI / 180;
+  const latDelta = (to[0] - from[0]) * degreesToRadians;
+  const lngDelta = (to[1] - from[1]) * degreesToRadians;
+  const a =
+    Math.sin(latDelta / 2) ** 2 +
+    Math.cos(from[0] * degreesToRadians) *
+      Math.cos(to[0] * degreesToRadians) *
+      Math.sin(lngDelta / 2) ** 2;
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function bearingDegrees(from: [number, number], to: [number, number]): number {
+  const degreesToRadians = Math.PI / 180;
+  const radiansToDegrees = 180 / Math.PI;
+  const longitudeDelta = (to[1] - from[1]) * degreesToRadians;
+  const fromLatitude = from[0] * degreesToRadians;
+  const toLatitude = to[0] * degreesToRadians;
+  const bearing = Math.atan2(
+    Math.sin(longitudeDelta) * Math.cos(toLatitude),
+    Math.cos(fromLatitude) * Math.sin(toLatitude) -
+      Math.sin(fromLatitude) * Math.cos(toLatitude) * Math.cos(longitudeDelta),
+  );
+  return (bearing * radiansToDegrees + 360) % 360;
+}
+
+function routeDirectionMarkers(coords: Array<[number, number]>): L.Marker[] {
+  const markers: L.Marker[] = [];
+  const segmentDistances = coords.slice(1).map((to, index) => distanceMeters(coords[index], to));
+  const routeDistance = segmentDistances.reduce((total, distance) => total + distance, 0);
+  const markerCount = Math.min(MAX_DIRECTION_MARKERS, Math.ceil(routeDistance / DIRECTION_MARKER_INTERVAL_METERS));
+  if (!Number.isFinite(routeDistance) || markerCount === 0) return markers;
+
+  const markerTargets = Array.from(
+    { length: markerCount },
+    (_, index) => (routeDistance * (index + 1)) / (markerCount + 1),
+  );
+  let travelledDistance = 0;
+  let markerTargetIndex = 0;
+
+  for (let index = 1; index < coords.length && markerTargetIndex < markerTargets.length; index += 1) {
+    const from = coords[index - 1];
+    const to = coords[index];
+    const segmentDistance = segmentDistances[index - 1];
+    if (!Number.isFinite(segmentDistance) || segmentDistance < 1) continue;
+
+    travelledDistance += segmentDistance;
+    if (travelledDistance < markerTargets[markerTargetIndex]) continue;
+
+    const icon = L.divIcon({
+      html: `<span class="ai-route-direction-arrow" style="transform: rotate(${bearingDegrees(from, to)}deg)" aria-hidden="true">▲</span>`,
+      className: "ai-route-direction-marker",
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    markers.push(
+      L.marker(to, { icon, interactive: false, keyboard: false }).bindTooltip("Chiều chạy đề xuất", {
+        direction: "top",
+        offset: [0, -8],
+      }),
+    );
+    markerTargetIndex += 1;
+  }
+
+  return markers;
+}
+
 export class MapActionController {
   private map: L.Map | null = null;
   private aiOverlayLayer: L.FeatureGroup | null = null;
@@ -194,11 +265,12 @@ export class MapActionController {
         };
         const theme = colorMap[style] || colorMap.recommended;
 
-        // 1. The dashed access line connects the supplied position to the
-        // graph snap point. It is an estimated approach, not running-route
-        // geometry or turn-by-turn guidance.
-        const approachLine = hasApproach
-          ? L.polyline(approachCoords, {
+        // The first coordinate is the selected point, which can be outside
+        // the road graph. Do not draw a fabricated straight connector from
+        // it. Only render the subsequent audited road-edge geometry.
+        const roadApproachCoords = hasApproach ? approachCoords.slice(1) : [];
+        const approachLine = roadApproachCoords.length >= 2
+          ? L.polyline(roadApproachCoords, {
               color: "#38bdf8",
               weight: 3,
               opacity: 0.82,
@@ -206,13 +278,10 @@ export class MapActionController {
               lineCap: "round",
               lineJoin: "round",
               className: "ai-route-approach-path",
-            }).bindTooltip("Đoạn tiếp cận tới lộ trình (ước tính)", {
-              sticky: true,
-              direction: "top",
-            })
+            }).bindTooltip("Đoạn đường tiếp cận tuyến", { sticky: true, direction: "top" })
           : null;
 
-        // 2. The halo keeps a recommended route legible without a heavy,
+        // The halo keeps a recommended route legible without a heavy,
         // dark stroke over the base map.
         const glowPolyline = L.polyline(coords, {
           color: theme.stroke,
@@ -223,7 +292,7 @@ export class MapActionController {
           lineJoin: "round",
         });
 
-        // 2. Draw the core by environmental segment when the backend supplies
+        // Draw the core by environmental segment when the backend supplies
         // grounded per-section exposure. This keeps the selected route visible
         // while showing local air-quality changes along it.
         const segmentColorMap: Record<string, string> = {
@@ -266,11 +335,13 @@ export class MapActionController {
             })
           : null;
 
-        // 3. Start Point Pin with Animated Sonar Pulse
+        const directionMarkers = routeDirectionMarkers(coords);
+
+        // Start Point Pin with Animated Sonar Pulse
         const startHtml = `
           <div class="ai-runner-pin-wrapper">
             <div class="ai-runner-pin-pulse"></div>
-            <div class="ai-runner-pin-circle" title="Xuất phát: ${action.name || ''}">
+            <div class="ai-runner-pin-circle" title="Bắt đầu tuyến chạy: ${action.name || ''}">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
                 <line x1="4" y1="22" x2="4" y2="15"></line>
@@ -286,7 +357,7 @@ export class MapActionController {
         });
         const startMarker = L.marker(coords[0], { icon: startIcon });
 
-        // 4. Finish Point Marker
+        // Finish Point Marker
         const endCoord = coords[coords.length - 1];
         const endHtml = `
           <div style="width: 22px; height: 22px; border-radius: 50%; background: #ffffff; border: 2.5px solid ${theme.stroke}; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 11px;">
@@ -300,13 +371,18 @@ export class MapActionController {
           iconAnchor: [11, 11],
         });
         const endMarker = L.marker(endCoord, { icon: endIcon });
+        const isLoop = distanceMeters(coords[0], endCoord) < 12;
 
         if (approachLine) this.aiOverlayLayer.addLayer(approachLine);
         this.aiOverlayLayer.addLayer(glowPolyline);
         if (corePolyline) this.aiOverlayLayer.addLayer(corePolyline);
         segmentPolylines.forEach((polyline) => this.aiOverlayLayer?.addLayer(polyline));
+        directionMarkers.forEach((marker) => this.aiOverlayLayer?.addLayer(marker));
         this.aiOverlayLayer.addLayer(startMarker);
-        this.aiOverlayLayer.addLayer(endMarker);
+        // A loop returns to its entry point, so a second finish flag would
+        // overlap the access endpoint and falsely suggest that the dashed
+        // line targets a separate destination.
+        if (!isLoop) this.aiOverlayLayer.addLayer(endMarker);
         break;
       }
 

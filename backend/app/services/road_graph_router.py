@@ -819,6 +819,33 @@ class RoadGraphRouter:
         return best_node, min_d
 
     @classmethod
+    def _project_onto_segment(
+        cls,
+        origin: list[float],
+        start: list[float],
+        end: list[float],
+    ) -> tuple[list[float], float]:
+        """Return the closest point on a geographic line segment and its distance."""
+        reference_latitude = math.radians(origin[0])
+        lng_scale = 111_320 * math.cos(reference_latitude)
+        lat_scale = 110_540
+        start_x, start_y = (start[1] - origin[1]) * lng_scale, (start[0] - origin[0]) * lat_scale
+        end_x, end_y = (end[1] - origin[1]) * lng_scale, (end[0] - origin[0]) * lat_scale
+        dx, dy = end_x - start_x, end_y - start_y
+        denominator = dx * dx + dy * dy
+        position = 0.0 if denominator == 0 else max(0.0, min(1.0, -(start_x * dx + start_y * dy) / denominator))
+        projected = [start[0] + position * (end[0] - start[0]), start[1] + position * (end[1] - start[1])]
+        return projected, cls.calculate_distance_m(origin[0], origin[1], projected[0], projected[1])
+
+    @staticmethod
+    def _without_adjacent_duplicates(coords: list[list[float]]) -> list[list[float]]:
+        result: list[list[float]] = []
+        for point in coords:
+            if not result or point != result[-1]:
+                result.append(point)
+        return result
+
+    @classmethod
     def snap_origin_to_network(
         cls,
         lat: float,
@@ -828,14 +855,48 @@ class RoadGraphRouter:
         """
         Task Section 6: Deterministic Snap Origin with distance and coordinate reporting.
         """
-        node_id, dist_m = cls.find_nearest_node(lat, lng, activity=activity)
-        node_data = cls.NODES[node_id]
+        origin = [lat, lng]
+        best: dict[str, Any] | None = None
+        for edge in cls.EDGES:
+            if activity in {"running", "walking"} and not edge.get("access", {}).get("foot", True):
+                continue
+            if activity == "cycling" and not edge.get("access", {}).get("bicycle", True):
+                continue
+            edge_coords = edge["coords"]
+            for segment_index, (start, end) in enumerate(zip(edge_coords, edge_coords[1:])):
+                projected, distance_m = cls._project_onto_segment(origin, start, end)
+                if best is None or distance_m < best["distance_m"]:
+                    from_path = cls._without_adjacent_duplicates([projected, *reversed(edge_coords[: segment_index + 1])])
+                    to_path = cls._without_adjacent_duplicates([projected, *edge_coords[segment_index + 1 :]])
+                    from_distance = cls.calculate_polyline_distance_m(from_path)
+                    to_distance = cls.calculate_polyline_distance_m(to_path)
+                    use_from = from_distance <= to_distance
+                    best = {
+                        "distance_m": distance_m,
+                        "road_snap_coordinate": projected,
+                        "node_id": edge["from"] if use_from else edge["to"],
+                        "road_path": from_path if use_from else to_path,
+                    }
+
+        if best is None:
+            node_id, dist_m = cls.find_nearest_node(lat, lng, activity=activity)
+            node_data = cls.NODES[node_id]
+            road_snap_coordinate = [node_data["lat"], node_data["lng"]]
+            access_coordinates = [origin, road_snap_coordinate]
+        else:
+            node_id = str(best["node_id"])
+            dist_m = float(best["distance_m"])
+            node_data = cls.NODES[node_id]
+            road_snap_coordinate = best["road_snap_coordinate"]
+            access_coordinates = cls._without_adjacent_duplicates([origin, *best["road_path"]])
         max_snap_m = 400.0 if activity == "cycling" else 250.0
 
         return {
             "node_id": node_id,
             "snap_distance_m": round(dist_m, 1),
             "snapped_coordinate": [node_data["lat"], node_data["lng"]],
+            "road_snap_coordinate": [round(road_snap_coordinate[0], 6), round(road_snap_coordinate[1], 6)],
+            "access_coordinates": [[round(point[0], 6), round(point[1], 6)] for point in access_coordinates],
             "input_coordinate": [lat, lng],
             "is_valid": dist_m <= max_snap_m,
             "max_allowed_snap_m": max_snap_m,

@@ -803,14 +803,16 @@ class GeospatialAgentService:
                 f"{route['disclaimer']}"
             )
             coordinates = route["coordinates"]
-            # The route geometry starts at the closest graph node, while the
-            # requested origin can be a GPS/map point beside that node. Keep
-            # this short connector explicit so the client can render it as an
-            # estimated access line, not as part of the routed run.
-            approach_coordinates = [[origin_lat, origin_lng], coordinates[0]]
-            display_coordinates = [*coordinates, approach_coordinates[0]]
-            lats = [point[0] for point in display_coordinates]
-            lngs = [point[1] for point in display_coordinates]
+            # Only send geometry that exists in the packaged road graph. A
+            # straight line from a selected point to the graph snap is not a
+            # verified running route. It is supplied separately so the client
+            # can label it as access to the nearest road, not a destination.
+            approach_coordinates = route.get("origin", {}).get("access_coordinates") or [[origin_lat, origin_lng], coordinates[0]]
+            # The selected origin is included only when framing the map so its
+            # annotation remains visible; it is never appended to route data.
+            bounds_coordinates = [*coordinates, [origin_lat, origin_lng]]
+            lats = [point[0] for point in bounds_coordinates]
+            lngs = [point[1] for point in bounds_coordinates]
             station_ids = sorted(
                 {
                     station_id

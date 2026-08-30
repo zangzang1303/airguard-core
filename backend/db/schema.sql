@@ -183,8 +183,12 @@ CREATE TABLE IF NOT EXISTS resident_notification_preferences (
     user_id UUID PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
     environmental_email_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     predictive_email_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    daily_weather_digest_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE IF EXISTS resident_notification_preferences
+    ADD COLUMN IF NOT EXISTS daily_weather_digest_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 
 DROP TRIGGER IF EXISTS resident_notification_preferences_set_updated_at
 ON resident_notification_preferences;

@@ -295,6 +295,7 @@ export interface Alert {
 export interface NotificationPreferences {
   environmental_email_enabled: boolean;
   predictive_email_enabled: boolean;
+  daily_weather_digest_enabled: boolean;
 }
 
 export interface PredictiveChecklistItem {

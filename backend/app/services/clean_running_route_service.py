@@ -204,6 +204,8 @@ class CleanRunningRouteService:
                     "source": origin_source,
                     "snapped_node_id": snap["node_id"],
                     "snap_distance_m": snap["snap_distance_m"],
+                    "road_snap_coordinate": snap["road_snap_coordinate"],
+                    "access_coordinates": snap["access_coordinates"],
                 },
             }
         )
