@@ -20,6 +20,8 @@ import {
   EmailDeliveryStatus,
   NotificationPreferences,
   PredictiveWarningDetail,
+  GoldenWindowsData,
+  VentilationDevice,
 } from "../types";
 import { resolveApiBaseUrl } from "./apiBaseUrl";
 import { extractAgentReply } from "./agentResponseHelper.js";
@@ -308,6 +310,19 @@ export async function apiFetch<T>(
   }
 }
 
+function humanizeProposalRationale(reason: unknown, proposedAction: unknown): string {
+  const value = typeof reason === "string" ? reason.trim() : "";
+  if (!value) return "Cần Quản lý xem xét trước khi thực hiện hành động này.";
+
+  if (
+    proposedAction === "ventilation_boost" &&
+    value.includes("Backend-confirmed PM2.5/CO2 threshold continuity")
+  ) {
+    return "PM2.5 hoặc CO₂ đã vượt ngưỡng liên tục. Cần Quản lý phê duyệt trước khi hệ thống mô phỏng tăng cường thông gió.";
+  }
+  return value;
+}
+
 function mapProposal(request: Record<string, any>): Proposal {
   const rawEvidence = request.evidence ?? {};
   const rawControl =
@@ -319,7 +334,7 @@ function mapProposal(request: Record<string, any>): Proposal {
     ...rawEvidence,
     aqi: rawEvidence.aqi ?? currentEvidence.aqi,
     aqi_category: rawEvidence.aqi_category ?? currentEvidence.aqi_category,
-    pm25: rawEvidence.pm25 ?? currentEvidence.observed_value,
+    pm25: rawEvidence.pm25 ?? currentEvidence.pm25 ?? currentEvidence.observed_value ?? rawEvidence.observed_value,
     co2: rawEvidence.co2 ?? currentEvidence.co2,
     noise_db: rawEvidence.noise_db ?? currentEvidence.noise_db,
     observed_at: rawEvidence.observed_at ?? currentEvidence.measured_at,
@@ -357,9 +372,9 @@ function mapProposal(request: Record<string, any>): Proposal {
     duration_minutes:
       request.duration_minutes ?? request.command_intent?.duration_minutes ?? rawControl.duration_minutes ?? null,
     severity: evidence.severity ?? "unknown",
-    target: deviceId ?? request.station_id ?? "Không xác định",
+    target: deviceId ? `Thiết bị thông gió tại ${request.station_id ?? "trạm đã chọn"}` : request.station_id ?? "Không xác định",
     action: actionLabels[proposedAction] ?? proposedAction,
-    rationale: request.reason ?? "Backend không cung cấp lý do.",
+    rationale: humanizeProposalRationale(request.reason, proposedAction),
     status: request.status,
     created_at: request.created_at,
     created_by: request.created_by,
@@ -695,8 +710,9 @@ export const api = {
     );
   },
 
-  getAlerts: async (): Promise<Alert[]> => {
-    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/alerts");
+  getAlerts: async (status?: "active" | "resolved"): Promise<Alert[]> => {
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>(`/api/v1/alerts${query}`);
     return data.items.map((alert) => ({
       alert_id: alert.alert_id,
       station_id: alert.station_id,
@@ -780,6 +796,21 @@ export const api = {
     return mapProposal(data);
   },
 
+  manuallyControlVentilationDevice: async (
+    deviceId: string,
+    action: "ventilation_boost" | "standby",
+    idempotencyKey: string,
+  ): Promise<{ status: string; manual: boolean; command_intent: Record<string, any> }> => {
+    return apiFetch<{ status: string; manual: boolean; command_intent: Record<string, any> }>(
+      `/api/v1/devices/${encodeURIComponent(deviceId)}/manual-control`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ action }),
+      },
+    );
+  },
+
   approveProposal: async (proposalId: string, version: number, note: string, _actor?: DemoApiActor): Promise<Proposal> => {
     const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/approve`, {
       method: "POST",
@@ -833,8 +864,17 @@ export const api = {
     );
   },
 
-  getAuditLogs: async (_actor?: DemoApiActor): Promise<AuditLogEntry[]> => {
-    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/audit-logs");
+  getAuditLogs: async (
+    _actor?: DemoApiActor,
+    options: { scope?: "all" | "manager"; limit?: number } = {},
+  ): Promise<AuditLogEntry[]> => {
+    const params = new URLSearchParams();
+    if (options.scope) params.set("scope", options.scope);
+    if (options.limit) params.set("limit", String(options.limit));
+    const query = params.toString();
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>(
+      `/api/v1/audit-logs${query ? `?${query}` : ""}`,
+    );
     return data.items.map((entry) => ({
       id: String(entry.audit_id),
       time: entry.created_at,
@@ -847,6 +887,27 @@ export const api = {
       entity_id: entry.entity_id,
       outcome: entry.outcome,
       correlation_id: entry.correlation_id ?? "—",
+      detail: entry.details ? JSON.stringify(entry.details, null, 2) : undefined,
+    }));
+  },
+
+  getManagerActivityLog: async (limit = 200): Promise<AuditLogEntry[]> => {
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>(
+      `/api/v1/activity-log?limit=${encodeURIComponent(String(limit))}`,
+    );
+    return data.items.map((entry) => ({
+      id: String(entry.audit_id),
+      time: entry.created_at,
+      actor: entry.actor_id ?? entry.actor_type,
+      actor_type: entry.actor_type,
+      actor_role: entry.actor_role,
+      action: entry.action,
+      target: [entry.entity_type, entry.entity_id].filter(Boolean).join(":"),
+      entity_type: entry.entity_type,
+      entity_id: entry.entity_id,
+      station_id: entry.station_id,
+      outcome: entry.outcome,
+      correlation_id: entry.correlation_id ?? "-",
       detail: entry.details ? JSON.stringify(entry.details, null, 2) : undefined,
     }));
   },
@@ -1055,6 +1116,7 @@ export const rejectProposal = (proposalId: string, version: number, note = "Reje
   api.rejectProposal(proposalId, version, note);
 export const fetchVentilationDevices = api.getVentilationDevices;
 export const createVentilationDeviceProposal = api.createVentilationDeviceProposal;
+export const manuallyControlVentilationDevice = api.manuallyControlVentilationDevice;
 export const sendAgentChat = async (message: string, userId = "USR-002"): Promise<{ response: string; message?: string }> => {
   const res = await api.sendAgentMessage(message, null, userId);
   return { response: res.reply };

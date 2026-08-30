@@ -124,6 +124,8 @@ def test_queues_one_personalized_notification_for_every_resident_group() -> None
     assert any("Ưu tiên ở trong nhà" in message for message in messages)
     assert any("vận động ngoài trời" in message for message in messages)
     assert all("simulator" in message for message in messages)
+    assert all("<html" in call["kwargs"]["html"] for call in task.calls)
+    assert all("alert-00" in call["kwargs"]["subject"] for call in task.calls)
     assert all(call["kwargs"]["email_type"] == "resident_environmental_alert" for call in task.calls)
     assert all(job["job_type"] == "resident_alert_notification" for job in jobs.jobs.values())
     assert len(audit.records) == 3

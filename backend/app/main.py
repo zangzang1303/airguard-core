@@ -26,7 +26,7 @@ from .schemas.measurements import MeasurementIngestionRequest
 from .services.agent_service import AgentService, AgentServiceError
 from .services.alert_engine import AlertEngine
 from .services.approval_service import ApprovalService, configure_default_service
-from .services.audit_service import AuditService
+from .services.audit_service import MANAGER_AUDIT_ACTIONS, AuditService
 from .services.auth_service import AuthService
 from .services.automatic_proposal_service import AutomaticProposalService
 from .services.clean_running_route_service import CleanRunningRouteService
@@ -52,6 +52,7 @@ from .services.predictive_warning_service import (
     PredictiveWarningNotificationService,
     PredictiveWarningService,
 )
+from .services.prophet_forecast_service import prophet_service
 from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
 from .services.report_policy import ReportPolicy
@@ -144,6 +145,10 @@ class ApprovalReviewRequest(BaseModel):
 class DeviceControlProposalRequest(BaseModel):
     action: Literal["eco_mode", "standby"]
     reason: str = Field(..., min_length=5, max_length=1000)
+
+
+class ManualDeviceControlRequest(BaseModel):
+    action: Literal["ventilation_boost", "standby"]
 
 
 class ReportGenerateRequest(BaseModel):
@@ -267,6 +272,7 @@ class NotificationPreferencesPatch(BaseModel):
 
     environmental_email_enabled: StrictBool | None = None
     predictive_email_enabled: StrictBool | None = None
+    daily_weather_digest_enabled: StrictBool | None = None
 
 
 class PredictiveWarningEvaluateRequest(BaseModel):
@@ -405,7 +411,7 @@ predictive_warning_service = PredictiveWarningService(
     lead_tolerance_minutes=settings.predictive_warning_lead_tolerance_minutes,
 )
 user_admin_service = UserAdminService(db, audit_service)
-device_service = DeviceService(db)
+device_service = DeviceService(db, audit_service)
 email_service = AuthEmailService(frontend_url=settings.frontend_url)
 auth_service = AuthService(
     db,
@@ -521,10 +527,14 @@ spatial_service = SpatialDispersionService(station_service, weather_provider=wea
 async def _telemetry_ticker() -> None:
     while True:
         try:
-            from .services.live_telemetry_engine import live_engine
-
             live_engine.sync_ventilation_devices(device_service.list_devices())
             live_engine.tick()
+            # Demo overrides are deliberately kept out of measurement history.  They
+            # therefore do not traverse MQTT ingestion, so evaluate them here on the
+            # same cadence as the in-memory simulator.  This lets the continuity
+            # policy create a pending proposal after its configured duration, while
+            # still leaving approval and device dispatch under the normal HITL flow.
+            await asyncio.to_thread(_evaluate_demo_override_alerts)
         except Exception:
             pass
         await asyncio.sleep(10)
@@ -907,7 +917,7 @@ def auth_update_profile(
 def get_notification_preferences(current_user: dict = Depends(get_current_user)) -> dict:
     return {
         "preferences": notification_preference_service.get(str(current_user["user_id"])),
-        "contract_version": "b7-personalized-alerts-v1",
+        "contract_version": "b7-notification-preferences-v2",
     }
 
 
@@ -932,7 +942,7 @@ def update_notification_preferences(
             values=values,
             correlation_id=_request_id(request),
         ),
-        "contract_version": "b7-personalized-alerts-v1",
+        "contract_version": "b7-notification-preferences-v2",
     }
 
 
@@ -1021,12 +1031,22 @@ def set_demo_station_override(
         raise ServiceError("station_not_found", "Station was not found", 404, {"station_id": station_id})
     values = body.model_dump()
     station = live_engine.set_demo_override(station_id, values)
+    assessment = ventilation_service.assess_trigger(station_id)
     audit_service.record(
         actor_type="user", actor_id=current_user["user_id"], actor_role=current_user["role"],
         action="demo_station_override.set", entity_type="station", entity_id=station_id,
         correlation_id=_request_id(request), outcome="success", details={"metrics": values},
     )
-    return {"station": station, "demo_override": True, "message": "Demo override is active; automatic simulation remains running."}
+    return {
+        "station": station,
+        "demo_override": True,
+        "ventilation_trigger": {
+            "required_duration_seconds": assessment.required_duration_seconds,
+            "continuous_duration_seconds": assessment.continuous_duration_seconds,
+            "status": "eligible" if assessment.eligible else "waiting_continuity",
+        },
+        "message": "Demo override is active; automatic simulation remains running.",
+    }
 
 
 @app.delete("/api/v1/demo/stations/{station_id}/override")
@@ -1074,25 +1094,46 @@ def ingest_measurement(
     return result
 
 
-def _schedule_alert_side_effects(
-    background_tasks: BackgroundTasks,
+def _run_alert_side_effects(
     primary_alert: dict | None,
     evaluated_alerts: list[dict],
     correlation_id: str,
 ) -> None:
     for alert in evaluated_alerts:
         if resident_alert_notification_service.should_notify(alert):
-            background_tasks.add_task(
-                resident_alert_notification_service.notify,
-                alert=alert,
-                correlation_id=correlation_id,
-            )
+            resident_alert_notification_service.notify(alert=alert, correlation_id=correlation_id)
     if automatic_proposal_service.should_analyze(primary_alert):
-        background_tasks.add_task(
-            automatic_proposal_service.analyze_and_propose,
-            alert=primary_alert,
+        automatic_proposal_service.analyze_and_propose(alert=primary_alert, correlation_id=correlation_id)
+
+
+def _schedule_alert_side_effects(
+    background_tasks: BackgroundTasks,
+    primary_alert: dict | None,
+    evaluated_alerts: list[dict],
+    correlation_id: str,
+) -> None:
+    background_tasks.add_task(
+        _run_alert_side_effects,
+        primary_alert,
+        evaluated_alerts,
+        correlation_id,
+    )
+
+
+def _evaluate_demo_override_alerts() -> None:
+    """Evaluate active demo overrides without writing fabricated measurements.
+
+    The live ticker calls this after each simulated telemetry tick.  Alerts remain
+    DB-backed and the proposal service remains the only path to a pending HITL
+    request; this function only supplies the missing periodic evaluation event.
+    """
+    for station_id in live_engine.get_demo_overrides():
+        correlation_id = f"demo-override:{station_id}:{uuid4()}"
+        primary_alert, evaluated_alerts = alert_engine.evaluate_station_with_alerts(
+            station_id,
             correlation_id=correlation_id,
         )
+        _run_alert_side_effects(primary_alert, evaluated_alerts, correlation_id)
 
 
 @app.post("/api/v1/internal/ingestion/evaluate-alerts")
@@ -1405,6 +1446,27 @@ async def agent_chat(
             station_id=effective_station_id,
             request_id=req_id,
         )
+
+        # Safety decisions from the canonical Agent graph are terminal. A
+        # deterministic geospatial fallback must never replace a HITL refusal
+        # with a clarification or route response.
+        safety_category = agent_result.get("trace", {}).get("safety_category")
+        if safety_category:
+            canonical_answer = str(agent_result.get("answer") or "")
+            return {
+                "answer": {"summary": canonical_answer, "details": ""},
+                "response": canonical_answer,
+                "intent": agent_result.get("intent") or "safety_refusal",
+                "conversation_kind": agent_result.get("conversation_kind"),
+                "evidence": [],
+                "sources": [],
+                "map_actions": [],
+                "used_tools": agent_result.get("used_tools", []),
+                "tool_arguments": agent_result.get("tool_arguments", []),
+                "proposal_id": None,
+                "request_id": req_id,
+                "trace": agent_result.get("trace", {}),
+            }
 
         result = geospatial_agent.process_query(
             message=body.message,
@@ -1817,10 +1879,32 @@ def export_environmental_report(
 def get_audit_logs(
     entity_type: str | None = Query(default=None),
     entity_id: str | None = Query(default=None),
+    scope: Literal["all", "manager"] = Query(default="all"),
     limit: int = Query(default=100, ge=1, le=500),
     current_user: dict = Depends(require_manager),
 ) -> dict:
-    return {"items": audit_service.list_logs(entity_type=entity_type, entity_id=entity_id, limit=limit)}
+    actions = MANAGER_AUDIT_ACTIONS if scope == "manager" else None
+    return {
+        "items": audit_service.list_logs(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            actions=actions,
+            limit=limit,
+        ),
+        "scope": scope,
+    }
+
+
+@app.get("/api/v1/activity-log")
+def get_manager_activity_log(
+    limit: int = Query(default=100, ge=1, le=500),
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    """Shared, decision-only Activity Log for Manager/Admin accounts."""
+    return {
+        "items": audit_service.list_manager_activity_logs(limit=limit),
+        "scope": "manager_decisions",
+    }
 
 
 @app.get("/api/v1/users")
@@ -1915,6 +1999,58 @@ def create_device_control_proposal(
             correlation_id=_request_id(request),
         )
     return proposal
+
+
+@app.post("/api/v1/devices/{device_id}/manual-control")
+def manually_control_device(
+    request: Request,
+    device_id: str,
+    body: ManualDeviceControlRequest,
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=8, max_length=200),
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    """Manager-only direct control for the simulated device; no approval request is created."""
+    validate_csrf(request)
+    device = device_service.get_status(device_id)
+    is_active = bool(device.get("is_active"))
+    if body.action == "ventilation_boost" and is_active:
+        raise ServiceError("device_already_running", "Device is already running", 409)
+    if body.action == "standby" and not is_active:
+        raise ServiceError("device_already_stopped", "Device is already stopped", 409)
+    station_id = device.get("station_id")
+    if not station_id:
+        raise ServiceError("device_station_required", "Device is not mapped to a station", 409)
+
+    intent = device_service.create_manual_command_intent(
+        device_id=device_id,
+        station_id=str(station_id),
+        action=body.action,
+        actor_id=str(current_user["user_id"]),
+        actor_role=str(current_user["role"]),
+        idempotency_key=f"manager-manual-device:{device_id}:{body.action}:{idempotency_key}",
+        duration_minutes=settings.ventilation_default_duration_minutes if body.action == "ventilation_boost" else None,
+        intensity_percent=settings.ventilation_intensity_percent if body.action == "ventilation_boost" else None,
+        correlation_id=_request_id(request),
+    )
+    _enqueue_manual_command(request, intent)
+    return {"status": "queued", "manual": True, "command_intent": intent}
+
+
+def _enqueue_manual_command(request: Request, intent: dict[str, Any]) -> None:
+    if publish_approved_device_command is None:
+        return
+    payload = {
+        "approval_request_id": None,
+        "command_intent_id": str(intent["command_intent_id"]),
+        "device_id": str(intent["device_id"]),
+        "command": str(intent["command"]),
+        "idempotency_key": str(intent["idempotency_key"]),
+    }
+    task_id = f"device-command-{intent['command_intent_id']}"
+    job, created = reserve_job(task_id, "device_command", str(intent["idempotency_key"]), payload)
+    if not created and job.get("status") != "FAILURE":
+        return
+    publish_approved_device_command.apply_async(kwargs=payload, task_id=str(job.get("task_id") or task_id))
 
 
 

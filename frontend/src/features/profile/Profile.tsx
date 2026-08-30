@@ -22,6 +22,7 @@ export const Profile: React.FC = () => {
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>({
     environmental_email_enabled: false,
     predictive_email_enabled: false,
+    daily_weather_digest_enabled: false,
   });
   const [notificationLoading, setNotificationLoading] = useState(true);
   const [notificationSaving, setNotificationSaving] = useState(false);

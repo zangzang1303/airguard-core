@@ -103,6 +103,7 @@ class ConversationState:
     active_scope: str = "ocp1"
     active_entities: list[dict[str, Any]] = field(default_factory=list)
     active_locations: list[str] = field(default_factory=list)
+    recent_station_ids: list[str] = field(default_factory=list)
     active_metric: str = "AQI"
     comparison_context: dict[str, Any] | None = None
     route_context: dict[str, Any] | None = None
@@ -295,6 +296,13 @@ class ConversationStateManager:
             if entities:
                 state.spatial["focused_poi_id"] = entities[0].get("id")
                 state.spatial["focused_sensor_id"] = entities[0].get("sensor_id")
+            for entity in entities:
+                station_id = str(entity.get("station_id") or entity.get("sensor_id") or "").upper()
+                is_station = entity.get("category") == "monitoring_station" or str(entity.get("id", "")).startswith("station-")
+                if is_station and re.fullmatch(r"S0[1-5]", station_id):
+                    state.recent_station_ids = [item for item in state.recent_station_ids if item != station_id]
+                    state.recent_station_ids.append(station_id)
+            state.recent_station_ids = state.recent_station_ids[-5:]
         if locations is not None:
             state.active_locations = locations
             if locations:

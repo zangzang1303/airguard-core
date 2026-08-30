@@ -113,6 +113,7 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearchItem[]>([]);
+  const [activeResultIndex, setActiveResultIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -310,6 +311,77 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
     return OCEAN_PARK_POIS.slice(0, 6);
   }, []);
 
+  const quickActionCount = Number(Boolean(onLocateGps)) + Number(Boolean(onStartPickOnMap));
+  const defaultStationStartIndex = quickActionCount + recentSearches.length;
+  const defaultPoiStartIndex = defaultStationStartIndex + stations.length;
+  const defaultAiPromptStartIndex = defaultPoiStartIndex + featuredPois.length;
+
+  const defaultSearchActions = [
+    ...(onLocateGps ? [{ id: "current-location", select: handleQuickGps }] : []),
+    ...(onStartPickOnMap ? [{ id: "pick-on-map", select: handleQuickPickOnMap }] : []),
+    ...recentSearches.map((item) => ({
+      id: `recent-${item.id}`,
+      select: () => handleSelectRecentItem(item),
+    })),
+    ...stations.map((station) => ({
+      id: `default-station-${station.station_id}`,
+      select: () => handleSelectStationItem(station, false),
+    })),
+    ...featuredPois.map((poi) => ({
+      id: `default-poi-${poi.id}`,
+      select: () => handleSelectPoiItem(poi, false),
+    })),
+    ...AI_SUGGESTED_PROMPTS.map((prompt) => ({
+      id: prompt.id,
+      select: () => handleTriggerAiSearch(prompt.query),
+    })),
+  ];
+
+  const searchNavigationActions = normalizedQuery
+    ? [
+        ...(parsedCoords
+          ? [{ id: "coordinates", select: () => handleSelectCustomCoordinates(parsedCoords) }]
+          : []),
+        ...matchedStations.map((station) => ({
+          id: `station-${station.station_id}`,
+          select: () => handleSelectStationItem(station, false),
+        })),
+        ...matchedPois.slice(0, 8).map((poi) => ({
+          id: `poi-${poi.id}`,
+          select: () => handleSelectPoiItem(poi, false),
+        })),
+        { id: "ask-ai", select: () => handleTriggerAiSearch(query) },
+      ]
+    : [];
+
+  const availableSearchActions = normalizedQuery ? searchNavigationActions : defaultSearchActions;
+
+  useEffect(() => {
+    if (activeResultIndex < 0 || !isOpen) return;
+    wrapperRef.current
+      ?.querySelector<HTMLElement>('[data-active="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeResultIndex, isOpen]);
+
+  const handleSubmitSearch = () => {
+    if (activeResultIndex >= 0) {
+      availableSearchActions[activeResultIndex]?.select();
+      return;
+    }
+
+    if (parsedCoords) {
+      handleSelectCustomCoordinates(parsedCoords);
+    } else if (isAiQueryCandidate) {
+      handleTriggerAiSearch(query);
+    } else if (matchedPois.length > 0) {
+      handleSelectPoiItem(matchedPois[0], true);
+    } else if (matchedStations.length > 0) {
+      handleSelectStationItem(matchedStations[0], true);
+    } else if (query.trim().length > 0) {
+      handleTriggerAiSearch(query.trim());
+    }
+  };
+
   return (
     <div className="search-omnibox-container" ref={wrapperRef}>
       <div className={`search-omnibox-bar ${isOpen ? "focused" : ""}`}>
@@ -323,21 +395,26 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
           onChange={(e) => {
             setQuery(e.target.value);
             setIsOpen(true);
+            setActiveResultIndex(-1);
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            setIsOpen(true);
+            setActiveResultIndex(-1);
+          }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              if (parsedCoords) {
-                handleSelectCustomCoordinates(parsedCoords);
-              } else if (isAiQueryCandidate) {
-                handleTriggerAiSearch(query);
-              } else if (matchedPois.length > 0) {
-                handleSelectPoiItem(matchedPois[0], true);
-              } else if (matchedStations.length > 0) {
-                handleSelectStationItem(matchedStations[0], true);
-              } else if (query.trim().length > 0) {
-                handleTriggerAiSearch(query.trim());
-              }
+            if ((e.key === "ArrowDown" || e.key === "ArrowRight") && availableSearchActions.length > 0) {
+              e.preventDefault();
+              setActiveResultIndex((current) =>
+                current >= availableSearchActions.length - 1 ? 0 : current + 1
+              );
+            } else if ((e.key === "ArrowUp" || e.key === "ArrowLeft") && availableSearchActions.length > 0) {
+              e.preventDefault();
+              setActiveResultIndex((current) =>
+                current <= 0 ? availableSearchActions.length - 1 : current - 1
+              );
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              handleSubmitSearch();
             }
           }}
         />
@@ -375,6 +452,7 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                     className="search-quick-btn"
                     onClick={handleQuickGps}
                     disabled={!onLocateGps}
+                    data-active={Boolean(onLocateGps) && activeResultIndex === 0 || undefined}
                     aria-label="Dùng vị trí hiện tại bằng GPS"
                   >
                     <LocateFixed size={16} className="btn-icon-gps" aria-hidden="true" />
@@ -385,6 +463,7 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                     className="search-quick-btn"
                     onClick={handleQuickPickOnMap}
                     disabled={!onStartPickOnMap}
+                    data-active={Boolean(onStartPickOnMap) && activeResultIndex === (onLocateGps ? 1 : 0) || undefined}
                     aria-label="Chọn vị trí trên bản đồ"
                   >
                     <Crosshair size={16} className="btn-icon-pick" aria-hidden="true" />
@@ -412,11 +491,12 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                     </button>
                   </div>
                   <div className="search-recent-list">
-                    {recentSearches.map((item) => (
+                    {recentSearches.map((item, index) => (
                       <div
                         key={item.id}
                         className="search-recent-item"
                         onClick={() => handleSelectRecentItem(item)}
+                        data-active={activeResultIndex === quickActionCount + index || undefined}
                       >
                         <div className="recent-item-icon">
                           {item.type === "station" ? (
@@ -458,7 +538,7 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                   <span className="search-section-badge badge-live">5 trạm trực tiếp</span>
                 </div>
                 <div className="search-stations-list">
-                  {stations.map((st) => {
+                  {stations.map((st, index) => {
                     const aqiColor = getAqiColorHex(st.aqi);
                     const aqiLevel = getAqiLevel(st.aqi);
                     const isOffline = st.status === "offline";
@@ -468,6 +548,7 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                         key={st.station_id}
                         className="search-station-card"
                         onClick={() => handleSelectStationItem(st, false)}
+                        data-active={activeResultIndex === defaultStationStartIndex + index || undefined}
                       >
                         <div className="station-card-left">
                           <div
@@ -534,11 +615,12 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                   <span className="search-section-badge">Tiện ích KĐT</span>
                 </div>
                 <div className="search-poi-grid">
-                  {featuredPois.map((poi) => (
+                  {featuredPois.map((poi, index) => (
                     <div
                       key={poi.id}
                       className="search-poi-card"
                       onClick={() => handleSelectPoiItem(poi, false)}
+                      data-active={activeResultIndex === defaultPoiStartIndex + index || undefined}
                     >
                       <div className="poi-card-icon-wrapper">
                         {getPoiIcon(poi.iconName)}
@@ -563,12 +645,13 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                   <span className="search-section-badge badge-ai">AirGuard AI</span>
                 </div>
                 <div className="search-ai-prompts-list">
-                  {AI_SUGGESTED_PROMPTS.map((prompt) => (
+                  {AI_SUGGESTED_PROMPTS.map((prompt, index) => (
                     <button
                       key={prompt.id}
                       type="button"
                       className="search-ai-prompt-card"
                       onClick={() => handleTriggerAiSearch(prompt.query)}
+                      data-active={activeResultIndex === defaultAiPromptStartIndex + index || undefined}
                     >
                       <div className="ai-prompt-icon-wrap">
                         <Sparkles size={14} />
@@ -599,6 +682,8 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                   type="button"
                   className="search-dropdown-coord-item"
                   onClick={() => handleSelectCustomCoordinates(parsedCoords)}
+                  data-search-result-index={0}
+                  data-active={activeResultIndex === 0 || undefined}
                   aria-label={`Đặt vị trí tại toạ độ ${parsedCoords[0].toFixed(5)}, ${parsedCoords[1].toFixed(5)}`}
                 >
                   <Compass size={18} className="coord-icon" />
@@ -616,7 +701,7 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                   <div className="search-group-title">
                     <span>Trạm cảm biến quan trắc ({matchedStations.length})</span>
                   </div>
-                  {matchedStations.map((station) => {
+                      {matchedStations.map((station, index) => {
                     const aqiColor = getAqiColorHex(station.aqi);
                     const aqiLevel = getAqiLevel(station.aqi);
                     const isOffline = station.status === "offline";
@@ -626,6 +711,8 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                         key={station.station_id}
                         className="search-result-item"
                         onClick={() => handleSelectStationItem(station, false)}
+                        data-search-result-index={(parsedCoords ? 1 : 0) + index}
+                        data-active={activeResultIndex === (parsedCoords ? 1 : 0) + index || undefined}
                       >
                         <Navigation size={16} className="item-icon-sensor" />
                         <div className="item-details">
@@ -674,11 +761,13 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                   <div className="search-group-title">
                     <span>Địa điểm Ocean Park 1 ({matchedPois.length})</span>
                   </div>
-                  {matchedPois.slice(0, 8).map((poi) => (
+                  {matchedPois.slice(0, 8).map((poi, index) => (
                     <div
                       key={poi.id}
                       className="search-result-item"
                       onClick={() => handleSelectPoiItem(poi, false)}
+                      data-search-result-index={(parsedCoords ? 1 : 0) + matchedStations.length + index}
+                      data-active={activeResultIndex === (parsedCoords ? 1 : 0) + matchedStations.length + index || undefined}
                     >
                       <div className="poi-icon-small">
                         {getPoiIcon(poi.iconName)}
@@ -711,6 +800,8 @@ export const PlaceSearchOmnibox: React.FC<PlaceSearchOmniboxProps> = ({
                 type="button"
                 className="search-dropdown-ai-item"
                 onClick={() => handleTriggerAiSearch(query)}
+                data-search-result-index={searchNavigationActions.length - 1}
+                data-active={activeResultIndex === searchNavigationActions.length - 1 || undefined}
                 aria-label={`Hỏi AirGuard AI: ${query}`}
               >
                 <div className="ai-item-icon">

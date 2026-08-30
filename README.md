@@ -139,7 +139,7 @@ Remove-Item Env:CELERY_TASK_ALWAYS_EAGER
 Profile này khởi động thêm Celery worker và Celery Beat. Beat tạo báo cáo của ngày đã hoàn tất lúc
 00:10 hằng ngày và báo cáo tuần đã hoàn tất lúc 00:20 thứ Hai theo `REPORT_TIMEZONE`; khóa duy nhất
 `report_type + period_start + period_end + timezone` ngăn tạo trùng.
-Beat cũng đánh giá predictive warning theo chu kỳ mặc định 900 giây. Email chỉ được enqueue khi
+Beat cũng gửi bản tin thời tiết lúc 07:00 theo `REPORT_TIMEZONE` cho cư dân đã xác minh email và tự opt-in; cần bật `DAILY_WEATHER_DIGEST_NOTIFICATIONS_ENABLED=true`. Beat đánh giá predictive warning theo chu kỳ mặc định 900 giây. Email chỉ được enqueue khi
 episode còn trong cửa sổ lead 30–60 phút và worker chạy lại freshness/confidence/actual-alert/consent
 gates ngay trước khi gọi provider.
 
@@ -487,7 +487,9 @@ Runtime entry points:
 - Agent: `src/main.py`
 - Simulator: `services/sensor-simulator/sensor_simulator.py`
 - Consumer: `services/mqtt-consumer/mqtt_consumer/main.py`
-- Device simulator: `services/device-simulator/device_simulator.py`
+- Device simulator: `services/device-simulator/device_simulator.py` chạy một instance cho mỗi thiết bị
+  đã đăng ký (`FILTER-S01`, `FILTER-01`, `FILTER-02`, `FILTER-04`, `FILTER-05`); ACK chỉ xác nhận
+  thiết bị cùng `device_id` đã nhận command.
 
 ## Tài liệu liên quan
 

@@ -104,6 +104,37 @@ html {
   z-index: 1;
 }
 
+.local-basemap-notice {
+  position: absolute;
+  z-index: 890;
+  left: 50%;
+  top: 76px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: min(680px, calc(100% - 32px));
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #334155;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  font-size: 0.76rem;
+}
+
+.local-basemap-notice button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  background: #0f766e;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
 .full-viewport-map {
   width: 100%;
   height: 100%;
@@ -724,6 +755,19 @@ html {
   color: var(--text-light);
 }
 
+.search-result-item[data-active="true"],
+.search-dropdown-coord-item[data-active="true"],
+.search-dropdown-ai-item[data-active="true"],
+.search-quick-btn[data-active="true"],
+.search-recent-item[data-active="true"],
+.search-station-card[data-active="true"],
+.search-poi-card[data-active="true"],
+.search-ai-prompt-card[data-active="true"] {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  background: rgba(25, 168, 123, 0.08);
+}
+
 .search-clear-btn {
   border: none;
   background: transparent;
@@ -887,6 +931,11 @@ html {
   background: #dcf2e9;
   border-color: var(--primary);
   transform: translateY(-1px);
+}
+
+.search-quick-btn:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 2px;
 }
 
 .search-quick-btn .btn-icon-gps {
@@ -7369,16 +7418,6 @@ html {
    AI GEOSPATIAL MAP OVERLAY & RUNNING ROUTE ULTRA-PREMIUM STYLES
    ========================================================================== */
 
-@keyframes flowRouteDash {
-  0% {
-    stroke-dashoffset: 48;
-  }
-
-  100% {
-    stroke-dashoffset: 0;
-  }
-}
-
 @keyframes sonarWave {
   0% {
     transform: scale(0.7);
@@ -7419,15 +7458,44 @@ html {
   }
 }
 
-/* Flowing dash on active running route */
-.ai-route-flowing-dash {
-  stroke-dasharray: 14, 14;
-  animation: flowRouteDash 1.1s linear infinite !important;
-}
-
 /* Glowing halo for route polyline */
 .ai-route-halo-path {
   filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.75));
+}
+
+@keyframes routeHaloPulse {
+  0%, 100% {
+    stroke-opacity: 0.22;
+    filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.45));
+  }
+
+  50% {
+    stroke-opacity: 0.54;
+    filter: drop-shadow(0 0 14px rgba(16, 185, 129, 0.9));
+  }
+}
+
+.ai-route-halo-pulse {
+  animation: routeHaloPulse 1.8s ease-in-out infinite;
+}
+
+.ai-route-direction-marker {
+  background: transparent;
+  border: 0;
+}
+
+.ai-route-direction-arrow {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  color: #0f766e;
+  font-size: 19px;
+  line-height: 1;
+  transform-origin: 50% 50%;
+  -webkit-text-stroke: 2px #ffffff;
+  paint-order: stroke fill;
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.34));
 }
 
 /* Compact Non-Intrusive Map Leader Chip */

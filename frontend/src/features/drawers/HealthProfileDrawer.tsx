@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { X, Check, LogOut, Mail, Building, ShieldCheck } from "lucide-react";
 import { HealthProfile } from "../../types/superApp";
 import { useAuth } from "../../context/AuthContext";
 import { useDraggableFloatingPanel } from "../floating";
+import { api } from "../../api/client";
 
 interface HealthProfileDrawerProps {
   profile: HealthProfile;
@@ -25,6 +26,7 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(true);
 
   const SENSITIVITY_GROUPS: { id: HealthProfile["sensitivityGroup"]; label: string; desc: string; emoji: string }[] = [
     { id: "normal", label: "Cư dân thông thường", desc: "Khuyến nghị chung theo dữ liệu môi trường.", emoji: "🏃" },
@@ -40,15 +42,42 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
     { id: "bbq", label: "Nướng BBQ dã ngoại" },
   ];
 
+  useEffect(() => {
+    let active = true;
+    api.getNotificationPreferences()
+      .then((preferences) => {
+        if (!active) return;
+        setFormData((current) => ({
+          ...current,
+          alertPushEnabled: preferences.environmental_email_enabled,
+          dailyDigestEnabled: preferences.daily_weather_digest_enabled,
+        }));
+      })
+      .catch(() => active && setSaveError("Không thể tải tùy chọn thông báo."))
+      .finally(() => active && setNotificationLoading(false));
+    return () => { active = false; };
+  }, []);
+
   const handleSave = async () => {
     setSaveError(null);
     setSaving(true);
     const result = await updateProfile({ userGroup: formData.sensitivityGroup });
-    setSaving(false);
     if (!result.success) {
+      setSaving(false);
       setSaveError(result.message || "Không thể lưu nhóm sức khỏe.");
       return;
     }
+    try {
+      await api.updateNotificationPreferences({
+        environmental_email_enabled: formData.alertPushEnabled,
+        daily_weather_digest_enabled: formData.dailyDigestEnabled,
+      });
+    } catch {
+      setSaving(false);
+      setSaveError("Không thể lưu tùy chọn thông báo.");
+      return;
+    }
+    setSaving(false);
     onUpdateProfile({ ...profile, sensitivityGroup: formData.sensitivityGroup });
     setSavedSuccess(true);
     setTimeout(() => {
@@ -151,14 +180,15 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
         {/* Notification Settings */}
         <div className="form-section-group">
           <label className="section-form-label">Cài đặt thông báo môi trường:</label>
-          <p className="exposure-note">Chưa có API lưu tùy chọn notification; thay đổi tại đây đã được khóa để tránh báo lưu giả.</p>
+          <p className="exposure-note">Chỉ gửi email khi bạn chủ động bật từng lựa chọn. Bản tin sáng gửi lúc 07:00 theo giờ Việt Nam.</p>
           <div className="settings-toggle-list">
             <label className="setting-toggle-row">
-              <span>Nhận cảnh báo khẩn do backend phát hành</span>
+              <span>Nhận email cảnh báo khẩn do backend phát hành</span>
               <input
                 type="checkbox"
                 checked={formData.alertPushEnabled}
-                disabled
+                disabled={notificationLoading || saving}
+                onChange={(event) => setFormData({ ...formData, alertPushEnabled: event.target.checked })}
               />
             </label>
             <label className="setting-toggle-row">
@@ -166,7 +196,8 @@ export const HealthProfileDrawer: React.FC<HealthProfileDrawerProps> = ({
               <input
                 type="checkbox"
                 checked={formData.dailyDigestEnabled}
-                disabled
+                disabled={notificationLoading || saving}
+                onChange={(event) => setFormData({ ...formData, dailyDigestEnabled: event.target.checked })}
               />
             </label>
           </div>

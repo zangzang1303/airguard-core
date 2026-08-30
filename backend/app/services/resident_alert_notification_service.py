@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from html import escape
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
@@ -117,6 +118,7 @@ class ResidentAlertNotificationService:
             payload = {
                 "recipient": recipient["email"],
                 "message": self._message(alert, group),
+                "html": self._html_message(alert, group),
                 "idempotency_key": idempotency_key,
                 "subject": self._subject(alert),
                 "email_type": "resident_environmental_alert",
@@ -196,7 +198,9 @@ class ResidentAlertNotificationService:
     def _subject(alert: dict[str, Any]) -> str:
         severity = "nghiêm trọng" if alert.get("severity") == "critical" else "cảnh báo"
         station_id = str(alert.get("station_id") or "khu vực")
-        return f"AirGuard — {severity.capitalize()} môi trường tại {station_id}"
+        alert_reference = str(alert.get("alert_id") or "")[:8]
+        reference = f" · {alert_reference}" if alert_reference else ""
+        return f"AirGuard — {severity.capitalize()} môi trường tại {station_id}{reference}"
 
     @staticmethod
     def _message(alert: dict[str, Any], group: str) -> str:
@@ -222,6 +226,22 @@ class ResidentAlertNotificationService:
             f"{title}.{values} {group_advice} "
             "Dữ liệu do simulator tạo cho MVP, không phải quan trắc chính thức hay chẩn đoán y tế."
         )
+
+    @classmethod
+    def _html_message(cls, alert: dict[str, Any], group: str) -> str:
+        """Render a self-contained HTML email while retaining `_message` as text fallback."""
+        severity = "NGHIÊM TRỌNG" if alert.get("severity") == "critical" else "CẢNH BÁO"
+        severity_color = "#b42318" if alert.get("severity") == "critical" else "#b54708"
+        title = escape(str(alert.get("title") or "Chỉ số môi trường vượt ngưỡng"))
+        station_id = escape(str(alert.get("station_id") or "khu vực"))
+        metric = escape(str(alert.get("metric") or alert.get("alert_type") or "chỉ số"))
+        observed = escape(str(alert.get("observed_value") or "—"))
+        threshold = escape(str(alert.get("threshold_value") or "—"))
+        text = escape(cls._message(alert, group))
+        return f"""<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{{margin:0;background:#f5f7fa;color:#172b4d;font-family:Arial,sans-serif}}.card{{max-width:640px;margin:24px auto;background:#fff;border-radius:16px;overflow:hidden}}.header{{padding:24px 28px;background:#0f766e;color:#fff}}.content{{padding:28px}}.badge{{display:inline-block;padding:5px 9px;border-radius:999px;background:{severity_color};color:#fff;font-size:12px;font-weight:700}}.values{{margin:20px 0;padding:16px;background:#f8fafc;border-radius:10px}}.values td{{padding:6px 0}}.note{{font-size:13px;color:#52606d;line-height:1.55}}</style>
+</head><body><main class="card"><header class="header"><p style="margin:0 0 8px;font-size:13px">AirGuard AI · thông báo môi trường</p><h1 style="margin:0;font-size:24px">{title}</h1></header><section class="content"><span class="badge">{severity}</span><p>Trạm: <strong>{station_id}</strong></p><table class="values" role="presentation" width="100%"><tr><td>{metric} ghi nhận</td><td align="right"><strong>{observed}</strong></td></tr><tr><td>Ngưỡng cảnh báo</td><td align="right"><strong>{threshold}</strong></td></tr></table><p style="line-height:1.6">{text}</p><p class="note">Dữ liệu do simulator tạo cho MVP; không phải quan trắc chính thức, cảnh báo khẩn của cơ quan chức năng, hay tư vấn y tế.</p></section></main></body></html>"""
 
     def _audit(
         self,

@@ -10,7 +10,7 @@ interface DeviceDetailDrawerProps {
   error?: string | null;
   onClose: () => void;
   onRefresh: () => Promise<void>;
-  onCreateProposal: (action: "eco_mode" | "standby", reason: string) => Promise<void>;
+  onManualControl: (action: "ventilation_boost" | "standby") => Promise<void>;
 }
 
 const dateTime = (value?: string | null) =>
@@ -31,20 +31,37 @@ const formatCountdown = (seconds: number) => {
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
 };
 
+const modeLabels: Record<VentilationDevice["operating_mode"], string> = {
+  RUNNING_BOOST: "Đang lọc không khí tăng cường",
+  AIR_PURIFIER_ON: "Đang lọc không khí",
+  ECO_MODE: "Chế độ tiết kiệm",
+  STANDBY: "Chế độ chờ",
+};
+
+const acknowledgementLabel = (status?: string | null) => {
+  switch (status) {
+    case "succeeded": return "Đã được thiết bị xác nhận";
+    case "failed": return "Thiết bị không xác nhận lệnh";
+    case "rejected": return "Thiết bị từ chối lệnh";
+    case "duplicate": return "Lệnh đã được thiết bị xử lý";
+    default: return "Chưa có phản hồi từ thiết bị";
+  }
+};
+
 export const DeviceDetailDrawer: React.FC<DeviceDetailDrawerProps> = ({
   device,
   loading,
   error,
   onClose,
   onRefresh,
-  onCreateProposal,
+  onManualControl,
 }) => {
   const { containerProps, handleProps } = useDraggableFloatingPanel({
     panelId: "device-detail",
     group: "drawer",
   });
   const [now, setNow] = useState(Date.now());
-  const [pendingAction, setPendingAction] = useState<"eco_mode" | "standby" | null>(null);
+  const [pendingAction, setPendingAction] = useState<"ventilation_boost" | "standby" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,30 +73,18 @@ export const DeviceDetailDrawer: React.FC<DeviceDetailDrawerProps> = ({
     if (!device.ends_at || !device.is_active) return 0;
     return Math.max(0, Math.ceil((new Date(device.ends_at).getTime() - now) / 1000));
   }, [device.ends_at, device.is_active, now]);
-  const modeLabel =
-    device.operating_mode === "RUNNING_BOOST"
-      ? "Running Boost"
-      : device.operating_mode === "AIR_PURIFIER_ON"
-        ? "Air Purifier On"
-        : device.operating_mode === "ECO_MODE"
-          ? "Eco Mode"
-          : "Standby";
+  const modeLabel = modeLabels[device.operating_mode];
   const effectiveness = device.effectiveness;
 
-  const requestProposal = async (action: "eco_mode" | "standby") => {
+  const controlDevice = async (action: "ventilation_boost" | "standby") => {
     if (pendingAction) return;
     setPendingAction(action);
     setNotice(null);
     try {
-      await onCreateProposal(
-        action,
-        action === "eco_mode"
-          ? `Manager requests eco mode for ${device.device_id} after reviewing measured recovery.`
-          : `Manager requests an audited safe stop for ${device.device_id}.`,
-      );
-      setNotice("Đã tạo proposal pending. Thiết bị chỉ đổi trạng thái sau khi BQL phê duyệt.");
+      await onManualControl(action);
+      setNotice(action === "ventilation_boost" ? "BQL đã gửi lệnh bật máy lọc. Đang chờ thiết bị phản hồi." : "BQL đã gửi lệnh tắt máy lọc. Đang chờ thiết bị phản hồi.");
     } catch (requestError: any) {
-      setNotice(requestError?.message || "Không thể tạo proposal từ trạng thái hiện tại.");
+      setNotice(requestError?.message || "Không thể gửi lệnh từ trạng thái hiện tại.");
     } finally {
       setPendingAction(null);
     }
@@ -89,7 +94,7 @@ export const DeviceDetailDrawer: React.FC<DeviceDetailDrawerProps> = ({
     <aside {...containerProps} className="contextual-drawer right-drawer device-detail-drawer">
       <div className="drawer-header-bar device-header">
         <div className="drawer-title-group" {...handleProps}>
-          <span className="drawer-eyebrow-tag">THIẾT BỊ MÔ PHỎNG · HITL</span>
+          <span className="drawer-eyebrow-tag">THIẾT BỊ MÔ PHỎNG · BQL ĐIỀU KHIỂN</span>
           <h2 className="drawer-main-title">{device.device_name}</h2>
           <p className="drawer-sub-meta">{device.device_id} · {device.station_id} — {device.station_name}</p>
         </div>
@@ -102,9 +107,9 @@ export const DeviceDetailDrawer: React.FC<DeviceDetailDrawerProps> = ({
         <section className={`device-mode-hero mode-${device.operating_mode.toLowerCase()}`}>
           <span className="device-mode-icon"><Wind size={26} /></span>
           <div>
-            <small>Trạng thái đã ACK</small>
+            <small>Trạng thái thiết bị</small>
             <strong>{modeLabel}</strong>
-            <span>{device.is_simulated ? "Device simulator" : "Nguồn thiết bị chưa xác định"}</span>
+            <span>{device.is_simulated ? "Dữ liệu mô phỏng cho MVP" : "Nguồn thiết bị chưa xác định"}</span>
           </div>
         </section>
 
@@ -112,11 +117,11 @@ export const DeviceDetailDrawer: React.FC<DeviceDetailDrawerProps> = ({
           <article><Gauge size={18} /><span>Công suất</span><strong>{device.intensity_percent ?? 0}%</strong></article>
           <article><Clock3 size={18} /><span>Còn lại</span><strong>{formatCountdown(remainingSeconds)}</strong></article>
           <article><Zap size={18} /><span>Chu kỳ</span><strong>{device.duration_minutes ? `${device.duration_minutes} phút` : "—"}</strong></article>
-          <article><Activity size={18} /><span>Nguồn</span><strong>Simulator</strong></article>
+          <article><Activity size={18} /><span>Nguồn</span><strong>Dữ liệu mô phỏng</strong></article>
         </div>
 
         <section className="device-detail-section">
-          <h3><Leaf size={16} /> Hiệu quả môi trường đo được</h3>
+          <h3><Leaf size={16} /> Mức cải thiện không khí ghi nhận</h3>
           {effectiveness ? (
             <div className="effectiveness-grid">
               <div><span>PM2.5</span><strong>{effectiveness.baseline_pm25 ?? "—"} → {effectiveness.current_pm25 ?? "—"} µg/m³</strong><em>{effectiveness.pm25_reduction_percent != null ? `Giảm ${effectiveness.pm25_reduction_percent}%` : "Chưa đủ dữ liệu"}</em></div>
@@ -126,26 +131,25 @@ export const DeviceDetailDrawer: React.FC<DeviceDetailDrawerProps> = ({
         </section>
 
         <section className="device-detail-section">
-          <h3><History size={16} /> Lệnh gần nhất</h3>
+          <h3><History size={16} /> Lần vận hành gần nhất</h3>
           <dl className="device-command-history">
-            <div><dt>Bắt đầu</dt><dd>{dateTime(device.started_at)}</dd></div>
+            <div><dt>Bắt đầu vận hành</dt><dd>{dateTime(device.started_at)}</dd></div>
             <div><dt>Kết thúc dự kiến</dt><dd>{dateTime(device.ends_at)}</dd></div>
-            <div><dt>Người duyệt</dt><dd>{device.latest_command?.approved_by || "—"}</dd></div>
+            <div><dt>Người phê duyệt</dt><dd>{device.latest_command?.approved_by_name || (device.latest_command?.approved_by ? "Tài khoản Ban quản lý" : "—")}</dd></div>
             <div><dt>Thời điểm duyệt</dt><dd>{dateTime(device.latest_command?.approved_at)}</dd></div>
-            <div><dt>ACK</dt><dd>{device.latest_command?.ack_status || "—"}</dd></div>
+            <div><dt>Xác nhận từ thiết bị</dt><dd>{device.latest_command ? acknowledgementLabel(device.latest_command.ack_status) : "Chưa có lệnh"}</dd></div>
           </dl>
         </section>
 
         {(error || notice) && <div className={`device-action-notice ${error ? "is-error" : ""}`} role="status">{error || notice}</div>}
 
         <section className="device-hitl-actions">
-          <div><ShieldCheck size={17} /><span>Mọi nút dưới đây chỉ tạo proposal pending; không gửi lệnh trực tiếp.</span></div>
-          <button type="button" disabled={Boolean(pendingAction) || loading} onClick={() => requestProposal("eco_mode")} className="device-action-button eco">
-            <Leaf size={16} /> {pendingAction === "eco_mode" ? "Đang tạo…" : "Đề xuất chuyển Eco Mode"}
-          </button>
-          <button type="button" disabled={Boolean(pendingAction) || loading} onClick={() => requestProposal("standby")} className="device-action-button stop">
-            <Zap size={16} /> {pendingAction === "standby" ? "Đang tạo…" : "Đề xuất dừng khẩn cấp"}
-          </button>
+          <div><ShieldCheck size={17} /><span>Thao tác thủ công của BQL được ghi nhật ký và gửi lệnh ngay cho thiết bị mô phỏng.</span></div>
+          {!device.is_active ? <button type="button" disabled={Boolean(pendingAction) || loading} onClick={() => controlDevice("ventilation_boost")} className="device-action-button eco">
+            <Wind size={16} /> {pendingAction === "ventilation_boost" ? "Đang bật…" : "Bật máy lọc"}
+          </button> : <button type="button" disabled={Boolean(pendingAction) || loading} onClick={() => controlDevice("standby")} className="device-action-button stop">
+            <Zap size={16} /> {pendingAction === "standby" ? "Đang tắt…" : "Tắt máy lọc"}
+          </button>}
           <button type="button" onClick={onRefresh} className="device-refresh-button">Cập nhật trạng thái</button>
         </section>
       </div>

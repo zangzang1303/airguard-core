@@ -107,7 +107,7 @@ class PostgresStore:
                     (payload.command_id, payload.device_id),
                 )
                 dispatch = cur.fetchone()
-                approval_request_id = str(dispatch["approval_request_id"]) if dispatch else None
+                approval_request_id = str(dispatch["approval_request_id"]) if dispatch and dispatch.get("approval_request_id") else None
                 command_intent_id = str(dispatch["command_intent_id"]) if dispatch else None
                 if dispatch:
                     acknowledged_at = dispatch.get("acknowledged_at")
