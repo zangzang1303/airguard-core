@@ -20,6 +20,8 @@ import {
   EmailDeliveryStatus,
   NotificationPreferences,
   PredictiveWarningDetail,
+  GoldenWindowsData,
+  VentilationDevice,
 } from "../types";
 import { resolveApiBaseUrl } from "./apiBaseUrl";
 import { extractAgentReply } from "./agentResponseHelper.js";

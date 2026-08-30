@@ -1005,6 +1005,7 @@ const AppContent: React.FC = () => {
       refreshData={refreshData}
       connectionStatus={connectionStatus}
       lastUpdated={lastUpdated}
+      refreshRevision={refreshRevision}
     />
   );
 };

@@ -14,6 +14,7 @@ import { mapActionController } from "./MapActionController";
 import { useFloatingPanelContext, useDraggableFloatingPanel } from "../floating";
 import { Crosshair, X } from "lucide-react";
 import { VentilationDeviceMarkers } from "./VentilationDeviceMarkers";
+import { DraggableTimelineDock } from "./DraggableTimelineDock";
 
 interface SuperMapProps {
   stations: Station[];

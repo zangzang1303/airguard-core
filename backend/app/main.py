@@ -52,6 +52,7 @@ from .services.predictive_warning_service import (
     PredictiveWarningNotificationService,
     PredictiveWarningService,
 )
+from .services.prophet_forecast_service import prophet_service
 from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
 from .services.report_policy import ReportPolicy
