@@ -398,7 +398,7 @@ CREATE INDEX IF NOT EXISTS idx_approval_requests_review_idempotency
 
 CREATE TABLE IF NOT EXISTS device_command_intents (
     command_intent_id UUID PRIMARY KEY,
-    approval_request_id UUID NOT NULL REFERENCES approval_requests(request_id),
+    approval_request_id UUID REFERENCES approval_requests(request_id),
     device_id VARCHAR(50) NOT NULL REFERENCES devices(device_id),
     station_id VARCHAR(50) REFERENCES stations(station_id),
     command VARCHAR(100) NOT NULL,
@@ -421,6 +421,7 @@ ALTER TABLE IF EXISTS device_command_intents ADD COLUMN IF NOT EXISTS command_id
 ALTER TABLE IF EXISTS device_command_intents ADD COLUMN IF NOT EXISTS acknowledged_at TIMESTAMPTZ;
 ALTER TABLE IF EXISTS device_command_intents ADD COLUMN IF NOT EXISTS ack_status VARCHAR(30);
 ALTER TABLE IF EXISTS device_command_intents ADD COLUMN IF NOT EXISTS device_state VARCHAR(50);
+ALTER TABLE IF EXISTS device_command_intents ALTER COLUMN approval_request_id DROP NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_device_command_intents_command_id
 ON device_command_intents(command_id)
@@ -610,11 +611,11 @@ ON CONFLICT (user_id) DO UPDATE SET
 
 INSERT INTO devices (device_id, device_name, device_type, station_id, status, is_simulated)
 VALUES
-    ('FILTER-S01', 'Da Ton Air Filter S01', 'ventilation_filter', 'S01', 'offline', TRUE),
-    ('FILTER-01', 'Simulated outdoor filtration unit', 'air_filter', 'S03', 'offline', TRUE),
-    ('FILTER-02', 'Indoor Air Filter S02', 'ventilation_filter', 'S02', 'offline', TRUE),
-    ('FILTER-04', 'VinUni Air Filter S04', 'ventilation_filter', 'S04', 'offline', TRUE),
-    ('FILTER-05', 'Hai Au Air Filter S05', 'ventilation_filter', 'S05', 'offline', TRUE)
+    ('FILTER-S01', 'Thiết bị lọc không khí khu Đa Tốn', 'ventilation_filter', 'S01', 'offline', TRUE),
+    ('FILTER-01', 'Thiết bị lọc không khí ngoài trời Hồ Ngọc Trai', 'air_filter', 'S03', 'offline', TRUE),
+    ('FILTER-02', 'Thiết bị lọc không khí khu Sapphire', 'ventilation_filter', 'S02', 'offline', TRUE),
+    ('FILTER-04', 'Thiết bị lọc không khí VinUni', 'ventilation_filter', 'S04', 'offline', TRUE),
+    ('FILTER-05', 'Thiết bị lọc không khí khu Hải Âu', 'ventilation_filter', 'S05', 'offline', TRUE)
 ON CONFLICT (device_id) DO NOTHING;
 
 INSERT INTO device_operating_profiles (

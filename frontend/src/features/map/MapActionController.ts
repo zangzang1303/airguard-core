@@ -174,21 +174,50 @@ export class MapActionController {
         const coords = action.coordinates as Array<[number, number]>;
         if (!coords || !Array.isArray(coords) || coords.length < 2) break;
         const segments = Array.isArray(action.segments) ? action.segments : [];
+        const approachCoords = action.approach_coordinates as Array<[number, number]>;
+        const hasApproach =
+          Array.isArray(approachCoords) &&
+          approachCoords.length >= 2 &&
+          approachCoords.every(
+            (point) =>
+              Array.isArray(point) &&
+              Number.isFinite(Number(point[0])) &&
+              Number.isFinite(Number(point[1])),
+          );
 
         const style = action.style || "recommended";
         const colorMap: Record<string, { stroke: string; halo: string }> = {
-          recommended: { stroke: "#10b981", halo: "rgba(16, 185, 129, 0.45)" },
-          alternative: { stroke: "#06b6d4", halo: "rgba(6, 182, 212, 0.45)" },
-          caution: { stroke: "#f59e0b", halo: "rgba(245, 158, 11, 0.45)" },
-          avoid: { stroke: "#ef4444", halo: "rgba(239, 68, 68, 0.45)" },
+          recommended: { stroke: "#2dd4bf", halo: "rgba(45, 212, 191, 0.34)" },
+          alternative: { stroke: "#38bdf8", halo: "rgba(56, 189, 248, 0.34)" },
+          caution: { stroke: "#fbbf24", halo: "rgba(251, 191, 36, 0.32)" },
+          avoid: { stroke: "#fb7185", halo: "rgba(251, 113, 133, 0.32)" },
         };
         const theme = colorMap[style] || colorMap.recommended;
 
-        // 1. Outer Glowing Halo Polyline
+        // 1. The dashed access line connects the supplied position to the
+        // graph snap point. It is an estimated approach, not running-route
+        // geometry or turn-by-turn guidance.
+        const approachLine = hasApproach
+          ? L.polyline(approachCoords, {
+              color: "#38bdf8",
+              weight: 3,
+              opacity: 0.82,
+              dashArray: "7 9",
+              lineCap: "round",
+              lineJoin: "round",
+              className: "ai-route-approach-path",
+            }).bindTooltip("Đoạn tiếp cận tới lộ trình (ước tính)", {
+              sticky: true,
+              direction: "top",
+            })
+          : null;
+
+        // 2. The halo keeps a recommended route legible without a heavy,
+        // dark stroke over the base map.
         const glowPolyline = L.polyline(coords, {
           color: theme.stroke,
-          weight: 14,
-          opacity: 0.38,
+          weight: 12,
+          opacity: 0.3,
           className: "ai-route-halo-path ai-route-halo-pulse",
           lineCap: "round",
           lineJoin: "round",
@@ -198,10 +227,10 @@ export class MapActionController {
         // grounded per-section exposure. This keeps the selected route visible
         // while showing local air-quality changes along it.
         const segmentColorMap: Record<string, string> = {
-          good: "#10b981",
-          moderate: "#f59e0b",
-          unhealthy_sensitive: "#f97316",
-          unhealthy: "#ef4444",
+          good: "#34d399",
+          moderate: "#fbbf24",
+          unhealthy_sensitive: "#fb923c",
+          unhealthy: "#fb7185",
         };
         const segmentPolylines: L.Polyline[] = [];
         if (segments.length > 0) {
@@ -211,8 +240,8 @@ export class MapActionController {
             const segmentColor = segmentColorMap[String(segment.level)] || theme.stroke;
             const segmentPolyline = L.polyline(segmentCoords, {
               color: segmentColor,
-              weight: 7,
-              opacity: 0.98,
+              weight: 5,
+              opacity: 0.9,
               lineCap: "round",
               lineJoin: "round",
             });
@@ -230,8 +259,8 @@ export class MapActionController {
         const corePolyline = segments.length === 0
           ? L.polyline(coords, {
               color: theme.stroke,
-              weight: 5.5,
-              opacity: 0.95,
+              weight: 5,
+              opacity: 0.9,
               lineCap: "round",
               lineJoin: "round",
             })
@@ -272,6 +301,7 @@ export class MapActionController {
         });
         const endMarker = L.marker(endCoord, { icon: endIcon });
 
+        if (approachLine) this.aiOverlayLayer.addLayer(approachLine);
         this.aiOverlayLayer.addLayer(glowPolyline);
         if (corePolyline) this.aiOverlayLayer.addLayer(corePolyline);
         segmentPolylines.forEach((polyline) => this.aiOverlayLayer?.addLayer(polyline));

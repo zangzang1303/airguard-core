@@ -782,6 +782,21 @@ export const api = {
     return mapProposal(data);
   },
 
+  manuallyControlVentilationDevice: async (
+    deviceId: string,
+    action: "ventilation_boost" | "standby",
+    idempotencyKey: string,
+  ): Promise<{ status: string; manual: boolean; command_intent: Record<string, any> }> => {
+    return apiFetch<{ status: string; manual: boolean; command_intent: Record<string, any> }>(
+      `/api/v1/devices/${encodeURIComponent(deviceId)}/manual-control`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ action }),
+      },
+    );
+  },
+
   approveProposal: async (proposalId: string, version: number, note: string, _actor?: DemoApiActor): Promise<Proposal> => {
     const data = await apiFetch<Record<string, any>>(`/api/v1/approvals/${proposalId}/approve`, {
       method: "POST",
@@ -858,6 +873,27 @@ export const api = {
       entity_id: entry.entity_id,
       outcome: entry.outcome,
       correlation_id: entry.correlation_id ?? "—",
+      detail: entry.details ? JSON.stringify(entry.details, null, 2) : undefined,
+    }));
+  },
+
+  getManagerActivityLog: async (limit = 200): Promise<AuditLogEntry[]> => {
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>(
+      `/api/v1/activity-log?limit=${encodeURIComponent(String(limit))}`,
+    );
+    return data.items.map((entry) => ({
+      id: String(entry.audit_id),
+      time: entry.created_at,
+      actor: entry.actor_id ?? entry.actor_type,
+      actor_type: entry.actor_type,
+      actor_role: entry.actor_role,
+      action: entry.action,
+      target: [entry.entity_type, entry.entity_id].filter(Boolean).join(":"),
+      entity_type: entry.entity_type,
+      entity_id: entry.entity_id,
+      station_id: entry.station_id,
+      outcome: entry.outcome,
+      correlation_id: entry.correlation_id ?? "-",
       detail: entry.details ? JSON.stringify(entry.details, null, 2) : undefined,
     }));
   },
@@ -1066,6 +1102,7 @@ export const rejectProposal = (proposalId: string, version: number, note = "Reje
   api.rejectProposal(proposalId, version, note);
 export const fetchVentilationDevices = api.getVentilationDevices;
 export const createVentilationDeviceProposal = api.createVentilationDeviceProposal;
+export const manuallyControlVentilationDevice = api.manuallyControlVentilationDevice;
 export const sendAgentChat = async (message: string, userId = "USR-002"): Promise<{ response: string; message?: string }> => {
   const res = await api.sendAgentMessage(message, null, userId);
   return { response: res.reply };

@@ -71,8 +71,12 @@ ON CONFLICT (user_id) DO UPDATE SET
     sensitivity_group = EXCLUDED.sensitivity_group;
 
 INSERT INTO devices (device_id, device_name, device_type, station_id, status, is_simulated)
-VALUES ('FILTER-01', 'Simulated outdoor filtration unit', 'air_filter', 'S03', 'offline', TRUE)
-ON CONFLICT (device_id) DO NOTHING;
+VALUES ('FILTER-01', 'Thiết bị lọc không khí ngoài trời Hồ Ngọc Trai', 'air_filter', 'S03', 'offline', TRUE)
+ON CONFLICT (device_id) DO UPDATE SET
+    device_name = EXCLUDED.device_name,
+    device_type = EXCLUDED.device_type,
+    station_id = EXCLUDED.station_id,
+    is_simulated = EXCLUDED.is_simulated;
 
 INSERT INTO device_operating_profiles (
     profile_id, device_id, profile_version, effective_from, effective_to,

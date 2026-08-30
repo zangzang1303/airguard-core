@@ -54,7 +54,7 @@ import {
   approveProposal,
   rejectProposal,
   fetchVentilationDevices,
-  createVentilationDeviceProposal,
+  manuallyControlVentilationDevice,
 } from "./api/client";
 import { RefreshCw, TriangleAlert, ArrowLeft, CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
 import "./theme.css";
@@ -726,11 +726,10 @@ const SuperAppMain: React.FC<{
           error={ventilationDeviceError}
           onClose={() => setActiveDrawer(null)}
           onRefresh={loadVentilationDevices}
-          onCreateProposal={async (action, reason) => {
-            await createVentilationDeviceProposal(
+          onManualControl={async (action) => {
+            await manuallyControlVentilationDevice(
               selectedVentilationDevice.device_id,
               action,
-              reason,
               `device-${selectedVentilationDevice.device_id}-${action}-${Date.now()}`,
             );
             await Promise.all([loadVentilationDevices(), refreshData()]);

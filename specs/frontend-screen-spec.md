@@ -271,9 +271,9 @@ Toolbar can co search theo station id va station name tu station catalog. Badge 
 
 ### S10 - Audit Log
 
-**Muc dich:** read-only trace cho proposal create/approve/reject, dispatch/failure va material action khac.
+**Muc dich:** danh sach read-only dung chung cho Manager/Admin, chi hien thi cac quyet dinh duyet/tu choi proposal. Audit van hanh day du (tao proposal, dispatch/failure va su kien noi bo) duoc luu o backend, nhung khong hien thi trong man hinh nay.
 
-**Filters:** actor, action code, outcome, time range; target id/request id neu contract ho tro.
+**Filters:** actor, action duyet/tu choi, time range va tram; target id/request id neu contract ho tro.
 
 **Table fields:** occurred_at; actor/role; action; target type/id; outcome; correlation/request id; details action.
 
@@ -281,7 +281,7 @@ Toolbar can co search theo station id va station name tu station catalog. Badge 
 
 **States:** loading; empty; 403; service unavailable; redacted detail; pagination; export unavailable/failure.
 
-**API dependency:** audit-list/detail/export endpoint chua co trong API contract.
+**API dependency:** `GET /activity-log` (Manager/Admin), tra ve cung mot tap ban ghi cho moi tai khoan quan ly; chi tiet da redact. Audit-list/detail/export day du la capability van hanh tach biet.
 
 ### S11 - Ho so nguoi dung
 

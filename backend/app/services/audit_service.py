@@ -30,6 +30,18 @@ MANAGER_AUDIT_ACTIONS = (
     "REJECT_PROPOSAL",
 )
 
+# The Activity Log is deliberately narrower than the operational audit trail.
+# It is shared by all Manager/Admin accounts and contains only completed human
+# decisions on approval requests. Keep the full audit trail above for
+# traceability, incident investigation, and compliance.
+MANAGER_ACTIVITY_LOG_ACTIONS = (
+    "approval.approve",
+    "approval.quick_approve",
+    "approval.reject",
+    "APPROVE_PROPOSAL",
+    "REJECT_PROPOSAL",
+)
+
 
 def redact_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     if not metadata:
@@ -130,5 +142,33 @@ class AuditService:
             raise
         except Exception as exc:
             raise ServiceError("audit_log_unavailable", "Audit logs are unavailable", 503) from exc
+
+    def list_manager_activity_logs(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Return the shared manager decision log with its related station."""
+        try:
+            with self.db.connection() as conn:
+                with dict_cursor(conn) as cur:
+                    cur.execute(
+                        """
+                        SELECT audit.audit_id, audit.actor_type, audit.actor_id,
+                               audit.actor_role, audit.action, audit.entity_type,
+                               audit.entity_id, audit.outcome, audit.correlation_id,
+                               audit.details, audit.created_at,
+                               COALESCE(request.station_id, audit.details ->> 'station_id') AS station_id
+                        FROM audit_logs AS audit
+                        LEFT JOIN approval_requests AS request
+                          ON request.request_id::text = audit.entity_id
+                        WHERE audit.action = ANY(%s)
+                          AND COALESCE(request.request_type, '') <> 'manager_manual_device_control'
+                        ORDER BY audit.created_at DESC, audit.audit_id DESC
+                        LIMIT %s
+                        """,
+                        [list(MANAGER_ACTIVITY_LOG_ACTIONS), limit],
+                    )
+                    return [dict(row) for row in cur.fetchall()]
+        except ServiceError:
+            raise
+        except Exception as exc:
+            raise ServiceError("audit_log_unavailable", "Activity logs are unavailable", 503) from exc
 
 

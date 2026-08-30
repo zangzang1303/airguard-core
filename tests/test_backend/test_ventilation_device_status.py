@@ -34,7 +34,7 @@ class EffectCursor:
 def device_row(*, started_at: datetime, duration_minutes: int = 45) -> dict[str, Any]:
     return {
         "device_id": "FILTER-01",
-        "device_name": "Simulated outdoor filtration unit",
+        "device_name": "Thiết bị lọc không khí ngoài trời Hồ Ngọc Trai",
         "device_type": "air_filter",
         "station_id": "S03",
         "station_name": "Ven Hồ Ngọc Trai",
@@ -54,6 +54,7 @@ def device_row(*, started_at: datetime, duration_minutes: int = 45) -> dict[str,
         "ack_status": "succeeded",
         "device_state": "RUNNING_BOOST",
         "reviewed_by": MANAGER_ID,
+        "reviewer_name": "Nguyễn Văn A",
         "reviewed_at": started_at,
         "review_note": "Approved after evidence review.",
     }
@@ -70,6 +71,7 @@ def test_device_status_shapes_countdown_and_measured_effectiveness() -> None:
     assert result["effectiveness"]["pm25_reduction_percent"] == 56.8
     assert result["effectiveness"]["co2_reduction_percent"] == 52.7
     assert result["latest_command"]["approved_by"] == MANAGER_ID
+    assert result["latest_command"]["approved_by_name"] == "Nguyễn Văn A"
 
 
 def test_elapsed_timed_command_is_presented_as_standby() -> None:
@@ -136,3 +138,56 @@ def test_manager_stop_button_creates_pending_proposal_without_dispatch(monkeypat
     assert response.json()["status"] == "pending"
     assert approvals.calls[0]["proposed_action"] == "standby"
     assert "approve" not in approvals.calls[0]
+
+
+def test_manager_manual_start_dispatches_without_creating_an_approval_request(monkeypatch) -> None:
+    async def manager_override() -> dict[str, str]:
+        return {"user_id": MANAGER_ID, "role": "manager"}
+
+    class FakeDeviceService:
+        def get_status(self, device_id: str) -> dict[str, Any]:
+            return {"device_id": device_id, "station_id": "S03", "is_active": False, "operating_mode": "STANDBY"}
+
+        def create_manual_command_intent(self, **kwargs: Any) -> dict[str, Any]:
+            assert kwargs["action"] == "ventilation_boost"
+            assert kwargs["duration_minutes"] == 45
+            return {
+                "command_intent_id": "00000000-0000-0000-0000-000000000905",
+                "device_id": kwargs["device_id"],
+                "station_id": kwargs["station_id"],
+                "command": kwargs["action"],
+                "status": "queued",
+                "idempotency_key": kwargs["idempotency_key"],
+            }
+
+    class MustNotCreateApproval:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def create_request(self, **_kwargs: Any) -> dict[str, Any]:
+            self.calls += 1
+            raise AssertionError("Manual control must not create an approval request")
+
+    approvals = MustNotCreateApproval()
+    dispatched: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(main_mod, "device_service", FakeDeviceService())
+    monkeypatch.setattr(main_mod, "approval_service", approvals)
+    monkeypatch.setattr(main_mod, "_enqueue_manual_command", lambda _request, intent: dispatched.append((intent["command_intent_id"], intent)))
+    main_mod.app.dependency_overrides[require_manager] = manager_override
+    try:
+        client = TestClient(main_mod.app)
+        client.cookies.set("airguard_session", "test-session")
+        client.cookies.set("airguard_csrf", "csrf-token")
+        response = client.post(
+            "/api/v1/devices/FILTER-01/manual-control",
+            headers={"X-CSRF-Token": "csrf-token", "Idempotency-Key": "manual-start-001"},
+            json={"action": "ventilation_boost"},
+        )
+    finally:
+        main_mod.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "queued"
+    assert response.json()["manual"] is True
+    assert approvals.calls == 0
+    assert dispatched[0][0] == "00000000-0000-0000-0000-000000000905"

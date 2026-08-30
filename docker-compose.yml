@@ -39,6 +39,9 @@ services:
         -f /migrations/20260824_005_seed_demo_health_group_residents.sql
         -f /migrations/20260829_006_personalized_alerts.sql
         -f /migrations/20260829_007_esg_reports.sql
+        -f /migrations/20260830_008_manager_activity_log.sql
+        -f /migrations/20260830_009_vietnamese_ventilation_labels.sql
+        -f /migrations/20260830_010_manager_manual_device_control.sql
     depends_on:
       postgres:
         condition: service_healthy

@@ -106,7 +106,7 @@ const getSummary = (log: AuditLogEntry, stations: Station[]) => {
 interface AuditLogProps { onClose?: () => void; stations?: Station[]; }
 
 export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) => {
-  const { role, userId } = useAuth();
+  const { role } = useAuth();
   const { containerProps, handleProps } = useDraggableFloatingPanel({ panelId: "audit", group: "modal" });
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,18 +122,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
   const fetchLogs = async () => {
     setLoading(true); setError(null);
     try {
-      const [auditResult, proposalResult] = await Promise.allSettled([
-        api.getAuditLogs({ userId, role: "manager" }, { scope: "manager", limit: 200 }),
-        api.getProposals(),
-      ]);
-      if (auditResult.status === "rejected") throw auditResult.reason;
-      const auditLogs = auditResult.value;
-      const proposals = proposalResult.status === "fulfilled" ? proposalResult.value : [];
-      const stationByProposalId = new Map(proposals.map((proposal) => [proposal.proposal_id, proposal.station_id]));
-      setLogs(auditLogs.map((log) => ({
-        ...log,
-        station_id: stationByProposalId.get(log.entity_id ?? "") ?? log.station_id,
-      })));
+      setLogs(await api.getManagerActivityLog());
     }
     catch (err: any) { setError(err?.message ?? "Không thể tải nhật ký hoạt động. Vui lòng thử lại."); }
     finally { setLoading(false); }
@@ -165,7 +154,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
 
   return <div {...containerProps} className="audit-explorer-container audit-manager-log">
     <header className="audit-explorer-header">
-      <div className="audit-explorer-title-group"><div className="audit-explorer-title-row" {...handleProps}><div className="audit-explorer-title-icon"><FileCheck2 size={20} /></div><div><h2 className="audit-explorer-title">Nhật ký hoạt động</h2><p className="audit-explorer-subtitle">Theo dõi các thay đổi và quyết định quan trọng của AirGuard AI.</p></div></div><span className="audit-pill-badge audit-pill-badge--count">{filteredLogs.length} hoạt động</span></div>
+      <div className="audit-explorer-title-group"><div className="audit-explorer-title-row" {...handleProps}><div className="audit-explorer-title-icon"><FileCheck2 size={20} /></div><div><h2 className="audit-explorer-title">Nhật ký quyết định BQL</h2><p className="audit-explorer-subtitle">Danh sách dùng chung, chỉ gồm các yêu cầu đã được duyệt hoặc từ chối.</p></div></div><span className="audit-pill-badge audit-pill-badge--count">{filteredLogs.length} quyết định</span></div>
       <div className="audit-header-actions no-drag" data-no-drag="true"><Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}><RefreshCw className={loading ? "is-spinning" : ""} size={15} />{loading ? "Đang cập nhật" : "Làm mới"}</Button>{onClose && <IconButton label="Đóng" onClick={onClose}><X size={18} /></IconButton>}</div>
     </header>
 
@@ -179,7 +168,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
     </div></section>
 
     <section className="audit-table-card">
-      {loading ? <AuditTableSkeleton /> : error ? <AuditEmpty icon={<XCircle size={28} />} title="Không thể tải nhật ký hoạt động" description={error} action={<Button variant="outline" size="sm" onClick={fetchLogs}>Thử lại</Button>} /> : filteredLogs.length === 0 ? <AuditEmpty icon={<FileSearch size={28} />} title={hasActiveFilters ? "Không tìm thấy yêu cầu phù hợp" : "Chưa có yêu cầu nào được phê duyệt"} description={hasActiveFilters ? "Hãy thử thay đổi bộ lọc hoặc từ khóa tìm kiếm." : "Các cảnh báo và đề xuất đang chờ duyệt không hiển thị trong danh sách này."} action={hasActiveFilters ? <Button variant="outline" size="sm" onClick={resetFilters}>Xóa bộ lọc</Button> : undefined} /> : <div className="audit-table-wrapper"><table className="audit-explorer-table"><thead><tr>{["Thời gian", "Người thực hiện", "Hoạt động", "Đối tượng", "Trạng thái", "Chi tiết"].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{filteredLogs.map((log) => <AuditRow key={log.id} log={log} stations={stations} onDetails={setSelectedLog} />)}</tbody></table></div>}
+      {loading ? <AuditTableSkeleton /> : error ? <AuditEmpty icon={<XCircle size={28} />} title="Không thể tải nhật ký quyết định" description={error} action={<Button variant="outline" size="sm" onClick={fetchLogs}>Thử lại</Button>} /> : filteredLogs.length === 0 ? <AuditEmpty icon={<FileSearch size={28} />} title={hasActiveFilters ? "Không tìm thấy yêu cầu phù hợp" : "Chưa có yêu cầu nào được duyệt hoặc từ chối"} description={hasActiveFilters ? "Hãy thử thay đổi bộ lọc hoặc từ khóa tìm kiếm." : "Các yêu cầu đang chờ duyệt không hiển thị trong danh sách này."} action={hasActiveFilters ? <Button variant="outline" size="sm" onClick={resetFilters}>Xóa bộ lọc</Button> : undefined} /> : <div className="audit-table-wrapper"><table className="audit-explorer-table"><thead><tr>{["Thời gian", "Người thực hiện", "Hoạt động", "Đối tượng", "Trạng thái", "Chi tiết"].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{filteredLogs.map((log) => <AuditRow key={log.id} log={log} stations={stations} onDetails={setSelectedLog} />)}</tbody></table></div>}
     </section>
     {selectedLog && <AuditDetail log={selectedLog} stations={stations} onClose={() => setSelectedLog(null)} />}
   </div>;

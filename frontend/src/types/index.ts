@@ -634,6 +634,7 @@ export interface VentilationCommandSummary {
   status: string;
   ack_status?: string | null;
   approved_by?: string | null;
+  approved_by_name?: string | null;
   approved_at?: string | null;
   review_note?: string | null;
 }

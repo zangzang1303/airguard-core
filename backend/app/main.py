@@ -40,7 +40,6 @@ from .services.database import Database, ServiceError
 from .services.device_service import DeviceService
 from .services.email_service import AuthEmailService
 from .services.forecast_service import InsufficientForecastHistory, trend_forecast
-from .services.prophet_forecast_service import prophet_service
 from .services.geospatial_agent_service import geospatial_agent
 from .services.ingestion_service import MeasurementIngestionService
 from .services.inhaled_dose_service import InhaledDoseService
@@ -53,6 +52,7 @@ from .services.predictive_warning_service import (
     PredictiveWarningNotificationService,
     PredictiveWarningService,
 )
+from .services.prophet_forecast_service import prophet_service
 from .services.report_generator_service import ReportGeneratorService
 from .services.report_narrative_service import HttpReportNarrator
 from .services.report_policy import ReportPolicy
@@ -145,6 +145,10 @@ class ApprovalReviewRequest(BaseModel):
 class DeviceControlProposalRequest(BaseModel):
     action: Literal["eco_mode", "standby"]
     reason: str = Field(..., min_length=5, max_length=1000)
+
+
+class ManualDeviceControlRequest(BaseModel):
+    action: Literal["ventilation_boost", "standby"]
 
 
 class ReportGenerateRequest(BaseModel):
@@ -406,7 +410,7 @@ predictive_warning_service = PredictiveWarningService(
     lead_tolerance_minutes=settings.predictive_warning_lead_tolerance_minutes,
 )
 user_admin_service = UserAdminService(db, audit_service)
-device_service = DeviceService(db)
+device_service = DeviceService(db, audit_service)
 email_service = AuthEmailService(frontend_url=settings.frontend_url)
 auth_service = AuthService(
     db,
@@ -1855,6 +1859,18 @@ def get_audit_logs(
     }
 
 
+@app.get("/api/v1/activity-log")
+def get_manager_activity_log(
+    limit: int = Query(default=100, ge=1, le=500),
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    """Shared, decision-only Activity Log for Manager/Admin accounts."""
+    return {
+        "items": audit_service.list_manager_activity_logs(limit=limit),
+        "scope": "manager_decisions",
+    }
+
+
 @app.get("/api/v1/users")
 def get_users(current_user: dict = Depends(require_manager)) -> dict:
     return {"items": user_admin_service.list_users()}
@@ -1947,6 +1963,58 @@ def create_device_control_proposal(
             correlation_id=_request_id(request),
         )
     return proposal
+
+
+@app.post("/api/v1/devices/{device_id}/manual-control")
+def manually_control_device(
+    request: Request,
+    device_id: str,
+    body: ManualDeviceControlRequest,
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=8, max_length=200),
+    current_user: dict = Depends(require_manager),
+) -> dict:
+    """Manager-only direct control for the simulated device; no approval request is created."""
+    validate_csrf(request)
+    device = device_service.get_status(device_id)
+    is_active = bool(device.get("is_active"))
+    if body.action == "ventilation_boost" and is_active:
+        raise ServiceError("device_already_running", "Device is already running", 409)
+    if body.action == "standby" and not is_active:
+        raise ServiceError("device_already_stopped", "Device is already stopped", 409)
+    station_id = device.get("station_id")
+    if not station_id:
+        raise ServiceError("device_station_required", "Device is not mapped to a station", 409)
+
+    intent = device_service.create_manual_command_intent(
+        device_id=device_id,
+        station_id=str(station_id),
+        action=body.action,
+        actor_id=str(current_user["user_id"]),
+        actor_role=str(current_user["role"]),
+        idempotency_key=f"manager-manual-device:{device_id}:{body.action}:{idempotency_key}",
+        duration_minutes=settings.ventilation_default_duration_minutes if body.action == "ventilation_boost" else None,
+        intensity_percent=settings.ventilation_intensity_percent if body.action == "ventilation_boost" else None,
+        correlation_id=_request_id(request),
+    )
+    _enqueue_manual_command(request, intent)
+    return {"status": "queued", "manual": True, "command_intent": intent}
+
+
+def _enqueue_manual_command(request: Request, intent: dict[str, Any]) -> None:
+    if publish_approved_device_command is None:
+        return
+    payload = {
+        "approval_request_id": None,
+        "command_intent_id": str(intent["command_intent_id"]),
+        "device_id": str(intent["device_id"]),
+        "command": str(intent["command"]),
+        "idempotency_key": str(intent["idempotency_key"]),
+    }
+    task_id = f"device-command-{intent['command_intent_id']}"
+    job, created = reserve_job(task_id, "device_command", str(intent["idempotency_key"]), payload)
+    if not created and job.get("status") != "FAILURE":
+        return
+    publish_approved_device_command.apply_async(kwargs=payload, task_id=str(job.get("task_id") or task_id))
 
 
 

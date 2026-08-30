@@ -803,8 +803,14 @@ class GeospatialAgentService:
                 f"{route['disclaimer']}"
             )
             coordinates = route["coordinates"]
-            lats = [point[0] for point in coordinates]
-            lngs = [point[1] for point in coordinates]
+            # The route geometry starts at the closest graph node, while the
+            # requested origin can be a GPS/map point beside that node. Keep
+            # this short connector explicit so the client can render it as an
+            # estimated access line, not as part of the routed run.
+            approach_coordinates = [[origin_lat, origin_lng], coordinates[0]]
+            display_coordinates = [*coordinates, approach_coordinates[0]]
+            lats = [point[0] for point in display_coordinates]
+            lngs = [point[1] for point in display_coordinates]
             station_ids = sorted(
                 {
                     station_id
@@ -849,6 +855,9 @@ class GeospatialAgentService:
                         "rank": 1,
                         "name": "Tuyến chạy ít phơi nhiễm hơn",
                         "coordinates": coordinates,
+                        "approach_coordinates": approach_coordinates,
+                        "approach_kind": "origin_to_graph_snap",
+                        "approach_distance_m": route.get("origin", {}).get("snap_distance_m"),
                         "segments": route["segments"],
                         "distance_km": route["distance_km"],
                         "duration_minutes": route["duration_minutes"],
