@@ -76,7 +76,7 @@ class TestBottomActionDockContract:
         assert "Hỏi AI" in self.content
         assert 'activeDrawer === "ai-chat"' in self.content
         assert "ai-highlight-btn" in self.content
-        assert "dock-active-dot" in self.content
+        assert "dock-active-dot" not in self.content
 
     def test_all_five_standardized_items_exist(self):
         """Bottom dock must have exactly the 5 standardized items with labels."""
@@ -131,6 +131,6 @@ class TestStylesContract:
         assert ".dock-action-btn:focus-visible" in self.content
         assert ".top-icon-btn:focus-visible" in self.content
 
-    def test_dock_active_dot_styles_defined(self):
-        assert ".dock-active-dot" in self.content
-        assert ".dock-active-dot.ai-dot" in self.content
+    def test_dock_uses_active_pill_without_status_dots(self):
+        assert ".dock-active-dot" not in self.content
+        assert ".dock-action-btn.active" in self.content

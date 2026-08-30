@@ -54,7 +54,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/approvals/{id}/approve` | manager approve with version | 200 | 403/409/422/503 |
 | POST `/approvals/{id}/quick-approve` | manager one-step approve using the same HITL checks plus idempotency key | 200 | 403/409/422/503 |
 | POST `/approvals/{id}/reject` | manager reject with note and version | 200 | 403/409/422/503 |
-| GET `/audit-logs` | manager read-only audit query | 200 | 403/503 |
+| GET `/audit-logs` | manager read-only audit query; `scope=manager` filters the HITL/proposal/dispatch/ACK lifecycle before applying `limit` | 200 | 403/503 |
 | GET `/devices` | simulated device list | 200 | 503 |
 | GET `/devices/{id}/status` | simulated device status | 200 | 404/503 |
 | GET `/ventilation-devices` | runtime/countdown/effectiveness for simulated ventilation devices; optional station filter | 200 | 422/503 |
@@ -92,7 +92,9 @@ grounded PM2.5, `estimated_inhaled_mass_ug`, contributing station IDs, time and 
 mass, distance deviation then route ID. A baseline must be a different candidate within 10% distance;
 otherwise `exposure_reduction_pct` is null. Segment duration and mass totals match route totals within
 0.01. Graph provenance is `source=curated_demo_graph` until an independently reviewed snapshot
-supersedes it.
+supersedes it. The selected route echoes `target_distance_km` as `target_requested_km`, declares
+`distance_constraint_satisfied=true` only after the graph tolerance gate, and labels its selection
+method as `grounded_packaged_graph_candidate_ranking`.
 
 Structured failures use the standard envelope. Task-specific reason codes are
 `invalid_activity`, `invalid_duration`, `invalid_forecast_hour`, `route_origin_out_of_bounds`,

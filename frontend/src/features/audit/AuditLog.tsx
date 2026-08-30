@@ -54,16 +54,15 @@ const ACTIONS: Record<string, ActionMeta> = {
   REJECT_PROPOSAL: action("Từ chối đề xuất", "từ chối đề xuất", XCircle, "approval"),
 };
 const FALLBACK_ACTION = action("Hoạt động hệ thống", "thực hiện một hoạt động hệ thống", Activity, "system");
+Object.assign(ACTIONS, {
+  "device_command.dispatch.enqueued": action("Xếp hàng lệnh thiết bị", "xếp hàng lệnh thiết bị", Send, "device"),
+  "device_command.dispatch.prepare": action("Chuẩn bị gửi lệnh thiết bị", "chuẩn bị gửi lệnh thiết bị", Send, "device"),
+  "device_command.dispatch": action("Gửi lệnh thiết bị", "gửi lệnh thiết bị", Send, "device"),
+  "device_command.dispatch.failure": action("Gửi lệnh thiết bị không thành công", "không thể gửi lệnh thiết bị", Send, "device"),
+  "device_command.ack": action("Thiết bị xác nhận lệnh", "ghi nhận thiết bị xác nhận lệnh", CheckCircle2, "device"),
+  "device_command.ack.unmatched": action("Xác nhận thiết bị không khớp", "ghi nhận xác nhận thiết bị không khớp", CircleAlert, "device"),
+});
 const getActionMeta = (value: string) => ACTIONS[value] ?? FALLBACK_ACTION;
-
-// This manager-facing view is intentionally a concise approval history. The raw
-// backend audit ledger remains append-only for traceability, but warnings,
-// authentication, pending proposals, and automation events are not shown here.
-const MANAGER_VISIBLE_AUDIT_ACTIONS = new Set([
-  "approval.approve",
-  "approval.quick_approve",
-  "APPROVE_PROPOSAL",
-]);
 
 const getActorMeta = (log: AuditLogEntry) => {
   const source = `${log.actor_type ?? ""} ${log.actor_role ?? ""} ${log.actor ?? ""}`.toLowerCase();
@@ -123,10 +122,13 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
   const fetchLogs = async () => {
     setLoading(true); setError(null);
     try {
-      const [auditLogs, proposals] = await Promise.all([
-        api.getAuditLogs({ userId, role: "manager" }),
+      const [auditResult, proposalResult] = await Promise.allSettled([
+        api.getAuditLogs({ userId, role: "manager" }, { scope: "manager", limit: 200 }),
         api.getProposals(),
       ]);
+      if (auditResult.status === "rejected") throw auditResult.reason;
+      const auditLogs = auditResult.value;
+      const proposals = proposalResult.status === "fulfilled" ? proposalResult.value : [];
       const stationByProposalId = new Map(proposals.map((proposal) => [proposal.proposal_id, proposal.station_id]));
       setLogs(auditLogs.map((log) => ({
         ...log,
@@ -139,13 +141,12 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
 
   useEffect(() => { if (role === "manager" || role === "admin") fetchLogs(); else setLoading(false); }, [role]);
 
-  const managerLogs = useMemo(() => logs.filter((log) => MANAGER_VISIBLE_AUDIT_ACTIONS.has(log.action)), [logs]);
-  const actors = useMemo(() => Array.from(new Map(managerLogs.map((log) => [log.actor, getActorMeta(log).label])).entries()), [managerLogs]);
-  const actions = useMemo(() => Array.from(new Map(managerLogs.map((log) => [log.action, getActionMeta(log.action).label])).entries()), [managerLogs]);
+  const actors = useMemo(() => Array.from(new Map(logs.map((log) => [log.actor, getActorMeta(log).label])).entries()), [logs]);
+  const actions = useMemo(() => Array.from(new Map(logs.map((log) => [log.action, getActionMeta(log.action).label])).entries()), [logs]);
   const hasActiveFilters = Boolean(searchTerm.trim()) || [actorFilter, actionFilter, stationFilter, outcomeFilter, timeRangeFilter].some((value) => value !== "all");
   const resetFilters = () => { setSearchTerm(""); setActorFilter("all"); setActionFilter("all"); setStationFilter("all"); setOutcomeFilter("all"); setTimeRangeFilter("all"); };
 
-  const filteredLogs = useMemo(() => managerLogs.filter((log) => {
+  const filteredLogs = useMemo(() => logs.filter((log) => {
     const summary = getSummary(log, stations);
     const searchText = `${getActorMeta(log).label} ${getActionMeta(log.action).label} ${getTargetLabel(log, stations)} ${summary}`.toLowerCase();
     if (searchTerm.trim() && !searchText.includes(searchTerm.trim().toLowerCase())) return false;
@@ -158,7 +159,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onClose, stations = [] }) =>
     if (timeRangeFilter === "24h" && hoursAgo > 24) return false;
     if (timeRangeFilter === "7d" && hoursAgo > 168) return false;
     return true;
-  }), [managerLogs, searchTerm, actorFilter, actionFilter, stationFilter, outcomeFilter, timeRangeFilter, stations]);
+  }), [logs, searchTerm, actorFilter, actionFilter, stationFilter, outcomeFilter, timeRangeFilter, stations]);
 
   if (role !== "manager" && role !== "admin") return <div className="audit-empty-state"><ShieldCheck size={28} /><h3>Chỉ quản lý mới có thể xem nhật ký hoạt động</h3></div>;
 

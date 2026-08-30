@@ -15,9 +15,12 @@ Covers Test Cases T01 to T10 from docs/AirGuard_Task_Fix_OSM_Routing_AQI_Aware_S
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from backend.app.services.environmental_scoring import EnvironmentalScoringEngine
 from backend.app.services.geospatial_agent_service import GeospatialAgentService
+from backend.app.services.live_telemetry_engine import live_engine
 from backend.app.services.road_graph_router import RoadGraphRouter
 
 
@@ -28,17 +31,18 @@ def _mock_grounded_snapshots(
     s04_clean: bool = False,
 ) -> dict[str, dict]:
     """Helper to mock grounded snapshots for testing."""
+    observed_at = datetime.now(UTC).isoformat()
     if polluted:
         base_pm25, base_aqi = 110.0, 185
     else:
         base_pm25, base_aqi = 22.0, 48
 
     stations = {
-        "S01": {"latitude": 21.0008, "longitude": 105.9428, "pm25": 12.0 if s01_clean else base_pm25, "aqi": 30 if s01_clean else base_aqi, "co2": 410.0, "noise_db": 48.0, "temperature": 27.5, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": "2026-08-28T10:00:00Z"},
-        "S02": {"latitude": 20.9975, "longitude": 105.9430, "pm25": base_pm25, "aqi": base_aqi, "co2": 420.0, "noise_db": 52.0, "temperature": 28.0, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": "2026-08-28T10:00:00Z"},
-        "S03": {"latitude": 20.9953, "longitude": 105.9500, "pm25": 10.0 if s03_clean else base_pm25, "aqi": 25 if s03_clean else base_aqi, "co2": 415.0, "noise_db": 50.0, "temperature": 27.0, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": "2026-08-28T10:00:00Z"},
-        "S04": {"latitude": 20.9898, "longitude": 105.9467, "pm25": 15.0 if s04_clean else base_pm25, "aqi": 35 if s04_clean else base_aqi, "co2": 425.0, "noise_db": 53.0, "temperature": 28.5, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": "2026-08-28T10:00:00Z"},
-        "S05": {"latitude": 20.9910, "longitude": 105.9560, "pm25": base_pm25, "aqi": base_aqi, "co2": 430.0, "noise_db": 55.0, "temperature": 29.0, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": "2026-08-28T10:00:00Z"},
+        "S01": {"latitude": 21.0008, "longitude": 105.9428, "pm25": 12.0 if s01_clean else base_pm25, "aqi": 30 if s01_clean else base_aqi, "co2": 410.0, "noise_db": 48.0, "temperature": 27.5, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": observed_at, "updated_at": observed_at},
+        "S02": {"latitude": 20.9975, "longitude": 105.9430, "pm25": base_pm25, "aqi": base_aqi, "co2": 420.0, "noise_db": 52.0, "temperature": 28.0, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": observed_at, "updated_at": observed_at},
+        "S03": {"latitude": 20.9953, "longitude": 105.9500, "pm25": 10.0 if s03_clean else base_pm25, "aqi": 25 if s03_clean else base_aqi, "co2": 415.0, "noise_db": 50.0, "temperature": 27.0, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": observed_at, "updated_at": observed_at},
+        "S04": {"latitude": 20.9898, "longitude": 105.9467, "pm25": 15.0 if s04_clean else base_pm25, "aqi": 35 if s04_clean else base_aqi, "co2": 425.0, "noise_db": 53.0, "temperature": 28.5, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": observed_at, "updated_at": observed_at},
+        "S05": {"latitude": 20.9910, "longitude": 105.9560, "pm25": base_pm25, "aqi": base_aqi, "co2": 430.0, "noise_db": 55.0, "temperature": 29.0, "status": "online", "freshness": "fresh", "is_stale": False, "source": "simulator", "measured_at": observed_at, "updated_at": observed_at},
     }
     return stations
 
@@ -298,14 +302,14 @@ class TestOSMRoutingAQIAware:
         res = geospatial_agent.process_query(
             message="Tìm đoạn đường chạy bộ phù hợp nhất tối nay lúc 20:00",
             station_snapshots=snapshots,
+            station_histories=live_engine.get_all_histories(hours=48),
         )
-        assert res["intent"] in {"recommend_running_route", "recommend_personalized_running_route"}
-        assert "route" in res or "best_route" in res
-        route = res.get("route") or res.get("best_route")
-        assert route["distance_km"] > 0
-        assert len(route["coordinates"]) >= 2
-        # Follow-up actions should be present
-        assert len(res.get("follow_up_actions", [])) >= 1
+        # Request-scoped snapshots have no same-horizon forecast quality
+        # metadata, so this path must fail closed instead of fabricating a
+        # forecast route.
+        assert res["intent"] == "insufficient_data"
+        assert res["error"]["code"] in {"invalid_forecast_hour", "insufficient_forecast_quality"}
+        assert all(action["type"] != "highlight_route" for action in res["map_actions"])
 
     # -------------------------------------------------------------
     # T12: Output Contract Completeness (Section 21)

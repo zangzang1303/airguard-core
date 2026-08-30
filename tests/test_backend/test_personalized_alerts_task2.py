@@ -520,7 +520,7 @@ def test_agent_route_service_failure_fails_closed_without_numbers_or_geometry() 
         station_histories={},
     )
     assert result["intent"] == "insufficient_data"
-    assert result["error"]["code"] == "route_service_unavailable"
+    assert result["error"]["code"] == "insufficient_route_coverage"
     assert result["evidence"] == []
     assert all(action["type"] != "highlight_route" for action in result["map_actions"])
     assert "estimated_inhaled_mass_ug" not in result

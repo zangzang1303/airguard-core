@@ -183,7 +183,7 @@ export const DispersionMetadata: React.FC<{
       <div className="dispersion-grid">
         <div className="dispersion-grid-item" title="Thời điểm backend tạo mô hình IDW">
           <Clock size={13} className="dispersion-icon" />
-          <span>Mô hình tạo: <strong>{modelCreatedTime}</strong></span>
+          <span>Mô hình tạo lúc: <strong>{modelCreatedTime}</strong></span>
         </div>
 
         {forecastHour > 0 && (

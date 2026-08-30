@@ -184,6 +184,9 @@ class CleanRunningRouteService:
             {
                 "activity": "running",
                 "target_distance_km": target_distance_km,
+                "target_requested_km": target_distance_km,
+                "distance_constraint_satisfied": True,
+                "planning_method": "grounded_packaged_graph_candidate_ranking",
                 "data_mode": data_mode,
                 "graph": {
                     "graph_id": metadata["graph_id"],

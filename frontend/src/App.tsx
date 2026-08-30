@@ -121,7 +121,7 @@ const SuperAppMain: React.FC<{
     activeEnvironmentalLayer: "aqi",
     viewMode: "heatmap",
     showBoundary: true,
-    showPlaces: true,
+    showPlaces: false,
     showSensors: true,
     showHeatmap: true,
     showWindVectors: true,
@@ -131,7 +131,7 @@ const SuperAppMain: React.FC<{
     showDemoControl: true,
     showForecastTimeline: false,
     showAirQualityNow: false,
-    showMapLegend: false,
+    showMapLegend: true,
     showVentilationDevices: true,
   });
 
@@ -417,6 +417,12 @@ const SuperAppMain: React.FC<{
   // Hooks must run before every conditional return so the order stays stable
   // while the initial station request moves through loading/error/success.
   const [forecastHour, setForecastHour] = useState<number>(0);
+  const handleLayerConfigChange = useCallback((newConfig: MapLayerConfig) => {
+    setLayerConfig(newConfig);
+    if (!newConfig.showForecastTimeline) {
+      setForecastHour(0);
+    }
+  }, []);
 
   // Cold Start Loading Skeleton
   if (loading && stations.length === 0) {
@@ -543,13 +549,15 @@ const SuperAppMain: React.FC<{
       {isManager && layerConfig.showStationOverview && (
         <ManagerStationStatusBar stations={stations} alerts={alerts} />
       )}
-      {canUseDemoControl && (layerConfig.showDemoControl ?? true) && <DemoStationControl floating />}
+      {canUseDemoControl && (layerConfig.showDemoControl ?? true) && (
+        <DemoStationControl floating />
+      )}
 
       {/* 3. MAP LAYERS POPOVER */}
       {isLayersOpen && (
         <MapLayersPopover
           config={layerConfig}
-          onChangeConfig={setLayerConfig}
+          onChangeConfig={handleLayerConfigChange}
           onClose={() => setIsLayersOpen(false)}
         />
       )}
@@ -1005,6 +1013,7 @@ const AppContent: React.FC = () => {
       refreshData={refreshData}
       connectionStatus={connectionStatus}
       lastUpdated={lastUpdated}
+      refreshRevision={refreshRevision}
     />
   );
 };

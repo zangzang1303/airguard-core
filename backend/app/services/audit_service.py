@@ -6,6 +6,30 @@ from .database import Database, ServiceError, dict_cursor
 
 SENSITIVE_KEYS = {"password", "token", "secret", "api_key", "authorization"}
 
+# Manager-facing events for the complete HITL lifecycle. The SQL-level filter
+# prevents high-volume sensor and alert events from pushing these records out of
+# a limited result page.
+MANAGER_AUDIT_ACTIONS = (
+    "agent.auto_proposal.create",
+    "agent.auto_proposal.failure",
+    "agent.auto_proposal.skipped",
+    "approval.create",
+    "approval.approve",
+    "approval.quick_approve",
+    "approval.reject",
+    "approval.expire",
+    "approval.dispatch.failure",
+    "device_command.dispatch.enqueued",
+    "device_command.dispatch.prepare",
+    "device_command.dispatch",
+    "device_command.dispatch.failure",
+    "device_command.ack",
+    "device_command.ack.unmatched",
+    "CREATE_PROPOSAL",
+    "APPROVE_PROPOSAL",
+    "REJECT_PROPOSAL",
+)
+
 
 def redact_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     if not metadata:
@@ -67,7 +91,14 @@ class AuditService:
         with self.db.connection() as owned_conn:
             return write(owned_conn)
 
-    def list_logs(self, *, entity_type: str | None = None, entity_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    def list_logs(
+        self,
+        *,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
+        actions: tuple[str, ...] | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
         clauses = []
         params: list[Any] = []
         if entity_type:
@@ -76,6 +107,9 @@ class AuditService:
         if entity_id:
             clauses.append("entity_id = %s")
             params.append(entity_id)
+        if actions:
+            clauses.append("action = ANY(%s)")
+            params.append(list(actions))
         where = "WHERE " + " AND ".join(clauses) if clauses else ""
         try:
             with self.db.connection() as conn:

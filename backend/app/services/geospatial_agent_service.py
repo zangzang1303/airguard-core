@@ -44,6 +44,36 @@ class GeospatialAgentService:
             clean_route_service = CleanRunningRouteService(_InjectedStationAdapter())
         self.clean_route_service = clean_route_service
 
+    @staticmethod
+    def _route_service_from_request_data(
+        station_snapshots: dict[str, dict[str, Any]],
+        station_histories: dict[str, list[dict[str, Any]]],
+    ) -> Any:
+        """Adapt already-grounded request data to the canonical route service.
+
+        This keeps direct callers of ``process_query`` on the same quality gates
+        as the API path.  It is deliberately request-scoped: no snapshot is
+        cached or used by a later request.
+        """
+        from .clean_running_route_service import CleanRunningRouteService
+
+        class _RequestScopedStationAdapter:
+            def list_stations(self) -> list[dict[str, Any]]:
+                stations: list[dict[str, Any]] = []
+                for station_id, snapshot in station_snapshots.items():
+                    station = dict(snapshot)
+                    station.setdefault("station_id", station_id)
+                    # The route contract uses updated_at.  Tool snapshots use
+                    # measured_at, so retain that source timestamp when needed.
+                    station.setdefault("updated_at", station.get("measured_at"))
+                    stations.append(station)
+                return stations
+
+            def get_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
+                return list(station_histories.get(station_id, []))
+
+        return CleanRunningRouteService(_RequestScopedStationAdapter())
+
     def process_query(
         self,
         message: str,
@@ -626,6 +656,26 @@ class GeospatialAgentService:
                     "The versioned route contract currently supports running only",
                     422,
                 )
+            # Never create an outdoor route when the grounded area-wide
+            # conditions already fail the exercise policy.  The route service
+            # ranks exposure, but ranking cannot make hazardous air safe.
+            safest_outdoor = ranked_pois[0]
+            route_safety = environmental_scoring.check_outdoor_exercise_safety(
+                {
+                    "aqi": safest_outdoor["aqi"],
+                    "pm25": safest_outdoor["pm25"],
+                    "temperature": safest_outdoor["temperature"],
+                },
+                user_group=user_group,
+            )
+            if not route_safety["safe"]:
+                return self._handle_indoor_pivot_intent(
+                    safety_eval=route_safety,
+                    user_location=user_loc,
+                    time_ctx=time_ctx,
+                    request_id=request_id,
+                    conversation_id=conversation_id,
+                )
             resolved_target_km = target_distance_km if target_distance_km is not None else 3.0
             source_mapping = {
                 "default_location": "demo_default",
@@ -635,9 +685,16 @@ class GeospatialAgentService:
                 "map_selection": "map_selection",
             }
             try:
-                if self.clean_route_service is None:
+                # Prefer an explicitly injected canonical route service. Direct
+                # callers that supply grounded snapshots still use a
+                # request-scoped adapter and the same quality gates.
+                route_service = self.clean_route_service or self._route_service_from_request_data(
+                    station_snapshots,
+                    station_histories,
+                )
+                if route_service is None:
                     raise ServiceError("route_service_unavailable", "Clean-running route service is unavailable", 503)
-                route = self.clean_route_service.recommend(
+                route = route_service.recommend(
                     origin={
                         "lat": origin_lat,
                         "lon": origin_lng,
@@ -657,9 +714,29 @@ class GeospatialAgentService:
                     "road_graph_unavailable",
                     "route_not_found",
                     "route_service_unavailable",
+                    "route_origin_out_of_bounds",
+                    "route_origin_snap_failed",
                 }
                 if exc.code not in fail_closed_codes:
                     raise
+                if exc.code in {"route_origin_out_of_bounds", "route_origin_snap_failed"}:
+                    summary = (
+                        "Chưa tìm thấy lối chạy bộ phù hợp đủ gần điểm xuất phát đã chọn. "
+                        "Hãy chọn một điểm trong khu vực Ocean Park 1 hoặc gần một tuyến đường trên bản đồ."
+                    )
+                    return {
+                        "answer": {"summary": summary, "details": "Không tạo tuyến khi điểm xuất phát không qua kiểm tra graph."},
+                        "response": summary,
+                        "intent": "route_origin_unavailable",
+                        "time_context": time_ctx,
+                        "data_mode": "forecast" if is_forecast else "current",
+                        "evidence": [],
+                        "sources": [],
+                        "map_actions": [],
+                        "used_tools": ["clean_running_route"],
+                        "error": {"code": exc.code, "request_id": request_id},
+                        "request_id": request_id,
+                    }
                 composed = ResponseComposer.compose_insufficient_data(request_id=request_id)
                 return {
                     **composed,
@@ -694,7 +771,10 @@ class GeospatialAgentService:
                 }
             )
             return {
-                "answer": {"summary": summary, "details": route["disclaimer"]},
+                "answer": {
+                    "summary": summary,
+                    "details": f"Xuất phát: {origin_label}. {route['disclaimer']}",
+                },
                 "response": summary,
                 "intent": "recommend_personalized_running_route",
                 "time_context": time_ctx,
@@ -714,8 +794,17 @@ class GeospatialAgentService:
                 "map_actions": [
                     {"type": "clear_ai_layer"},
                     {
+                        "type": "add_annotation",
+                        "lat": origin_lat,
+                        "lng": origin_lng,
+                        "title": "Xuất phát",
+                        "subtitle": origin_label,
+                        "style": "neutral",
+                    },
+                    {
                         "type": "highlight_route",
                         "route_id": route["route_id"],
+                        "rank": 1,
                         "name": "Tuyến chạy ít phơi nhiễm hơn",
                         "coordinates": coordinates,
                         "segments": route["segments"],
@@ -725,7 +814,7 @@ class GeospatialAgentService:
                         "exposure_reduction_pct": route.get("exposure_reduction_pct"),
                         "graph_source": route["graph"]["graph_source"],
                         "data_mode": route["data_mode"],
-                        "source": route["graph"]["graph_source"],
+                        "source": "forecast" if route["data_mode"] == "forecast" else "spatial_idw_route_segment",
                     },
                     {
                         "type": "fit_bounds",

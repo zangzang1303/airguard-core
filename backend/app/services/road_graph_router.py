@@ -843,35 +843,6 @@ class RoadGraphRouter:
         }
 
     @classmethod
-    def query_osrm_foot_path(
-        cls,
-        waypoints: list[tuple[float, float]],
-    ) -> tuple[list[list[float]], float]:
-        """
-        Queries OpenStreetMap OSRM Foot Routing service for exact sidewalk and footpath coordinates.
-        Returns (coordinates: [[lat, lng], ...], distance_meters: float).
-        """
-        if len(waypoints) < 2:
-            return [], 0.0
-
-        pts_str = ";".join([f"{w[1]:.6f},{w[0]:.6f}" for w in waypoints])
-        url = f"http://router.project-osrm.org/route/v1/foot/{pts_str}?overview=full&geometries=geojson"
-        req = urllib.request.Request(url, headers={"User-Agent": "AirGuard-GIS-Router/2.0"})
-
-        try:
-            with urllib.request.urlopen(req, timeout=3.5) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                if data.get("code") == "Ok" and data.get("routes"):
-                    raw_coords = data["routes"][0]["geometry"]["coordinates"]
-                    dist_m = float(data["routes"][0]["distance"])
-                    leaflet_coords = [[round(c[1], 6), round(c[0], 6)] for c in raw_coords]
-                    return leaflet_coords, dist_m
-        except Exception:
-            pass
-
-        return [], 0.0
-
-    @classmethod
     def interpolate_pm25_at_point(
         cls,
         lat: float,
@@ -1076,8 +1047,8 @@ class RoadGraphRouter:
         avoid_location: str | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Task Section 8 & 13: Generates 3-5 grounded OSM road candidates from origin.
-        Strictly builds polylines on the real street network without cross-block shortcuts.
+        Generates 3-5 grounded candidates from the versioned packaged graph.
+        Polylines stay on curated graph edges without live network calls or cross-block shortcuts.
         """
         if not station_pm25_map:
             raise ValueError("route candidates require grounded PM2.5 station values")
@@ -1135,43 +1106,32 @@ class RoadGraphRouter:
             entry_lat = cls.NODES[entry_node]["lat"]
             entry_lng = cls.NODES[entry_node]["lng"]
 
-            # 1. High-Resolution Dense OSM Road Loop Geometry
-            if circuit_id in _PRELOADED_OSM_GEOMETRIES and len(_PRELOADED_OSM_GEOMETRIES[circuit_id]) >= 10:
-                loop_coords = _PRELOADED_OSM_GEOMETRIES[circuit_id]
-                loop_dist_m = cls.calculate_polyline_distance_m(loop_coords)
-                loop_edges = [f"osm_dense_edge_{circuit_id}"]
-            else:
-                loop_coords, loop_dist_m, loop_edges = cls._build_closed_loop_from_nodes(
-                    circuit_def["nodes"],
-                    activity=activity,
-                )
+            # Use only edges from the checked-in graph. Dense visual geometry
+            # cannot be used here because it has no auditable edge identity.
+            loop_coords, loop_dist_m, loop_edges = cls._build_closed_loop_from_nodes(
+                circuit_def["nodes"],
+                activity=activity,
+            )
 
-            # 2. Build access connector strictly via real OSM footpaths
+            # 2. Build the access connector from packaged graph edges only.
             access_coords: list[list[float]] = []
             access_dist_m = 0.0
             access_edges: list[str] = []
 
             if start_node != entry_node or cls.calculate_distance_m(snapped_coord[0], snapped_coord[1], entry_lat, entry_lng) > 35.0:
-                # Query OSRM Foot Routing from snapped origin to entry point
-                osrm_approach, osrm_dist = cls.query_osrm_foot_path([(snapped_coord[0], snapped_coord[1]), (entry_lat, entry_lng)])
-                if osrm_approach and len(osrm_approach) >= 2:
-                    access_coords = osrm_approach
-                    access_dist_m = osrm_dist
-                    access_edges = ["osrm_foot_approach"]
+                access_path = cls.find_path_dijkstra(
+                    start_node,
+                    entry_node,
+                    station_pm25_map=station_pm25_map,
+                    activity=activity,
+                    avoid_sensor=avoid_sensor,
+                )
+                if access_path["coords"]:
+                    access_coords = access_path["coords"]
+                    access_dist_m = access_path["distance_m"]
+                    access_edges = access_path.get("edge_ids", [])
                 else:
-                    access_path = cls.find_path_dijkstra(
-                        start_node,
-                        entry_node,
-                        station_pm25_map=station_pm25_map,
-                        activity=activity,
-                        avoid_sensor=avoid_sensor,
-                    )
-                    if access_path["coords"]:
-                        access_coords = access_path["coords"]
-                        access_dist_m = access_path["distance_m"]
-                        access_edges = access_path.get("edge_ids", [])
-                    else:
-                        continue  # Disconnected component under activity filter
+                    continue  # Disconnected component under activity filter
 
             # Stitch merged polyline strictly without gaps
             full_coords: list[list[float]] = []
@@ -1263,8 +1223,77 @@ class RoadGraphRouter:
         activity: str = "running",
         avoid_sensor: str | None = None,
     ) -> dict[str, Any]:
-        """Generates exact tailored distance route following real OSM road paths."""
+        """Generate an exact tailored-distance route on the packaged graph."""
         half_target_m = (target_km * 1000.0) / 2.0
+
+        # Build a closed out-and-back route from actual graph edges.  This is
+        # intentionally less picturesque than a pre-drawn polyline, but every
+        # segment is auditable and supports the complete 1–10 km API range.
+        # We search destinations and repeat counts instead of inventing a
+        # mid-block point or consulting an external router.
+        target_m = target_km * 1000.0
+        best: tuple[float, dict[str, Any], int] | None = None
+        for node_id in cls.NODES:
+            if node_id == start_node:
+                continue
+            path = cls.find_path_dijkstra(
+                start_node,
+                node_id,
+                station_pm25_map=station_pm25_map,
+                activity=activity,
+                avoid_sensor=avoid_sensor,
+            )
+            path_distance_m = float(path.get("distance_m") or 0.0)
+            if path_distance_m <= 0 or not path.get("edge_ids"):
+                continue
+            closed_distance_m = path_distance_m * 2
+            centre = max(1, round(target_m / closed_distance_m))
+            for repeats in range(max(1, centre - 1), min(24, centre + 1) + 1):
+                actual_m = closed_distance_m * repeats
+                relative_error = abs(actual_m - target_m) / target_m
+                candidate = (relative_error, path, repeats)
+                if best is None or candidate[0] < best[0]:
+                    best = candidate
+
+        if best is not None and best[0] <= 0.20:
+            _error, path, repeats = best
+            outward = [list(point) for point in path["coords"]]
+            inbound = list(reversed(outward))
+            coordinates: list[list[float]] = []
+            edge_ids: list[str] = []
+            one_lap_edges = [*path["edge_ids"], *reversed(path["edge_ids"])]
+            for _ in range(repeats):
+                if not coordinates:
+                    coordinates.extend(outward)
+                else:
+                    coordinates.extend(outward[1:])
+                coordinates.extend(inbound[1:])
+                edge_ids.extend(one_lap_edges)
+            actual_m = cls.calculate_polyline_distance_m(coordinates)
+            start_name = cls.NODES[start_node]["name"]
+            return {
+                "id": f"route_target_{int(target_km * 10)}km",
+                "base_circuit_id": "route_target_tailored",
+                "name": f"Lộ trình khứ hồi theo mục tiêu ({actual_m / 1000:.1f} km)",
+                "short_name": f"Lộ trình {actual_m / 1000:.1f} km",
+                "category": "tailored_round_trip",
+                "zone": cls.NODES[start_node].get("zone", "custom"),
+                "distance_km": round(actual_m / 1000, 2),
+                "distance_m": round(actual_m),
+                "target_requested_km": target_km,
+                "laps": repeats,
+                "surface": "packaged_graph",
+                "traffic_conflict": "unknown",
+                "lighting_rating": "Theo dữ liệu graph demo",
+                "highlights": "Tuyến khứ hồi trên các cạnh graph đã đóng gói; không dùng định tuyến mạng bên ngoài.",
+                "start_point": {"name": origin_label or start_name, "lat": origin_lat, "lng": origin_lng, "source": origin_source},
+                "circuit_entry_point": {"name": "Điểm quay đầu trên graph", "lat": outward[-1][0], "lng": outward[-1][1]},
+                "coordinates": coordinates,
+                "edge_ids": edge_ids,
+                "access_distance_m": 0,
+                "snap_distance_m": round(snap_dist_m),
+                "activity": activity,
+            }
 
         # 1. Pick the best circuit closest to user origin
         sorted_circuits = sorted(
@@ -1281,25 +1310,26 @@ class RoadGraphRouter:
         entry_lat = cls.NODES[entry_node]["lat"]
         entry_lng = cls.NODES[entry_node]["lng"]
 
-        # 2. Get high-resolution circuit geometry
-        if circuit_id in _PRELOADED_OSM_GEOMETRIES and len(_PRELOADED_OSM_GEOMETRIES[circuit_id]) >= 10:
-            circuit_coords = _PRELOADED_OSM_GEOMETRIES[circuit_id]
-        else:
-            circuit_coords, _, _ = cls._build_closed_loop_from_nodes(best_circuit_def["nodes"], activity=activity)
+        # Use only the packaged graph; this route retains no live/external
+        # geometry dependency.
+        circuit_coords, _, _ = cls._build_closed_loop_from_nodes(
+            best_circuit_def["nodes"], activity=activity
+        )
 
         # 3. Approach path from user origin to circuit entry
         approach_coords = []
         approach_m = 0.0
         if cls.calculate_distance_m(origin_lat, origin_lng, entry_lat, entry_lng) > 20.0:
-            osrm_app, osrm_d = cls.query_osrm_foot_path([(origin_lat, origin_lng), (entry_lat, entry_lng)])
-            if osrm_app and len(osrm_app) >= 2:
-                approach_coords = osrm_app
-                approach_m = osrm_d
-            else:
-                acc = cls.find_path_dijkstra(start_node, entry_node, station_pm25_map=station_pm25_map, activity=activity)
-                if acc["coords"]:
-                    approach_coords = acc["coords"]
-                    approach_m = acc["distance_m"]
+            acc = cls.find_path_dijkstra(
+                start_node,
+                entry_node,
+                station_pm25_map=station_pm25_map,
+                activity=activity,
+                avoid_sensor=avoid_sensor,
+            )
+            if acc["coords"]:
+                approach_coords = acc["coords"]
+                approach_m = acc["distance_m"]
 
         # 4. Assemble outward path along real road curve and trim at half_target_m
         outward: list[list[float]] = []
@@ -1373,18 +1403,12 @@ class RoadGraphRouter:
         origin_label: str | None,
         activity: str = "running",
     ) -> dict[str, Any] | None:
-        lake_geom = _PRELOADED_OSM_GEOMETRIES.get("route_ngoc_trai_loop") or _PRELOADED_OSM_GEOMETRIES.get("lake")
-        if lake_geom and len(lake_geom) >= 10:
-            coords = lake_geom
-            dist_m = cls.calculate_polyline_distance_m(coords)
-            edge_ids = ["osm_dense_edge_route_ngoc_trai_loop"]
-        else:
-            lake_nodes = [
-                "N_LAKE_WEST_ENTRY", "N_LAKE_NORTHWEST", "N_LAKE_NORTH",
-                "N_LAKE_NORTHEAST", "N_LAKE_EAST", "N_LAKE_SOUTHEAST",
-                "N_LAKE_SOUTH", "N_LAKE_SOUTHWEST", "N_LAKE_SOUTH_ENTRY", "N_LAKE_WEST_ENTRY"
-            ]
-            coords, dist_m, edge_ids = cls._build_closed_loop_from_nodes(lake_nodes, activity=activity)
+        lake_nodes = [
+            "N_LAKE_WEST_ENTRY", "N_LAKE_NORTHWEST", "N_LAKE_NORTH",
+            "N_LAKE_NORTHEAST", "N_LAKE_EAST", "N_LAKE_SOUTHEAST",
+            "N_LAKE_SOUTH", "N_LAKE_SOUTHWEST", "N_LAKE_SOUTH_ENTRY", "N_LAKE_WEST_ENTRY"
+        ]
+        coords, dist_m, edge_ids = cls._build_closed_loop_from_nodes(lake_nodes, activity=activity)
         if not coords:
             return None
 
@@ -1394,17 +1418,16 @@ class RoadGraphRouter:
         access_edges: list[str] = []
         lake_entry_coord = (20.9938, 105.9485)
         if start_node != "N_LAKE_WEST_ENTRY" or cls.calculate_distance_m(snapped_coord[0], snapped_coord[1], lake_entry_coord[0], lake_entry_coord[1]) > 35.0:
-            osrm_app, osrm_d = cls.query_osrm_foot_path([(snapped_coord[0], snapped_coord[1]), lake_entry_coord])
-            if osrm_app and len(osrm_app) >= 2:
-                access_coords = osrm_app
-                access_m = osrm_d
-                access_edges = ["osrm_foot_approach_lake"]
-            else:
-                acc = cls.find_path_dijkstra(start_node, "N_LAKE_WEST_ENTRY", station_pm25_map=station_pm25_map, activity=activity)
-                if acc["coords"]:
-                    access_coords = acc["coords"]
-                    access_m = acc["distance_m"]
-                    access_edges = acc.get("edge_ids", [])
+            acc = cls.find_path_dijkstra(
+                start_node,
+                "N_LAKE_WEST_ENTRY",
+                station_pm25_map=station_pm25_map,
+                activity=activity,
+            )
+            if acc["coords"]:
+                access_coords = acc["coords"]
+                access_m = acc["distance_m"]
+                access_edges = acc.get("edge_ids", [])
 
         full_coords = []
         full_edges = []

@@ -26,7 +26,7 @@ from .schemas.measurements import MeasurementIngestionRequest
 from .services.agent_service import AgentService, AgentServiceError
 from .services.alert_engine import AlertEngine
 from .services.approval_service import ApprovalService, configure_default_service
-from .services.audit_service import AuditService
+from .services.audit_service import MANAGER_AUDIT_ACTIONS, AuditService
 from .services.auth_service import AuthService
 from .services.automatic_proposal_service import AutomaticProposalService
 from .services.clean_running_route_service import CleanRunningRouteService
@@ -40,6 +40,7 @@ from .services.database import Database, ServiceError
 from .services.device_service import DeviceService
 from .services.email_service import AuthEmailService
 from .services.forecast_service import InsufficientForecastHistory, trend_forecast
+from .services.prophet_forecast_service import prophet_service
 from .services.geospatial_agent_service import geospatial_agent
 from .services.ingestion_service import MeasurementIngestionService
 from .services.inhaled_dose_service import InhaledDoseService
@@ -1406,6 +1407,27 @@ async def agent_chat(
             request_id=req_id,
         )
 
+        # Safety decisions from the canonical Agent graph are terminal. A
+        # deterministic geospatial fallback must never replace a HITL refusal
+        # with a clarification or route response.
+        safety_category = agent_result.get("trace", {}).get("safety_category")
+        if safety_category:
+            canonical_answer = str(agent_result.get("answer") or "")
+            return {
+                "answer": {"summary": canonical_answer, "details": ""},
+                "response": canonical_answer,
+                "intent": agent_result.get("intent") or "safety_refusal",
+                "conversation_kind": agent_result.get("conversation_kind"),
+                "evidence": [],
+                "sources": [],
+                "map_actions": [],
+                "used_tools": agent_result.get("used_tools", []),
+                "tool_arguments": agent_result.get("tool_arguments", []),
+                "proposal_id": None,
+                "request_id": req_id,
+                "trace": agent_result.get("trace", {}),
+            }
+
         result = geospatial_agent.process_query(
             message=body.message,
             user_id=effective_user_id,
@@ -1817,10 +1839,20 @@ def export_environmental_report(
 def get_audit_logs(
     entity_type: str | None = Query(default=None),
     entity_id: str | None = Query(default=None),
+    scope: Literal["all", "manager"] = Query(default="all"),
     limit: int = Query(default=100, ge=1, le=500),
     current_user: dict = Depends(require_manager),
 ) -> dict:
-    return {"items": audit_service.list_logs(entity_type=entity_type, entity_id=entity_id, limit=limit)}
+    actions = MANAGER_AUDIT_ACTIONS if scope == "manager" else None
+    return {
+        "items": audit_service.list_logs(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            actions=actions,
+            limit=limit,
+        ),
+        "scope": scope,
+    }
 
 
 @app.get("/api/v1/users")

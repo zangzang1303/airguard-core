@@ -39,7 +39,7 @@ function createPoiIcon(category: string, isSelected: boolean): L.DivIcon {
         <span class="poi-emoji" aria-hidden="true">${iconEmoji}</span>
       </div>
     `,
-    iconSize: [26, 26],
+    iconSize: [22, 22],
     iconAnchor: [13, 13],
   });
 }

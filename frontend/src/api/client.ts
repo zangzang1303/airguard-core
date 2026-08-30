@@ -20,6 +20,8 @@ import {
   EmailDeliveryStatus,
   NotificationPreferences,
   PredictiveWarningDetail,
+  GoldenWindowsData,
+  VentilationDevice,
 } from "../types";
 import { resolveApiBaseUrl } from "./apiBaseUrl";
 import { extractAgentReply } from "./agentResponseHelper.js";
@@ -833,8 +835,17 @@ export const api = {
     );
   },
 
-  getAuditLogs: async (_actor?: DemoApiActor): Promise<AuditLogEntry[]> => {
-    const data = await apiFetch<{ items: Array<Record<string, any>> }>("/api/v1/audit-logs");
+  getAuditLogs: async (
+    _actor?: DemoApiActor,
+    options: { scope?: "all" | "manager"; limit?: number } = {},
+  ): Promise<AuditLogEntry[]> => {
+    const params = new URLSearchParams();
+    if (options.scope) params.set("scope", options.scope);
+    if (options.limit) params.set("limit", String(options.limit));
+    const query = params.toString();
+    const data = await apiFetch<{ items: Array<Record<string, any>> }>(
+      `/api/v1/audit-logs${query ? `?${query}` : ""}`,
+    );
     return data.items.map((entry) => ({
       id: String(entry.audit_id),
       time: entry.created_at,
