@@ -1312,9 +1312,45 @@ class RoadGraphRouter:
 
         # Use only the packaged graph; this route retains no live/external
         # geometry dependency.
-        circuit_coords, _, _ = cls._build_closed_loop_from_nodes(
+        # The VinUni circuit has a checked-in, dense pedestrian trace.  When
+        # the selected location snaps directly to that closed graph edge, one
+        # lap is the closest valid 3 km route.  Keep the full polyline and its
+        # edge identity together so exposure is evaluated along the same road
+        # geometry rendered on the map.
+        circuit_coords, circuit_distance_m, circuit_edge_ids = cls._build_closed_loop_from_nodes(
             best_circuit_def["nodes"], activity=activity
         )
+        if (
+            start_node == entry_node
+            and len(circuit_edge_ids) == 1
+            and circuit_edge_ids[0] == "edge_vinuni_dense_loop"
+            and abs(circuit_distance_m - target_m) / target_m <= 0.20
+        ):
+            start_name = cls.NODES[start_node]["name"]
+            return {
+                "id": f"route_target_{int(target_km * 10)}km",
+                "base_circuit_id": "route_target_tailored",
+                "name": f"Vòng chạy VinUni theo mục tiêu ({circuit_distance_m / 1000:.1f} km)",
+                "short_name": f"Vòng VinUni {circuit_distance_m / 1000:.1f} km",
+                "category": "tailored_loop",
+                "zone": cls.NODES[start_node].get("zone", "custom"),
+                "distance_km": round(circuit_distance_m / 1000, 2),
+                "distance_m": round(circuit_distance_m),
+                "target_requested_km": target_km,
+                "distance_constraint_satisfied": True,
+                "laps": 1,
+                "surface": "packaged_dense_pedestrian_graph",
+                "traffic_conflict": "unknown",
+                "lighting_rating": "Theo dữ liệu graph demo",
+                "highlights": "Vòng khép kín theo geometry đường dạo đã đóng gói trong graph.",
+                "start_point": {"name": origin_label or start_name, "lat": origin_lat, "lng": origin_lng, "source": origin_source},
+                "circuit_entry_point": {"name": start_name, "lat": circuit_coords[0][0], "lng": circuit_coords[0][1]},
+                "coordinates": circuit_coords,
+                "edge_ids": circuit_edge_ids,
+                "access_distance_m": 0,
+                "snap_distance_m": round(snap_dist_m),
+                "activity": activity,
+            }
 
         # 3. Approach path from user origin to circuit entry
         approach_coords = []
@@ -1553,5 +1589,58 @@ RoadGraphRouter.NODES = PACKAGED_GRAPH["nodes"]
 RoadGraphRouter.EDGES = PACKAGED_GRAPH["edges"]
 RoadGraphRouter.CANONICAL_CIRCUITS = PACKAGED_GRAPH["circuits"]
 RoadGraphRouter.GRAPH_METADATA = PACKAGED_GRAPH["metadata"]
+
+
+def _install_dense_vinuni_loop() -> None:
+    """Install the repository's reviewed dense VinUni trace as one graph edge.
+
+    The route remains a local, versioned demo graph; this only replaces the
+    coarse shortcut geometry that cut across the basemap with its detailed
+    pedestrian trace.  The edge is deliberately self-contained so the route
+    evaluator and map renderer consume identical coordinates.
+    """
+    raw_loop = _PRELOADED_OSM_GEOMETRIES.get("route_vinuni_circuit") or []
+    if len(raw_loop) < 10:
+        return
+    base = [list(point) for point in raw_loop]
+    if base[0] == base[-1]:
+        base.pop()
+    anchor = min(
+        base,
+        key=lambda point: RoadGraphRouter.calculate_distance_m(point[0], point[1], 20.9903, 105.9455),
+    )
+    anchor_index = base.index(anchor)
+    loop = base[anchor_index:] + base[:anchor_index]
+    loop.append(list(loop[0]))
+    node_id = "N_VINUNI_DENSE_LOOP"
+    RoadGraphRouter.NODES[node_id] = {
+        "id": node_id,
+        "name": "Vòng đường dạo VinUni",
+        "lat": loop[0][0],
+        "lng": loop[0][1],
+        "zone": "south",
+    }
+    RoadGraphRouter.EDGES.append(
+        {
+            "id": "edge_vinuni_dense_loop",
+            "from": node_id,
+            "to": node_id,
+            "sensor_id": "S04",
+            "name": "Vòng đường dạo VinUni",
+            "surface": "packaged_dense_pedestrian_graph",
+            "road_type": "pedestrian_promenade",
+            "highway": "footway",
+            "access": {"foot": True, "bicycle": False, "motor_vehicle": False},
+            "traffic_conflict": "unknown",
+            "coords": loop,
+        }
+    )
+    circuit = RoadGraphRouter.CANONICAL_CIRCUITS.get("circuit_vinuni_campus")
+    if circuit:
+        circuit["entry_node"] = node_id
+        circuit["nodes"] = [node_id, node_id]
+
+
+_install_dense_vinuni_loop()
 
 road_graph_router = RoadGraphRouter()

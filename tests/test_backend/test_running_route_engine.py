@@ -165,6 +165,24 @@ def test_distance_and_detour_precision():
         assert len(p_route["coordinates"]) >= 5
 
 
+def test_vinuni_dense_loop_is_used_for_a_three_kilometre_request():
+    """A local VinUni request renders the packaged road trace, not coarse hops."""
+    station_pm25 = {station_id: 15.0 for station_id in ["S01", "S02", "S03", "S04", "S05"]}
+    candidates = road_graph_router.generate_candidate_routes_from_origin(
+        origin_lat=20.9903,
+        origin_lng=105.9455,
+        target_km=3.0,
+        station_pm25_map=station_pm25,
+        activity="running",
+    )
+    route = next(candidate for candidate in candidates if candidate.get("target_requested_km") == 3.0)
+
+    assert route["edge_ids"] == ["edge_vinuni_dense_loop"]
+    assert len(route["coordinates"]) >= 150
+    assert route["coordinates"][0] == route["coordinates"][-1]
+    assert abs(route["distance_km"] - 3.0) / 3.0 <= 0.20
+
+
 def test_health_profile_sensitive_penalty():
     """
     CRITICAL TEST 6: Health Profile Sensitivity

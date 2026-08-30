@@ -399,6 +399,15 @@ choose a different route. Current and forecast requests produce separate segment
 corresponding request-scoped station data. Missing grounded station coverage returns `503` and no
 route geometry.
 
+The packaged graph may include dense, checked-in pedestrian-loop edges. Route rendering and
+exposure segments must use the same packaged coordinates; the request path must not fetch or
+interpolate a separate map-routing geometry.
+
+When the requested position is snapped to the packaged graph, `highlight_route` may include
+`snap_distance_m`. The UI may show this as context in the AI response, but must not draw a synthetic
+straight connector between the selected position and the graph; that connector would not be a route
+or road instruction and must not be included in route exposure.
+
 ## Administrative user mutation
 
 `PATCH /api/v1/users/{id}` is Admin-only, requires CSRF and accepts a non-empty `reason` plus

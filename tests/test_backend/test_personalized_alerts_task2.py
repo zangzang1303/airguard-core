@@ -465,6 +465,7 @@ def test_agent_route_reuses_canonical_service_without_recomputing_geometry() -> 
         ],
         "data_mode": "current",
         "graph": {"graph_source": "curated_demo_graph"},
+        "origin": {"snap_distance_m": 23.4},
         "assumptions": [],
         "disclaimer": "Tuyến demo; tự kiểm tra điều kiện đường thực tế.",
     }
@@ -497,6 +498,7 @@ def test_agent_route_reuses_canonical_service_without_recomputing_geometry() -> 
     route_action = next(item for item in result["map_actions"] if item["type"] == "highlight_route")
     assert route_action["coordinates"] == expected_route["coordinates"]
     assert route_action["estimated_inhaled_mass_ug"] == expected_route["estimated_inhaled_mass_ug"]
+    assert route_action["snap_distance_m"] == 23.4
     assert "hấp thụ" not in result["response"].lower()
 
 

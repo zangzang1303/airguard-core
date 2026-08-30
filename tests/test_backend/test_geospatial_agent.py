@@ -151,6 +151,62 @@ def test_comparison_intent():
     assert len(areas) >= 2
 
 
+def test_explicit_station_uses_physical_sensor_coordinates_for_map_actions():
+    agent = demo_agent()
+
+    res = agent.process_query("Chất lượng không khí tại S01 hiện thế nào?")
+
+    assert res["intent"] == "get_location_environment"
+    assert res["target_station"] == "S01"
+    for action in res["map_actions"]:
+        if action["type"] in {"highlight_point", "add_annotation", "fly_to"}:
+            assert action["lat"] == pytest.approx(21.0008)
+            assert action["lng"] == pytest.approx(105.9428)
+
+
+def test_explicit_station_comparison_uses_both_physical_sensor_coordinates():
+    agent = demo_agent()
+
+    res = agent.process_query("So sánh S01 và S02")
+
+    assert res["intent"] == "compare_locations"
+    highlights = [action for action in res["map_actions"] if action["type"] == "highlight_area"]
+    assert {(action["lat"], action["lng"]) for action in highlights} == {
+        (21.0008, 105.9428),
+        (20.9975, 105.9430),
+    }
+
+
+def test_consecutive_station_ids_do_not_be_interpreted_as_poi_aliases():
+    agent = demo_agent()
+    conversation_id = "test-consecutive-station-ids"
+    expected_coordinates = {
+        "S01": (21.0008, 105.9428),
+        "S02": (20.9975, 105.9430),
+        "S05": (20.9910, 105.9560),
+    }
+
+    for station_id, (latitude, longitude) in expected_coordinates.items():
+        res = agent.process_query(station_id, conversation_id=conversation_id)
+        assert res["intent"] == "get_location_environment"
+        fly_to = next(action for action in res["map_actions"] if action["type"] == "fly_to")
+        assert fly_to["lat"] == pytest.approx(latitude)
+        assert fly_to["lng"] == pytest.approx(longitude)
+
+
+def test_contextual_three_station_comparison_uses_last_three_explicit_stations():
+    agent = demo_agent()
+    conversation_id = "test-contextual-three-station-comparison"
+    for station_id in ("S01", "S02", "S03"):
+        agent.process_query(station_id, conversation_id=conversation_id)
+
+    res = agent.process_query("so sánh 3 trạm", conversation_id=conversation_id)
+
+    assert res["intent"] == "compare_stations"
+    assert [item["station_id"] for item in res["candidates"]] == ["S01", "S02", "S03"]
+    assert len([action for action in res["map_actions"] if action["type"] == "highlight_area"]) == 3
+
+
 def test_recommend_running_route_intent():
     agent = demo_agent()
     # Scenario: Ask for running routes tonight

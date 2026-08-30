@@ -21,6 +21,12 @@ import {
   formatVnTimeWithSeconds,
 } from "../../utils/datetime";
 
+// The heatmap raster uses alpha 195 and its Leaflet overlay uses opacity 0.60.
+// Preview the resulting colour over the warm OSM land tone used by this map,
+// so the legend communicates the colour users actually see on the map.
+const HEATMAP_COMPOSITED_ALPHA = (195 / 255) * 0.60;
+const HEATMAP_BASEMAP_COLOR = "#e8c59b";
+
 export type MapLegendVariant = "stations" | "dispersion";
 
 export function getFriendlyModelName(modelRaw: string | undefined): string {
@@ -45,7 +51,8 @@ export const MetricColorScale: React.FC<{
   metric?: string;
   className?: string;
   style?: React.CSSProperties;
-}> = ({ metric = "aqi", className = "", style }) => {
+  heatmapPreview?: boolean;
+}> = ({ metric = "aqi", className = "", style, heatmapPreview = false }) => {
   const scale = getMetricScale(metric);
   const minVal = scale.min;
   const maxVal = scale.max;
@@ -90,7 +97,9 @@ export const MetricColorScale: React.FC<{
               className="aqi-color-segment"
               style={{
                 width: `${widthPercent}%`,
-                backgroundColor: level.color,
+                backgroundColor: heatmapPreview
+                  ? blendHexColors(level.color, HEATMAP_BASEMAP_COLOR, HEATMAP_COMPOSITED_ALPHA)
+                  : level.color,
               }}
               title={`${level.label}: ${level.min}–${level.max} ${scale.unit}`}
               aria-label={`${level.label}: ${level.min}–${level.max} ${scale.unit}`}
@@ -129,6 +138,17 @@ export const MetricColorScale: React.FC<{
     </div>
   );
 };
+
+function blendHexColors(foreground: string, background: string, alpha: number): string {
+  const toRgb = (hex: string) => {
+    const value = Number.parseInt(hex.slice(1), 16);
+    return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+  };
+  const [fgRed, fgGreen, fgBlue] = toRgb(foreground);
+  const [bgRed, bgGreen, bgBlue] = toRgb(background);
+  const blendChannel = (fg: number, bg: number) => Math.round(fg * alpha + bg * (1 - alpha));
+  return `rgb(${blendChannel(fgRed, bgRed)}, ${blendChannel(fgGreen, bgGreen)}, ${blendChannel(fgBlue, bgBlue)})`;
+}
 
 /**
  * Legacy Alias for AQI Color Scale
@@ -384,7 +404,7 @@ export const AqiLegend: React.FC<UnifiedMapLegendProps> = ({
           {(!isDispersion || (!loading && !error)) && (
             <>
               {/* MetricColorScale is rendered strictly ONCE */}
-              <MetricColorScale metric={metric} />
+              <MetricColorScale metric={metric} heatmapPreview={isDispersion} />
 
               {/* Context-aware secondary information */}
               {isDispersion ? (

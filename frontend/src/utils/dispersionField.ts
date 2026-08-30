@@ -107,6 +107,7 @@ export function createDispersionOffscreenCanvas(
 
   const latStep = (extent.latMax - extent.latMin) / height;
   const lonStep = (extent.lonMax - extent.lonMin) / width;
+  const sampleGridValue = createGridSampler(gridPoints);
 
   for (let y = 0; y < height; y++) {
     const lat = extent.latMax - (y + 0.5) * latStep;
@@ -115,7 +116,7 @@ export function createDispersionOffscreenCanvas(
       const idx = (y * width + x) * 4;
 
       if (gridPoints.length === 0) continue;
-      const val = interpolateValueFromGrid(lat, lon, gridPoints);
+      const val = sampleGridValue(lat, lon);
 
       const hexColor = getMetricColorHex(metric, val);
       const rgb = hexToRgb(hexColor);
@@ -123,7 +124,9 @@ export function createDispersionOffscreenCanvas(
       data[idx] = rgb.r;
       data[idx + 1] = rgb.g;
       data[idx + 2] = rgb.b;
-      data[idx + 3] = 195; // ~0.76 opacity for clear street basemap visibility
+      // The raster remains translucent so geographic context stays visible.
+      // The legend uses the same composited preview treatment.
+      data[idx + 3] = 195;
     }
   }
 
@@ -148,25 +151,60 @@ export function createDispersionOffscreenCanvas(
   return canvas;
 }
 
-function interpolateValueFromGrid(
-  lat: number,
-  lon: number,
+/**
+ * Samples the regular grid produced by the spatial API. The API has already
+ * performed the IDW calculation, so applying IDW again here creates artificial
+ * local hotspots. Bilinear interpolation keeps the supplied field continuous
+ * without changing its model or inventing a second spatial weighting.
+ */
+function createGridSampler(
   gridPoints: Array<{ lat: number; lon: number; value: number }>,
-): number {
-  let weightedValue = 0;
-  let totalWeight = 0;
+): (lat: number, lon: number) => number {
+  const latitudes = [...new Set(gridPoints.map((point) => point.lat))].sort((a, b) => a - b);
+  const longitudes = [...new Set(gridPoints.map((point) => point.lon))].sort((a, b) => a - b);
+  const values = new Map(
+    gridPoints.map((point) => [gridKey(point.lat, point.lon), point.value]),
+  );
 
-  for (const pt of gridPoints) {
-    const dLat = (lat - pt.lat) * 111.0;
-    const dLon = (lon - pt.lon) * 103.0;
-    const distance = Math.hypot(dLat, dLon);
-    if (distance <= 0.0001) return pt.value;
-    const weight = 1 / Math.pow(distance + 0.0001, 2);
-    totalWeight += weight;
-    weightedValue += weight * pt.value;
-  }
-  if (totalWeight <= 0) {
-    throw new Error("Spatial grid contains no usable interpolation weights.");
-  }
-  return weightedValue / totalWeight;
+  return (lat: number, lon: number) => {
+    const [latLower, latUpper] = getAxisBounds(latitudes, lat);
+    const [lonLower, lonUpper] = getAxisBounds(longitudes, lon);
+    const latRatio = latUpper === latLower ? 0 : (lat - latLower) / (latUpper - latLower);
+    const lonRatio = lonUpper === lonLower ? 0 : (lon - lonLower) / (lonUpper - lonLower);
+
+    const weightedCorners = [
+      { value: values.get(gridKey(latLower, lonLower)), weight: (1 - latRatio) * (1 - lonRatio) },
+      { value: values.get(gridKey(latLower, lonUpper)), weight: (1 - latRatio) * lonRatio },
+      { value: values.get(gridKey(latUpper, lonLower)), weight: latRatio * (1 - lonRatio) },
+      { value: values.get(gridKey(latUpper, lonUpper)), weight: latRatio * lonRatio },
+    ];
+    const usableCorners = weightedCorners.filter(
+      (corner): corner is { value: number; weight: number } => typeof corner.value === "number",
+    );
+    const totalWeight = usableCorners.reduce((sum, corner) => sum + corner.weight, 0);
+
+    if (totalWeight > 0) {
+      return usableCorners.reduce((sum, corner) => sum + corner.value * corner.weight, 0) / totalWeight;
+    }
+
+    return gridPoints.reduce((closest, point) => {
+      const closestDistance = Math.hypot(lat - closest.lat, lon - closest.lon);
+      const pointDistance = Math.hypot(lat - point.lat, lon - point.lon);
+      return pointDistance < closestDistance ? point : closest;
+    }).value;
+  };
+}
+
+function getAxisBounds(axis: number[], target: number): [number, number] {
+  const first = axis[0];
+  const last = axis[axis.length - 1];
+  if (target <= first) return [first, first];
+  if (target >= last) return [last, last];
+
+  const upperIndex = axis.findIndex((value) => value >= target);
+  return [axis[upperIndex - 1], axis[upperIndex]];
+}
+
+function gridKey(lat: number, lon: number): string {
+  return `${lat.toFixed(5)}:${lon.toFixed(5)}`;
 }

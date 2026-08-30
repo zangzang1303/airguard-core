@@ -225,7 +225,8 @@ export const SuperMap: React.FC<SuperMapProps> = ({
 
         <LocalBasemapFallback />
 
-        {/* OSM enriches the local context when network tiles are available. */}
+        {/* Use OpenStreetMap directly: CARTO can return an "API KEY REQUIRED" image
+            as a successful tile response, which would otherwise look like a map error. */}
         <TileLayer
           key={basemapRevision}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

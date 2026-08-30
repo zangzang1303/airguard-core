@@ -189,7 +189,7 @@ export class MapActionController {
           color: theme.stroke,
           weight: 14,
           opacity: 0.38,
-          className: "ai-route-halo-path",
+          className: "ai-route-halo-path ai-route-halo-pulse",
           lineCap: "round",
           lineJoin: "round",
         });
@@ -237,17 +237,7 @@ export class MapActionController {
             })
           : null;
 
-        // 3. Neon Flowing Dash Animation Overlay (Runner Track Effect)
-        const flowingDash = L.polyline(coords, {
-          color: "#ffffff",
-          weight: 3,
-          opacity: 0.95,
-          className: "ai-route-flowing-dash",
-          lineCap: "round",
-          lineJoin: "round",
-        });
-
-        // 4. Start Point Pin with Animated Sonar Pulse
+        // 3. Start Point Pin with Animated Sonar Pulse
         const startHtml = `
           <div class="ai-runner-pin-wrapper">
             <div class="ai-runner-pin-pulse"></div>
@@ -267,7 +257,7 @@ export class MapActionController {
         });
         const startMarker = L.marker(coords[0], { icon: startIcon });
 
-        // 5. Finish Point Marker
+        // 4. Finish Point Marker
         const endCoord = coords[coords.length - 1];
         const endHtml = `
           <div style="width: 22px; height: 22px; border-radius: 50%; background: #ffffff; border: 2.5px solid ${theme.stroke}; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 11px;">
@@ -285,7 +275,6 @@ export class MapActionController {
         this.aiOverlayLayer.addLayer(glowPolyline);
         if (corePolyline) this.aiOverlayLayer.addLayer(corePolyline);
         segmentPolylines.forEach((polyline) => this.aiOverlayLayer?.addLayer(polyline));
-        this.aiOverlayLayer.addLayer(flowingDash);
         this.aiOverlayLayer.addLayer(startMarker);
         this.aiOverlayLayer.addLayer(endMarker);
         break;

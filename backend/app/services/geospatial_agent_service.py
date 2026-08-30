@@ -354,6 +354,10 @@ class GeospatialAgentService:
         if is_medical or is_real_estate or is_dining or is_traffic:
             return self._handle_general_out_of_scope_intent(q, request_id)
 
+        # A literal station ID takes precedence over POI aliases (for example,
+        # ``S02`` must never be resolved as the Sapphire alias ``s2``).
+        explicit_station_ids = self._extract_explicit_station_ids(q)
+
         # Intent: Weather / Rain / Precipitation (Out of measurement scope with microclimate fallback)
         is_rain_inquiry = any(
             w in q
@@ -365,7 +369,9 @@ class GeospatialAgentService:
         if is_rain_inquiry:
             explicit_poi, _ = spatial_registry.extract_location_in_query(q)
             target_poi = None
-            if explicit_poi:
+            if explicit_station_ids:
+                target_poi = self._station_target(explicit_station_ids[0], station_data_map)
+            elif explicit_poi:
                 target_poi = next((p for p in ranked_pois if p["id"] == explicit_poi["id"]), explicit_poi)
             elif map_context.get("selected_location") or map_context.get("selected_sensor") or station_id:
                 s_target = map_context.get("selected_sensor") or station_id
@@ -377,11 +383,17 @@ class GeospatialAgentService:
 
         # Intent: Unknown / Unrecognized Location Check
         explicit_poi, unrecognized_loc = spatial_registry.extract_location_in_query(q)
+        if explicit_station_ids:
+            # Do not pass station text through POI extraction/follow-up logic:
+            # POI aliases such as "s1" and "s2" otherwise create a spurious
+            # comparison against the station from the previous chat turn.
+            explicit_poi = None
+            unrecognized_loc = None
         if unrecognized_loc and not explicit_poi:
             return self._handle_unknown_location_intent(unrecognized_loc, request_id)
 
         # Contextual Follow-up & Deep Dialogue Resolution via ConversationStateManager
-        mentioned_pois = spatial_registry.find_all_pois_in_query(q)
+        mentioned_pois = [] if explicit_station_ids else spatial_registry.find_all_pois_in_query(q)
         turn_res = conversation_state_manager.resolve_conversation_turn(
             conversation_id=conversation_id,
             message=cleaned_message if is_correction else message,
@@ -469,12 +481,16 @@ class GeospatialAgentService:
             if "avoid_location" in m_params:
                 q = f"tránh {m_params['avoid_location']}"
 
-        followup_res = conversation_state_manager.resolve_followup(
-            conversation_id=conversation_id,
-            current_query=q,
-            extracted_poi=explicit_poi,
-            all_extracted_pois=mentioned_pois,
-            is_unknown_location=(unrecognized_loc is not None),
+        followup_res = (
+            {"is_followup": False, "needs_clarification": False}
+            if explicit_station_ids
+            else conversation_state_manager.resolve_followup(
+                conversation_id=conversation_id,
+                current_query=q,
+                extracted_poi=explicit_poi,
+                all_extracted_pois=mentioned_pois,
+                is_unknown_location=(unrecognized_loc is not None),
+            )
         )
 
         if followup_res.get("needs_clarification"):
@@ -611,6 +627,32 @@ class GeospatialAgentService:
             or any(w in q for w in ["so sánh", "so voi", "so với", "hơn không", "tốt hơn", "khác nhau"])
             or (" và " in q and any(w in q for w in ["chỗ nào", "đâu", "khu nào", "tốt hơn", "sạch hơn", "ô nhiễm hơn"]))
         )
+        requested_station_count = self._extract_requested_station_comparison_count(q)
+        if is_comparison and not explicit_station_ids and requested_station_count:
+            state = conversation_state_manager.get_or_create_state(conversation_id)
+            station_ids = state.recent_station_ids[-requested_station_count:]
+            if len(station_ids) == requested_station_count:
+                return self._handle_multi_station_comparison(
+                    [self._station_target(station_id, station_data_map) for station_id in station_ids],
+                    time_ctx,
+                    request_id,
+                    conversation_id,
+                )
+        if is_comparison and len(explicit_station_ids) >= 2:
+            station_candidates = [
+                self._station_target(station_id, station_data_map)
+                for station_id in explicit_station_ids
+                if station_id in station_data_map
+            ]
+            if len(station_candidates) >= 2:
+                return self._handle_comparison_intent(
+                    q,
+                    ranked_pois,
+                    time_ctx,
+                    request_id,
+                    candidates=station_candidates,
+                    conversation_id=conversation_id,
+                )
         if is_comparison and (len(mentioned_pois) >= 2 or len(ranked_pois) >= 2):
             return self._handle_comparison_intent(q, ranked_pois, time_ctx, request_id, candidates=mentioned_pois, conversation_id=conversation_id)
 
@@ -812,6 +854,7 @@ class GeospatialAgentService:
                         "duration_minutes": route["duration_minutes"],
                         "estimated_inhaled_mass_ug": route["estimated_inhaled_mass_ug"],
                         "exposure_reduction_pct": route.get("exposure_reduction_pct"),
+                        "snap_distance_m": route.get("origin", {}).get("snap_distance_m"),
                         "graph_source": route["graph"]["graph_source"],
                         "data_mode": route["data_mode"],
                         "source": "forecast" if route["data_mode"] == "forecast" else "spatial_idw_route_segment",
@@ -853,25 +896,11 @@ class GeospatialAgentService:
         is_temp_inquiry = any(w in q for w in ["nhiệt độ", "nóng không", "mát không", "nhiệt độ bao nhiêu", "bao nhiêu độ", "nhiet do", "nong khong", "mat khong"])
 
         target_poi = None
-        explicit_station_id = self._extract_explicit_station_id(q)
+        explicit_station_id = explicit_station_ids[0] if explicit_station_ids else None
         if explicit_station_id:
-            station_poi = next(
-                (
-                    poi for poi in ranked_pois
-                    if poi.get("sensor_id") == explicit_station_id and not poi.get("is_interpolated")
-                ),
-                None,
-            )
-            # A station ID is an explicit telemetry request, not a request for
-            # whichever named POI happens to share that sensor or is selected
-            # on the map. Keep the POI coordinates for map focus, but present
-            # the answer and annotations as the requested station.
-            if station_poi:
-                target_poi = {
-                    **station_poi,
-                    "short_name": f"Trạm {explicit_station_id}",
-                    "name": f"Trạm quan trắc {explicit_station_id}",
-                }
+            # A station ID must resolve to the physical sensor coordinates,
+            # never to a nearby POI that merely uses that station's telemetry.
+            target_poi = self._station_target(explicit_station_id, station_data_map)
         elif explicit_poi:
             target_poi = next((p for p in ranked_pois if p["id"] == explicit_poi["id"]), explicit_poi)
         elif turn_res.get("target_poi"):
@@ -1636,6 +1665,54 @@ class GeospatialAgentService:
         }
 
     # -------------------------------------------------------------
+    # INTENT HANDLER: Compare stations referenced across prior turns
+    # -------------------------------------------------------------
+    def _handle_multi_station_comparison(
+        self,
+        candidates: list[dict[str, Any]],
+        time_ctx: dict[str, Any],
+        request_id: str,
+        conversation_id: str,
+    ) -> dict[str, Any]:
+        ranked = sorted(candidates, key=lambda item: item["score"], reverse=True)
+        winner = ranked[0]
+        detail_lines = [
+            f"- **{item['short_name']}:** AQI {item['aqi']} · PM2.5 {item['pm25']} µg/m³"
+            for item in candidates
+        ]
+        details = "\n".join(detail_lines)
+        summary = (
+            f"🌿 **So sánh {len(candidates)} trạm tại {time_ctx['label']}: "
+            f"{winner['short_name']} có chất lượng không khí tốt hơn.**\n\n"
+            f"{details}\n\n"
+            "📍 Mình đã đánh dấu đầy đủ các trạm trên bản đồ."
+        )
+        lats = [item["latitude"] for item in candidates]
+        lngs = [item["longitude"] for item in candidates]
+        map_actions: list[dict[str, Any]] = [{"type": "clear_ai_layer"}]
+        for item in candidates:
+            is_winner = item["id"] == winner["id"]
+            style = "recommended" if is_winner else "caution"
+            map_actions.extend([
+                {"type": "highlight_area", "area_id": item["id"], "target_id": item["id"], "lat": item["latitude"], "lng": item["longitude"], "radius_m": 250, "name": item["short_name"], "style": style},
+                {"type": "add_annotation", "target_id": item["id"], "lat": item["latitude"], "lng": item["longitude"], "title": item["short_name"], "subtitle": f"{time_ctx['label']} • AQI {item['aqi']} (PM2.5 {item['pm25']} µg/m³)", "badge": "Tốt hơn" if is_winner else f"AQI {item['aqi']}", "style": style},
+            ])
+        map_actions.append({"type": "fit_bounds", "bounds": [[min(lats) - 0.003, min(lngs) - 0.003], [max(lats) + 0.003, max(lngs) + 0.003]], "padding": [40, 40]})
+        conversation_state_manager.update_state(conversation_id=conversation_id, intent="compare_stations", entities=candidates, comparison_context={"winner": winner, "stations": candidates}, time_context=time_ctx)
+        return {
+            "answer": {"headline": summary.split("\n", 1)[0], "summary": summary, "details": details},
+            "response": summary,
+            "intent": "compare_stations",
+            "time_context": time_ctx,
+            "data_mode": time_ctx["type"],
+            "candidates": [{"id": item["id"], "name": item["short_name"], "station_id": item["station_id"], "aqi": item["aqi"], "score": item["score"]} for item in candidates],
+            "evidence": [{"source": "sensor", "station_id": item["station_id"], "metric": "aqi", "value": item["aqi"], "timestamp": item["timestamp"]} for item in candidates],
+            "map_actions": map_actions,
+            "follow_up_actions": [],
+            "request_id": request_id,
+        }
+
+    # -------------------------------------------------------------
     # INTENT HANDLER 3: Compare Two Locations
     # -------------------------------------------------------------
     def _handle_comparison_intent(
@@ -2210,8 +2287,50 @@ class GeospatialAgentService:
     @staticmethod
     def _extract_explicit_station_id(query: str) -> str | None:
         """Normalize user-facing station aliases such as S1 and S01."""
-        match = re.search(r"\bS0?([1-5])\b", query, flags=re.IGNORECASE)
-        return f"S0{match.group(1)}" if match else None
+        station_ids = GeospatialAgentService._extract_explicit_station_ids(query)
+        return station_ids[0] if station_ids else None
+
+    @staticmethod
+    def _extract_explicit_station_ids(query: str) -> list[str]:
+        """Return explicit station aliases in mention order, without duplicates."""
+        station_ids: list[str] = []
+        for match in re.finditer(r"\bS0?([1-5])\b", query, flags=re.IGNORECASE):
+            station_id = f"S0{match.group(1)}"
+            if station_id not in station_ids:
+                station_ids.append(station_id)
+        return station_ids
+
+    @staticmethod
+    def _extract_requested_station_comparison_count(query: str) -> int | None:
+        match = re.search(r"\b([2-5])\s*(?:trạm|tram)\b", query, flags=re.IGNORECASE)
+        return int(match.group(1)) if match else None
+
+    @staticmethod
+    def _station_target(
+        station_id: str,
+        station_data_map: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Build a map target from the canonical physical station registry."""
+        station_data = station_data_map.get(station_id)
+        registry_station = spatial_registry.get_station(station_id)
+        if station_data is None or registry_station is None:
+            raise ServiceError("station_not_found", "Requested station is not available", 404, {"station_id": station_id})
+
+        score = environmental_scoring.score_candidate(station_data, activity="general")
+        return {
+            **station_data,
+            **score,
+            "id": f"station-{station_id}",
+            "station_id": station_id,
+            "sensor_id": station_id,
+            "name": f"Trạm quan trắc {station_id}",
+            "short_name": f"Trạm {station_id}",
+            "category": "monitoring_station",
+            "latitude": registry_station["latitude"],
+            "longitude": registry_station["longitude"],
+            "is_interpolated": False,
+            "source_sensors": [station_id],
+        }
 
     @staticmethod
     def _forecast_point(
