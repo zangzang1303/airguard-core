@@ -6,6 +6,42 @@ from .database import Database, ServiceError, dict_cursor
 
 SENSITIVE_KEYS = {"password", "token", "secret", "api_key", "authorization"}
 
+# Manager-facing events for the complete HITL lifecycle. The SQL-level filter
+# prevents high-volume sensor and alert events from pushing these records out of
+# a limited result page.
+MANAGER_AUDIT_ACTIONS = (
+    "agent.auto_proposal.create",
+    "agent.auto_proposal.failure",
+    "agent.auto_proposal.skipped",
+    "approval.create",
+    "approval.approve",
+    "approval.quick_approve",
+    "approval.reject",
+    "approval.expire",
+    "approval.dispatch.failure",
+    "device_command.dispatch.enqueued",
+    "device_command.dispatch.prepare",
+    "device_command.dispatch",
+    "device_command.dispatch.failure",
+    "device_command.ack",
+    "device_command.ack.unmatched",
+    "CREATE_PROPOSAL",
+    "APPROVE_PROPOSAL",
+    "REJECT_PROPOSAL",
+)
+
+# The Activity Log is deliberately narrower than the operational audit trail.
+# It is shared by all Manager/Admin accounts and contains only completed human
+# decisions on approval requests. Keep the full audit trail above for
+# traceability, incident investigation, and compliance.
+MANAGER_ACTIVITY_LOG_ACTIONS = (
+    "approval.approve",
+    "approval.quick_approve",
+    "approval.reject",
+    "APPROVE_PROPOSAL",
+    "REJECT_PROPOSAL",
+)
+
 
 def redact_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     if not metadata:
@@ -67,7 +103,14 @@ class AuditService:
         with self.db.connection() as owned_conn:
             return write(owned_conn)
 
-    def list_logs(self, *, entity_type: str | None = None, entity_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    def list_logs(
+        self,
+        *,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
+        actions: tuple[str, ...] | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
         clauses = []
         params: list[Any] = []
         if entity_type:
@@ -76,6 +119,9 @@ class AuditService:
         if entity_id:
             clauses.append("entity_id = %s")
             params.append(entity_id)
+        if actions:
+            clauses.append("action = ANY(%s)")
+            params.append(list(actions))
         where = "WHERE " + " AND ".join(clauses) if clauses else ""
         try:
             with self.db.connection() as conn:
@@ -96,5 +142,33 @@ class AuditService:
             raise
         except Exception as exc:
             raise ServiceError("audit_log_unavailable", "Audit logs are unavailable", 503) from exc
+
+    def list_manager_activity_logs(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Return the shared manager decision log with its related station."""
+        try:
+            with self.db.connection() as conn:
+                with dict_cursor(conn) as cur:
+                    cur.execute(
+                        """
+                        SELECT audit.audit_id, audit.actor_type, audit.actor_id,
+                               audit.actor_role, audit.action, audit.entity_type,
+                               audit.entity_id, audit.outcome, audit.correlation_id,
+                               audit.details, audit.created_at,
+                               COALESCE(request.station_id, audit.details ->> 'station_id') AS station_id
+                        FROM audit_logs AS audit
+                        LEFT JOIN approval_requests AS request
+                          ON request.request_id::text = audit.entity_id
+                        WHERE audit.action = ANY(%s)
+                          AND COALESCE(request.request_type, '') <> 'manager_manual_device_control'
+                        ORDER BY audit.created_at DESC, audit.audit_id DESC
+                        LIMIT %s
+                        """,
+                        [list(MANAGER_ACTIVITY_LOG_ACTIONS), limit],
+                    )
+                    return [dict(row) for row in cur.fetchall()]
+        except ServiceError:
+            raise
+        except Exception as exc:
+            raise ServiceError("audit_log_unavailable", "Activity logs are unavailable", 503) from exc
 
 

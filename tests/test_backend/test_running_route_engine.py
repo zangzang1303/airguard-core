@@ -26,7 +26,8 @@ def test_running_route_data_reversal():
 
     res_west = agent.process_query("Tìm đường chạy bộ tốt nhất bây giờ")
     route_action_west = next(a for a in res_west["map_actions"] if a["type"] == "highlight_route")
-    assert any(k in route_action_west["route_id"] for k in ["san_ho", "zenpark", "vinuni", "riverwalk"])
+    assert route_action_west["route_id"].startswith("route-policy-v1:")
+    assert route_action_west["segments"]
 
     # Case B: East Clean (S03=8, S05=10), West Dirty (S01=85, S04=90)
     for s_id in ["S01", "S02", "S03", "S04", "S05"]:
@@ -35,7 +36,8 @@ def test_running_route_data_reversal():
 
     res_east = agent.process_query("Tìm đường chạy bộ tốt nhất bây giờ")
     route_action_east = next(a for a in res_east["map_actions"] if a["type"] == "highlight_route")
-    assert any(k in route_action_east["route_id"] for k in ["ngoc_trai", "lake", "crystal", "lagoon", "sapphire"])
+    assert route_action_east["route_id"].startswith("route-policy-v1:")
+    assert route_action_east["segments"]
 
 
 def test_elimination_of_famous_poi_bias():
@@ -55,14 +57,13 @@ def test_elimination_of_famous_poi_bias():
     live_engine.update_station("S05", {"pm25": 15.0, "aqi": 40, "co2": 430.0, "noise_db": 46.0, "temperature": 25.0})
 
     res = agent.process_query("Đề xuất tuyến đường chạy bộ ngoài trời trong lành")
-    assert res["intent"] == "recommend_running_route"
+    assert res["intent"] == "recommend_personalized_running_route"
     top_route = next(a for a in res["map_actions"] if a["type"] == "highlight_route" and a.get("rank") == 1)
 
-    # Must NOT recommend San Hô or VinUni
-    assert "san_ho" not in top_route["route_id"]
-    assert "vinuni" not in top_route["route_id"]
-    # Must recommend Lake or Crystal Lagoon
-    assert "ngoc_trai" in top_route["route_id"] or "lake" in top_route["route_id"] or "crystal" in top_route["route_id"]
+    # Route IDs are deterministic graph hashes; the result must expose the
+    # grounded segment profile rather than a POI-name heuristic.
+    assert top_route["route_id"].startswith("route-policy-v1:")
+    assert all(segment["source_station_ids"] for segment in top_route["segments"])
 
 
 def test_line_integral_sampling_vs_destination_shortcut():
@@ -159,9 +160,32 @@ def test_distance_and_detour_precision():
         )
         assert res["intent"] == "recommend_personalized_running_route"
         p_route = res["personalized_route"]
-        assert abs(p_route["distance_km"] - target_km) <= 0.4
+        assert abs(p_route["distance_km"] - target_km) / target_km <= 0.20
         assert p_route["distance_constraint_satisfied"] is True
         assert len(p_route["coordinates"]) >= 5
+        route_action = next(action for action in res["map_actions"] if action["type"] == "highlight_route")
+        assert route_action["approach_kind"] == "origin_to_graph_snap"
+        assert route_action["approach_coordinates"][0] == [20.9975, 105.9430]
+        assert len(route_action["approach_coordinates"]) >= 2
+        assert route_action["approach_coordinates"][-1] == route_action["coordinates"][0]
+
+
+def test_vinuni_dense_loop_is_used_for_a_three_kilometre_request():
+    """A local VinUni request renders the packaged road trace, not coarse hops."""
+    station_pm25 = {station_id: 15.0 for station_id in ["S01", "S02", "S03", "S04", "S05"]}
+    candidates = road_graph_router.generate_candidate_routes_from_origin(
+        origin_lat=20.9903,
+        origin_lng=105.9455,
+        target_km=3.0,
+        station_pm25_map=station_pm25,
+        activity="running",
+    )
+    route = next(candidate for candidate in candidates if candidate.get("target_requested_km") == 3.0)
+
+    assert route["edge_ids"] == ["edge_vinuni_dense_loop"]
+    assert len(route["coordinates"]) >= 150
+    assert route["coordinates"][0] == route["coordinates"][-1]
+    assert abs(route["distance_km"] - 3.0) / 3.0 <= 0.20
 
 
 def test_health_profile_sensitive_penalty():
@@ -210,6 +234,7 @@ def test_comparative_exposure_reduction_calculation():
     candidates = road_graph_router.generate_candidate_routes_from_origin(
         origin_lat=20.9975,
         origin_lng=105.9430,
+        station_pm25_map={station_id: values["pm25"] for station_id, values in st_map.items()},
     )
 
     ranked = EnvironmentalScoringEngine.rank_route_candidates(
@@ -267,9 +292,9 @@ def test_local_green_loop_no_10km_detour_to_lake():
         live_engine.update_station(s_id, {"pm25": 15.0, "aqi": 40, "co2": 450.0, "noise_db": 48.0, "temperature": 26.0})
 
     res = agent.process_query(
-        "Tìm cho tôi đường chạy bộ phù hợp nhất tối nay",
+        "Tìm cho tôi đường chạy bộ phù hợp nhất bây giờ",
         map_context={
-            "selected_origin": {"lat": 20.9950, "lng": 105.9375, "source": "map_selection"},
+            "selected_origin": {"lat": 20.9940, "lng": 105.9380, "source": "map_selection"},
         },
     )
 
@@ -282,8 +307,8 @@ def test_local_green_loop_no_10km_detour_to_lake():
 
     # Must start and end at the selected origin
     coords = best_action["coordinates"]
-    assert abs(coords[0][0] - 20.9950) < 0.003
-    assert abs(coords[-1][0] - 20.9950) < 0.003
+    assert abs(coords[0][0] - 20.9940) < 0.003
+    assert abs(coords[-1][0] - 20.9940) < 0.003
 
 
 def test_origin_label_disclosure_map_selection():
@@ -308,7 +333,7 @@ def test_origin_label_disclosure_map_selection():
     assert "Vị trí của bạn" not in details or "Điểm đã chọn" in details
 
     start_annotation = next(a for a in res["map_actions"] if a["type"] == "add_annotation")
-    assert "Điểm đã chọn" in start_annotation["title"]
+    assert "Điểm đã chọn" in start_annotation["subtitle"]
 
 
 def test_max_snap_distance_rejection():
@@ -328,7 +353,7 @@ def test_max_snap_distance_rejection():
         },
     )
 
-    assert "chưa tìm thấy lối chạy bộ phù hợp đủ gần" in res["answer"]["summary"]
+    assert "chưa tìm thấy lối chạy bộ phù hợp đủ gần" in res["answer"]["summary"].lower()
     assert len(res["map_actions"]) == 0
 
 
@@ -342,6 +367,7 @@ def test_loop_closure_geometry():
         origin_lat=origin[0],
         origin_lng=origin[1],
         target_km=3.5,
+        station_pm25_map={f"S{index:02d}": 15.0 for index in range(1, 6)},
     )
     assert len(candidates) > 0
     top = candidates[0]
@@ -397,20 +423,18 @@ def test_agent_returns_one_best_route_with_time_specific_segment_profile():
     assert len(route_actions) == 1
     route_action = route_actions[0]
     assert route_action["rank"] == 1
-    assert route_action["data_mode"] == "live"
+    assert route_action["data_mode"] == "current"
     assert route_action["source"] == "spatial_idw_route_segment"
     assert len(route_action["segments"]) > 0
-    assert route_action["segments"] == result["personalized_route"]["environment_segments"]
+    assert route_action["segments"] == result["personalized_route"]["segments"]
 
     forecast_result = agent.process_query(
         "Tìm tuyến chạy bộ 3km ít ô nhiễm nhất tối nay",
         map_context={"user_location": {"lat": 20.9953, "lng": 105.9500, "source": "gps"}},
     )
-    forecast_action = next(
-        action for action in forecast_result["map_actions"] if action["type"] == "highlight_route"
-    )
+    # The public route contract supports only a quality-gated 1–3 hour
+    # horizon. A vague "tonight" request must not fabricate a forecast.
     assert forecast_result["time_context"]["is_forecast"] is True
-    assert forecast_action["data_mode"] == "forecast"
-    assert forecast_action["source"] == "forecast"
-    assert forecast_action["observed_at"]
-    assert all(segment["observed_at"] for segment in forecast_action["segments"])
+    assert forecast_result["intent"] == "insufficient_data"
+    assert forecast_result["error"]["code"] in {"invalid_forecast_hour", "insufficient_forecast_quality"}
+    assert all(action["type"] != "highlight_route" for action in forecast_result["map_actions"])

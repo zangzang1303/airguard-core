@@ -54,7 +54,7 @@ import {
   approveProposal,
   rejectProposal,
   fetchVentilationDevices,
-  createVentilationDeviceProposal,
+  manuallyControlVentilationDevice,
 } from "./api/client";
 import { RefreshCw, TriangleAlert, ArrowLeft, CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
 import "./theme.css";
@@ -121,7 +121,7 @@ const SuperAppMain: React.FC<{
     activeEnvironmentalLayer: "aqi",
     viewMode: "heatmap",
     showBoundary: true,
-    showPlaces: true,
+    showPlaces: false,
     showSensors: true,
     showHeatmap: true,
     showWindVectors: true,
@@ -131,7 +131,7 @@ const SuperAppMain: React.FC<{
     showDemoControl: true,
     showForecastTimeline: false,
     showAirQualityNow: false,
-    showMapLegend: false,
+    showMapLegend: true,
     showVentilationDevices: true,
   });
 
@@ -417,6 +417,12 @@ const SuperAppMain: React.FC<{
   // Hooks must run before every conditional return so the order stays stable
   // while the initial station request moves through loading/error/success.
   const [forecastHour, setForecastHour] = useState<number>(0);
+  const handleLayerConfigChange = useCallback((newConfig: MapLayerConfig) => {
+    setLayerConfig(newConfig);
+    if (!newConfig.showForecastTimeline) {
+      setForecastHour(0);
+    }
+  }, []);
 
   // Cold Start Loading Skeleton
   if (loading && stations.length === 0) {
@@ -543,13 +549,15 @@ const SuperAppMain: React.FC<{
       {isManager && layerConfig.showStationOverview && (
         <ManagerStationStatusBar stations={stations} alerts={alerts} />
       )}
-      {canUseDemoControl && (layerConfig.showDemoControl ?? true) && <DemoStationControl floating />}
+      {canUseDemoControl && (layerConfig.showDemoControl ?? true) && (
+        <DemoStationControl floating />
+      )}
 
       {/* 3. MAP LAYERS POPOVER */}
       {isLayersOpen && (
         <MapLayersPopover
           config={layerConfig}
-          onChangeConfig={setLayerConfig}
+          onChangeConfig={handleLayerConfigChange}
           onClose={() => setIsLayersOpen(false)}
         />
       )}
@@ -718,11 +726,10 @@ const SuperAppMain: React.FC<{
           error={ventilationDeviceError}
           onClose={() => setActiveDrawer(null)}
           onRefresh={loadVentilationDevices}
-          onCreateProposal={async (action, reason) => {
-            await createVentilationDeviceProposal(
+          onManualControl={async (action) => {
+            await manuallyControlVentilationDevice(
               selectedVentilationDevice.device_id,
               action,
-              reason,
               `device-${selectedVentilationDevice.device_id}-${action}-${Date.now()}`,
             );
             await Promise.all([loadVentilationDevices(), refreshData()]);
@@ -804,18 +811,30 @@ const AppContent: React.FC = () => {
   const refreshData = useCallback(async () => {
     setLoading(true);
     setConnectionStatus("updating");
+    // Alerts are supplementary to the map. Start this request concurrently,
+    // but never make a slow or unavailable alert history block station data.
+    const activeAlertsRequest = fetchAlerts("active")
+      .then((items) => ({ items, error: null as Error | null }))
+      .catch((error) => ({
+        items: [] as Alert[],
+        error: error instanceof Error ? error : new Error("Không thể tải cảnh báo đang hiệu lực."),
+      }));
     try {
-      const [stationRes, alertRes] = await Promise.all([
-        fetchStations(),
-        fetchAlerts(),
-      ]);
-
+      const stationRes = await fetchStations();
       setStations(Array.isArray(stationRes) ? stationRes : []);
-      setAlerts(Array.isArray(alertRes) ? alertRes : []);
       setLoadError(null);
       setConnectionStatus("connected");
       setLastUpdated(new Date());
       setRefreshRevision((revision) => revision + 1);
+      // Once stations are available, render the map immediately. The alert
+      // request may still be resolving, but it is not required map evidence.
+      setLoading(false);
+
+      const alertResult = await activeAlertsRequest;
+      setAlerts(alertResult.items);
+      if (alertResult.error) {
+        console.warn("Active alerts are unavailable; keeping station map visible:", alertResult.error);
+      }
 
       if (isManager) {
         try {

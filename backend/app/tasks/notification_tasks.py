@@ -15,6 +15,7 @@ from ..services.approval_service import (
 )
 from ..services.audit_service import AuditService
 from ..services.database import Database
+from ..services.device_service import DeviceService
 from ..services.job_service import mark_job_failed, reserve_job
 from ..services.resend_email_provider import ResendEmailProvider
 from .task_support import RETRY_TASK_OPTIONS, TransientTaskError, run_idempotent
@@ -46,6 +47,11 @@ def _task_approval_service() -> ApprovalService:
         return configured
     database = Database(os.getenv("DATABASE_URL"))
     return ApprovalService(database, AuditService(database))
+
+
+def _task_device_service() -> DeviceService:
+    database = Database(os.getenv("DATABASE_URL"))
+    return DeviceService(database, AuditService(database))
 
 
 @celery_app.task(name="airguard.notification.send", **RETRY_TASK_OPTIONS)
@@ -107,45 +113,58 @@ def send_notification_job(
 @celery_app.task(name="airguard.device.publish_approved_command", **RETRY_TASK_OPTIONS)
 def publish_approved_device_command(
     self,
-    approval_request_id: str,
+    approval_request_id: str | None,
     device_id: str,
     command: str,
     idempotency_key: str,
+    command_intent_id: str | None = None,
 ) -> dict:
     task_id = self.request.id
 
     def operation() -> dict:
-        service = _task_approval_service()
+        is_manual_control = approval_request_id is None and command_intent_id is not None
+        approval_service = _task_approval_service() if not is_manual_control else None
+        device_service = _task_device_service() if is_manual_control else None
         try:
-            approval = service.require_approved_device_action(approval_request_id, device_id, command)
+            authorization = (
+                device_service.get_manual_command_intent(
+                    command_intent_id=str(command_intent_id),
+                    device_id=device_id,
+                    command=command,
+                )
+                if is_manual_control
+                else approval_service.require_approved_device_action(str(approval_request_id), device_id, command)
+            )
         except ApprovalStoreUnavailableError as exc:
             raise TransientTaskError(str(exc)) from exc
 
-        if not approval:
+        if not authorization:
             return {
                 "task_id": task_id,
                 "job_type": "device_command",
                 "status": "blocked",
-                "reason": "PostgreSQL approval is missing or not approved.",
+                "reason": "Command authorization is missing.",
                 "device_id": device_id,
             }
 
-        command_id = approval.get("command_id") or stable_device_command_id(
-            approval_request_id,
+        authorization_id = str(command_intent_id) if is_manual_control else str(approval_request_id)
+        command_id = authorization.get("command_id") or stable_device_command_id(
+            f"manual:{authorization_id}" if is_manual_control else authorization_id,
             device_id,
             command,
             idempotency_key,
         )
-        control = approval.get("evidence", {}).get("control", {})
-        duration_minutes = approval.get("duration_minutes", control.get("duration_minutes"))
-        intensity_percent = approval.get("intensity_percent", control.get("intensity_percent"))
-        if _dispatch_is_succeeded(approval):
+        control = authorization.get("evidence", {}).get("control", {})
+        duration_minutes = authorization.get("duration_minutes", control.get("duration_minutes"))
+        intensity_percent = authorization.get("intensity_percent", control.get("intensity_percent"))
+        if _dispatch_is_succeeded(authorization):
             return {
                 "task_id": task_id,
                 "job_type": "device_command",
                 "status": "succeeded",
                 "device_id": device_id,
                 "approval_request_id": approval_request_id,
+                "command_intent_id": command_intent_id,
                 "command_id": command_id,
                 "duration_minutes": duration_minutes,
                 "intensity_percent": intensity_percent,
@@ -155,22 +174,25 @@ def publish_approved_device_command(
         payload = {
             "command_id": command_id,
             "device_id": device_id,
-            "station_id": approval.get("station_id"),
+            "station_id": authorization.get("station_id"),
             "action": command,
-            "approval_id": approval_request_id,
+            "approval_id": f"manual:{authorization_id}" if is_manual_control else approval_request_id,
             "idempotency_key": idempotency_key,
             "timestamp": datetime.now(UTC).isoformat(),
             "duration_minutes": duration_minutes,
             "intensity_percent": intensity_percent,
         }
         try:
-            service.record_device_dispatch(
-                request_id=approval_request_id,
-                device_id=device_id,
-                status="publishing",
-                correlation_id=task_id,
-                command_id=command_id,
-            )
+            if is_manual_control:
+                device_service.record_manual_dispatch(
+                    command_intent_id=str(command_intent_id), status="publishing", command_id=command_id,
+                    error=None, correlation_id=task_id,
+                )
+            else:
+                approval_service.record_device_dispatch(
+                    request_id=str(approval_request_id), device_id=device_id, status="publishing",
+                    correlation_id=task_id, command_id=command_id,
+                )
         except ApprovalStoreUnavailableError as exc:
             raise TransientTaskError(str(exc)) from exc
         client = None
@@ -182,14 +204,16 @@ def publish_approved_device_command(
             _wait_for_mqtt_publish(info)
         except (OSError, RuntimeError, TimeoutError, mqtt.MQTTException) as exc:
             try:
-                service.record_device_dispatch(
-                    request_id=approval_request_id,
-                    device_id=device_id,
-                    status="failed",
-                    correlation_id=task_id,
-                    error=str(exc)[:500],
-                    command_id=command_id,
-                )
+                if is_manual_control:
+                    device_service.record_manual_dispatch(
+                        command_intent_id=str(command_intent_id), status="failed", command_id=command_id,
+                        error=str(exc)[:500], correlation_id=task_id,
+                    )
+                else:
+                    approval_service.record_device_dispatch(
+                        request_id=str(approval_request_id), device_id=device_id, status="failed",
+                        correlation_id=task_id, error=str(exc)[:500], command_id=command_id,
+                    )
             except ApprovalStoreUnavailableError:
                 pass
             raise TransientTaskError(f"MQTT publish failed: {exc}") from exc
@@ -197,13 +221,16 @@ def publish_approved_device_command(
             if client is not None:
                 _close_mqtt_client(client)
 
-        service.record_device_dispatch(
-            request_id=approval_request_id,
-            device_id=device_id,
-            status="published",
-            correlation_id=task_id,
-            command_id=command_id,
-        )
+        if is_manual_control:
+            device_service.record_manual_dispatch(
+                command_intent_id=str(command_intent_id), status="published", command_id=command_id,
+                error=None, correlation_id=task_id,
+            )
+        else:
+            approval_service.record_device_dispatch(
+                request_id=str(approval_request_id), device_id=device_id, status="published",
+                correlation_id=task_id, command_id=command_id,
+            )
 
         return {
             "task_id": task_id,
@@ -212,6 +239,7 @@ def publish_approved_device_command(
             "device_id": device_id,
             "topic": topic,
             "approval_request_id": approval_request_id,
+            "command_intent_id": command_intent_id,
             "command_id": command_id,
             "duration_minutes": duration_minutes,
             "intensity_percent": intensity_percent,

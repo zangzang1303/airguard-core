@@ -52,9 +52,15 @@ export const DemoStationControl: React.FC<{ floating?: boolean }> = ({ floating 
     setBusy(true);
     setMessage("");
     try {
-      await api.setDemoStationOverride(stationId, values);
+      const result = await api.setDemoStationOverride(stationId, values);
       await refresh();
-      setMessage(`Đã áp dụng dữ liệu demo cho ${stationId}.`);
+      const trigger = result.ventilation_trigger;
+      if (trigger?.status === "waiting_continuity") {
+        const remaining = Math.max(0, trigger.required_duration_seconds - trigger.continuous_duration_seconds);
+        setMessage(`Đã áp dụng cho ${stationId}. Nếu PM2.5/CO₂ vượt ngưỡng liên tục, yêu cầu duyệt sẽ được tạo sau khoảng ${remaining} giây.`);
+      } else {
+        setMessage(`Đã áp dụng dữ liệu demo cho ${stationId}; điều kiện thông gió đang đủ để đánh giá.`);
+      }
     } catch {
       setMessage("Không thể áp dụng override. Hãy đăng nhập Manager/Admin rồi thử lại.");
     } finally {

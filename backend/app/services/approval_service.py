@@ -144,7 +144,10 @@ class ApprovalService:
                 return request
 
     def list_requests(self, *, status: str | None = None) -> list[dict[str, Any]]:
-        clauses = []
+        # Direct Manager device controls are audited commands, not items for the
+        # threshold-driven approval queue. This also hides legacy rows created
+        # before manual control was separated from the approval workflow.
+        clauses = ["approval_requests.request_type <> 'manager_manual_device_control'"]
         params: list[Any] = []
         if status:
             clauses.append("approval_requests.status = %s")

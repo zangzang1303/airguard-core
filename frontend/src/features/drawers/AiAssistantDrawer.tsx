@@ -60,7 +60,7 @@ const renderInlineMarkdown = (text: string): React.ReactNode[] =>
     );
 
 const DEFAULT_QUESTIONS = [
-  "🏃‍♂️ Tìm đoạn đường chạy bộ phù hợp nhất tối nay",
+  "🏃‍♂️ Tìm đoạn đường chạy bộ phù hợp nhất bây giờ",
   "⚠️ Khu nào đang ô nhiễm nhất?",
   "⚖️ So sánh Sapphire và Hồ Ngọc Trai",
   "🏫 VinUni không khí thế nào?",
@@ -162,9 +162,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
 
-      // Execute Declarative Map Actions on Leaflet AI Layer
-      if (res.map_actions && Array.isArray(res.map_actions) && res.map_actions.length > 0) {
-        mapActionController.executeAll(res.map_actions as MapAction[]);
+      const mapActions = Array.isArray(res.map_actions) ? res.map_actions as MapAction[] : [];
+
+      // Execute the backend-owned route actions only; no synthetic straight
+      // line is added between a selected location and the route graph.
+      if (mapActions.length > 0) {
+        mapActionController.executeAll(mapActions);
       }
 
       const aiMsg: ChatMessage = {
@@ -179,7 +182,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         used_tools: res.used_tools,
         evidence: res.evidence,
-        map_actions: res.map_actions as MapAction[],
+        map_actions: mapActions,
         follow_up_actions: res.follow_up_actions,
         proposal_created: res.proposal_created,
         showEvidence: false,
@@ -219,8 +222,9 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       const answerObj = typeof res.answer === "object" && res.answer !== null ? res.answer : { summary: res.reply || "", details: "" };
       const aiReply = res.reply || answerObj.summary || "";
 
-      if (res.map_actions && Array.isArray(res.map_actions) && res.map_actions.length > 0) {
-        mapActionController.executeAll(res.map_actions as MapAction[]);
+      const mapActions = Array.isArray(res.map_actions) ? res.map_actions as MapAction[] : [];
+      if (mapActions.length > 0) {
+        mapActionController.executeAll(mapActions);
       }
 
       const aiMsg: ChatMessage = {
@@ -235,7 +239,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         used_tools: res.used_tools,
         evidence: res.evidence,
-        map_actions: res.map_actions as MapAction[],
+        map_actions: mapActions,
         follow_up_actions: res.follow_up_actions,
         proposal_created: res.proposal_created,
         showEvidence: false,
@@ -331,6 +335,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
       <div className="ai-chat-messages-container" style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
         {messages.map((msg) => {
           const routeAction = getRouteAction(msg.map_actions);
+          const approachDistance = Number(routeAction?.snap_distance_m);
 
           return (
             <div key={msg.id} className={`chat-bubble-wrap ${msg.sender} ${msg.isError ? "error" : ""}`} {...(msg.isError ? { role: "alert", "data-testid": "ai-error-message" } : {})}>
@@ -387,6 +392,12 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                           <div className="ai-timeline-dot" style={{ background: "#06b6d4" }}></div>
                           <span><strong>Lộ trình:</strong> {routeAction.name}</span>
                         </div>
+                        {Number.isFinite(approachDistance) && approachDistance >= 5 && (
+                          <div className="ai-timeline-row">
+                            <div className="ai-timeline-dot" style={{ background: "#0f766e" }}></div>
+                            <span><strong>Điểm vào tuyến:</strong> đi bộ {Math.round(approachDistance)} m từ vị trí đã chọn</span>
+                          </div>
+                        )}
                       </div>
 
                       <button

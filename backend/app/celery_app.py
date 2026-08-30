@@ -21,6 +21,7 @@ celery_app = Celery(
         "app.tasks.agent_tasks",
         "app.tasks.forecast_tasks",
         "app.tasks.notification_tasks",
+        "app.tasks.daily_weather_digest_tasks",
         "app.tasks.predictive_warning_tasks",
         "app.tasks.report_tasks",
     ],
@@ -59,6 +60,10 @@ celery_app.conf.update(
                 "report_type": "weekly",
                 "timezone_name": os.getenv("REPORT_TIMEZONE", "Asia/Ho_Chi_Minh"),
             },
+        },
+        "airguard-daily-weather-digest": {
+            "task": "airguard.weather_digest.send_daily",
+            "schedule": crontab(hour=7, minute=0),
         },
     },
 )

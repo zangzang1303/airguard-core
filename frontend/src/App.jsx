@@ -84,8 +84,8 @@ export default function App() {
           </div>
         <MapContainer center={[20.9446, 105.9447]} zoom={16} scrollWheelZoom className="map">
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
           />
           {showHeatmap && stations.filter((station) => station.status === "online" && station.aqi != null).map((station) => {
             const color = getAqiColor(station.aqi, station.pm25);

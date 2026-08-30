@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
+from .audit_service import AuditService
 from .database import Database, ServiceError, dict_cursor
 
 
 class DeviceService:
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, audit_service: AuditService | None = None) -> None:
         self.db = db
+        self.audit_service = audit_service
 
     def list_devices(self) -> list[dict[str, Any]]:
         with self.db.connection() as conn:
@@ -25,7 +28,8 @@ class DeviceService:
                            intent.dispatched_at, intent.acknowledged_at,
                            intent.ack_status, intent.device_state,
                            approval.reviewed_by, approval.reviewed_at,
-                           approval.review_note
+                           approval.review_note,
+                           reviewer.full_name AS reviewer_name
                     FROM devices AS d
                     LEFT JOIN stations AS s ON s.station_id = d.station_id
                     LEFT JOIN LATERAL (
@@ -37,6 +41,8 @@ class DeviceService:
                     ) AS intent ON TRUE
                     LEFT JOIN approval_requests AS approval
                       ON approval.request_id = intent.approval_request_id
+                    LEFT JOIN users AS reviewer
+                      ON reviewer.user_id = approval.reviewed_by
                     ORDER BY d.device_id
                     """
                 )
@@ -78,12 +84,13 @@ class DeviceService:
         if row.get("command_intent_id"):
             latest_command = {
                 "command_intent_id": str(row["command_intent_id"]),
-                "approval_request_id": str(row["approval_request_id"]),
+                "approval_request_id": str(row["approval_request_id"]) if row.get("approval_request_id") else None,
                 "command_id": row.get("command_id"),
                 "action": row.get("command"),
                 "status": row.get("command_status"),
                 "ack_status": row.get("ack_status"),
                 "approved_by": row.get("reviewed_by"),
+                "approved_by_name": row.get("reviewer_name"),
                 "approved_at": row.get("reviewed_at"),
                 "review_note": row.get("review_note"),
             }
@@ -110,6 +117,137 @@ class DeviceService:
             "latest_command": latest_command,
             "source": "simulator",
         }
+
+    def create_manual_command_intent(
+        self,
+        *,
+        device_id: str,
+        station_id: str,
+        action: str,
+        actor_id: str,
+        actor_role: str,
+        idempotency_key: str,
+        duration_minutes: int | None,
+        intensity_percent: int | None,
+        correlation_id: str | None,
+    ) -> dict[str, Any]:
+        """Persist a Manager's direct simulated-device command without an approval request."""
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    SELECT command_intent_id, device_id, station_id, command,
+                           duration_minutes, intensity_percent, status, idempotency_key
+                    FROM device_command_intents
+                    WHERE idempotency_key = %s
+                    """,
+                    (idempotency_key,),
+                )
+                existing = cur.fetchone()
+                if existing:
+                    return {**dict(existing), "reused": True}
+                command_intent_id = str(uuid4())
+                cur.execute(
+                    """
+                    INSERT INTO device_command_intents (
+                        command_intent_id, approval_request_id, device_id, station_id,
+                        command, duration_minutes, intensity_percent, status, idempotency_key
+                    )
+                    VALUES (%s, NULL, %s, %s, %s, %s, %s, 'queued', %s)
+                    RETURNING command_intent_id, device_id, station_id, command,
+                              duration_minutes, intensity_percent, status, idempotency_key
+                    """,
+                    (
+                        command_intent_id,
+                        device_id,
+                        station_id,
+                        action,
+                        duration_minutes,
+                        intensity_percent,
+                        idempotency_key,
+                    ),
+                )
+                intent = dict(cur.fetchone())
+                if self.audit_service:
+                    self.audit_service.record(
+                        actor_type="user",
+                        actor_id=actor_id,
+                        actor_role=actor_role,
+                        action="device.manual_control",
+                        entity_type="device",
+                        entity_id=device_id,
+                        correlation_id=correlation_id,
+                        details={
+                            "command_intent_id": command_intent_id,
+                            "station_id": station_id,
+                            "action": action,
+                        },
+                        conn=conn,
+                    )
+                return intent
+
+    def get_manual_command_intent(
+        self,
+        *,
+        command_intent_id: str,
+        device_id: str,
+        command: str,
+    ) -> dict[str, Any] | None:
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    SELECT command_intent_id, device_id, station_id, command,
+                           duration_minutes, intensity_percent, status, idempotency_key,
+                           command_id, ack_status
+                    FROM device_command_intents
+                    WHERE command_intent_id = %s
+                      AND approval_request_id IS NULL
+                      AND device_id = %s
+                      AND command = %s
+                    """,
+                    (command_intent_id, device_id, command),
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
+
+    def record_manual_dispatch(
+        self,
+        *,
+        command_intent_id: str,
+        status: str,
+        command_id: str | None,
+        error: str | None,
+        correlation_id: str | None,
+    ) -> None:
+        with self.db.connection() as conn:
+            with dict_cursor(conn) as cur:
+                cur.execute(
+                    """
+                    UPDATE device_command_intents
+                    SET status = CASE WHEN status = 'succeeded' OR ack_status = 'succeeded' THEN status ELSE %s END,
+                        dispatched_at = CASE WHEN status = 'succeeded' OR ack_status = 'succeeded' THEN dispatched_at ELSE NOW() END,
+                        dispatch_error = CASE WHEN status = 'succeeded' OR ack_status = 'succeeded' THEN dispatch_error ELSE %s END,
+                        command_id = COALESCE(command_id, %s)
+                    WHERE command_intent_id = %s
+                    """,
+                    (status, error, command_id, command_intent_id),
+                )
+            if self.audit_service:
+                self.audit_service.record(
+                    actor_type="system",
+                    actor_role="backend",
+                    action={
+                        "publishing": "device_command.dispatch.prepare",
+                        "published": "device_command.dispatch",
+                    }.get(status, "device_command.dispatch.failure"),
+                    entity_type="device_command",
+                    entity_id=command_intent_id,
+                    correlation_id=correlation_id,
+                    outcome="success" if status in {"publishing", "published"} else "failure",
+                    details={"status": status, "error": error, "command_id": command_id},
+                    conn=conn,
+                )
 
     @staticmethod
     def _effectiveness(cur: Any, row: dict[str, Any]) -> dict[str, Any] | None:

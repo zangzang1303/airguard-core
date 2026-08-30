@@ -295,6 +295,7 @@ export interface Alert {
 export interface NotificationPreferences {
   environmental_email_enabled: boolean;
   predictive_email_enabled: boolean;
+  daily_weather_digest_enabled: boolean;
 }
 
 export interface PredictiveChecklistItem {
@@ -634,6 +635,7 @@ export interface VentilationCommandSummary {
   status: string;
   ack_status?: string | null;
   approved_by?: string | null;
+  approved_by_name?: string | null;
   approved_at?: string | null;
   review_note?: string | null;
 }

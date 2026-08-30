@@ -15,6 +15,7 @@ import { useFloatingPanelContext, useDraggableFloatingPanel } from "../floating"
 import { Crosshair, X } from "lucide-react";
 import { VentilationDeviceMarkers } from "./VentilationDeviceMarkers";
 import { DraggableTimelineDock } from "./DraggableTimelineDock";
+import { LocalBasemapFallback } from "./LocalBasemapFallback";
 
 interface SuperMapProps {
   stations: Station[];
@@ -122,7 +123,7 @@ const DraggableLegendOverlay: React.FC<{
     <div {...containerProps} className="map-legend-overlay">
       <AqiLegend
         variant={variant}
-        showStationStatus={true}
+        showStationStatus={false}
         metric={metric}
         forecastHour={forecastHour}
         dispersionData={dispersionData}
@@ -167,6 +168,9 @@ export const SuperMap: React.FC<SuperMapProps> = ({
   const [dispersionData, setDispersionData] = useState<SpatialHeatmapResponse | null>(null);
   const [dispersionLoading, setDispersionLoading] = useState(false);
   const [dispersionError, setDispersionError] = useState<string | null>(null);
+  const [basemapRevision, setBasemapRevision] = useState(0);
+  const [basemapStatus, setBasemapStatus] = useState<"loading" | "ready" | "degraded">("loading");
+  const [tileErrorCount, setTileErrorCount] = useState(0);
   const heatmapRetryRef = useRef<(() => void) | null>(null);
   const handleHeatmapDataChange = useCallback(
     (data: SpatialHeatmapResponse | null, loading: boolean, error: string | null) => {
@@ -219,11 +223,23 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           onMapClickLocation={onMapClickLocation}
         />
 
-        {/* Keep local and deployed builds on the same keyless OpenStreetMap tiles. */}
+        <LocalBasemapFallback />
+
+        {/* Use OpenStreetMap directly: CARTO can return an "API KEY REQUIRED" image
+            as a successful tile response, which would otherwise look like a map error. */}
         <TileLayer
+          key={basemapRevision}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           maxZoom={19}
+          errorTileUrl="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+          eventHandlers={{
+            tileload: () => setBasemapStatus("ready"),
+            tileerror: () => {
+              setTileErrorCount((count) => count + 1);
+              setBasemapStatus("degraded");
+            },
+          }}
         />
 
         {/* Spatial Dispersion Heatmap Canvas Layer */}
@@ -276,6 +292,22 @@ export const SuperMap: React.FC<SuperMapProps> = ({
           onLocationChange={onUserLocationChange}
         />
       </MapContainer>
+
+      {basemapStatus === "degraded" && (
+        <div className="local-basemap-notice" role="status">
+          <span>Đang dùng nền bản đồ nội bộ giản lược vì OSM không khả dụng ({tileErrorCount} ô lỗi).</span>
+          <button
+            type="button"
+            onClick={() => {
+              setTileErrorCount(0);
+              setBasemapStatus("loading");
+              setBasemapRevision((revision) => revision + 1);
+            }}
+          >
+            Thử tải lại
+          </button>
+        </div>
+      )}
 
       {/* Unified Context-Aware Map Legend Overlay */}
       {(layerConfig.showMapLegend ?? true) && (
