@@ -6,7 +6,15 @@ import { useDraggableFloatingPanel } from "../floating";
 
 const DEFAULT_VALUES = { pm25: 120, co2: 1600, noise_db: 88, temperature: 39 };
 
-export const DemoStationControl: React.FC<{ floating?: boolean }> = ({ floating = false }) => {
+interface DemoStationControlProps {
+  floating?: boolean;
+  onDataChange?: () => Promise<void> | void;
+}
+
+export const DemoStationControl: React.FC<DemoStationControlProps> = ({
+  floating = false,
+  onDataChange,
+}) => {
   const { role, selectedStationId, demoMode } = useAuth();
   const [open, setOpen] = useState(false);
   const [stationId, setStationId] = useState(selectedStationId || "S03");
@@ -54,6 +62,7 @@ export const DemoStationControl: React.FC<{ floating?: boolean }> = ({ floating 
     try {
       const result = await api.setDemoStationOverride(stationId, values);
       await refresh();
+      await onDataChange?.();
       const trigger = result.ventilation_trigger;
       if (trigger?.status === "waiting_continuity") {
         const remaining = Math.max(0, trigger.required_duration_seconds - trigger.continuous_duration_seconds);
@@ -74,6 +83,7 @@ export const DemoStationControl: React.FC<{ floating?: boolean }> = ({ floating 
     try {
       await api.clearDemoStationOverride(stationId);
       await refresh();
+      await onDataChange?.();
       setMessage(`${stationId} đã quay về mô phỏng tự động.`);
     } catch {
       setMessage("Không thể gỡ override.");

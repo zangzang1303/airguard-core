@@ -257,26 +257,31 @@ class ResponseComposer:
         request_id: str = "",
     ) -> dict[str, Any]:
         """Task 10.3: Worst location / most polluted area."""
-        time_label = time_ctx.get("label", "hiện tại")
         worst_name = worst_poi.get("short_name") or worst_poi.get("name", "Trục Đa Tốn")
         worst_aqi = int(worst_poi.get("aqi", 0))
         worst_pm25 = worst_poi.get("pm25", 0)
         worst_cat = aqi_category_vi(worst_aqi)
         worst_sensor = worst_poi.get("sensor_id", "S01")
+        worst_label = worst_name if worst_poi.get("category") == "monitoring_station" else f"{worst_name} ({worst_sensor})"
 
         best_name = (best_poi.get("short_name") or best_poi.get("name", "VinUni")) if best_poi else "VinUni"
         best_sensor = best_poi.get("sensor_id", "S04") if best_poi else "S04"
         best_aqi = int(best_poi.get("aqi", 0)) if best_poi else 48
+        best_label = (
+            best_name
+            if best_poi and best_poi.get("category") == "monitoring_station"
+            else f"{best_name} ({best_sensor})"
+        )
 
-        headline = f"⚠️ **{worst_name} ({worst_sensor}) hiện là khu vực ô nhiễm nhất trong phạm vi AirGuard đang theo dõi.**"
+        headline = f"⚠️ **{worst_label} hiện là trạm có AQI cao nhất trong phạm vi AirGuard đang theo dõi.**"
 
         highlights_text = (
             f"- **AQI:** {worst_aqi} — {worst_cat}\n"
             f"- **PM2.5:** {worst_pm25} µg/m³\n"
-            f"- **Khu vực sạch hơn:** {best_name} ({best_sensor})"
+            f"- **Trạm sạch hơn:** {best_label}"
         )
 
-        advice = f"Nếu bạn đang định đi bộ hoặc tập thể thao, nên tránh khu {worst_name} ({worst_sensor}) lúc này và ưu tiên khu vực có AQI thấp hơn như {best_name} ({best_sensor})."
+        advice = f"Nếu bạn đang định đi bộ hoặc tập thể thao, nên tránh khu vực quanh {worst_label} lúc này và ưu tiên nơi có AQI thấp hơn như {best_label}."
         map_feedback = "📍 Mình đã đánh dấu khu vực này trên bản đồ."
         data_note = "*Dữ liệu mô phỏng AirGuard AI · cập nhật vừa xong.*"
 
@@ -285,7 +290,7 @@ class ResponseComposer:
         highlights_data = [
             {"label": "AQI", "value": str(worst_aqi), "description": worst_cat},
             {"label": "PM2.5", "value": f"{worst_pm25} µg/m³"},
-            {"label": "Khu vực sạch hơn", "value": f"{best_name} ({best_sensor})", "description": f"AQI {best_aqi}"},
+            {"label": "Trạm sạch hơn", "value": best_label, "description": f"AQI {best_aqi}"},
         ]
 
         return {
@@ -314,6 +319,7 @@ class ResponseComposer:
         activity: str,
         time_ctx: dict[str, Any],
         request_id: str = "",
+        safety_eval: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Task 10.4: Best location / cleanest outdoor area."""
         best_name = best_poi.get("short_name") or best_poi.get("name", "VinUni")
@@ -321,14 +327,43 @@ class ResponseComposer:
         best_pm25 = best_poi.get("pm25", 0)
         best_cat = aqi_category_vi(best_aqi)
 
-        headline = f"🌿 **{best_name} hiện là khu vực có chất lượng không khí tốt nhất trong các điểm AirGuard đang theo dõi.**"
+        outdoor_safe = safety_eval is None or bool(safety_eval.get("safe", True))
+        if outdoor_safe:
+            headline = f"🌿 **{best_name} hiện là khu vực có chất lượng không khí tốt nhất trong các điểm AirGuard đang theo dõi.**"
+        else:
+            unsafe_subject = (
+                "chất lượng không khí"
+                if safety_eval and safety_eval.get("reason") in {"severe_air_pollution", "unhealthy_for_sensitive_groups"}
+                else "điều kiện ngoài trời"
+            )
+            headline = (
+                f"📊 **{best_name} hiện có AQI thấp nhất trong các điểm AirGuard đang theo dõi, "
+                f"nhưng {unsafe_subject} vẫn chưa phù hợp cho hoạt động ngoài trời.**"
+            )
 
         highlights_text = (
             f"- **AQI:** {best_aqi} — {best_cat}\n"
             f"- **PM2.5:** {best_pm25} µg/m³"
         )
 
-        advice = "Đây là lựa chọn phù hợp hơn nếu bạn muốn đi bộ hoặc tập thể thao ngoài trời lúc này."
+        if outdoor_safe:
+            advice = "Đây là lựa chọn phù hợp hơn nếu bạn muốn đi bộ hoặc tập thể thao ngoài trời lúc này."
+            follow_up_actions = [
+                f"🏃 Tuyến chạy tại {best_name}",
+                "📍 Xem trên bản đồ",
+                "⏱️ Dự báo 1-3 giờ",
+            ]
+        else:
+            warning = str(safety_eval.get("warning", "")).strip() if safety_eval else ""
+            advice = (
+                "Đây chỉ là lựa chọn tốt hơn tương đối trong phạm vi theo dõi, không đồng nghĩa không khí đang an toàn. "
+                f"{warning}"
+            ).strip()
+            follow_up_actions = [
+                "🏠 Tìm hoạt động trong nhà",
+                "📍 Xem trên bản đồ",
+                "⏱️ Dự báo 1-3 giờ",
+            ]
         map_feedback = f"📍 Mình đã đánh dấu {best_name} trên bản đồ."
         data_note = "*Dữ liệu mô phỏng AirGuard AI · cập nhật vừa xong.*"
 
@@ -351,11 +386,7 @@ class ResponseComposer:
             },
             "response": summary,
             "intent": "recommend_outdoor_location",
-            "follow_up_actions": [
-                f"🏃 Tuyến chạy tại {best_name}",
-                "📍 Xem trên bản đồ",
-                "⏱️ Dự báo 1-3 giờ",
-            ],
+            "follow_up_actions": follow_up_actions,
         }
 
     @staticmethod

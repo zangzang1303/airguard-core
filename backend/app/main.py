@@ -1506,6 +1506,7 @@ async def agent_chat(
             "get_noise_metric",
             "get_temperature_metric",
             "find_worst_location",
+            "find_best_station",
             "compare_locations",
             "recommend_running_route",
             "recommend_personalized_running_route",

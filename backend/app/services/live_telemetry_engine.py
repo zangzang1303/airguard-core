@@ -278,10 +278,30 @@ class LiveTelemetryEngine:
         }
 
     def apply_demo_override(self, station: dict[str, Any]) -> dict[str, Any]:
-        override = self._demo_overrides.get(str(station.get("station_id")))
+        station_id = str(station.get("station_id"))
+        override = self._demo_overrides.get(station_id)
         if not override:
             return self._apply_ventilation_feedback(dict(station), datetime.now(UTC))
-        updated = {**station, **override, "demo_override": True, "demo_override_note": "Demo operator override; automatic simulator remains running."}
+        # A manager override is the newest demo snapshot for this station.  Do
+        # not inherit stale/offline metadata from the DB row it overlays, or
+        # the Agent quality gate will correctly reject the newly entered data.
+        started_at = self._demo_override_started_at.get(station_id) or datetime.now(UTC)
+        observed_at = started_at.isoformat()
+        updated = {
+            **station,
+            **override,
+            "status": "online",
+            "is_stale": False,
+            "freshness": "fresh",
+            "quality_flag": "valid",
+            "source": "simulator",
+            "updated_at": observed_at,
+            "measured_at": observed_at,
+            "last_seen_at": observed_at,
+            "demo_override": True,
+            "demo_override_started_at": observed_at,
+            "demo_override_note": "Demo operator override; automatic simulator remains running.",
+        }
         updated["aqi"] = pm25_aqi(float(updated["pm25"]))
         updated["aqi_category"] = aqi_category(updated["aqi"])
         updated["level"] = pm25_level(float(updated["pm25"]))

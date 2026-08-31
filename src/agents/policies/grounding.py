@@ -384,6 +384,34 @@ def route_query(
     for station_id in entity_stations:
         if station_id not in stations:
             stations.append(station_id)
+
+    # A station-level superlative is area-wide by definition. Resolve it before
+    # applying the currently selected map station, otherwise UI context turns
+    # "Trạm nào trong lành nhất?" into a single-station question.
+    is_best_station_query = _contains_any(
+        plain,
+        (
+            "tram nao trong lanh nhat",
+            "tram trong lanh nhat",
+            "tram nao sach nhat",
+            "tram sach nhat",
+            "tram nao co aqi thap nhat",
+            "tram co aqi thap nhat",
+            "tram nao khong khi tot nhat",
+            "tram co chat luong khong khi tot nhat",
+            "cleanest station",
+            "station with the lowest aqi",
+        ),
+    ) and not _contains_any(plain, ("chay", "chay bo", "cung duong", "lo trinh", "tuyen", "duong"))
+    if is_best_station_query:
+        comparison_stations = stations if len(stations) >= 2 else ["S01", "S02", "S03", "S04", "S05"]
+        return RouteDecision(
+            intent=Intent.COMPARE,
+            tool_calls=[ToolName.COMPARE_STATIONS],
+            tool_arguments=[{"station_ids": comparison_stations}],
+            comparison_mode="lowest_aqi",
+        )
+
     normalized_context = (context_station_id or "").upper()
     is_ocean_park_area_query = _contains_any(plain, ("ocean park", "oceanpark", "ocp1", "ocp 1"))
     if (

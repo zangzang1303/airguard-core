@@ -209,6 +209,7 @@ class ConversationalAgentService:
         "dai hon",
         "sach hon",
         "sach nhat",
+        "trong lanh",
         "tot nhat",
         "o nhiem nhat",
         "xau nhat",

@@ -32,8 +32,8 @@ SPATIAL_LOCATIONS: dict[str, SpatialLocation] = {
     "coral_park": SpatialLocation(
         "coral_park",
         "Công viên San Hô",
-        20.9935,
-        105.9405,
+        20.9978,
+        105.9420,
         "park",
     ),
     "salt_lake": SpatialLocation(
