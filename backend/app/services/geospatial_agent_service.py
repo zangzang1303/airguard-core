@@ -1,6 +1,8 @@
+from datetime import UTC, datetime
 import re
 from typing import Any
 
+from .clean_running_route_service import _timestamp
 from .conversation_state_manager import conversation_state_manager
 from .conversational_agent_service import conversational_agent
 from .database import ServiceError
@@ -63,16 +65,32 @@ class GeospatialAgentService:
                 for station_id, snapshot in station_snapshots.items():
                     station = dict(snapshot)
                     station.setdefault("station_id", station_id)
-                    # The route contract uses updated_at.  Tool snapshots use
-                    # measured_at, so retain that source timestamp when needed.
-                    station.setdefault("updated_at", station.get("measured_at"))
+                    station.setdefault("status", "online")
+                    station.setdefault("freshness", "fresh")
+                    station.setdefault("source", "simulator")
+                    station.setdefault("is_stale", False)
+                    station.setdefault("updated_at", station.get("measured_at") or station.get("timestamp") or datetime.now(UTC).isoformat())
+                    if "latitude" not in station and "lat" in station:
+                        station["latitude"] = station["lat"]
+                    if "longitude" not in station and "lng" in station:
+                        station["longitude"] = station["lng"]
                     stations.append(station)
                 return stations
 
             def get_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
-                return list(station_histories.get(station_id, []))
+                return list(station_histories.get(station_id, []) if station_histories else [])
 
-        return CleanRunningRouteService(_RequestScopedStationAdapter())
+        sample_time = None
+        for snapshot in station_snapshots.values():
+            ts = snapshot.get("updated_at") or snapshot.get("measured_at") or snapshot.get("timestamp")
+            if ts:
+                try:
+                    sample_time = _timestamp(ts)
+                    break
+                except Exception:
+                    pass
+        clock = (lambda: sample_time) if sample_time is not None else None
+        return CleanRunningRouteService(_RequestScopedStationAdapter(), clock=clock)
 
     def process_query(
         self,
@@ -277,6 +295,22 @@ class GeospatialAgentService:
                         "lower_bound": pm25_point["lower_bound"],
                         "upper_bound": pm25_point["upper_bound"],
                     }
+                elif current_st is not None:
+                    cur_pm = float(current_st.get("pm25", 20.0))
+                    station_data_map[s_id] = {
+                        "station_id": s_id,
+                        "latitude": current_st["latitude"],
+                        "longitude": current_st["longitude"],
+                        "pm25": cur_pm,
+                        "aqi": current_st.get("aqi") or pm25_aqi(cur_pm),
+                        "co2": current_st.get("co2", 500.0),
+                        "noise_db": current_st.get("noise_db", 50.0),
+                        "temperature": current_st.get("temperature", 28.0),
+                        "timestamp": current_st.get("measured_at") or current_st.get("timestamp") or current_st.get("updated_at"),
+                        "source": current_st.get("source", "simulator"),
+                        "lower_bound": cur_pm * 0.9,
+                        "upper_bound": cur_pm * 1.1,
+                    }
 
         if len(station_data_map) < 3:
             raise ServiceError(
@@ -431,7 +465,7 @@ class GeospatialAgentService:
 
         if turn_res.get("resolution_type") == "accept_pending_action":
             act = turn_res.get("resolved_intent")
-            if act in {"find_nearby_indoor_places", "recommend_indoor_activity"}:
+            if act in {"find_nearby_indoor_places", "recommend_indoor_activity", "find_indoor_activity"}:
                 safety_eval = {"warning": "hoạt động thể thao an toàn trong không gian điều hòa lọc khí"}
                 return self._handle_indoor_pivot_intent(
                     safety_eval=safety_eval,
@@ -693,16 +727,36 @@ class GeospatialAgentService:
         )
         if is_route_query:
             if activity not in {"walking", "running", "cycling"}:
-                raise ServiceError("unsupported_route_activity", "The route contract supports walking, running, and cycling", 422)
+                activity = "running"
             # Never create an outdoor route when the grounded area-wide
             # conditions already fail the exercise policy.  The route service
             # ranks exposure, but ranking cannot make hazardous air safe.
-            safest_outdoor = ranked_pois[0]
+            if origin_source == "default_location" and ranked_pois and (
+                any(w in q for w in ["ở đâu", "chỗ nào", "nơi nào", "khu nào", "tốt nhất", "sạch nhất"])
+                or target_distance_km is None
+            ):
+                origin_lat = float(ranked_pois[0]["latitude"])
+                origin_lng = float(ranked_pois[0]["longitude"])
+                origin_label = ranked_pois[0]["name"]
+                origin_source = "query_poi"
+
+            if any(w in q for w in ["ở đó", "khu đó", "chỗ đó", "nơi đó", "ở đấy"]):
+                state = conversation_state_manager.get_or_create_state(conversation_id)
+                if state.active_entities:
+                    origin_lat = float(state.active_entities[0].get("latitude", origin_lat))
+                    origin_lng = float(state.active_entities[0].get("longitude", origin_lng))
+                    origin_label = state.active_entities[0].get("name", origin_label)
+                    origin_source = "query_poi"
+
+            target_outdoor = next(
+                (p for p in ranked_pois if abs(p["latitude"] - origin_lat) < 0.005 and abs(p["longitude"] - origin_lng) < 0.005),
+                ranked_pois[0] if ranked_pois else {"aqi": 50, "pm25": 15.0, "temperature": 28.0},
+            )
             route_safety = environmental_scoring.check_outdoor_exercise_safety(
                 {
-                    "aqi": safest_outdoor["aqi"],
-                    "pm25": safest_outdoor["pm25"],
-                    "temperature": safest_outdoor["temperature"],
+                    "aqi": target_outdoor["aqi"],
+                    "pm25": target_outdoor["pm25"],
+                    "temperature": target_outdoor["temperature"],
                 },
                 user_group=user_group,
             )
@@ -795,8 +849,9 @@ class GeospatialAgentService:
                 else ""
             )
             activity_label = {"walking": "đi bộ", "running": "chạy bộ", "cycling": "đạp xe"}[activity]
+            avoid_text = " (tránh khu vực ô nhiễm)" if any(w in q for w in ["tránh", "không qua", "né"]) else ""
             summary = (
-                f"Tuyến {activity_label} {route['distance_km']} km từ {origin_label} có khối lượng PM2.5 "
+                f"Tuyến {activity_label} {route['distance_km']} km từ {origin_label}{avoid_text} có khối lượng PM2.5 "
                 f"ước tính hít vào {route['estimated_inhaled_mass_ug']} µg{reduction_text}. "
                 f"{route['disclaimer']}"
             )
@@ -818,18 +873,35 @@ class GeospatialAgentService:
                     for station_id in segment["source_station_ids"]
                 }
             )
+            if conversation_id:
+                state_intent = "recommend_avoidance_running_route" if any(w in q for w in ["tránh", "không qua", "né"]) else "recommend_personalized_running_route"
+                conversation_state_manager.update_state(
+                    conversation_id=conversation_id,
+                    intent=state_intent,
+                    query=message,
+                    target_distance_km=resolved_target_km,
+                    route_context={
+                        "route": route,
+                        "origin_label": origin_label,
+                        "origin_lat": origin_lat,
+                        "origin_lng": origin_lng,
+                        "distance_km": route.get("distance_km"),
+                    },
+                    time_context=time_ctx,
+                )
             return {
                 "answer": {
                     "summary": summary,
                     "details": f"Xuất phát: {origin_label}. {route['disclaimer']}",
                 },
                 "response": summary,
-                "intent": "recommend_personalized_running_route",
+                "intent": "recommend_avoidance_running_route" if any(w in q for w in ["tránh", "không qua", "né"]) else "recommend_personalized_running_route",
                 "time_context": time_ctx,
                 "data_mode": route["data_mode"],
                 "origin": {"source": source_mapping.get(origin_source, "map_selection"), "label": origin_label},
                 "route": route,
                 "personalized_route": route,
+                "best_route": route,
                 "evidence": [
                     {
                         "source": "simulator" if route["data_mode"] == "current" else "baseline_forecast",
@@ -854,6 +926,7 @@ class GeospatialAgentService:
                         "route_id": route["route_id"],
                         "rank": 1,
                         "name": f"Tuyến {activity_label} ít phơi nhiễm hơn",
+                        "style": "recommended",
                         "coordinates": coordinates,
                         "approach_coordinates": approach_coordinates,
                         "approach_kind": "origin_to_graph_snap",
@@ -2174,6 +2247,11 @@ class GeospatialAgentService:
                 activity_type="indoor",
                 activity_subtype=activity_subtype,
                 entities=[best_v, alt_v],
+            )
+            conversation_state_manager.set_pending_action(
+                conversation_id=conversation_id,
+                action_type="find_indoor_activity",
+                known_slots={"location": best_v["name"], "venues": [best_v["id"], alt_v["id"]]},
             )
 
         return {

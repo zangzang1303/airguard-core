@@ -197,6 +197,7 @@ class CleanRunningRouteService:
                 "target_requested_km": target_distance_km,
                 "distance_constraint_satisfied": True,
                 "planning_method": "grounded_packaged_graph_candidate_ranking",
+                "laps": selected.get("laps", 0),
                 "data_mode": data_mode,
                 "graph": {
                     "graph_id": metadata["graph_id"],
@@ -533,7 +534,7 @@ class CleanRunningRouteService:
             "distance_km": float(distance_km_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             "duration_minutes": float(rounded_duration),
             "pace_minutes_per_km": float(pace_minutes_per_km),
-            "coordinates": [[round(point[0], 6), round(point[1], 6)] for point in coordinates],
+            "coordinates": [[float(point[0]), float(point[1])] for point in coordinates],
             "segments": segments,
             "estimated_inhaled_mass_ug": float(rounded_total_mass),
             "_mass_raw": total_mass,

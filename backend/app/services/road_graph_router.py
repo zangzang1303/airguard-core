@@ -894,14 +894,42 @@ class RoadGraphRouter:
         return {
             "node_id": node_id,
             "snap_distance_m": round(dist_m, 1),
-            "snapped_coordinate": [round(float(node_data["lat"]), 6), round(float(node_data["lng"]), 6)],
-            "road_snap_coordinate": [round(road_snap_coordinate[0], 6), round(road_snap_coordinate[1], 6)],
-            "access_coordinates": [[round(point[0], 6), round(point[1], 6)] for point in access_coordinates],
+            "snapped_coordinate": [float(node_data["lat"]), float(node_data["lng"])],
+            "road_snap_coordinate": [float(road_snap_coordinate[0]), float(road_snap_coordinate[1])],
+            "access_coordinates": [[float(point[0]), float(point[1])] for point in access_coordinates],
             "input_coordinate": [lat, lng],
             "is_valid": dist_m <= max_snap_m,
             "max_allowed_snap_m": max_snap_m,
             "node_name": node_data["name"],
         }
+
+    @classmethod
+    def get_edge_road_hierarchy_multiplier(cls, edge: dict[str, Any]) -> float:
+        """
+        Road hierarchy multiplier to prioritize main boulevards and prominent pedestrian
+        promenades over narrow service alleys, parking aisles, or steps.
+        """
+        hw = str(edge.get("highway") or edge.get("road_type") or "unknown").lower()
+        name = str(edge.get("name") or "").lower()
+        
+        # Primary arterial boulevards and famous running promenades
+        is_main_named = any(k in name for k in [
+            "đại dương", "đại tây dương", "biển hồ", "hải đăng", "sao biển", 
+            "hải âu", "san hô", "ngọc trai", "cá voi", "walking street", "vinuni", "vinschool"
+        ])
+        if is_main_named:
+            return 0.70
+        if hw in {"pedestrian", "cycleway"}:
+            return 0.75
+        if hw in {"secondary", "tertiary", "secondary_link", "tertiary_link"}:
+            return 0.80
+        if hw == "residential":
+            return 1.0
+        if hw == "footway":
+            return 1.15
+        if hw in {"service", "steps", "track", "unclassified"}:
+            return 4.5
+        return 1.8
 
     @classmethod
     def interpolate_pm25_at_point(
@@ -956,8 +984,13 @@ class RoadGraphRouter:
                 else None
             )
 
-            # Environmental cost weight: Distance * (1 + beta * PM2.5 / 50.0)
-            cost = dist_m if pm25 is None else dist_m * (1.0 + (environmental_weight * (pm25 / 50.0)))
+            # Road hierarchy multiplier & Environmental cost weight
+            road_mult = cls.get_edge_road_hierarchy_multiplier(edge)
+            cost = (
+                dist_m * road_mult
+                if pm25 is None
+                else dist_m * road_mult * (1.0 + (environmental_weight * (pm25 / 50.0)))
+            )
 
             # Bidirectional road edges
             adj[u].append({
@@ -1202,7 +1235,7 @@ class RoadGraphRouter:
                     "surface": "openstreetmap_snapshot",
                     "traffic_conflict": "Theo thuộc tính đường OSM đã lưu",
                     "lighting_rating": "Không có dữ liệu xác minh",
-                    "highlights": "Tuyến chỉ sử dụng các đoạn đường đi bộ trong snapshot Ocean Park 1 đã kiểm tra checksum.",
+                    "highlights": "Tuyến bám theo các trục đường chính và đường dạo trong snapshot Ocean Park 1.",
                     "start_point": {
                         "name": origin_label or start_name,
                         "lat": origin_lat,
