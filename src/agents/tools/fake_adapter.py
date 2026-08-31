@@ -429,8 +429,8 @@ class FakeBackendToolClient:
                 ],
                 "grid_points": [
                     {
-                        "lat": 20.9935,
-                        "lon": 105.9405,
+                        "lat": 20.9978,
+                        "lon": 105.9420,
                         "value": 68.0,
                         "intensity": 0.272,
                         "level": "moderate",

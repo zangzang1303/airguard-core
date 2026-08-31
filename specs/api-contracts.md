@@ -25,6 +25,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | GET `/demo/station-overrides` | active demo-only station overrides; manager/admin session required | 200 | 401/403 |
 | PUT `/demo/stations/{id}/override` | set demo-only PM2.5, CO₂, noise and temperature values; manager/admin session required; the backend timestamps the override so the configured continuity gate can evaluate it without rewriting measurement history. The simulator ticker re-evaluates active overrides every 10 seconds and, after `VENTILATION_TRIGGER_SECONDS`, creates only a pending HITL proposal when the PM2.5/CO₂ policy qualifies. The 200 response includes `ventilation_trigger.required_duration_seconds`, `continuous_duration_seconds` and `status` (`waiting_continuity` or `eligible`). | 200 | 401/403/404/422 |
 | DELETE `/demo/stations/{id}/override` | remove a demo override and return to automatic simulation; manager/admin session required | 200 | 401/403 |
+
 | GET `/stations/{id}/history?hours=1..72` | ordered valid history | 200 | 404/422/503 |
 | POST `/stations/compare` | compare current fresh values for 1..5 stations | 200 | 404/422/503 |
 | POST `/internal/ingestion/measurements` | internal validated measurement ingestion | 202 | 404/422/503 |
@@ -69,6 +70,11 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 | POST `/predictive-warnings/evaluate` | Manager dry-run/evaluation; CSRF required and dry-run defaults true | 200 | 401/403/422/503 |
 | GET `/predictive-warnings/{episode_id}` | authenticated public episode facts plus the session user's checklist | 200 | 401/404/503 |
 | PUT `/predictive-warnings/{episode_id}/checklist/{item_key}` | resident updates one allow-listed checklist item; CSRF required | 200 | 401/403/404/422/503 |
+
+An active manager demo override is timestamped by the backend as the station's fresh, valid,
+online current demo snapshot. `/stations`, `/stations/{id}/current`, dashboard refresh and Agent
+queries therefore use it immediately. It remains labeled `source=simulator` and does not rewrite
+measurement history; removing it restores the automatic simulator snapshot.
 
 ## Personalized exposure and route contract (`b7-personalized-alerts-v1`)
 
@@ -387,6 +393,11 @@ The geospatial response path receives fresh station snapshots and forecast histo
 backend request scope. It must return structured `503` when grounded inputs are unavailable and
 must not synthesize AQI, PM2.5, CO₂, noise, temperature, timestamp or a default user profile in an
 exception handler.
+
+An area-wide cleanest/best-air superlative is a bounded comparison of the physical S01-S05 station
+snapshots. Its answer, evidence and final map action identify the same winning station and canonical
+station coordinates. A POI that reuses a station snapshot for an explicit location inquiry must not
+replace that station in the superlative result.
 
 For a grounded running-route response, the `highlight_route` map action contains the audited road-graph
 `coordinates` for the running route. When the selected origin is snapped to the graph, it also contains

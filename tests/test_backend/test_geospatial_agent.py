@@ -82,6 +82,208 @@ def test_environmental_scoring_weights():
     assert bad_res["tier"] in {"caution", "avoid"}
 
 
+def test_cleanest_station_answer_and_map_target_the_same_physical_station():
+    agent = demo_agent()
+    for station_id in ["S01", "S02", "S03", "S04", "S05"]:
+        pm25 = 5.0 if station_id == "S01" else 45.0
+        live_engine.update_station(
+            station_id,
+            {
+                "pm25": pm25,
+                "aqi": int(pm25 * 2.2),
+                "co2": 500.0,
+                "noise_db": 45.0,
+                "temperature": 27.0,
+            },
+        )
+
+    result = agent.process_query(
+        "Trạm nào trong lành nhất?",
+        station_id="S04",
+        map_context={"selected_sensor": "S04"},
+        conversation_id="cleanest-station-regression",
+    )
+
+    assert result["intent"] == "find_best_station"
+    assert result["target_station"] == "S01"
+    assert "S01" in result["answer"]["summary"]
+    assert result["evidence"][0]["station_id"] == "S01"
+
+    station = agent._station_target("S01", {"S01": live_engine.get_latest("S01")})
+    station_actions = [
+        action
+        for action in result["map_actions"]
+        if action["type"] in {"highlight_sensor", "add_annotation", "fly_to"}
+    ]
+    assert station_actions
+    assert all(action["lat"] == station["latitude"] for action in station_actions)
+    assert all(action["lng"] == station["longitude"] for action in station_actions)
+
+
+def test_cleanest_area_targets_the_winning_physical_station_not_a_proxy_poi():
+    agent = demo_agent()
+    for station_id in ["S01", "S02", "S03", "S04", "S05"]:
+        pm25 = 5.0 if station_id == "S01" else 45.0
+        live_engine.update_station(
+            station_id,
+            {
+                "pm25": pm25,
+                "aqi": 21 if station_id == "S01" else 124,
+                "co2": 500.0,
+                "noise_db": 45.0,
+                "temperature": 27.0,
+            },
+        )
+
+    result = agent.process_query(
+        "Khu nào trong lành nhất hiện tại?",
+        station_id="S04",
+        map_context={"selected_sensor": "S04"},
+        conversation_id="cleanest-area-coordinate-regression",
+    )
+
+    assert result["intent"] == "recommend_outdoor_location"
+    assert result["target_station"] == "S01"
+    assert "Trạm S01" in result["answer"]["summary"]
+    assert "Trục Đa Tốn phía Tây Bắc" in result["answer"]["summary"]
+    assert "Công viên San Hô" not in result["answer"]["summary"]
+    recommended = next(
+        action
+        for action in result["map_actions"]
+        if action["type"] == "highlight_sensor"
+    )
+    navigation = result["map_actions"][-1]
+    assert navigation["type"] == "fly_to"
+    assert navigation["target_id"] == "station-S01"
+    assert navigation["lat"] == recommended["lat"] == pytest.approx(21.0008)
+    assert navigation["lng"] == recommended["lng"] == pytest.approx(105.9428)
+
+
+def test_worst_station_answer_and_map_use_the_same_physical_station_coordinates():
+    agent = demo_agent()
+    for station_id in ["S01", "S02", "S03", "S04", "S05"]:
+        pm25 = 115.0 if station_id == "S01" else 25.0
+        live_engine.update_station(
+            station_id,
+            {
+                "pm25": pm25,
+                "aqi": 195 if station_id == "S01" else 70,
+                "co2": 500.0,
+                "noise_db": 50.0,
+                "temperature": 28.0,
+            },
+        )
+
+    result = agent.process_query(
+        "Khu nào đang ô nhiễm nhất?",
+        station_id="S02",
+        map_context={"selected_sensor": "S02"},
+        conversation_id="worst-station-coordinate-regression",
+    )
+
+    assert result["target_station"] == "S01"
+    assert "Trạm S01" in result["answer"]["summary"]
+    assert "Công viên San Hô" not in result["answer"]["summary"]
+    assert result["evidence"][0]["station_id"] == "S01"
+    target_actions = [
+        action
+        for action in result["map_actions"]
+        if action["type"] in {"highlight_sensor", "highlight_area", "add_annotation", "fly_to"}
+    ]
+    assert target_actions
+    assert all(action["lat"] == pytest.approx(21.0008) for action in target_actions)
+    assert all(action["lng"] == pytest.approx(105.9428) for action in target_actions)
+
+
+def test_repeated_cleanest_area_query_reranks_fresh_data_after_demo_reset():
+    agent = demo_agent()
+    conversation_id = "cleanest-area-after-demo-reset"
+    for station_id in ["S01", "S02", "S03", "S04", "S05"]:
+        pm25 = 5.0 if station_id == "S01" else (15.0 if station_id == "S04" else 35.0)
+        live_engine.update_station(
+            station_id,
+            {
+                "pm25": pm25,
+                "aqi": 21 if station_id == "S01" else (42 if station_id == "S04" else 99),
+                "co2": 500.0,
+                "noise_db": 45.0,
+                "temperature": 27.0,
+            },
+        )
+
+    first = agent.process_query("Khu nào không khí tốt nhất?", conversation_id=conversation_id)
+    assert "Trạm S01" in first["answer"]["summary"]
+    assert "Trục Đa Tốn phía Tây Bắc" in first["answer"]["summary"]
+    assert "Công viên San Hô" not in first["answer"]["summary"]
+    assert first["evidence"][0]["station_id"] == "S01"
+    assert first["evidence"][0]["value"] == 21
+
+    for station_id in ["S01", "S02", "S03", "S04", "S05"]:
+        pm25 = 60.0 if station_id == "S01" else (10.0 if station_id == "S04" else 35.0)
+        live_engine.update_station(
+            station_id,
+            {
+                "pm25": pm25,
+                "aqi": 154 if station_id == "S01" else (35 if station_id == "S04" else 99),
+                "co2": 500.0,
+                "noise_db": 45.0,
+                "temperature": 27.0,
+            },
+        )
+
+    second = agent.process_query("Khu nào không khí tốt nhất?", conversation_id=conversation_id)
+    assert second["intent"] == "recommend_outdoor_location"
+    assert "Trạm S04" in second["answer"]["summary"]
+    assert "Khuôn viên VinUni" in second["answer"]["summary"]
+    assert second["evidence"][0]["station_id"] == "S04"
+    assert second["evidence"][0]["value"] == 35
+    assert "Công viên San Hô" not in second["answer"]["summary"]
+
+
+def test_cleanest_area_s01_uses_station_coordinates_and_keeps_heat_warning():
+    agent = demo_agent()
+    for station_id in ["S01", "S02", "S03", "S04", "S05"]:
+        is_best = station_id == "S01"
+        live_engine.update_station(
+            station_id,
+            {
+                "pm25": 1.0 if is_best else 30.0,
+                "aqi": 4 if is_best else 89,
+                "co2": 350.0 if is_best else 700.0,
+                "noise_db": 71.0 if is_best else 55.0,
+                "temperature": 39.0 if is_best else 28.0,
+            },
+        )
+
+    result = agent.process_query(
+        "Khu nào không khí tốt nhất?",
+        conversation_id="cleanest-area-unsafe-air-regression",
+    )
+
+    assert result["intent"] == "recommend_outdoor_location"
+    assert result["target_station"] == "S01"
+    assert "Trạm S01" in result["answer"]["summary"]
+    assert "Trục Đa Tốn phía Tây Bắc" in result["answer"]["summary"]
+    assert "Công viên San Hô" not in result["answer"]["summary"]
+    assert "AQI thấp nhất" in result["answer"]["summary"]
+    assert "chưa phù hợp cho hoạt động ngoài trời" in result["answer"]["summary"]
+    assert "39.0°C" in result["answer"]["summary"]
+    assert result["evidence"][0]["station_id"] == "S01"
+    assert result["evidence"][0]["value"] == 4
+    assert "Tìm hoạt động trong nhà" in result["follow_up_actions"][0]
+    recommended = next(
+        action
+        for action in result["map_actions"]
+        if action["type"] == "highlight_sensor"
+    )
+    navigation = result["map_actions"][-1]
+    assert recommended["severity"] == "caution"
+    assert navigation["type"] == "fly_to"
+    assert navigation["target_id"] == "station-S01"
+    assert navigation["lat"] == recommended["lat"] == pytest.approx(21.0008)
+    assert navigation["lng"] == recommended["lng"] == pytest.approx(105.9428)
+
+
 def test_dynamic_ranking_not_hardcoded():
     """
     CRITICAL PROOF TEST:

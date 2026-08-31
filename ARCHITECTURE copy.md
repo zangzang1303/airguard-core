@@ -1,4 +1,4 @@
-# Kiến trúc Hệ thống AirGuard AI (System Architecture - Gate 2 Deliverable)
+# Kiến trúc Hệ thống AirGuard AI (System Architecture)
 
 > **Tài liệu Kiến trúc Chuẩn hóa** — Mô tả chi tiết cấu trúc hệ thống, phân tầng kiến trúc, luồng dữ liệu thời gian thực, cơ chế AI Agent Grounding, quy trình Human-in-the-Loop (HITL) và mô hình triển khai hạ tầng của AirGuard AI.
 
@@ -18,7 +18,7 @@ Hệ thống hoạt động theo nguyên tắc:
 
 ## 2. Sơ đồ kiến trúc tổng thể (High-Level Architecture Diagram)
 
-![Sơ đồ kiến trúc tổng thể](<../../image/Sơ đồ kiến thức tổng thể.png>)
+![Sơ đồ kiến trúc tổng thể](<image/Sơ đồ kiến thức tổng thể.png>)
 
 ```mermaid
 graph TB
@@ -128,7 +128,7 @@ graph TB
 
 ## 3. Kiến trúc phân tầng 5 lớp (5-Tier Layered Architecture)
 
-![Kiến trúc phân tầng 5 lớp](<../../image/Kiến trúc phân tầng 5 lớp.png>)
+![Kiến trúc phân tầng 5 lớp](<image/Kiến trúc phân tầng 5 lớp.png>)
 
 ```mermaid
 graph TD
@@ -170,7 +170,7 @@ graph TD
     end
     class L4,DB1,DB2 l4;
 
-    subgraph L5["TẦNG 5: THIẾT BI VẬT LÝ & MÔ PHỎNG (IOT & SIMULATION TIER)"]
+    subgraph L5["TẦNG 5: THIẾT BỊ VẬT LÝ & MÔ PHỎNG (IOT & SIMULATION TIER)"]
         IOT1["Sensor Simulator (S01..S05 Telemetry Generator)"]
         IOT2["Device Simulator (Ventilation/Purifier Actuators)"]
     end
@@ -191,7 +191,7 @@ graph TD
 
 ### 4.1. Luồng thu thập dữ liệu & Kiểm soát chất lượng (Ingestion & Quality Gates)
 
-![Luồng thu thập dữ liệu và Kiểm soát chất lượng](<../../image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png>)
+![Luồng thu thập dữ liệu và Kiểm soát chất lượng](<image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png>)
 
 ```mermaid
 sequenceDiagram
@@ -234,7 +234,7 @@ sequenceDiagram
 
 ### 4.2. Luồng hội thoại của AI Agent & Grounding Policy Gate
 
-![Luồng hội thoại của AI Agent & Grounding Policy Gate](<../../image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png>)
+![Luồng hội thoại của AI Agent & Grounding Policy Gate](<image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png>)
 
 ```mermaid
 sequenceDiagram
@@ -286,7 +286,7 @@ sequenceDiagram
 
 ### 4.3. Luồng Cảnh báo Tự động & Phê duyệt Human-in-the-Loop (HITL)
 
-![Luồng cảnh báo tự động & HITL](<../../image/Luồng cảnh báo tự động & HITL.png>)
+![Luồng cảnh báo tự động & HITL](<image/Luồng cảnh báo tự động & HITL.png>)
 
 ```mermaid
 sequenceDiagram
@@ -340,7 +340,7 @@ sequenceDiagram
 
 ## 5. Kiến trúc Thuật toán Tìm đường chạy sạch (Clean Running Route Engine)
 
-![Kiến trúc thuật toán tìm đường chạy sạch](<../../image/Kiến trúc thuật toán tìm đường chạy sạch.png>)
+![Kiến trúc thuật toán tìm đường chạy sạch](<image/Kiến trúc thuật toán tìm đường chạy sạch.png>)
 
 ```mermaid
 graph TD
@@ -379,8 +379,6 @@ graph TD
 ---
 
 ## 7. Sơ đồ Triển khai Hạ tầng (Deployment & Infrastructure Topology)
-
-![Sơ đồ triển khai hạ tầng](<../../image/Sơ đồ triển khai hạ tầng.png>)
 
 Hệ thống được đóng gói hoàn toàn dưới dạng **Docker Containers** và triển khai trên máy chủ đám mây **Azure Cloud VM** (Ubuntu Linux):
 
@@ -429,10 +427,9 @@ graph TB
 
 ## 8. Danh mục Hình ảnh Kiến trúc (Published Architecture Diagrams)
 
-- **Hình 1**: [Sơ đồ kiến trúc tổng thể](<../../image/Sơ đồ kiến thức tổng thể.png>)
-- **Hình 2**: [Kiến trúc phân tầng 5 lớp](<../../image/Kiến trúc phân tầng 5 lớp.png>)
-- **Hình 3**: [Luồng thu thập dữ liệu và Kiểm soát chất lượng](<../../image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png>)
-- **Hình 4**: [Luồng hội thoại của AI Agent & Grounding Policy Gate](<../../image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png>)
-- **Hình 5**: [Luồng cảnh báo tự động & HITL](<../../image/Luồng cảnh báo tự động & HITL.png>)
-- **Hình 6**: [Kiến trúc thuật toán tìm đường chạy sạch](<../../image/Kiến trúc thuật toán tìm đường chạy sạch.png>)
-- **Hình 7**: [Sơ đồ triển khai hạ tầng](<../../image/Sơ đồ triển khai hạ tầng.png>)
+- **Hình 1**: [Sơ đồ kiến trúc tổng thể](<image/Sơ đồ kiến thức tổng thể.png>)
+- **Hình 2**: [Kiến trúc phân tầng 5 lớp](<image/Kiến trúc phân tầng 5 lớp.png>)
+- **Hình 3**: [Luồng thu thập dữ liệu và Kiểm soát chất lượng](<image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png>)
+- **Hình 4**: [Luồng hội thoại của AI Agent & Grounding Policy Gate](<image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png>)
+- **Hình 5**: [Luồng cảnh báo tự động & HITL](<image/Luồng cảnh báo tự động & HITL.png>)
+- **Hình 6**: [Kiến trúc thuật toán tìm đường chạy sạch](<image/Kiến trúc thuật toán tìm đường chạy sạch.png>)
