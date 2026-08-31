@@ -29,6 +29,19 @@ class GeospatialAgentService:
         clean_route_service: Any | None = None,
     ) -> None:
         self.telemetry_engine = telemetry_engine
+        if clean_route_service is None and telemetry_engine is not None:
+            # Explicit test/demo injection still goes through the same canonical
+            # route implementation; it only adapts the supplied fact provider.
+            from .clean_running_route_service import CleanRunningRouteService
+
+            class _InjectedStationAdapter:
+                def list_stations(self):
+                    return telemetry_engine.get_current_stations()
+
+                def get_forecast_history(self, station_id: str):
+                    return telemetry_engine.get_history(station_id, hours=48)
+
+            clean_route_service = CleanRunningRouteService(_InjectedStationAdapter())
         self.clean_route_service = clean_route_service
 
     @staticmethod
@@ -709,14 +722,6 @@ class GeospatialAgentService:
                 "map_poi_selection": "named_poi",
                 "map_selection": "map_selection",
             }
-<<<<<<< HEAD
-            if self.clean_route_service is not None:
-                if activity != "running":
-                    raise ServiceError(
-                        "unsupported_route_activity",
-                        "The versioned route contract currently supports running only",
-                        422,
-=======
             try:
                 # Prefer an explicitly injected canonical route service. Direct
                 # callers that supply grounded snapshots still use a
@@ -738,267 +743,129 @@ class GeospatialAgentService:
                     data_mode="forecast" if is_forecast else "current",
                     forecast_hour=forecast_hour if is_forecast else None,
                     activity=activity,
-                resolved_target_km = target_distance_km if target_distance_km is not None else 3.0
-                source_mapping = {
-                    "default_location": "demo_default",
-                    "user_gps": "gps",
-                    "query_poi": "named_poi",
-                    "map_poi_selection": "named_poi",
-                    "map_selection": "map_selection",
+                )
+            except ServiceError as exc:
+                fail_closed_codes = {
+                    "environmental_data_unavailable",
+                    "insufficient_route_coverage",
+                    "insufficient_forecast_quality",
+                    "invalid_forecast_hour",
+                    "road_graph_unavailable",
+                    "route_not_found",
+                    "route_service_unavailable",
+                    "route_origin_out_of_bounds",
+                    "route_origin_snap_failed",
                 }
-                try:
-                    route = self.clean_route_service.recommend(
-                        origin={
-                            "lat": origin_lat,
-                            "lon": origin_lng,
-                            "source": source_mapping.get(origin_source, "map_selection"),
-                        },
-                        target_distance_km=resolved_target_km,
-                        pace_minutes_per_km=None,
-                        data_mode="forecast" if is_forecast else "current",
-                        forecast_hour=forecast_hour if is_forecast else None,
-                        activity=activity,
+                if exc.code not in fail_closed_codes:
+                    raise
+                if exc.code in {"route_origin_out_of_bounds", "route_origin_snap_failed"}:
+                    summary = (
+                        "Chưa tìm thấy lối chạy bộ phù hợp đủ gần điểm xuất phát đã chọn. "
+                        "Hãy chọn một điểm trong khu vực Ocean Park 1 hoặc gần một tuyến đường trên bản đồ."
                     )
-                except ServiceError as exc:
-                    fail_closed_codes = {
-                        "environmental_data_unavailable",
-                        "insufficient_route_coverage",
-                        "insufficient_forecast_quality",
-                        "invalid_forecast_hour",
-                        "road_graph_unavailable",
-                        "route_not_found",
-                        "route_service_unavailable",
-                        "route_origin_out_of_bounds",
-                        "route_origin_snap_failed",
-                        "unsupported_route_activity",
-                    }
-                    if exc.code not in fail_closed_codes:
-                        raise
-                    if exc.code in {"route_origin_out_of_bounds", "route_origin_snap_failed"}:
-                        summary = (
-                            "Chưa tìm thấy lối đi phù hợp đủ gần điểm xuất phát đã chọn. "
-                            "Hãy chọn một điểm trong khu vực Ocean Park 1 hoặc gần một tuyến đường trên bản đồ."
-                        )
-                        return {
-                            "answer": {"summary": summary, "details": "Không tạo tuyến khi điểm xuất phát không qua kiểm tra graph."},
-                            "response": summary,
-                            "intent": "route_origin_unavailable",
-                            "time_context": time_ctx,
-                            "data_mode": "forecast" if is_forecast else "current",
-                            "evidence": [],
-                            "sources": [],
-                            "map_actions": [],
-                            "used_tools": ["clean_running_route"],
-                            "error": {"code": exc.code, "request_id": request_id},
-                            "request_id": request_id,
-                        }
-                    composed = ResponseComposer.compose_insufficient_data(request_id=request_id)
                     return {
-                        **composed,
+                        "answer": {"summary": summary, "details": "Không tạo tuyến khi điểm xuất phát không qua kiểm tra graph."},
+                        "response": summary,
+                        "intent": "route_origin_unavailable",
                         "time_context": time_ctx,
                         "data_mode": "forecast" if is_forecast else "current",
                         "evidence": [],
-                        "map_actions": [{"type": "clear_ai_layer"}],
+                        "sources": [],
+                        "map_actions": [],
                         "used_tools": ["clean_running_route"],
                         "error": {"code": exc.code, "request_id": request_id},
                         "request_id": request_id,
                     }
-                if target_distance_km is None:
-                    route.setdefault("assumptions", []).append("target_distance_km=3.0")
-                reduction_text = (
-                    f", thấp hơn tuyến đối chứng {route['exposure_reduction_pct']}%"
-                    if route.get("exposure_reduction_pct") is not None
-                    else ""
-                )
-                activity_label = {"walking": "đi bộ", "running": "chạy bộ", "cycling": "đạp xe"}.get(activity, "chạy bộ")
-                summary = (
-                    f"Tuyến {activity_label} {route['distance_km']} km từ {origin_label} có khối lượng PM2.5 "
-                    f"ước tính hít vào {route['estimated_inhaled_mass_ug']} µg{reduction_text}. "
-                    f"{route['disclaimer']}"
-                )
-                coordinates = route["coordinates"]
-                approach_coordinates = route.get("origin", {}).get("access_coordinates")
-                if not approach_coordinates or len(approach_coordinates) < 2:
-                    approach_coordinates = [[origin_lat, origin_lng], coordinates[0]]
-                bounds_coordinates = [*coordinates, [origin_lat, origin_lng]]
-                lats = [point[0] for point in bounds_coordinates]
-                lngs = [point[1] for point in bounds_coordinates]
-                station_ids = sorted(
-                    {
-                        station_id
-                        for segment in route["segments"]
-                        for station_id in segment["source_station_ids"]
-                    }
-                )
+                composed = ResponseComposer.compose_insufficient_data(request_id=request_id)
                 return {
-                    "answer": {
-                        "summary": summary,
-                        "details": f"Xuất phát: {origin_label}. {route['disclaimer']}",
-                    },
-                    "response": summary,
-                    "intent": "recommend_personalized_running_route",
+                    **composed,
                     "time_context": time_ctx,
-                    "data_mode": route["data_mode"],
-                    "origin": {"source": source_mapping.get(origin_source, "map_selection"), "label": origin_label},
-                    "route": route,
-                    "personalized_route": route,
-                    "evidence": [
-                        {
-                            "source": "simulator" if route["data_mode"] == "current" else "baseline_forecast",
-                            "station_id": station_id,
-                            "metric": "pm25",
-                        }
-                        for station_id in station_ids
-                    ],
-                    "sources": [f"station_{station_id}" for station_id in station_ids],
-                    "map_actions": [
-                        {"type": "clear_ai_layer"},
-                        {
-                            "type": "add_annotation",
-                            "lat": origin_lat,
-                            "lng": origin_lng,
-                            "title": "Xuất phát",
-                            "subtitle": origin_label,
-                            "style": "neutral",
-                        },
-                        {
-                            "type": "highlight_route",
-                            "route_id": route["route_id"],
-                            "rank": 1,
-                            "name": f"Tuyến {activity_label} ít phơi nhiễm hơn",
-                            "coordinates": coordinates,
-                            "approach_coordinates": approach_coordinates,
-                            "approach_kind": "origin_to_graph_snap",
-                            "approach_distance_m": route.get("origin", {}).get("snap_distance_m"),
-                            "segments": route["segments"],
-                            "distance_km": route["distance_km"],
-                            "duration_minutes": route["duration_minutes"],
-                            "estimated_inhaled_mass_ug": route["estimated_inhaled_mass_ug"],
-                            "exposure_reduction_pct": route.get("exposure_reduction_pct"),
-                            "snap_distance_m": route.get("origin", {}).get("snap_distance_m"),
-                            "graph_source": route["graph"]["graph_source"],
-                            "data_mode": route["data_mode"],
-                            "source": "forecast" if route["data_mode"] == "forecast" else "spatial_idw_route_segment",
-                        },
-                        {
-                            "type": "fit_bounds",
-                            "bounds": [[min(lats), min(lngs)], [max(lats), max(lngs)]],
-                            "padding": [60, 60],
-                        },
-                    ],
-                    "used_tools": ["clean_running_route"],
-                    "request_id": request_id,
-                }
-
-            # 1. Candidate Multi-Objective Routes Generation from OpenStreetMap Road Graph
-            avoid_sensor_id = None
-            if any(w in q for w in ["tránh", "không qua", "không đi qua", "tránh khu"]):
-                for name, sensor in [
-                    ("đa tốn", "S01"), ("da ton", "S01"),
-                    ("san hô", "S02"), ("san ho", "S02"),
-                    ("hải âu", "S03"), ("hai au", "S03"), ("hồ ngọc trai", "S03"), ("ngọc trai", "S03"),
-                    ("vinuni", "S04"), ("đại học", "S04"),
-                    ("sao biển", "S05"), ("sao bien", "S05")
-                ]:
-                    if name in q:
-                        avoid_sensor_id = sensor
-                        break
-
-            station_pm25_map = {sid: float(sdata.get("pm25", 25.0)) for sid, sdata in station_data_map.items()}
-
-            from .road_graph_router import road_graph_router
-            candidates = road_graph_router.generate_candidate_routes_from_origin(
-                origin_lat=origin_lat,
-                origin_lng=origin_lng,
-                target_km=target_distance_km,
-                station_pm25_map=station_pm25_map,
-                origin_source=origin_source,
-                origin_label=origin_label,
-                avoid_sensor=avoid_sensor_id,
-                activity=activity,
-            )
-
-            if not candidates:
-                snap_check = road_graph_router.snap_origin_to_network(origin_lat, origin_lng, activity=activity)
-                if not snap_check["is_valid"]:
-                    too_far_comp = ResponseComposer.compose_snap_distance_exceeded(
-                        origin_label=origin_label,
-                        snap_dist_m=snap_check["snap_distance_m"],
-                        request_id=request_id,
-                    )
-                    return {
-                        "answer": too_far_comp["answer"],
-                        "response": too_far_comp["response"],
-                        "intent": "recommend_running_route",
-                        "time_context": time_ctx,
-                        "data_mode": time_ctx["type"],
-                        "origin": {"source": origin_source, "lat": origin_lat, "lng": origin_lng, "label": origin_label},
-                        "evidence": [],
-                        "map_actions": [],
-                        "request_id": request_id,
-                    }
-
-            # 2. Continuous Line-Integral Spatial Environmental Scoring along polyline coordinates
-            ranked_routes = environmental_scoring.rank_route_candidates(
-                candidates=candidates,
-                station_data_map=station_data_map,
-                user_group=user_group,
-                target_km=target_distance_km,
-            )
-
-            if not ranked_routes:
-                too_far_comp = ResponseComposer.compose_too_far_route(origin_label=origin_label, request_id=request_id)
-                return {
-                    "answer": too_far_comp["answer"],
-                    "response": too_far_comp["response"],
-                    "intent": "recommend_running_route",
-                    "time_context": time_ctx,
-                    "data_mode": time_ctx["type"],
-                    "origin": {"source": origin_source, "lat": origin_lat, "lng": origin_lng, "label": origin_label},
+                    "data_mode": "forecast" if is_forecast else "current",
                     "evidence": [],
-                    "map_actions": [],
+                    "map_actions": [{"type": "clear_ai_layer"}],
+                    "used_tools": ["clean_running_route"],
+                    "error": {"code": exc.code, "request_id": request_id},
                     "request_id": request_id,
                 }
-
-            best_route = ranked_routes[0]
-
-            # 3. Medical Safety Gate for Aerobic Exercise
-            safety_eval = environmental_scoring.check_outdoor_exercise_safety(
-                {
-                    "aqi": best_route.get("aqi", 50.0),
-                    "pm25": best_route.get("pm25", 25.0),
-                    "temperature": best_route.get("temperature", 28.0),
-                },
-                user_group=user_group,
+            if target_distance_km is None:
+                route.setdefault("assumptions", []).append("target_distance_km=3.0")
+            reduction_text = (
+                f", thấp hơn tuyến đối chứng {route['exposure_reduction_pct']}%"
+                if route.get("exposure_reduction_pct") is not None
+                else ""
             )
-            if not safety_eval["safe"]:
-                if conversation_id:
-                    conversation_state_manager.set_pending_action(
-                        conversation_id,
-                        "find_nearby_indoor_places",
-                        known_slots={"origin": origin_label},
-                    )
-                return self._handle_indoor_pivot_intent(
-                    safety_eval=safety_eval,
-                    user_location=(origin_lat, origin_lng),
-                    time_ctx=time_ctx,
-                    request_id=request_id,
-                    conversation_id=conversation_id,
-                )
-
-            return self._handle_running_route_intent(
-                ranked_routes=ranked_routes,
-                time_ctx=time_ctx,
-                request_id=request_id,
-                target_distance_km=target_distance_km,
-                origin_info={
-                    "lat": origin_lat,
-                    "lng": origin_lng,
-                    "source": origin_source,
-                    "label": origin_label,
-                    "avoid_sensor_id": avoid_sensor_id,
+            activity_label = {"walking": "đi bộ", "running": "chạy bộ", "cycling": "đạp xe"}[activity]
+            summary = (
+                f"Tuyến {activity_label} {route['distance_km']} km từ {origin_label} có khối lượng PM2.5 "
+                f"ước tính hít vào {route['estimated_inhaled_mass_ug']} µg{reduction_text}. "
+                f"{route['disclaimer']}"
+            )
+            coordinates = route["coordinates"]
+            # Only send geometry that exists in the packaged road graph. A
+            # straight line from a selected point to the graph snap is not a
+            # verified running route. It is supplied separately so the client
+            # can label it as access to the nearest road, not a destination.
+            approach_coordinates = route.get("origin", {}).get("access_coordinates") or [[origin_lat, origin_lng], coordinates[0]]
+            # The selected origin is included only when framing the map so its
+            # annotation remains visible; it is never appended to route data.
+            bounds_coordinates = [*coordinates, [origin_lat, origin_lng]]
+            lats = [point[0] for point in bounds_coordinates]
+            lngs = [point[1] for point in bounds_coordinates]
+            station_ids = sorted(
+                {
+                    station_id
+                    for segment in route["segments"]
+                    for station_id in segment["source_station_ids"]
+                }
+            )
+            return {
+                "answer": {
+                    "summary": summary,
+                    "details": f"Xuất phát: {origin_label}. {route['disclaimer']}",
                 },
-                conversation_id=conversation_id,
+                "response": summary,
+                "intent": "recommend_personalized_running_route",
+                "time_context": time_ctx,
+                "data_mode": route["data_mode"],
+                "origin": {"source": source_mapping.get(origin_source, "map_selection"), "label": origin_label},
+                "route": route,
+                "personalized_route": route,
+                "evidence": [
+                    {
+                        "source": "simulator" if route["data_mode"] == "current" else "baseline_forecast",
+                        "station_id": station_id,
+                        "metric": "pm25",
+                    }
+                    for station_id in station_ids
+                ],
+                "sources": [f"station_{station_id}" for station_id in station_ids],
+                "map_actions": [
+                    {"type": "clear_ai_layer"},
+                    {
+                        "type": "add_annotation",
+                        "lat": origin_lat,
+                        "lng": origin_lng,
+                        "title": "Xuất phát",
+                        "subtitle": origin_label,
+                        "style": "neutral",
+                    },
+                    {
+                        "type": "highlight_route",
+                        "route_id": route["route_id"],
+                        "rank": 1,
+                        "name": f"Tuyến {activity_label} ít phơi nhiễm hơn",
+                        "coordinates": coordinates,
+                        "approach_coordinates": approach_coordinates,
+                        "approach_kind": "origin_to_graph_snap",
+                        "approach_distance_m": route.get("origin", {}).get("snap_distance_m"),
+                        "segments": route["segments"],
+                        "distance_km": route["distance_km"],
+                        "duration_minutes": route["duration_minutes"],
+                        "estimated_inhaled_mass_ug": route["estimated_inhaled_mass_ug"],
+                        "exposure_reduction_pct": route.get("exposure_reduction_pct"),
+                        "snap_distance_m": route.get("origin", {}).get("snap_distance_m"),
+                        "graph_source": route["graph"]["graph_source"],
+                        "data_mode": route["data_mode"],
                         "source": "forecast" if route["data_mode"] == "forecast" else "spatial_idw_route_segment",
                     },
                     {
@@ -1010,7 +877,6 @@ class GeospatialAgentService:
                 "used_tools": ["clean_running_route"],
                 "request_id": request_id,
             }
->>>>>>> origin/main
 
         # Intent OVERVIEW: General Area Overview (Vinhomes Ocean Park 1)
         detected_scope = spatial_registry.resolve_scope(q)
@@ -2130,7 +1996,7 @@ class GeospatialAgentService:
                 "score": best["score"],
                 "rank": 1,
                 "metric": "aqi",
-                "data_mode": "forecast" if time_ctx["is_forecast"] else "current",
+                "data_mode": time_ctx["type"],
                 "observed_at": best.get("timestamp"),
                 "source": "forecast" if time_ctx["is_forecast"] else "spatial_idw_route_segment",
             },
@@ -2192,11 +2058,6 @@ class GeospatialAgentService:
         )
 
         intent_name = "recommend_personalized_running_route" if (target_distance_km is not None or is_personalized) else "recommend_running_route"
-        best["planning_method"] = "environment_weighted_graph_round_trip"
-        best["segments"] = best.get("environment_segments", [])
-        if target_distance_km is not None:
-            best["target_requested_km"] = float(target_distance_km)
-            best["distance_constraint_satisfied"] = True
 
         res = {
             "answer": composed["answer"],

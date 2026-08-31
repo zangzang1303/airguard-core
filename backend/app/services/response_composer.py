@@ -536,35 +536,6 @@ class ResponseComposer:
         }
 
     @staticmethod
-    def compose_snap_distance_exceeded(
-        origin_label: str = "",
-        snap_dist_m: float = 0.0,
-        request_id: str = "",
-    ) -> dict[str, Any]:
-        """Snap distance exceeded fallback."""
-        headline = f"📍 **Chưa tìm thấy lối chạy bộ phù hợp đủ gần điểm xuất phát {origin_label} (cách khoảng {int(snap_dist_m)} m).**"
-        advice = "Hãy chọn một điểm gần các trục đường nội khu, công viên hoặc dải ven hồ trong khu đô thị Vinhomes Ocean Park 1 để mình vẽ lộ trình chính xác hơn."
-        summary = f"{headline}\n\n{advice}"
-
-        return {
-            "answer": {
-                "headline": headline,
-                "summary": summary,
-                "details": advice,
-                "highlights": [],
-                "recommendation": advice,
-                "map_feedback": "",
-                "data_note": "*AirGuard AI.*",
-            },
-            "response": summary,
-            "intent": "route.snap_distance_exceeded",
-            "follow_up_actions": [
-                "Đổi điểm xuất phát",
-                "Xem chất lượng không khí toàn khu",
-            ],
-        }
-
-    @staticmethod
     def compose_too_far_route(
         origin_label: str = "",
         request_id: str = "",
