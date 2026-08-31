@@ -496,6 +496,7 @@ Runtime entry points:
 - [AGENTS.md](AGENTS.md): handoff và nguyên tắc coding agent.
 - [Quy định chức năng sản phẩm](docs/functional-requirements.md): phạm vi, vai trò, luồng xử lý, ngoại lệ và điều kiện nghiệm thu của bản cuối.
 - [Manual test checklist](docs/manual-test-checklist.md): test case và nơi ghi evidence nghiệm thu.
+- [Testing submission pack](docs/submission/testing/README.md): báo cáo kiểm thử tổng hợp, defects, manual sign-off và evidence index.
 - [PRD](docs/Gate%201/PRD.md): yêu cầu sản phẩm hiện hành.
 - [API contracts](specs/api-contracts.md).
 - [Data contracts](specs/data-contracts.md).
