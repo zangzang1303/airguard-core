@@ -21,6 +21,9 @@ The AI-002 release gate covers:
 - clarification for missing station context;
 - bounded social conversation for greeting, acknowledgement, wellbeing, capability and farewell;
 - unknown short messages must clarify instead of falling through to environmental recommendation;
+- cleanest/best-air rankings must name and target the grounded physical lowest-AQI station rather
+  than a POI sharing its telemetry; unsafe conditions add a relative-ranking warning while unsafe
+  running/outdoor-activity requests still pivot indoors;
 - social responses must short-circuit deterministically before LLM/tool/profile/geospatial access and have no tool arguments, sources, proposals or map actions;
 - refusal of prompt injection, medical diagnosis, emergency claims, device control and HITL bypass;
 - trace request id, tool status/latency, final outcome and PII/secret redaction.

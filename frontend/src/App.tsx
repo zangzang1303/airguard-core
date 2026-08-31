@@ -550,7 +550,7 @@ const SuperAppMain: React.FC<{
         <ManagerStationStatusBar stations={stations} alerts={alerts} />
       )}
       {canUseDemoControl && (layerConfig.showDemoControl ?? true) && (
-        <DemoStationControl floating />
+        <DemoStationControl floating onDataChange={refreshData} />
       )}
 
       {/* 3. MAP LAYERS POPOVER */}

@@ -1,5 +1,5 @@
-from datetime import UTC, datetime
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 from .clean_running_route_service import _timestamp
@@ -379,6 +379,7 @@ class GeospatialAgentService:
                 user_loc = (20.9985, 105.9525)
 
         # 6. Intent Determination & Dispatching
+        q_normalized = normalize_text(q)
 
         # Intent: Out-of-Scope Domains (Medical, Real estate, Dining, Traffic)
         is_medical = any(w in q for w in ["uống thuốc", "thuốc gì", "bệnh gì", "bác sĩ", "chữa bệnh", "khám bệnh", "đau đầu", "sốt"])
@@ -690,6 +691,34 @@ class GeospatialAgentService:
         if is_comparison and (len(mentioned_pois) >= 2 or len(ranked_pois) >= 2):
             return self._handle_comparison_intent(q, ranked_pois, time_ctx, request_id, candidates=mentioned_pois, conversation_id=conversation_id)
 
+        # A question explicitly asking for the best monitoring station must
+        # target the physical station, not a nearby POI that happens to reuse
+        # that station's telemetry. Selected-map context must not narrow this
+        # area-wide comparison.
+        is_best_station_inquiry = any(
+            phrase in q_normalized
+            for phrase in (
+                "tram nao trong lanh nhat",
+                "tram trong lanh nhat",
+                "tram nao sach nhat",
+                "tram sach nhat",
+                "tram nao co aqi thap nhat",
+                "tram co aqi thap nhat",
+                "tram nao khong khi tot nhat",
+                "tram co chat luong khong khi tot nhat",
+                "cleanest station",
+                "station with the lowest aqi",
+            )
+        ) and not any(term in q_normalized for term in ("chay", "chay bo", "cung duong", "lo trinh", "tuyen"))
+        if is_best_station_inquiry:
+            return self._handle_best_station_intent(
+                station_data_map,
+                time_ctx,
+                request_id,
+                conversation_id=conversation_id,
+                user_group=user_group,
+            )
+
         # Intent B: Worst Location / Most Polluted Area
         is_worst_inquiry = (
             any(w in q for w in ["ô nhiễm nhất", "kém nhất", "xấu nhất", "nguy hiểm nhất", "tệ nhất"])
@@ -697,7 +726,44 @@ class GeospatialAgentService:
             and target_distance_km is None
         )
         if is_worst_inquiry:
-            return self._handle_worst_location_intent(ranked_pois, time_ctx, request_id, conversation_id=conversation_id)
+            return self._handle_worst_location_intent(
+                station_data_map,
+                time_ctx,
+                request_id,
+                conversation_id=conversation_id,
+            )
+
+        # An explicit area-wide "best/cleanest" question starts a new ranking
+        # from the request-scoped snapshots. It must not be narrowed to the POI
+        # saved by the previous turn after a manager clears a demo override.
+        is_area_best_inquiry = (
+            not explicit_station_ids
+            and not mentioned_pois
+            and any(
+                phrase in q_normalized
+                for phrase in (
+                    "sach nhat",
+                    "tot nhat",
+                    "trong lanh nhat",
+                    "it o nhiem nhat",
+                    "aqi thap nhat",
+                    "khong khi tot nhat",
+                )
+            )
+            and not any(
+                term in q_normalized
+                for term in ("chay", "chay bo", "cung duong", "lo trinh", "tuyen", "may gio", "luc nao", "khi nao")
+            )
+        )
+        if is_area_best_inquiry:
+            return self._handle_best_station_intent(
+                station_data_map,
+                time_ctx,
+                request_id,
+                conversation_id=conversation_id,
+                user_group=user_group,
+                result_intent="recommend_outdoor_location",
+            )
 
         # Intent C: Indoor Activity Inquiry / Negation Pivot ("ngoài chạy bộ...", "trong nhà", "ở nhà", "indoor")
         is_indoor_inquiry = (
@@ -1363,23 +1429,131 @@ class GeospatialAgentService:
         }
 
     # -------------------------------------------------------------
+    # INTENT HANDLER: Cleanest Monitoring Station
+    # -------------------------------------------------------------
+    def _handle_best_station_intent(
+        self,
+        station_data_map: dict[str, dict[str, Any]],
+        time_ctx: dict[str, Any],
+        request_id: str,
+        conversation_id: str = "",
+        user_group: str = "normal",
+        result_intent: str = "find_best_station",
+    ) -> dict[str, Any]:
+        best_station_data = min(
+            station_data_map.values(),
+            key=lambda item: (float(item["aqi"]), float(item["pm25"]), item["station_id"]),
+        )
+        target = self._station_target(best_station_data["station_id"], station_data_map)
+        safety_eval = environmental_scoring.check_outdoor_exercise_safety(
+            {
+                "aqi": target["aqi"],
+                "pm25": target["pm25"],
+                "temperature": target["temperature"],
+            },
+            user_group=user_group,
+        )
+        if not safety_eval["safe"] and conversation_id:
+            conversation_state_manager.set_pending_action(
+                conversation_id,
+                "find_nearby_indoor_places",
+                known_slots={"origin": target["short_name"]},
+            )
+        composed = ResponseComposer.compose_best_location(
+            best_poi=target,
+            alt_poi=None,
+            activity="general",
+            time_ctx=time_ctx,
+            request_id=request_id,
+            safety_eval=safety_eval,
+        )
+        map_actions = [
+            {"type": "clear_ai_layer"},
+            {
+                "type": "highlight_sensor",
+                "sensor_id": target["station_id"],
+                "lat": target["latitude"],
+                "lng": target["longitude"],
+                "severity": "recommended" if safety_eval["safe"] else "caution",
+            },
+            {
+                "type": "add_annotation",
+                "target_id": target["id"],
+                "lat": target["latitude"],
+                "lng": target["longitude"],
+                "title": f"Trạm trong lành nhất: {target['short_name']}",
+                "subtitle": f"{time_ctx['label']} • AQI {target['aqi']} (PM2.5: {target['pm25']} µg/m³)",
+                "badge": "AQI thấp nhất",
+                "style": "recommended" if safety_eval["safe"] else "caution",
+            },
+            {
+                "type": "fly_to",
+                "target_id": target["id"],
+                "lat": target["latitude"],
+                "lng": target["longitude"],
+                "zoom": 16,
+            },
+        ]
+        conversation_state_manager.update_state(
+            conversation_id=conversation_id,
+            intent=result_intent,
+            entities=[target],
+            comparison_context={"winner": target, "stations": list(station_data_map)},
+            time_context=time_ctx,
+        )
+        return {
+            "query_type": result_intent,
+            "intent": result_intent,
+            "request_id": request_id,
+            "data_mode": "forecast" if time_ctx["is_forecast"] else "live",
+            "time_context": time_ctx,
+            "target_station": target["station_id"],
+            "target_location": target["short_name"],
+            "answer": composed["answer"],
+            "response": composed["response"],
+            "evidence": [
+                {
+                    "station_id": target["station_id"],
+                    "location_name": target["name"],
+                    "pm25": target["pm25"],
+                    "aqi": target["aqi"],
+                    "metric": "aqi",
+                    "value": target["aqi"],
+                    "score": target["score"],
+                    "timestamp": target.get("timestamp"),
+                    "source": target.get("source", "simulator"),
+                }
+            ],
+            "map_actions": map_actions,
+            "follow_up_actions": composed["follow_up_actions"],
+        }
+
+    # -------------------------------------------------------------
     # INTENT HANDLER: Worst Location / Most Polluted Area
     # -------------------------------------------------------------
     def _handle_worst_location_intent(
         self,
-        ranked_pois: list[dict[str, Any]],
+        station_data_map: dict[str, dict[str, Any]],
         time_ctx: dict[str, Any],
         request_id: str,
         conversation_id: str = "",
     ) -> dict[str, Any]:
         time_label = time_ctx["label"]
-        # Find the POI with the highest AQI / lowest environmental quality
-        worst_poi = max(ranked_pois, key=lambda p: (float(p.get("aqi", 0)), float(p.get("pm25", 0))))
-        worst_sensor = worst_poi.get("sensor_id", "S01")
-
-        # Cleaner alternative with lowest AQI
-        best_poi = min(ranked_pois, key=lambda p: (float(p.get("aqi", 0)), float(p.get("pm25", 0))))
-        best_sensor = best_poi.get("sensor_id", "S04")
+        # This superlative is grounded in station measurements. Target the
+        # physical winning station instead of borrowing an arbitrary POI that
+        # shares its telemetry (for example Công viên San Hô for S01).
+        worst_data = max(
+            station_data_map.values(),
+            key=lambda item: (float(item["aqi"]), float(item["pm25"]), item["station_id"]),
+        )
+        best_data = min(
+            station_data_map.values(),
+            key=lambda item: (float(item["aqi"]), float(item["pm25"]), item["station_id"]),
+        )
+        worst_poi = self._station_target(worst_data["station_id"], station_data_map)
+        best_poi = self._station_target(best_data["station_id"], station_data_map)
+        worst_sensor = worst_poi["station_id"]
+        best_sensor = best_poi["station_id"]
 
         composed = ResponseComposer.compose_worst_location(
             worst_poi=worst_poi,
@@ -1592,6 +1766,7 @@ class GeospatialAgentService:
         user_group: str,
         user_loc: tuple[float, float] | None = None,
         conversation_id: str = "",
+        pivot_unsafe_outdoor_activity: bool = True,
     ) -> dict[str, Any]:
         best = ranked_pois[0]
 
@@ -1611,13 +1786,14 @@ class GeospatialAgentService:
                     "find_nearby_indoor_places",
                     known_slots={"origin": best["short_name"]},
                 )
-            return self._handle_indoor_pivot_intent(
-                safety_eval=safety_eval,
-                user_location=user_loc,
-                time_ctx=time_ctx,
-                request_id=request_id,
-                conversation_id=conversation_id,
-            )
+            if pivot_unsafe_outdoor_activity:
+                return self._handle_indoor_pivot_intent(
+                    safety_eval=safety_eval,
+                    user_location=user_loc,
+                    time_ctx=time_ctx,
+                    request_id=request_id,
+                    conversation_id=conversation_id,
+                )
 
         alt = ranked_pois[1] if len(ranked_pois) > 1 else best
         worst = ranked_pois[-1]
@@ -1628,6 +1804,7 @@ class GeospatialAgentService:
             activity=activity,
             time_ctx=time_ctx,
             request_id=request_id,
+            safety_eval=safety_eval,
         )
 
         time_label = time_ctx["label"]
@@ -1642,7 +1819,7 @@ class GeospatialAgentService:
                 "lat": best["latitude"],
                 "lng": best["longitude"],
                 "radius_m": 250,
-                "style": "recommended",
+                "style": "recommended" if safety_eval["safe"] else "caution",
                 "score": best["score"],
                 "rank": 1,
             },
@@ -1651,10 +1828,14 @@ class GeospatialAgentService:
                 "target_id": best["id"],
                 "lat": best["latitude"],
                 "lng": best["longitude"],
-                "title": f"#1 Khuyến nghị: {best['short_name']}",
+                "title": (
+                    f"#1 Khuyến nghị: {best['short_name']}"
+                    if safety_eval["safe"]
+                    else f"#1 AQI thấp nhất: {best['short_name']}"
+                ),
                 "subtitle": f"{time_label} • AQI {best['aqi']} (Điểm: {best['score']})",
-                "badge": "Lựa chọn tốt nhất",
-                "style": "recommended",
+                "badge": "Lựa chọn tốt nhất" if safety_eval["safe"] else "Tốt nhất tương đối",
+                "style": "recommended" if safety_eval["safe"] else "caution",
             },
             {
                 "type": "highlight_area",
@@ -1679,12 +1860,11 @@ class GeospatialAgentService:
                 "rank": len(ranked_pois),
             },
             {
-                "type": "fit_bounds",
-                "bounds": [
-                    [min(best["latitude"], alt["latitude"]) - 0.003, min(best["longitude"], alt["longitude"]) - 0.003],
-                    [max(best["latitude"], alt["latitude"]) + 0.003, max(best["longitude"], alt["longitude"]) + 0.003],
-                ],
-                "padding": [40, 40],
+                "type": "fly_to",
+                "target_id": best["id"],
+                "lat": best["latitude"],
+                "lng": best["longitude"],
+                "zoom": 16,
             },
         ]
 
@@ -2413,14 +2593,15 @@ class GeospatialAgentService:
             raise ServiceError("station_not_found", "Requested station is not available", 404, {"station_id": station_id})
 
         score = environmental_scoring.score_candidate(station_data, activity="general")
+        canonical_name = registry_station["name"]
         return {
             **station_data,
             **score,
             "id": f"station-{station_id}",
             "station_id": station_id,
             "sensor_id": station_id,
-            "name": f"Trạm quan trắc {station_id}",
-            "short_name": f"Trạm {station_id}",
+            "name": f"Trạm quan trắc {station_id} – {canonical_name}",
+            "short_name": f"Trạm {station_id} – {canonical_name}",
             "category": "monitoring_station",
             "latitude": registry_station["latitude"],
             "longitude": registry_station["longitude"],
