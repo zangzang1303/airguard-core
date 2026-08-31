@@ -81,7 +81,7 @@ export const StationForecastDrawer: React.FC<StationForecastDrawerProps> = ({
     setError(null);
 
     api
-      .getStationForecast(station.station_id, metric, 3)
+      .getStationForecast(station.station_id, metric, 24, "extended")
       .then((data) => {
         if (!active) return;
         setForecast(data);

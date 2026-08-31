@@ -97,6 +97,7 @@ async def test_ventilation_status_tool_is_typed_and_station_scoped():
     )
     assert fixture.ok is True
     assert fixture.data["items"][0]["remaining_seconds"] == 1380
+    assert fixture.data["items"][0]["device_name"] == "Thiết bị lọc không khí ngoài trời Hồ Ngọc Trai"
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/ventilation-devices"

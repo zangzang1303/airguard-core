@@ -119,7 +119,7 @@ class TestOSMRoutingAQIAware:
 
         assert snap_info["is_valid"] is True
         assert snap_info["snap_distance_m"] < 50.0
-        assert snap_info["node_id"] == "N_LAKE_WEST_ENTRY"
+        assert snap_info["node_id"].startswith("OSM_N_")
         assert snap_info["access_coordinates"][0] == [near_lat, near_lng]
         assert snap_info["access_coordinates"][-1] == snap_info["snapped_coordinate"]
         assert len(snap_info["road_snap_coordinate"]) == 2
@@ -250,9 +250,16 @@ class TestOSMRoutingAQIAware:
         )
         assert len(ranked) >= 2
 
-        # The local circuit or tailored local loop should rank higher than distant East circuits
+        # All OSM candidates start on the local snapped network instead of
+        # teleporting to a named circuit in another sector.
         best = ranked[0]
-        assert best["zone"] in {"west", "central", "custom"}
+        assert best["zone"] == "ocean_park_1"
+        assert router.calculate_distance_m(
+            best["coordinates"][0][0],
+            best["coordinates"][0][1],
+            20.9975,
+            105.9430,
+        ) < 50
 
     # -------------------------------------------------------------
     # T09: Indoor Fallback on Hazardous Weather
@@ -282,17 +289,18 @@ class TestOSMRoutingAQIAware:
         snapshots = _mock_grounded_snapshots()
         station_pm25 = {s: d["pm25"] for s, d in snapshots.items()}
 
-        # Zenpark Japanese Garden (N_ZENPARK_GARDEN) pedestrian bridge strictly prohibits bicycles
-        garden_edge = next(e for e in router.EDGES if e["id"] == "edge_zenpark_garden")
-        assert garden_edge["access"]["foot"] is True
-        assert garden_edge["access"]["bicycle"] is False
+        foot_only_edge = next(
+            edge
+            for edge in router.EDGES
+            if edge["access"]["foot"] is True and edge["access"]["bicycle"] is False
+        )
 
         # Cycling adjacency should exclude foot-only edges
         cycling_adj = router.build_adjacency(station_pm25, activity="cycling")
         running_adj = router.build_adjacency(station_pm25, activity="running")
 
-        assert any(e["to"] == "N_ZENPARK_GARDEN" for e in running_adj["N_ZENPARK_GATE"])
-        assert not any(e["to"] == "N_ZENPARK_GARDEN" for e in cycling_adj["N_ZENPARK_GATE"])
+        assert any(e["edge_id"] == foot_only_edge["id"] for e in running_adj[foot_only_edge["from"]])
+        assert not any(e["edge_id"] == foot_only_edge["id"] for e in cycling_adj[foot_only_edge["from"]])
 
     # -------------------------------------------------------------
     # T11: Forecast Time-Aware Context & Action Chips
