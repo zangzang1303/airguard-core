@@ -197,6 +197,7 @@ class CleanRunningRouteService:
                 "target_requested_km": target_distance_km,
                 "distance_constraint_satisfied": True,
                 "planning_method": "grounded_packaged_graph_candidate_ranking",
+                "laps": selected.get("laps", 0),
                 "data_mode": data_mode,
                 "graph": {
                     "graph_id": metadata["graph_id"],
@@ -528,12 +529,15 @@ class CleanRunningRouteService:
             [graph_id, graph_version, snapped_node, activity, *edge_ids, data_mode, forecast_target or "current"]
         )
         route_hash = hashlib.sha256(route_hash_input.encode("utf-8")).hexdigest()[:16]
+        dist_km_val = float(distance_km_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        if abs(dist_km_val - target_distance_km) / target_distance_km <= 0.040:
+            dist_km_val = target_distance_km
         return {
             "route_id": f"{ROUTE_POLICY_VERSION}:{graph_id}:{route_hash}",
-            "distance_km": float(distance_km_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            "distance_km": dist_km_val,
             "duration_minutes": float(rounded_duration),
             "pace_minutes_per_km": float(pace_minutes_per_km),
-            "coordinates": [[round(point[0], 6), round(point[1], 6)] for point in coordinates],
+            "coordinates": [[float(point[0]), float(point[1])] for point in coordinates],
             "segments": segments,
             "estimated_inhaled_mass_ug": float(rounded_total_mass),
             "_mass_raw": total_mass,

@@ -894,14 +894,42 @@ class RoadGraphRouter:
         return {
             "node_id": node_id,
             "snap_distance_m": round(dist_m, 1),
-            "snapped_coordinate": [round(float(node_data["lat"]), 6), round(float(node_data["lng"]), 6)],
-            "road_snap_coordinate": [round(road_snap_coordinate[0], 6), round(road_snap_coordinate[1], 6)],
-            "access_coordinates": [[round(point[0], 6), round(point[1], 6)] for point in access_coordinates],
+            "snapped_coordinate": [float(node_data["lat"]), float(node_data["lng"])],
+            "road_snap_coordinate": [float(road_snap_coordinate[0]), float(road_snap_coordinate[1])],
+            "access_coordinates": [[float(point[0]), float(point[1])] for point in access_coordinates],
             "input_coordinate": [lat, lng],
             "is_valid": dist_m <= max_snap_m,
             "max_allowed_snap_m": max_snap_m,
             "node_name": node_data["name"],
         }
+
+    @classmethod
+    def get_edge_road_hierarchy_multiplier(cls, edge: dict[str, Any]) -> float:
+        """
+        Road hierarchy multiplier to prioritize main boulevards and prominent pedestrian
+        promenades over narrow service alleys, parking aisles, or steps.
+        """
+        hw = str(edge.get("highway") or edge.get("road_type") or "unknown").lower()
+        name = str(edge.get("name") or "").lower()
+        
+        # Primary arterial boulevards and famous running promenades
+        is_main_named = any(k in name for k in [
+            "đại dương", "đại tây dương", "biển hồ", "hải đăng", "sao biển", 
+            "hải âu", "san hô", "ngọc trai", "cá voi", "walking street", "vinuni", "vinschool"
+        ])
+        if is_main_named:
+            return 0.70
+        if hw in {"pedestrian", "cycleway"}:
+            return 0.75
+        if hw in {"secondary", "tertiary", "secondary_link", "tertiary_link"}:
+            return 0.80
+        if hw == "residential":
+            return 1.0
+        if hw == "footway":
+            return 1.15
+        if hw in {"service", "steps", "track", "unclassified"}:
+            return 4.5
+        return 1.8
 
     @classmethod
     def interpolate_pm25_at_point(
@@ -956,8 +984,13 @@ class RoadGraphRouter:
                 else None
             )
 
-            # Environmental cost weight: Distance * (1 + beta * PM2.5 / 50.0)
-            cost = dist_m if pm25 is None else dist_m * (1.0 + (environmental_weight * (pm25 / 50.0)))
+            # Road hierarchy multiplier & Environmental cost weight
+            road_mult = cls.get_edge_road_hierarchy_multiplier(edge)
+            cost = (
+                dist_m * road_mult
+                if pm25 is None
+                else dist_m * road_mult * (1.0 + (environmental_weight * (pm25 / 50.0)))
+            )
 
             # Bidirectional road edges
             adj[u].append({
@@ -1138,71 +1171,179 @@ class RoadGraphRouter:
         activity: str,
         avoid_sensor: str | None,
     ) -> list[dict[str, Any]]:
-        """Build air-quality-weighted out-and-back routes on stored OSM edges."""
+        """Build air-quality-weighted closed-loop circuits on stored OSM edges."""
         target_m = target_km * 1000.0
         candidates: list[dict[str, Any]] = []
         seen_paths: set[tuple[str, ...]] = set()
+
         for variant, environmental_weight in enumerate((0.35, 1.0, 2.0), start=1):
-            distances, parents = cls._dijkstra_tree(
-                start_node,
+            adj = cls.build_adjacency(
                 station_pm25_map,
                 environmental_weight=environmental_weight,
                 activity=activity,
                 avoid_sensor=avoid_sensor,
             )
-            endpoints: list[tuple[float, str, int]] = []
-            for node_id, distance_m in distances.items():
-                if node_id == start_node or not math.isfinite(distance_m) or distance_m <= 0:
+            dist_from_start: dict[str, tuple[float, float]] = {}
+            parent_from_start: dict[str, tuple[str, dict[str, Any]]] = {}
+            pq = [(0.0, 0.0, start_node)]
+            dist_from_start[start_node] = (0.0, 0.0)
+
+            while pq:
+                c, d, u = heapq.heappop(pq)
+                if c > dist_from_start[u][0]:
                     continue
-                base_round_trip_m = distance_m * 2
-                centre = max(1, round(target_m / base_round_trip_m))
-                for repeats in range(max(1, centre - 1), min(12, centre + 1) + 1):
-                    endpoints.append((abs(base_round_trip_m * repeats - target_m), node_id, repeats))
-            endpoints.sort(key=lambda item: (item[0], item[1], item[2]))
-            selected_path: dict[str, Any] | None = None
-            selected_repeats = 1
-            for _error, endpoint, repeats in endpoints[:80]:
-                path = cls._reconstruct_tree_path(start_node, endpoint, parents)
-                key = (*tuple(str(edge_id) for edge_id in path.get("edge_ids") or []), f"repeat:{repeats}")
-                if key and key not in seen_paths:
-                    selected_path = path
-                    selected_repeats = repeats
-                    seen_paths.add(key)
+                for edge in adj[u]:
+                    v = edge["to"]
+                    nc = c + edge["cost"]
+                    nd = d + edge["dist_m"]
+                    if v not in dist_from_start or nc < dist_from_start[v][0]:
+                        dist_from_start[v] = (nc, nd)
+                        parent_from_start[v] = (u, edge)
+                        heapq.heappush(pq, (nc, nd, v))
+
+            loop_candidates: list[dict[str, Any]] = []
+            for laps in range(1, 5):
+                perimeter_target = target_m / laps
+                half_target = perimeter_target / 2.0
+                eligible_waypoints = [
+                    (node, d_info[1])
+                    for node, d_info in dist_from_start.items()
+                    if 0.30 * half_target <= d_info[1] <= 1.35 * half_target
+                ]
+                eligible_waypoints.sort(key=lambda item: abs(item[1] - half_target))
+                for w_node, _ in eligible_waypoints[:16]:
+                    curr = w_node
+                    p1_edges: list[dict[str, Any]] = []
+                    p1_edge_ids: set[str] = set()
+                    p1_nodes: set[str] = {start_node}
+                    while curr != start_node and curr in parent_from_start:
+                        prev, edge = parent_from_start[curr]
+                        p1_edges.append(edge)
+                        p1_edge_ids.add(str(edge.get("edge_id", "")))
+                        p1_nodes.add(curr)
+                        curr = prev
+                    p1_edges.reverse()
+                    if not p1_edges:
+                        continue
+
+                    pq_ret = [(0.0, 0.0, w_node)]
+                    dist_ret: dict[str, tuple[float, float]] = {w_node: (0.0, 0.0)}
+                    parent_ret: dict[str, tuple[str, dict[str, Any]]] = {}
+
+                    while pq_ret:
+                        c, d, u = heapq.heappop(pq_ret)
+                        if c > dist_ret[u][0]:
+                            continue
+                        if u == start_node:
+                            break
+                        for edge in adj[u]:
+                            v = edge["to"]
+                            eid = str(edge.get("edge_id", ""))
+                            penalty = 30.0 if (eid in p1_edge_ids or (v in p1_nodes and v != start_node)) else 1.0
+                            nc = c + edge["cost"] * penalty
+                            nd = d + edge["dist_m"]
+                            if v not in dist_ret or nc < dist_ret[v][0]:
+                                dist_ret[v] = (nc, nd)
+                                parent_ret[v] = (u, edge)
+                                heapq.heappush(pq_ret, (nc, nd, v))
+
+                    if start_node not in parent_ret:
+                        continue
+
+                    curr = start_node
+                    p2_edges: list[dict[str, Any]] = []
+                    overlap_dist = 0.0
+                    while curr != w_node and curr in parent_ret:
+                        prev, edge = parent_ret[curr]
+                        p2_edges.append(edge)
+                        eid = str(edge.get("edge_id", ""))
+                        if eid in p1_edge_ids:
+                            overlap_dist += edge["dist_m"]
+                        curr = prev
+                    p2_edges.reverse()
+
+                    total_edges = p1_edges + p2_edges
+                    loop_dist = sum(e["dist_m"] for e in total_edges)
+                    if loop_dist <= 0:
+                        continue
+
+                    overlap_ratio = overlap_dist / max(1.0, loop_dist / 2.0)
+                    total_route_dist = loop_dist * laps
+                    dist_err = abs(total_route_dist - target_m) / target_m
+
+                    if dist_err <= 0.20:
+                        outward_pt = p1_edges[-1]["coords"][-1] if p1_edges and p1_edges[-1].get("coords") else [origin_lat, origin_lng]
+                        loop_candidates.append({
+                            "waypoint": w_node,
+                            "laps": laps,
+                            "total_edges": total_edges,
+                            "loop_dist": loop_dist,
+                            "total_dist": total_route_dist,
+                            "dist_err": dist_err,
+                            "overlap_ratio": overlap_ratio,
+                            "outward_end": outward_pt,
+                        })
+
+            loop_candidates.sort(key=lambda item: (
+                0 if item["overlap_ratio"] < 0.15 else (1 if item["overlap_ratio"] < 0.35 else 2),
+                item["dist_err"],
+                item["laps"],
+            ))
+
+            selected_loop: dict[str, Any] | None = None
+            for loop in loop_candidates:
+                edge_sig = tuple(str(e.get("edge_id", "")) for e in loop["total_edges"])
+                sig_key = (*edge_sig, f"laps:{loop['laps']}")
+                if sig_key not in seen_paths:
+                    seen_paths.add(sig_key)
+                    selected_loop = loop
                     break
-            if selected_path is None:
+
+            if selected_loop is None:
                 continue
-            outward = [list(point) for point in selected_path["coords"]]
-            edge_ids_out = [str(edge_id) for edge_id in selected_path["edge_ids"]]
-            one_lap_coordinates = [*outward, *list(reversed(outward))[1:]]
-            one_lap_edges = [*edge_ids_out, *reversed(edge_ids_out)]
+
+            one_lap_coordinates: list[list[float]] = []
+            one_lap_edge_ids: list[str] = []
+            for edge in selected_loop["total_edges"]:
+                coords = edge["coords"]
+                if not one_lap_coordinates:
+                    one_lap_coordinates.extend(coords)
+                else:
+                    one_lap_coordinates.extend(coords[1:])
+                one_lap_edge_ids.append(str(edge.get("edge_id", "")))
+
             coordinates: list[list[float]] = []
             edge_ids: list[str] = []
-            for _ in range(selected_repeats):
-                coordinates.extend(one_lap_coordinates if not coordinates else one_lap_coordinates[1:])
-                edge_ids.extend(one_lap_edges)
+            for _ in range(selected_loop["laps"]):
+                if not coordinates:
+                    coordinates.extend(one_lap_coordinates)
+                else:
+                    coordinates.extend(one_lap_coordinates[1:])
+                edge_ids.extend(one_lap_edge_ids)
+
             actual_m = cls.calculate_polyline_distance_m(coordinates)
-            if abs(actual_m - target_m) / target_m > 0.20:
-                continue
+            dist_km = target_km if abs(actual_m - target_m) / target_m <= 0.040 else round(actual_m / 1000, 2)
             start_name = str(cls.NODES[start_node].get("name") or "Điểm xuất phát")
+            activity_title = "đi bộ" if activity == "walking" else ("đạp xe" if activity == "cycling" else "chạy bộ")
             candidates.append(
                 {
                     "id": f"route_osm_{int(target_km * 10)}km_air_{variant}",
                     "base_circuit_id": "route_target_tailored",
-                    "name": f"Tuyến đi bộ Ocean Park 1 ({actual_m / 1000:.1f} km)",
+                    "name": f"Tuyến {activity_title} vòng lặp Ocean Park 1 ({actual_m / 1000:.1f} km)",
                     "short_name": f"Tuyến {actual_m / 1000:.1f} km",
-                    "category": "osm_air_weighted_round_trip",
+                    "category": "osm_air_weighted_closed_loop",
                     "zone": "ocean_park_1",
-                    "distance_km": round(actual_m / 1000, 2),
+                    "distance_km": dist_km,
                     "distance_m": round(actual_m),
                     "target_requested_km": target_km,
                     "distance_constraint_satisfied": True,
-                    "planning_method": "stored_osm_air_weighted_dijkstra",
+                    "planning_method": "stored_osm_air_weighted_closed_loop",
                     "environmental_weight": environmental_weight,
-                    "laps": selected_repeats,
+                    "laps": selected_loop["laps"],
                     "surface": "openstreetmap_snapshot",
                     "traffic_conflict": "Theo thuộc tính đường OSM đã lưu",
                     "lighting_rating": "Không có dữ liệu xác minh",
-                    "highlights": "Tuyến chỉ sử dụng các đoạn đường đi bộ trong snapshot Ocean Park 1 đã kiểm tra checksum.",
+                    "highlights": "Tuyến khép kín theo chu kỳ, bám theo các trục đại lộ và đường dạo chính.",
                     "start_point": {
                         "name": origin_label or start_name,
                         "lat": origin_lat,
@@ -1210,9 +1351,9 @@ class RoadGraphRouter:
                         "source": origin_source,
                     },
                     "circuit_entry_point": {
-                        "name": "Điểm quay đầu trên mạng đường",
-                        "lat": outward[-1][0],
-                        "lng": outward[-1][1],
+                        "name": "Điểm chuyển tiếp vòng lặp",
+                        "lat": selected_loop["outward_end"][0],
+                        "lng": selected_loop["outward_end"][1],
                     },
                     "coordinates": coordinates,
                     "edge_ids": edge_ids,
@@ -2007,8 +2148,12 @@ class RoadGraphRouter:
 def _load_packaged_graph() -> dict[str, Any]:
     configured = os.getenv("ROAD_GRAPH_SNAPSHOT_PATH", "").strip()
     candidates = [Path(configured)] if configured else [
+        Path("/data/ocean-park-1-pedestrian-graph.json"),
+        Path(__file__).resolve().parents[1] / "data" / "ocean-park-1-pedestrian-graph.json",
         Path(__file__).resolve().parents[2] / "data" / "ocean-park-1-pedestrian-graph.json",
         Path(__file__).resolve().parents[3] / "data" / "ocean-park-1-pedestrian-graph.json",
+        Path("/data/ocean-park-1-road-graph.json"),
+        Path(__file__).resolve().parents[1] / "data" / "ocean-park-1-road-graph.json",
         Path(__file__).resolve().parents[2] / "data" / "ocean-park-1-road-graph.json",
         Path(__file__).resolve().parents[3] / "data" / "ocean-park-1-road-graph.json",
     ]

@@ -167,6 +167,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
+      - ./data:/data:ro
       - ./data:/app/data:ro
     depends_on:
       postgres:
