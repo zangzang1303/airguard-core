@@ -55,6 +55,61 @@ class StaleWeatherAdapter(FakeBackendToolClient):
         )
 
 
+def test_cleanest_station_query_ignores_selected_station_context_and_compares_all_stations():
+    decision = route_query(
+        "Trạm nào trong lành nhất?",
+        context_station_id="S04",
+        user_id="demo-user",
+    )
+
+    assert decision.intent == Intent.COMPARE
+    assert decision.tool_calls == [ToolName.COMPARE_STATIONS]
+    assert decision.tool_arguments == [{"station_ids": ["S01", "S02", "S03", "S04", "S05"]}]
+    assert decision.comparison_mode == "lowest_aqi"
+
+
+def test_cleanest_station_composer_reports_the_lowest_aqi_station():
+    decision = route_query("Trạm nào có AQI thấp nhất?", context_station_id="S04")
+    result = compose_response(
+        decision,
+        [
+            {
+                "ok": True,
+                "data": {
+                    "items": [
+                        {
+                            "station_id": "S01",
+                            "pm25": 5.0,
+                            "aqi": 21,
+                            "updated_at": "2026-08-31T08:00:00+00:00",
+                            "source": "simulator",
+                            "status": "online",
+                            "is_stale": False,
+                            "quality_flag": "valid",
+                        },
+                        {
+                            "station_id": "S04",
+                            "pm25": 25.0,
+                            "aqi": 78,
+                            "updated_at": "2026-08-31T08:00:00+00:00",
+                            "source": "simulator",
+                            "status": "online",
+                            "is_stale": False,
+                            "quality_flag": "valid",
+                        },
+                    ]
+                },
+                "tool_name": ToolName.COMPARE_STATIONS.value,
+                "request_id": "test-request",
+            }
+        ],
+    )
+
+    assert result["outcome"] == "answered"
+    assert "S01" in result["answer"]
+    assert "AQI 21" in result["answer"]
+
+
 @pytest.mark.parametrize(
     ("query", "kind"),
     [

@@ -66,3 +66,36 @@ The orchestration boundary also applies a five-second total LLM response deadlin
 the backend proxy timeout. Provider HTTP retries remain bounded inside that deadline. Deadline
 expiry preserves the deterministic grounded answer, records `provider_deadline_exceeded`, and is
 never labeled `live_llm`.
+
+## Implementation record - 2026-08-31
+
+Station-level cleanest/lowest-AQI superlatives are bounded comparisons across S01-S05. The current
+map selection does not narrow these questions. The deterministic geospatial result targets the
+same winning physical monitoring station used by the grounded answer and evidence; nearby POIs
+that share its telemetry are not substituted as map targets. Active manager demo overrides are
+request-visible current simulator snapshots, while history, data-quality gates and HITL ownership
+remain unchanged.
+
+For a POI recommendation, the final camera action targets the same ranked POI named in the answer.
+Alternative overlays may still be rendered for context, but they cannot replace the recommended
+POI as the final navigation target.
+
+`poi_san_ho_park` uses the canonical central riverwalk node (`20.9978, 105.9420`) for POI display
+and camera navigation. The southern entrance remains part of route geometry only, so it is not
+misrepresented as the center of Công viên San Hô.
+
+Highest/lowest AQI station superlatives now use physical station targets for both prose and map
+actions. A station result such as S01 is not renamed to a POI merely because that POI consumes S01
+telemetry; this keeps the answer entity, evidence station and map coordinates identical.
+
+Explicit area-wide cleanest/best-air questions always rerank request-scoped current station
+snapshots and return the winning physical station. They bypass a POI retained from the previous
+conversation turn, so clearing a manager demo override cannot leave the old winner or its AQI
+attached to the next all-area comparison. A POI such as Công viên San Hô may consume S01 telemetry
+for an explicit POI inquiry, but it is not substituted for S01 in a station-backed superlative.
+
+Informational cleanest/best-air questions always return the grounded lowest-AQI station before any
+outdoor-safety guidance. If even that relative winner exceeds the demo safety policy, the answer
+labels it as "best only by comparison", keeps the map target on that same station and adds an indoor
+activity warning. Activity-specific requests such as choosing a running location retain the hard
+indoor pivot when outdoor conditions fail the safety gate.

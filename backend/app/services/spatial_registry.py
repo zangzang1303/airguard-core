@@ -168,8 +168,11 @@ class SpatialRegistry:
             "name": "Công viên San Hô & Đường dạo bộ",
             "short_name": "Công viên San Hô",
             "category": "park",
-            "latitude": 20.9935,
-            "longitude": 105.9405,
+            # Use the park's central riverwalk node.  The former coordinate
+            # was the southern entrance beside the residential edge, which
+            # made a POI fly-to look like it targeted the housing area.
+            "latitude": 20.9978,
+            "longitude": 105.9420,
             "sensor_id": "S01",
             "is_interpolated": False,
             "source_sensors": ["S01"],

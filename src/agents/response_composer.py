@@ -35,7 +35,7 @@ def compose_response(
     data_items = [result["data"] for result in tool_results]
     if not _passes_quality_gate(decision.intent, data_items):
         return {"answer": INSUFFICIENT_DATA_MESSAGE, "sources": [], "outcome": "insufficient_data"}
-    if decision.comparison_mode == "highest_aqi" and any(
+    if decision.comparison_mode in {"highest_aqi", "lowest_aqi"} and any(
         item.get("aqi") is None for item in data_items[0].get("items", [])
     ):
         return {"answer": INSUFFICIENT_DATA_MESSAGE, "sources": [], "outcome": "insufficient_data"}
@@ -313,6 +313,12 @@ def _compose_compare(decision: RouteDecision, data_items: list[Mapping[str, Any]
         return (
             f"Theo so sánh AQI cùng request, {highest['station_id']} cao nhất: AQI {highest['aqi']:g} "
             f"lúc {highest['updated_at']} (nguồn {highest['source']}). {SIMULATOR_NOTICE}"
+        )
+    if decision.comparison_mode == "lowest_aqi":
+        lowest = min(items, key=lambda item: (float(item["aqi"]), float(item["pm25"]), item["station_id"]))
+        return (
+            f"Theo so sánh AQI cùng request, {lowest['station_id']} thấp nhất: AQI {lowest['aqi']:g} "
+            f"lúc {lowest['updated_at']} (nguồn {lowest['source']}). {SIMULATOR_NOTICE}"
         )
     observations = "; ".join(
         f"{item['station_id']} = {item['pm25']:g} µg/m³ lúc {item['updated_at']} (nguồn {item['source']})"

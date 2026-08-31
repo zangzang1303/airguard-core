@@ -23,8 +23,44 @@ def test_demo_override_persists_over_automatic_ticks_and_can_be_cleared():
     assert engine.get_latest("S03")["pm25"] == 120.0
 
     engine.clear_demo_override("S03")
-    assert "demo_override" not in engine.get_latest("S03")
+    restored = engine.get_latest("S03")
+    assert "demo_override" not in restored
+    assert restored["pm25"] != 120.0
     assert engine.get_demo_override_evidence("S03") is None
+
+
+def test_demo_override_replaces_stale_database_freshness_for_agent_snapshot():
+    engine = LiveTelemetryEngine()
+    engine.set_demo_override(
+        "S01", {"pm25": 5.0, "co2": 450.0, "noise_db": 40.0, "temperature": 25.0}
+    )
+
+    result = engine.apply_demo_override(
+        {
+            "station_id": "S01",
+            "pm25": None,
+            "co2": None,
+            "noise_db": None,
+            "temperature": None,
+            "aqi": None,
+            "status": "offline",
+            "is_stale": True,
+            "freshness": "stale",
+            "quality_flag": "stale",
+            "source": "simulator",
+            "updated_at": "2026-08-01T00:00:00+00:00",
+        }
+    )
+
+    assert result["pm25"] == 5.0
+    assert result["aqi"] is not None
+    assert result["status"] == "online"
+    assert result["is_stale"] is False
+    assert result["freshness"] == "fresh"
+    assert result["quality_flag"] == "valid"
+    assert result["source"] == "simulator"
+    assert result["updated_at"] == result["demo_override_started_at"]
+    assert result["updated_at"] != "2026-08-01T00:00:00+00:00"
 
 
 def test_demo_override_tick_evaluates_alerts_and_uses_the_normal_hitl_side_effects(monkeypatch) -> None:
