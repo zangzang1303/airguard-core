@@ -553,7 +553,7 @@ class ConversationStateManager:
                 if num_match:
                     new_dist = float(num_match.group(1))
                 elif is_shorter:
-                    new_dist = max(2.0, round(current_dist - 1.0, 1))
+                    new_dist = max(2.0, round(current_dist - 1.5, 1))
                 else:
                     new_dist = min(10.0, round(current_dist + 2.0, 1))
 

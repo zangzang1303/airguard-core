@@ -235,8 +235,14 @@ class LiveTelemetryEngine:
         return {s["station_id"]: self.get_history(s["station_id"], hours=hours) for s in self.STATION_DEFINITIONS}
 
     def update_station(self, station_id: str, overrides: dict[str, Any]) -> None:
-        """Testing & simulation override helper."""
         now = datetime.now(UTC)
+        if self._history.get(station_id) and self._history[station_id][-1].get("measured_at"):
+            try:
+                last_dt = datetime.fromisoformat(self._history[station_id][-1]["measured_at"].replace("Z", "+00:00"))
+                if last_dt >= now:
+                    now = last_dt + timedelta(seconds=1)
+            except Exception:
+                pass
         curr = self.get_latest(station_id)
         updated = {**curr, **overrides, "station_id": station_id, "measured_at": now.isoformat(), "timestamp": now.isoformat()}
         self._history[station_id].append(updated)

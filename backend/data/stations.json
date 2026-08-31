@@ -1,0 +1,7 @@
+[
+  {"station_id":"S01","station_name":"Trục Đa Tốn phía Tây Bắc","location_type":"northwest_road","latitude":21.0008,"longitude":105.9428,"base_pm25":42,"description":"Điểm mô phỏng trên trục Đa Tốn, phủ khu vực cửa ngõ Tây Bắc Ocean Park 1"},
+  {"station_id":"S02","station_name":"Khu căn hộ Sapphire","location_type":"high_rise_residential","latitude":20.9975,"longitude":105.9430,"base_pm25":38,"description":"Điểm mô phỏng trong cụm căn hộ phía Tây Bắc, đại diện khu dân cư mật độ cao"},
+  {"station_id":"S03","station_name":"Ven Hồ Ngọc Trai","location_type":"lakeside_residential","latitude":20.9953,"longitude":105.9500,"base_pm25":32,"description":"Điểm mô phỏng ven Hồ Ngọc Trai và khu Ngọc Trai, đại diện không gian ven hồ trung tâm"},
+  {"station_id":"S04","station_name":"Khuôn viên VinUni","location_type":"university_campus","latitude":20.9898,"longitude":105.9467,"base_pm25":28,"description":"Điểm mô phỏng trong khuôn viên VinUni ở phía Tây Nam phạm vi quan sát"},
+  {"station_id":"S05","station_name":"Khu Hải Âu phía Đông Nam","location_type":"southeast_residential","latitude":20.9910,"longitude":105.9560,"base_pm25":45,"description":"Điểm mô phỏng tại khu Hải Âu, phủ vùng dân cư phía Đông Nam Ocean Park 1"}
+]
