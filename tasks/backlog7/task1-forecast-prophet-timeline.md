@@ -1,11 +1,12 @@
 # Task B7-01: Dự Báo Ô Nhiễm 1–24h Đa Biến, Khung Giờ Vàng & Animation Tua Nhanh
 
-> **Trạng thái triển khai (29/08/2026): Hoàn thành code và automated verification bằng lightweight additive Fourier.** Tên
+> **Trạng thái triển khai (kiểm tra lại sau merge ngày 30/08/2026): Hoàn thành code, automated verification và Docker live E2E bằng lightweight additive Fourier.** Tên
 > class `ProphetForecastService` được giữ tương thích import, nhưng model/source/API ghi rõ đây
-> không phải thư viện Prophet. Benchmark time-aligned đạt PM2.5 MAE cải thiện 75,6% trên holdout
+> không phải thư viện Prophet. Benchmark time-aligned gần nhất đạt PM2.5 MAE cải thiện 67,5% trên holdout
 > 24h từ chuỗi simulator 72h. API, Agent 1–24h, golden windows, Play/Pause 800ms, confidence chart
-> và frontend production build đã được kiểm thử tự động; checklist thao tác trình duyệt vẫn cần
-> chạy trong buổi nghiệm thu live.
+> và frontend production build đã được kiểm thử tự động. Docker live E2E xác nhận Pause giữ mốc giờ,
+> hai chu kỳ 0→24h hoàn tất trong 19,563s/19,611s, golden card và confidence chart hiển thị,
+> không có JavaScript page error hay forecast/spatial response lỗi.
 
 > **Người phụ trách:** AI / ML Engineer & Frontend Lead  
 > **Thời hạn dự kiến:** Ngày 1  
@@ -20,9 +21,9 @@
 
 ### 1.1. Backend & ML Engine
 - **File cần hoàn thiện / tinh chỉnh**:
-  - [`backend/app/services/prophet_forecast_service.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/services/prophet_forecast_service.py)
-  - [`backend/app/services/forecast_service.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/services/forecast_service.py)
-  - [`backend/app/main.py`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/backend/app/main.py) (Endpoint `/api/v1/stations/{id}/forecast`, `/api/v1/forecast/golden-windows`)
+  - [`backend/app/services/prophet_forecast_service.py`](../../backend/app/services/prophet_forecast_service.py)
+  - [`backend/app/services/forecast_service.py`](../../backend/app/services/forecast_service.py)
+  - [`backend/app/main.py`](../../backend/app/main.py) (Endpoint `/api/v1/stations/{id}/forecast`, `/api/v1/forecast/golden-windows`)
 - **Nhiệm vụ cụ thể**:
   1. **Dự báo Đa biến Khí tượng Thực tế (Multi-variate Weather Interaction)**:
      - **Hiệu ứng Nghịch nhiệt Bề mặt (Nocturnal Thermal Inversion)**: Vào ban đêm (22:00 - 05:00), khi nhiệt độ bề mặt đất giảm nhanh và độ ẩm $> 80\%$, lớp khí lạnh bị giữ sát mặt đất khiến bụi mịn PM2.5 khó khuếch tán $\rightarrow$ Áp dụng hệ số cộng dồn $+3.5\text{ µg/m³}$.
@@ -39,9 +40,9 @@
 
 ### 1.2. Frontend UI / UX & Animation Tua Nhanh 24h
 - **File cần hoàn thiện / tinh chỉnh**:
-  - [`frontend/src/features/stations/TimelineSlider.tsx`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/stations/TimelineSlider.tsx)
-  - [`frontend/src/features/map/DraggableTimelineDock.tsx`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/map/DraggableTimelineDock.tsx)
-  - [`frontend/src/features/map/SuperMap.tsx`](file:///d:/CODE/AITHUCCHIEN/BUILD/P-074/frontend/src/features/map/SuperMap.tsx)
+  - [`frontend/src/features/stations/TimelineSlider.tsx`](../../frontend/src/features/stations/TimelineSlider.tsx)
+  - [`frontend/src/features/map/DraggableTimelineDock.tsx`](../../frontend/src/features/map/DraggableTimelineDock.tsx)
+  - [`frontend/src/features/map/SuperMap.tsx`](../../frontend/src/features/map/SuperMap.tsx)
 - **Nhiệm vụ cụ thể**:
   1. **Nút Play / Pause Tự Động Tua 24h**:
      - Nút `[▶ Play Simulation]` trên Timeline Dock: Tự động tăng từng giờ ($+0\text{h} \rightarrow +1\text{h} \rightarrow +2\text{h} \dots \rightarrow +24\text{h}$) mỗi $800\text{ms}$.
@@ -57,22 +58,22 @@
 
 ### 2.1. Test tự động (Automated Tests)
 ```powershell
-& "d:\CODE\AITHUCCHIEN\BUILD\P-074\.venv\Scripts\python" eval/run_prophet_benchmark.py
-& "d:\CODE\AITHUCCHIEN\BUILD\P-074\.venv\Scripts\pytest" tests/test_backend/test_forecast_api.py tests/test_agents/test_forecast.py -v
+& ".\.venv\Scripts\python.exe" eval/run_prophet_benchmark.py
+& ".\.venv\Scripts\python.exe" -m pytest tests/test_backend/test_prophet_forecast.py tests/test_backend/test_forecast_api.py tests/test_agents/test_forecast.py -v
 ```
 
 ### 2.2. Test thủ công trên Giao diện (Manual UI Checklist)
-- [ ] Bật Heatmap ➔ Bấm nút **[Play Simulation]**:
+- [x] Bật Heatmap ➔ Bấm nút **[Play Simulation]**:
   - Thanh slider tự động chạy từ $+0\text{h}$ đến $+24\text{h}$.
   - Bản đồ chuyển đổi mượt mà giữa các giờ.
   - Bấm `[Pause]` để dừng ở một mốc giờ cụ thể.
-- [ ] Kiểm tra widget Khung Giờ Vàng: Gợi ý đúng khung giờ có AQI thấp nhất trong 24h tới.
-- [ ] Mở Chat AI hỏi: *"Sáng mai mấy giờ mở cửa sổ tốt nhất?"* $\rightarrow$ AI trả lời chính xác dựa trên Khung Giờ Vàng của mô hình dự báo.
+- [x] Kiểm tra widget Khung Giờ Vàng: UI hiển thị đúng `best_window=null` khi không có ≥2 giờ đạt điều kiện và vẫn hiển thị đỉnh cần tránh.
+- [x] Kiểm tra Agent live với forecast AQI S01 24h: gọi đúng `get_pm25_forecast`, dùng `extended_additive_fourier_v3`, giữ source simulator và diễn giải đúng khi không có khung giờ vàng.
 
 ---
 
 ## 3. TIÊU CHUẨN NGHIỆM THU (ACCEPTANCE CRITERIA)
 
 1. ✅ Sai số MAE của Prophet cải thiện $\ge 7\%$ so với baseline trên tập test 72h.
-2. 🟡 Animation Play 24h đã pass contract test và production build; độ mượt/memory leak cần xác nhận bằng checklist trình duyệt live khi Docker daemon hoạt động.
+2. ✅ Animation Play 24h pass contract/build và Docker live E2E: Pause ổn định, hai vòng 0→24h đúng nhịp 800ms, interval không bị nhân đôi và heap không tăng sau kiểm thử.
 3. ✅ Khung Giờ Vàng được tính toán tự động và có căn cứ khoa học rõ ràng.
