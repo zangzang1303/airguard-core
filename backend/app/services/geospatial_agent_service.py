@@ -777,9 +777,13 @@ class GeospatialAgentService:
                 "map_selection": "map_selection",
             }
             try:
-                # Prefer an explicitly injected canonical route service. Direct
-                # callers that supply grounded snapshots still use a
-                # request-scoped adapter and the same quality gates.
+                if is_forecast:
+                    is_named_period = any(term in q for term in ["tối nay", "toi nay", "buổi tối", "buoi toi", "tonight", "chiều nay", "chieu nay", "ngày mai", "ngay mai"])
+                    if not (1 <= (forecast_hour or 0) <= 3) or is_named_period:
+                        raise ServiceError("invalid_forecast_hour", "Forecast running route contract requires an explicit 1-3h horizon (e.g. sau 2 tiếng nữa)", 400)
+                    if self.clean_route_service is None and station_snapshots is not None and not any("forecast" in str(s.get("source", "")) for s in station_snapshots.values()):
+                        raise ServiceError("insufficient_forecast_quality", "Forecast quality gates require verified forecast metadata", 503)
+
                 route_service = self.clean_route_service or self._route_service_from_request_data(
                     station_snapshots,
                     station_histories,
@@ -833,6 +837,7 @@ class GeospatialAgentService:
                 composed = ResponseComposer.compose_insufficient_data(request_id=request_id)
                 return {
                     **composed,
+                    "intent": "insufficient_data",
                     "time_context": time_ctx,
                     "data_mode": "forecast" if is_forecast else "current",
                     "evidence": [],
@@ -856,13 +861,7 @@ class GeospatialAgentService:
                 f"{route['disclaimer']}"
             )
             coordinates = route["coordinates"]
-            # Only send geometry that exists in the packaged road graph. A
-            # straight line from a selected point to the graph snap is not a
-            # verified running route. It is supplied separately so the client
-            # can label it as access to the nearest road, not a destination.
             approach_coordinates = route.get("origin", {}).get("access_coordinates") or [[origin_lat, origin_lng], coordinates[0]]
-            # The selected origin is included only when framing the map so its
-            # annotation remains visible; it is never appended to route data.
             bounds_coordinates = [*coordinates, [origin_lat, origin_lng]]
             lats = [point[0] for point in bounds_coordinates]
             lngs = [point[1] for point in bounds_coordinates]
@@ -873,11 +872,21 @@ class GeospatialAgentService:
                     for station_id in segment["source_station_ids"]
                 }
             )
+            msg_lower = message.lower()
+            if any(w in q or w in msg_lower for w in ["tránh", "không qua", "né", "tranh", "khong qua", "ne"]):
+                resolved_intent = "recommend_avoidance_running_route"
+            elif (
+                any(w in q or w in msg_lower for w in ["tuyến", "tuyen", "lộ trình", "lo trinh", "cung đường", "cung duong", "quanh", "đường chạy", "duong chay"])
+                or map_context
+                or target_distance_km is not None
+            ):
+                resolved_intent = "recommend_personalized_running_route"
+            else:
+                resolved_intent = "recommend_running_route"
             if conversation_id:
-                state_intent = "recommend_avoidance_running_route" if any(w in q for w in ["tránh", "không qua", "né"]) else "recommend_personalized_running_route"
                 conversation_state_manager.update_state(
                     conversation_id=conversation_id,
-                    intent=state_intent,
+                    intent=resolved_intent,
                     query=message,
                     target_distance_km=resolved_target_km,
                     route_context={
@@ -895,7 +904,7 @@ class GeospatialAgentService:
                     "details": f"Xuất phát: {origin_label}. {route['disclaimer']}",
                 },
                 "response": summary,
-                "intent": "recommend_avoidance_running_route" if any(w in q for w in ["tránh", "không qua", "né"]) else "recommend_personalized_running_route",
+                "intent": resolved_intent,
                 "time_context": time_ctx,
                 "data_mode": route["data_mode"],
                 "origin": {"source": source_mapping.get(origin_source, "map_selection"), "label": origin_label},
@@ -917,7 +926,7 @@ class GeospatialAgentService:
                         "type": "add_annotation",
                         "lat": origin_lat,
                         "lng": origin_lng,
-                        "title": "Xuất phát",
+                        "title": "🚩 Xuất phát",
                         "subtitle": origin_label,
                         "style": "neutral",
                     },

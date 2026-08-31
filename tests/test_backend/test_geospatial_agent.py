@@ -10,6 +10,8 @@ from backend.app.services.temporal_resolver import TemporalResolver
 
 
 def demo_agent() -> GeospatialAgentService:
+    live_engine._bootstrap_history()
+    live_engine._demo_overrides.clear()
     return GeospatialAgentService(telemetry_engine=live_engine)
 
 

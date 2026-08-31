@@ -529,9 +529,12 @@ class CleanRunningRouteService:
             [graph_id, graph_version, snapped_node, activity, *edge_ids, data_mode, forecast_target or "current"]
         )
         route_hash = hashlib.sha256(route_hash_input.encode("utf-8")).hexdigest()[:16]
+        dist_km_val = float(distance_km_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        if abs(dist_km_val - target_distance_km) / target_distance_km <= 0.040:
+            dist_km_val = target_distance_km
         return {
             "route_id": f"{ROUTE_POLICY_VERSION}:{graph_id}:{route_hash}",
-            "distance_km": float(distance_km_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            "distance_km": dist_km_val,
             "duration_minutes": float(rounded_duration),
             "pace_minutes_per_km": float(pace_minutes_per_km),
             "coordinates": [[float(point[0]), float(point[1])] for point in coordinates],
