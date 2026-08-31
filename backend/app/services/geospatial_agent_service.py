@@ -692,12 +692,8 @@ class GeospatialAgentService:
             or (activity in {"running", "walking", "cycling"} and any(w in q for w in ["đường", "tuyến", "đoạn", "ở đâu", "lộ trình", "nơi nào", "chỗ nào"]))
         )
         if is_route_query:
-            if activity != "running":
-                raise ServiceError(
-                    "unsupported_route_activity",
-                    "The versioned route contract currently supports running only",
-                    422,
-                )
+            if activity not in {"walking", "running", "cycling"}:
+                raise ServiceError("unsupported_route_activity", "The route contract supports walking, running, and cycling", 422)
             # Never create an outdoor route when the grounded area-wide
             # conditions already fail the exercise policy.  The route service
             # ranks exposure, but ranking cannot make hazardous air safe.
@@ -746,6 +742,7 @@ class GeospatialAgentService:
                     pace_minutes_per_km=None,
                     data_mode="forecast" if is_forecast else "current",
                     forecast_hour=forecast_hour if is_forecast else None,
+                    activity=activity,
                 )
             except ServiceError as exc:
                 fail_closed_codes = {
@@ -797,8 +794,9 @@ class GeospatialAgentService:
                 if route.get("exposure_reduction_pct") is not None
                 else ""
             )
+            activity_label = {"walking": "đi bộ", "running": "chạy bộ", "cycling": "đạp xe"}[activity]
             summary = (
-                f"Tuyến chạy {route['distance_km']} km từ {origin_label} có khối lượng PM2.5 "
+                f"Tuyến {activity_label} {route['distance_km']} km từ {origin_label} có khối lượng PM2.5 "
                 f"ước tính hít vào {route['estimated_inhaled_mass_ug']} µg{reduction_text}. "
                 f"{route['disclaimer']}"
             )
@@ -855,7 +853,7 @@ class GeospatialAgentService:
                         "type": "highlight_route",
                         "route_id": route["route_id"],
                         "rank": 1,
-                        "name": "Tuyến chạy ít phơi nhiễm hơn",
+                        "name": f"Tuyến {activity_label} ít phơi nhiễm hơn",
                         "coordinates": coordinates,
                         "approach_coordinates": approach_coordinates,
                         "approach_kind": "origin_to_graph_snap",

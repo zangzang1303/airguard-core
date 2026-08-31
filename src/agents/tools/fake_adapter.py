@@ -174,7 +174,7 @@ DEFAULT_FIXTURES: dict[str, Any] = {
         "items": [
             {
                 "device_id": "FILTER-01",
-                "device_name": "Simulated outdoor filtration unit",
+                "device_name": "Thiết bị lọc không khí ngoài trời Hồ Ngọc Trai",
                 "station_id": "S03",
                 "station_name": "Ven Hồ Ngọc Trai",
                 "latitude": 20.9953,

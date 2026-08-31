@@ -89,6 +89,10 @@ class TestDrawerFloatingHookSafetyContract:
         assert 'useDraggableFloatingPanel({' in self.content
         assert 'panelId: "station-forecast"' in self.content
 
+    def test_forecast_drawer_requests_all_timeline_horizons(self):
+        """The 0-24h control must load the extended 24-hour backend forecast."""
+        assert '.getStationForecast(station.station_id, metric, 24, "extended")' in self.content
+
 
 class TestMapIntelligencePanelsDragAndToggleContract:
     """Test suite ensuring MapIntelligencePanels (Air Quality Now) has drag and toggle visibility."""

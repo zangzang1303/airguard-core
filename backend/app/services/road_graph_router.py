@@ -894,7 +894,7 @@ class RoadGraphRouter:
         return {
             "node_id": node_id,
             "snap_distance_m": round(dist_m, 1),
-            "snapped_coordinate": [node_data["lat"], node_data["lng"]],
+            "snapped_coordinate": [round(float(node_data["lat"]), 6), round(float(node_data["lng"]), 6)],
             "road_snap_coordinate": [round(road_snap_coordinate[0], 6), round(road_snap_coordinate[1], 6)],
             "access_coordinates": [[round(point[0], 6), round(point[1], 6)] for point in access_coordinates],
             "input_coordinate": [lat, lng],
@@ -1050,6 +1050,180 @@ class RoadGraphRouter:
         }
 
     @classmethod
+    def _dijkstra_tree(
+        cls,
+        start_node: str,
+        station_pm25_map: dict[str, float],
+        *,
+        environmental_weight: float,
+        activity: str,
+        avoid_sensor: str | None,
+    ) -> tuple[dict[str, float], dict[str, tuple[str, list[list[float]], float, str] | None]]:
+        """Compute all reachable paths once for a large packaged road graph."""
+        adjacency = cls.build_adjacency(
+            station_pm25_map,
+            environmental_weight=environmental_weight,
+            activity=activity,
+            avoid_sensor=avoid_sensor,
+        )
+        costs = {node_id: float("inf") for node_id in cls.NODES}
+        physical_distances = {node_id: float("inf") for node_id in cls.NODES}
+        parents: dict[str, tuple[str, list[list[float]], float, str] | None] = {
+            node_id: None for node_id in cls.NODES
+        }
+        costs[start_node] = 0.0
+        physical_distances[start_node] = 0.0
+        queue = [(0.0, start_node)]
+        while queue:
+            cost, node_id = heapq.heappop(queue)
+            if cost > costs[node_id]:
+                continue
+            for edge in adjacency[node_id]:
+                next_node = str(edge["to"])
+                next_cost = cost + float(edge["cost"])
+                if next_cost >= costs[next_node]:
+                    continue
+                costs[next_node] = next_cost
+                physical_distances[next_node] = physical_distances[node_id] + float(edge["dist_m"])
+                parents[next_node] = (
+                    node_id,
+                    [list(point) for point in edge["coords"]],
+                    float(edge["dist_m"]),
+                    str(edge["edge_id"]),
+                )
+                heapq.heappush(queue, (next_cost, next_node))
+        return physical_distances, parents
+
+    @classmethod
+    def _reconstruct_tree_path(
+        cls,
+        start_node: str,
+        end_node: str,
+        parents: dict[str, tuple[str, list[list[float]], float, str] | None],
+    ) -> dict[str, Any]:
+        chunks: list[list[list[float]]] = []
+        edge_ids: list[str] = []
+        distance_m = 0.0
+        current = end_node
+        while current != start_node:
+            parent = parents.get(current)
+            if parent is None:
+                return {"coords": [], "distance_m": 0.0, "edge_ids": []}
+            previous, coords, edge_distance_m, edge_id = parent
+            chunks.append(coords)
+            edge_ids.append(edge_id)
+            distance_m += edge_distance_m
+            current = previous
+        coordinates: list[list[float]] = []
+        for chunk in reversed(chunks):
+            coordinates.extend(chunk if not coordinates else chunk[1:])
+        return {
+            "coords": coordinates,
+            "distance_m": distance_m,
+            "edge_ids": list(reversed(edge_ids)),
+        }
+
+    @classmethod
+    def _build_osm_round_trip_candidates(
+        cls,
+        *,
+        start_node: str,
+        target_km: float,
+        station_pm25_map: dict[str, float],
+        origin_lat: float,
+        origin_lng: float,
+        origin_source: str,
+        origin_label: str | None,
+        snap_dist_m: float,
+        activity: str,
+        avoid_sensor: str | None,
+    ) -> list[dict[str, Any]]:
+        """Build air-quality-weighted out-and-back routes on stored OSM edges."""
+        target_m = target_km * 1000.0
+        candidates: list[dict[str, Any]] = []
+        seen_paths: set[tuple[str, ...]] = set()
+        for variant, environmental_weight in enumerate((0.35, 1.0, 2.0), start=1):
+            distances, parents = cls._dijkstra_tree(
+                start_node,
+                station_pm25_map,
+                environmental_weight=environmental_weight,
+                activity=activity,
+                avoid_sensor=avoid_sensor,
+            )
+            endpoints: list[tuple[float, str, int]] = []
+            for node_id, distance_m in distances.items():
+                if node_id == start_node or not math.isfinite(distance_m) or distance_m <= 0:
+                    continue
+                base_round_trip_m = distance_m * 2
+                centre = max(1, round(target_m / base_round_trip_m))
+                for repeats in range(max(1, centre - 1), min(12, centre + 1) + 1):
+                    endpoints.append((abs(base_round_trip_m * repeats - target_m), node_id, repeats))
+            endpoints.sort(key=lambda item: (item[0], item[1], item[2]))
+            selected_path: dict[str, Any] | None = None
+            selected_repeats = 1
+            for _error, endpoint, repeats in endpoints[:80]:
+                path = cls._reconstruct_tree_path(start_node, endpoint, parents)
+                key = (*tuple(str(edge_id) for edge_id in path.get("edge_ids") or []), f"repeat:{repeats}")
+                if key and key not in seen_paths:
+                    selected_path = path
+                    selected_repeats = repeats
+                    seen_paths.add(key)
+                    break
+            if selected_path is None:
+                continue
+            outward = [list(point) for point in selected_path["coords"]]
+            edge_ids_out = [str(edge_id) for edge_id in selected_path["edge_ids"]]
+            one_lap_coordinates = [*outward, *list(reversed(outward))[1:]]
+            one_lap_edges = [*edge_ids_out, *reversed(edge_ids_out)]
+            coordinates: list[list[float]] = []
+            edge_ids: list[str] = []
+            for _ in range(selected_repeats):
+                coordinates.extend(one_lap_coordinates if not coordinates else one_lap_coordinates[1:])
+                edge_ids.extend(one_lap_edges)
+            actual_m = cls.calculate_polyline_distance_m(coordinates)
+            if abs(actual_m - target_m) / target_m > 0.20:
+                continue
+            start_name = str(cls.NODES[start_node].get("name") or "Điểm xuất phát")
+            candidates.append(
+                {
+                    "id": f"route_osm_{int(target_km * 10)}km_air_{variant}",
+                    "base_circuit_id": "route_target_tailored",
+                    "name": f"Tuyến đi bộ Ocean Park 1 ({actual_m / 1000:.1f} km)",
+                    "short_name": f"Tuyến {actual_m / 1000:.1f} km",
+                    "category": "osm_air_weighted_round_trip",
+                    "zone": "ocean_park_1",
+                    "distance_km": round(actual_m / 1000, 2),
+                    "distance_m": round(actual_m),
+                    "target_requested_km": target_km,
+                    "distance_constraint_satisfied": True,
+                    "planning_method": "stored_osm_air_weighted_dijkstra",
+                    "environmental_weight": environmental_weight,
+                    "laps": selected_repeats,
+                    "surface": "openstreetmap_snapshot",
+                    "traffic_conflict": "Theo thuộc tính đường OSM đã lưu",
+                    "lighting_rating": "Không có dữ liệu xác minh",
+                    "highlights": "Tuyến chỉ sử dụng các đoạn đường đi bộ trong snapshot Ocean Park 1 đã kiểm tra checksum.",
+                    "start_point": {
+                        "name": origin_label or start_name,
+                        "lat": origin_lat,
+                        "lng": origin_lng,
+                        "source": origin_source,
+                    },
+                    "circuit_entry_point": {
+                        "name": "Điểm quay đầu trên mạng đường",
+                        "lat": outward[-1][0],
+                        "lng": outward[-1][1],
+                    },
+                    "coordinates": coordinates,
+                    "edge_ids": edge_ids,
+                    "access_distance_m": 0,
+                    "snap_distance_m": round(snap_dist_m),
+                    "activity": activity,
+                }
+            )
+        return candidates
+
+    @classmethod
     def _build_closed_loop_from_nodes(
         cls,
         loop_nodes: list[str],
@@ -1123,6 +1297,21 @@ class RoadGraphRouter:
             return []
 
         candidates: list[dict[str, Any]] = []
+
+        if cls.GRAPH_METADATA.get("source") == "openstreetmap_snapshot":
+            resolved_target_km = target_km if target_km and target_km > 0.5 else 3.0
+            return cls._build_osm_round_trip_candidates(
+                start_node=start_node,
+                target_km=resolved_target_km,
+                station_pm25_map=station_pm25_map,
+                origin_lat=snapped_coord[0],
+                origin_lng=snapped_coord[1],
+                origin_source=origin_source,
+                origin_label=origin_label,
+                snap_dist_m=snap_dist_m,
+                activity=activity,
+                avoid_sensor=avoid_sensor,
+            )
 
         # -------------------------------------------------------------
         # 1. Tailored Target Distance Round-Trip (Environment-Optimized Loop)
@@ -1286,13 +1475,88 @@ class RoadGraphRouter:
     ) -> dict[str, Any]:
         """Generate an exact tailored-distance route on the packaged graph."""
         half_target_m = (target_km * 1000.0) / 2.0
+        target_m = target_km * 1000.0
+
+        # Prefer a reviewed dense loop when the selected position already
+        # snaps to its entry and one lap satisfies the requested distance.
+        # Otherwise the generic out-and-back search can win by distance while
+        # sending the map back onto the older coarse connector network.
+        local_dense_circuit = next(
+            (
+                circuit
+                for circuit in cls.CANONICAL_CIRCUITS.values()
+                if circuit.get("entry_node") == start_node and circuit.get("dense_edge_id")
+            ),
+            None,
+        )
+        if local_dense_circuit is not None:
+            dense_coords, dense_distance_m, dense_edge_ids = cls._build_closed_loop_from_nodes(
+                local_dense_circuit["nodes"],
+                activity=activity,
+            )
+            if (
+                len(dense_edge_ids) == 1
+                and dense_edge_ids[0] == local_dense_circuit.get("dense_edge_id")
+                and abs(dense_distance_m - target_m) / target_m <= 0.20
+            ):
+                start_name = cls.NODES[start_node]["name"]
+                return {
+                    "id": f"route_target_{int(target_km * 10)}km",
+                    "base_circuit_id": "route_target_tailored",
+                    "name": (
+                        f"{local_dense_circuit['short_name']} theo mục tiêu "
+                        f"({dense_distance_m / 1000:.1f} km)"
+                    ),
+                    "short_name": f"{local_dense_circuit['short_name']} {dense_distance_m / 1000:.1f} km",
+                    "category": "tailored_loop",
+                    "zone": cls.NODES[start_node].get("zone", "custom"),
+                    "distance_km": round(dense_distance_m / 1000, 2),
+                    "distance_m": round(dense_distance_m),
+                    "target_requested_km": target_km,
+                    "distance_constraint_satisfied": True,
+                    "laps": 1,
+                    "surface": "packaged_dense_pedestrian_graph",
+                    "traffic_conflict": "unknown",
+                    "lighting_rating": "Theo dữ liệu graph demo",
+                    "highlights": "Vòng khép kín theo geometry đường dạo đã đóng gói trong graph.",
+                    "start_point": {
+                        "name": origin_label or start_name,
+                        "lat": origin_lat,
+                        "lng": origin_lng,
+                        "source": origin_source,
+                    },
+                    "circuit_entry_point": {
+                        "name": start_name,
+                        "lat": dense_coords[0][0],
+                        "lng": dense_coords[0][1],
+                    },
+                    "coordinates": dense_coords,
+                    "edge_ids": dense_edge_ids,
+                    "access_distance_m": 0,
+                    "snap_distance_m": round(snap_dist_m),
+                    "activity": activity,
+                }
+
+        dense_target = cls._build_dense_target_round_trip(
+            start_node=start_node,
+            target_km=target_km,
+            station_pm25_map=station_pm25_map,
+            origin_lat=origin_lat,
+            origin_lng=origin_lng,
+            origin_source=origin_source,
+            origin_label=origin_label,
+            snap_dist_m=snap_dist_m,
+            activity=activity,
+            avoid_sensor=avoid_sensor,
+        )
+        if dense_target is not None:
+            return dense_target
 
         # Build a closed out-and-back route from actual graph edges.  This is
         # intentionally less picturesque than a pre-drawn polyline, but every
         # segment is auditable and supports the complete 1–10 km API range.
         # We search destinations and repeat counts instead of inventing a
         # mid-block point or consulting an external router.
-        target_m = target_km * 1000.0
         best: tuple[float, dict[str, Any], int] | None = None
         for node_id in cls.NODES:
             if node_id == start_node:
@@ -1373,26 +1637,25 @@ class RoadGraphRouter:
 
         # Use only the packaged graph; this route retains no live/external
         # geometry dependency.
-        # The VinUni circuit has a checked-in, dense pedestrian trace.  When
-        # the selected location snaps directly to that closed graph edge, one
-        # lap is the closest valid 3 km route.  Keep the full polyline and its
-        # edge identity together so exposure is evaluated along the same road
-        # geometry rendered on the map.
+        # Every canonical circuit has a checked-in, dense pedestrian trace.
+        # When the selected location snaps directly to one of those closed
+        # graph edges and one lap satisfies the target, keep its geometry and
+        # edge identity together for exposure evaluation and map rendering.
         circuit_coords, circuit_distance_m, circuit_edge_ids = cls._build_closed_loop_from_nodes(
             best_circuit_def["nodes"], activity=activity
         )
         if (
             start_node == entry_node
             and len(circuit_edge_ids) == 1
-            and circuit_edge_ids[0] == "edge_vinuni_dense_loop"
+            and circuit_edge_ids[0] == best_circuit_def.get("dense_edge_id")
             and abs(circuit_distance_m - target_m) / target_m <= 0.20
         ):
             start_name = cls.NODES[start_node]["name"]
             return {
                 "id": f"route_target_{int(target_km * 10)}km",
                 "base_circuit_id": "route_target_tailored",
-                "name": f"Vòng chạy VinUni theo mục tiêu ({circuit_distance_m / 1000:.1f} km)",
-                "short_name": f"Vòng VinUni {circuit_distance_m / 1000:.1f} km",
+                "name": f"{best_circuit_def['short_name']} theo mục tiêu ({circuit_distance_m / 1000:.1f} km)",
+                "short_name": f"{best_circuit_def['short_name']} {circuit_distance_m / 1000:.1f} km",
                 "category": "tailored_loop",
                 "zone": cls.NODES[start_node].get("zone", "custom"),
                 "distance_km": round(circuit_distance_m / 1000, 2),
@@ -1490,6 +1753,142 @@ class RoadGraphRouter:
             "snap_distance_m": round(snap_dist_m),
             "activity": activity,
         }
+
+    @classmethod
+    def _build_dense_target_round_trip(
+        cls,
+        *,
+        start_node: str,
+        target_km: float,
+        station_pm25_map: dict[str, float] | None,
+        origin_lat: float,
+        origin_lng: float,
+        origin_source: str,
+        origin_label: str | None,
+        snap_dist_m: float,
+        activity: str,
+        avoid_sensor: str | None,
+    ) -> dict[str, Any] | None:
+        """Build an exact out-and-back route on reviewed dense circuit edges."""
+        target_m = target_km * 1000.0
+        half_target_m = target_m / 2.0
+        edge_map = {str(edge["id"]): edge for edge in cls.EDGES}
+        candidates: list[tuple[float, str, dict[str, Any]]] = []
+
+        for circuit in cls.CANONICAL_CIRCUITS.values():
+            dense_edge_id = str(circuit.get("dense_edge_id") or "")
+            dense_edge = edge_map.get(dense_edge_id)
+            if dense_edge is None or (avoid_sensor and dense_edge.get("sensor_id") == avoid_sensor):
+                continue
+            entry_node = str(circuit["entry_node"])
+            if start_node == entry_node:
+                access_coords = [[origin_lat, origin_lng]]
+                access_edges: list[str] = []
+                access_m = 0.0
+            else:
+                access = cls.find_path_dijkstra(
+                    start_node,
+                    entry_node,
+                    station_pm25_map=station_pm25_map,
+                    activity=activity,
+                    avoid_sensor=avoid_sensor,
+                )
+                access_coords = [list(point) for point in (access.get("coords") or [])]
+                access_edges = [str(edge_id) for edge_id in (access.get("edge_ids") or [])]
+                access_m = float(access.get("distance_m") or 0.0)
+                if not access_coords or not access_edges:
+                    continue
+            remaining_m = half_target_m - access_m
+            if remaining_m <= 0:
+                continue
+
+            loop = [list(point) for point in dense_edge["coords"]]
+            loop_distance_m = cls.calculate_polyline_distance_m(loop)
+            if loop_distance_m <= 0:
+                continue
+            partial = [list(loop[0])]
+            travelled_m = 0.0
+            loop_index = 0
+            safety_limit = max(1, math.ceil(remaining_m / loop_distance_m) + 1) * max(1, len(loop) - 1)
+            while travelled_m < remaining_m and loop_index < safety_limit:
+                segment_index = loop_index % (len(loop) - 1)
+                segment_start = loop[segment_index]
+                segment_end = loop[segment_index + 1]
+                segment_m = cls.calculate_distance_m(
+                    segment_start[0],
+                    segment_start[1],
+                    segment_end[0],
+                    segment_end[1],
+                )
+                if segment_m <= 0:
+                    loop_index += 1
+                    continue
+                if travelled_m + segment_m >= remaining_m:
+                    fraction = (remaining_m - travelled_m) / segment_m
+                    partial.append(
+                        [
+                            segment_start[0] + (segment_end[0] - segment_start[0]) * fraction,
+                            segment_start[1] + (segment_end[1] - segment_start[1]) * fraction,
+                        ]
+                    )
+                    travelled_m = remaining_m
+                    break
+                partial.append(list(segment_end))
+                travelled_m += segment_m
+                loop_index += 1
+            if travelled_m + 0.01 < remaining_m:
+                continue
+
+            outward = [list(point) for point in access_coords]
+            if not outward:
+                outward.append([origin_lat, origin_lng])
+            outward.extend(partial[1:] if outward[-1] == partial[0] else partial)
+            coordinates = cls._without_adjacent_duplicates([*outward, *reversed(outward[:-1])])
+            actual_m = cls.calculate_polyline_distance_m(coordinates)
+            relative_error = abs(actual_m - target_m) / target_m
+            if relative_error > 0.02:
+                continue
+            edge_ids = [*access_edges, dense_edge_id, *reversed(access_edges)]
+            start_name = cls.NODES[start_node]["name"]
+            payload = {
+                "id": f"route_target_{int(target_km * 10)}km",
+                "base_circuit_id": "route_target_tailored",
+                "name": f"{circuit['short_name']} theo mục tiêu ({actual_m / 1000:.1f} km)",
+                "short_name": f"{circuit['short_name']} {actual_m / 1000:.1f} km",
+                "category": "tailored_dense_round_trip",
+                "zone": str(circuit.get("zone") or "custom"),
+                "distance_km": round(actual_m / 1000, 2),
+                "distance_m": round(actual_m),
+                "target_requested_km": target_km,
+                "distance_constraint_satisfied": True,
+                "laps": 0,
+                "surface": "packaged_dense_pedestrian_graph",
+                "traffic_conflict": str(circuit.get("traffic_conflict") or "unknown"),
+                "lighting_rating": str(circuit.get("lighting_rating") or "Theo dữ liệu graph demo"),
+                "highlights": "Tuyến khứ hồi bám geometry đường dạo chi tiết đã đóng gói.",
+                "start_point": {
+                    "name": origin_label or start_name,
+                    "lat": origin_lat,
+                    "lng": origin_lng,
+                    "source": origin_source,
+                },
+                "circuit_entry_point": {
+                    "name": str(circuit.get("short_name") or start_name),
+                    "lat": partial[0][0],
+                    "lng": partial[0][1],
+                },
+                "coordinates": coordinates,
+                "edge_ids": edge_ids,
+                "access_distance_m": round(access_m),
+                "snap_distance_m": round(snap_dist_m),
+                "activity": activity,
+            }
+            candidates.append((access_m, str(circuit["id"]), payload))
+
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        return candidates[0][2]
 
     @classmethod
     def _build_cleanest_promenade_circuit(
@@ -1608,6 +2007,8 @@ class RoadGraphRouter:
 def _load_packaged_graph() -> dict[str, Any]:
     configured = os.getenv("ROAD_GRAPH_SNAPSHOT_PATH", "").strip()
     candidates = [Path(configured)] if configured else [
+        Path(__file__).resolve().parents[2] / "data" / "ocean-park-1-pedestrian-graph.json",
+        Path(__file__).resolve().parents[3] / "data" / "ocean-park-1-pedestrian-graph.json",
         Path(__file__).resolve().parents[2] / "data" / "ocean-park-1-road-graph.json",
         Path(__file__).resolve().parents[3] / "data" / "ocean-park-1-road-graph.json",
     ]
@@ -1623,7 +2024,7 @@ def _load_packaged_graph() -> dict[str, Any]:
     actual_checksum = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     if not expected_checksum or actual_checksum != expected_checksum:
         raise RuntimeError("packaged road graph checksum mismatch")
-    if metadata.get("source") != "curated_demo_graph":
+    if metadata.get("source") not in {"curated_demo_graph", "openstreetmap_snapshot"}:
         raise RuntimeError("unreviewed road graph source")
     nodes = graph.get("nodes")
     edges = graph.get("edges")
@@ -1652,56 +2053,142 @@ RoadGraphRouter.CANONICAL_CIRCUITS = PACKAGED_GRAPH["circuits"]
 RoadGraphRouter.GRAPH_METADATA = PACKAGED_GRAPH["metadata"]
 
 
-def _install_dense_vinuni_loop() -> None:
-    """Install the repository's reviewed dense VinUni trace as one graph edge.
+_DENSE_CIRCUIT_SENSOR_IDS = {
+    "route_ngoc_trai_loop": "S03",
+    "route_san_ho_riverwalk": "S01",
+    "route_vinuni_circuit": "S04",
+    "route_crystal_lagoon": "S05",
+    "route_sapphire_central": "S02",
+}
 
-    The route remains a local, versioned demo graph; this only replaces the
-    coarse shortcut geometry that cut across the basemap with its detailed
-    pedestrian trace.  The edge is deliberately self-contained so the route
-    evaluator and map renderer consume identical coordinates.
+
+def _install_dense_circuit_edges() -> None:
+    """Promote every reviewed high-resolution circuit to auditable graph edges.
+
+    The former runtime used the detailed trace only for VinUni. Other map
+    routes therefore fell back to three-point demo edges and appeared to cut
+    across streets. Each packaged trace is now a real self-loop edge with a
+    short, explicit connector to the closest existing graph node. Route
+    scoring, exposure segments, origin snapping and Leaflet all consume this
+    same geometry.
     """
-    raw_loop = _PRELOADED_OSM_GEOMETRIES.get("route_vinuni_circuit") or []
-    if len(raw_loop) < 10:
-        return
-    base = [list(point) for point in raw_loop]
-    if base[0] == base[-1]:
-        base.pop()
-    anchor = min(
-        base,
-        key=lambda point: RoadGraphRouter.calculate_distance_m(point[0], point[1], 20.9903, 105.9455),
-    )
-    anchor_index = base.index(anchor)
-    loop = base[anchor_index:] + base[:anchor_index]
-    loop.append(list(loop[0]))
-    node_id = "N_VINUNI_DENSE_LOOP"
-    RoadGraphRouter.NODES[node_id] = {
-        "id": node_id,
-        "name": "Vòng đường dạo VinUni",
-        "lat": loop[0][0],
-        "lng": loop[0][1],
-        "zone": "south",
+    base_node_ids = list(RoadGraphRouter.NODES)
+    circuit_by_route_id = {
+        str(circuit.get("id")): (circuit_key, circuit)
+        for circuit_key, circuit in RoadGraphRouter.CANONICAL_CIRCUITS.items()
     }
-    RoadGraphRouter.EDGES.append(
-        {
-            "id": "edge_vinuni_dense_loop",
-            "from": node_id,
-            "to": node_id,
-            "sensor_id": "S04",
-            "name": "Vòng đường dạo VinUni",
-            "surface": "packaged_dense_pedestrian_graph",
-            "road_type": "pedestrian_promenade",
-            "highway": "footway",
-            "access": {"foot": True, "bicycle": False, "motor_vehicle": False},
-            "traffic_conflict": "unknown",
-            "coords": loop,
+
+    for route_id, raw_loop in sorted(_PRELOADED_OSM_GEOMETRIES.items()):
+        circuit_pair = circuit_by_route_id.get(route_id)
+        if circuit_pair is None or len(raw_loop or []) < 10:
+            continue
+        _circuit_key, circuit = circuit_pair
+        base = [list(point) for point in raw_loop]
+        if base[0] == base[-1]:
+            base.pop()
+        if len(base) < 9:
+            continue
+
+        anchor_candidates = [
+            (
+                node_id,
+                point_index,
+                RoadGraphRouter.calculate_distance_m(
+                    float(node["lat"]),
+                    float(node["lng"]),
+                    float(point[0]),
+                    float(point[1]),
+                ),
+            )
+            for node_id in base_node_ids
+            for node in [RoadGraphRouter.NODES[node_id]]
+            for point_index, point in enumerate(base)
+        ]
+        closest_node_id, anchor_index, _distance_m = min(
+            anchor_candidates,
+            key=lambda item: (item[2], item[0], item[1]),
+        )
+        loop = base[anchor_index:] + base[:anchor_index]
+        loop.append(list(loop[0]))
+
+        route_slug = route_id.removeprefix("route_")
+        node_id = f"N_DENSE_{route_slug.upper()}"
+        if route_id == "route_vinuni_circuit":
+            node_id = "N_VINUNI_DENSE_LOOP"
+            dense_edge_id = "edge_vinuni_dense_loop"
+        else:
+            dense_edge_id = f"edge_{route_slug}_dense_loop"
+        connector_edge_id = f"edge_{route_slug}_dense_connector"
+        anchor = loop[0]
+        zone = str(circuit.get("zone") or "central")
+        RoadGraphRouter.NODES[node_id] = {
+            "id": node_id,
+            "name": f"Điểm vào geometry chi tiết - {circuit.get('short_name') or route_id}",
+            "lat": anchor[0],
+            "lng": anchor[1],
+            "zone": zone,
         }
-    )
-    circuit = RoadGraphRouter.CANONICAL_CIRCUITS.get("circuit_vinuni_campus")
-    if circuit:
+        RoadGraphRouter.EDGES.extend(
+            [
+                {
+                    "id": connector_edge_id,
+                    "from": closest_node_id,
+                    "to": node_id,
+                    "sensor_id": _DENSE_CIRCUIT_SENSOR_IDS.get(route_id),
+                    "name": f"Lối nối vào {circuit.get('short_name') or route_id}",
+                    "surface": "curated_demo_graph_connector",
+                    "road_type": "footway",
+                    "highway": "footway",
+                    "access": {"foot": True, "bicycle": False, "motor_vehicle": False},
+                    "traffic_conflict": "unknown",
+                    "coords": [
+                        [
+                            float(RoadGraphRouter.NODES[closest_node_id]["lat"]),
+                            float(RoadGraphRouter.NODES[closest_node_id]["lng"]),
+                        ],
+                        list(anchor),
+                    ],
+                },
+                {
+                    "id": dense_edge_id,
+                    "from": node_id,
+                    "to": node_id,
+                    "sensor_id": _DENSE_CIRCUIT_SENSOR_IDS.get(route_id),
+                    "name": str(circuit.get("name") or route_id),
+                    "surface": "packaged_dense_pedestrian_graph",
+                    "road_type": "pedestrian_promenade",
+                    "highway": "footway",
+                    "access": {"foot": True, "bicycle": False, "motor_vehicle": False},
+                    "traffic_conflict": str(circuit.get("traffic_conflict") or "unknown"),
+                    "coords": loop,
+                },
+            ]
+        )
         circuit["entry_node"] = node_id
         circuit["nodes"] = [node_id, node_id]
+        circuit["dense_edge_id"] = dense_edge_id
+        circuit["connector_edge_id"] = connector_edge_id
+        circuit["geometry_point_count"] = len(loop)
+
+    # Version and checksum describe the complete runtime graph, including the
+    # reviewed dense traces above rather than only the coarse base snapshot.
+    RoadGraphRouter.GRAPH_METADATA["graph_version"] = "1.1.0"
+    canonical_graph = {
+        "metadata": {
+            key: value
+            for key, value in RoadGraphRouter.GRAPH_METADATA.items()
+            if key != "checksum_sha256"
+        },
+        "station_coordinates": RoadGraphRouter.STATION_COORDINATES,
+        "nodes": RoadGraphRouter.NODES,
+        "edges": RoadGraphRouter.EDGES,
+        "circuits": RoadGraphRouter.CANONICAL_CIRCUITS,
+    }
+    canonical = json.dumps(canonical_graph, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    RoadGraphRouter.GRAPH_METADATA["checksum_sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-_install_dense_vinuni_loop()
+if RoadGraphRouter.GRAPH_METADATA.get("source") == "curated_demo_graph":
+    _install_dense_circuit_edges()
 
 road_graph_router = RoadGraphRouter()
