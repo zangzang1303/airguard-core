@@ -72,3 +72,27 @@ Compose stack, rerun automated gates and fill `manual-test-results.md` with sani
 ## Handoff IDs (request/message/proposal/job)
 
 Not applicable; documentation/testing session only.
+
+## Follow-up: AI20K four-part testing format
+
+### Goal
+
+Chuẩn hóa deliverable theo bốn phần Mentor yêu cầu: Test Plan, Test Cases, Bug Report và Test Summary Report;
+tạo bảng CSV import được vào Google Sheets/Excel.
+
+### Files changed
+
+- `docs/submission/testing/01-test-plan.md`
+- `docs/submission/testing/02-test-cases.md`
+- `docs/submission/testing/test-cases-sheet.csv`
+- `docs/submission/testing/03-bug-report.md`
+- `docs/submission/testing/04-test-summary-report.md`
+- `docs/submission/testing/README.md`
+
+### Decisions and validation
+
+- Giữ tài liệu kỹ thuật cũ làm evidence, bổ sung bốn entry documents thay vì xóa lịch sử.
+- Sheet chia theo module và dùng status enum rõ ràng.
+- CSV validation: 54 rows; 8 PASS, 20 FAIL, 3 BLOCKED, 22 NOT_RUN, 1 NEEDS_RETEST; không trùng ID,
+  không status sai và không thiếu trường bắt buộc.
+- Chưa tạo Google Sheet online vì không có quyền truy cập tài khoản/Drive; CSV sẵn sàng để import.

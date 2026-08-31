@@ -3,11 +3,19 @@
 Thư mục này là đầu mối cho deliverable **5. Tài liệu kiểm thử**. Kết quả trong đây chỉ được coi là
 evidence của release khi cùng chỉ tới một commit và môi trường chạy được ghi rõ.
 
-## Tài liệu chính
+## Bộ bốn tài liệu chính theo format nộp
 
-- [`TEST_REPORT.md`](TEST_REPORT.md): báo cáo tổng hợp trên commit `a939966` ngày 31/08/2026.
-- [`manual-test-results.md`](manual-test-results.md): danh sách kiểm thử live/manual còn phải thực hiện.
-- [`defect-summary.md`](defect-summary.md): 20 automated failures và các blocker môi trường hiện tại.
+1. [`01-test-plan.md`](01-test-plan.md) — phạm vi, module, môi trường, entry/exit criteria và commands.
+2. [`02-test-cases.md`](02-test-cases.md) — hướng dẫn đọc/điền các test cases theo module.
+   Bảng Pass/Fail dùng [`test-cases-sheet.csv`](test-cases-sheet.csv), có thể import vào Google Sheets/Excel.
+3. [`03-bug-report.md`](03-bug-report.md) — Bug IDs, affected tests, trạng thái và bước retest.
+4. [`04-test-summary-report.md`](04-test-summary-report.md) — tổng kết cho Mentor/QA sign-off.
+
+## Tài liệu kỹ thuật và evidence hỗ trợ
+
+- [`TEST_REPORT.md`](TEST_REPORT.md): báo cáo kỹ thuật chi tiết trên commit `a939966` ngày 31/08/2026.
+- [`manual-test-results.md`](manual-test-results.md): checklist live/manual rút gọn còn phải thực hiện.
+- [`defect-summary.md`](defect-summary.md): danh sách 20 automated failures chi tiết hơn.
 - [`evidence/README.md`](evidence/README.md): chỉ mục evidence đã có và evidence còn thiếu.
 
 Tài liệu nguồn chi tiết:
