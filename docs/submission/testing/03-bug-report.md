@@ -10,27 +10,28 @@
 
 ## Danh sách lỗi hiện tại
 
-| Bug ID | Module | Severity | Mô tả/Actual | Expected | Affected tests | Status | Evidence/Next step |
+| Bug ID | Module | Severity | Actual | Expected | Tests | Status | Evidence/next step |
 |---|---|---|---|---|---:|---|---|
-| BUG-001 | AI Agent/Route | NEEDS_TRIAGE | Route, context và distance cases nhận `insufficient_data`, sai intent hoặc sai khoảng cách | Grounded route đúng intent/context và target distance | 17 | OPEN | Điều tra request-scoped snapshots/history và route synthesis; xem defect summary |
-| BUG-002 | Reports | NEEDS_TRIAGE | Fallback narrative và stored-record export không khớp assertion | Deterministic fallback và export cùng persisted record/contract | 2 | OPEN | Owner xác nhận contract ngôn ngữ/escaping rồi sửa hoặc cập nhật test có căn cứ |
-| BUG-003 | Frontend/HITL | NEEDS_TRIAGE | Ventilation drawer không chứa action mà contract test đang kỳ vọng | UI và HITL contract thống nhất | 1 | OPEN | Xác nhận UI mới hay regression; retest sau disposition |
-| BUG-004 | Frontend/Agent | NEEDS_TRIAGE | UI Agent request từng fail trong khi gọi backend trực tiếp PASS ngày 24/08 | UI chat nhận response 200 và render evidence | 1 historical | NEEDS_RETEST | Chạy browser E2E trên final stack, lưu network/screenshot |
-| ENV-001 | Infrastructure | N/A | Không có Compose container chạy tại lần kiểm tra 31/08 | Release stack healthy/ready | N/A | BLOCKED | Start final stack rồi chạy P0 manual/E2E |
-| ENV-002 | Frontend test | N/A | AI resilience live pass-through nhận 503 khi stack dừng | Live pass-through 200 | 1 | BLOCKED | Retest sau ENV-001 |
-| ENV-003 | Snapshot test | N/A | Email snapshot dependency container không chạy | Snapshot scripts hoàn tất ở 375/1280 | 1 | BLOCKED | Khởi động runtime theo script rồi retest |
-| SEC-001 | Dependencies | NEEDS_TRIAGE | `npm ci` báo một high-severity advisory | Advisory được fix hoặc có documented risk acceptance | N/A | OPEN | Review `npm audit`; không auto-fix trước khi đánh giá breaking changes |
+| BUG-001 | AI Agent/Route | High | Ba case còn sai intent, fail-closed hoặc lệch method signature | Route đúng context; service lỗi phải trả insufficient data | 3 | OPEN | `PY-001`, `PY-021`, `PY-022`; sửa route contract rồi chạy full route suite |
+| BUG-002 | Reports | Medium | Fallback narrative và stored-record export không khớp assertion | Contract ngôn ngữ/escaping thống nhất, export cùng persisted record | 2 | OPEN | `PY-017`, `PY-018`; xác nhận contract rồi sửa code hoặc test có căn cứ |
+| BUG-003 | Frontend/HITL | Medium | Drawer thiếu action token `requestProposal("eco_mode")` mà contract test yêu cầu | UI và HITL contract thống nhất | 1 | OPEN | `PY-020`; xác nhận đây là regression hay contract cũ |
+| BUG-004 | Frontend/Agent | High | UI Agent từng fail ngày 24/08 | Chat UI xử lý success/failure/recovery đúng | 1 historical | CLOSED | Browser E2E ngày 31/08: 6/6 PASS, có JSON và screenshots |
+| BUG-005 | Forecast/Data quality | High | S05 offline/stale vẫn nhận forecast HTTP 200, `freshness=fresh` và ba giá trị | Offline/stale station bị chặn khỏi forecast | 1 live | OPEN | `API-001`, `M-09`; thêm station-quality gate trước forecast và regression test |
+| ENV-001 | Infrastructure | N/A | Stack từng dừng | Runtime services healthy | N/A | CLOSED | Backend ready, Agent health, frontend HTTP 200 ngày 31/08 |
+| ENV-002 | Frontend test | N/A | AI resilience từng nhận 503 vì stack dừng | 19 checks PASS | 1 | CLOSED | Retest live: 19/19 PASS |
+| ENV-003 | Snapshot test | N/A | Email snapshot từng thiếu runtime Python/container | 375/1280 PASS | 1 | CLOSED | Chạy bằng project virtualenv: PASS |
+| ENV-004 | Agent image build | N/A | Clean Agent image build timeout khi tải `pydantic_core` từ PyPI | Build mới hoàn tất từ lock/dependencies | N/A | BLOCKED | Network/PyPI timeout; runtime dùng cached dependency image + current `src/` |
+| SEC-001 | Dependencies | NEEDS_TRIAGE | `npm ci` từng báo một high-severity advisory | Fix hoặc documented risk acceptance | N/A | OPEN | Chạy/review `npm audit`; không auto-fix khi chưa đánh giá breaking change |
 
-## Chi tiết nhóm automated failures
+## Thay đổi so với báo cáo cũ
 
-Kết quả full suite: `763 passed, 20 failed, 2 warnings` trong 35.95 giây. Danh sách test và nhóm lỗi đầy đủ
-nằm tại [`defect-summary.md`](defect-summary.md). Khi sửa một bug, bổ sung:
+Các failure route/context cũ đã được retest sau khi merge `main`: nhóm scoped đạt `122 PASS, 3 FAIL`;
+15 dòng `PY-002`–`PY-016` và `PY-019` hiện PASS. Không tiếp tục báo “20 failures” của commit cũ
+`a939966` như kết quả hiện tại.
 
-- Commit/PR sửa lỗi.
-- Root cause.
-- Test command dùng để retest.
-- Actual result sau retest.
-- Evidence và người xác nhận.
+Trên commit `202037e`, full suite chưa tạo được tổng kết cuối: fail-fast dừng ở `PY-001`, còn lần chạy
+toàn bộ bị treo sau khoảng 63% và được dừng. Hiện có **7 failures đã xác nhận** qua các scoped rerun;
+con số này không được diễn giải là tổng failure cuối cùng cho tới khi full suite hoàn tất.
 
 ## Mẫu bug mới
 

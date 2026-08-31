@@ -73,6 +73,38 @@ Compose stack, rerun automated gates and fill `manual-test-results.md` with sani
 
 Not applicable; documentation/testing session only.
 
+## Follow-up: live Docker verification after merge main
+
+### Runtime/commit
+
+- Branch/commit: `test-report` / `202037e`.
+- Docker stack started; backend ready, Agent healthy and frontend HTTP 200.
+- Clean Agent image build was blocked by a PyPI timeout while downloading `pydantic_core`. Current `src/`
+  was copied into the cached dependency image for runtime verification; this does not satisfy clean-build sign-off.
+
+### Results
+
+- Five-station simulator pipeline and S03 history trace: PASS.
+- Forecast 24h, Golden Window and spatial APIs on fresh data: PASS.
+- Agent current/compare/forecast and HITL refusal: PASS.
+- Frontend AI resilience 19/19, browser E2E 6/6, email snapshots 375/1280, reports 22 and build: PASS.
+- Spike created S03 AQI/PM2.5 alerts; recovery resolved them: PASS.
+- Station-silence made S05 offline/stale; current and Agent failed closed, but forecast incorrectly returned
+  fresh values: `BUG-005`, release blocker.
+- HITL live: pending/Resident 403/reject-no-dispatch and approve/command/ACK/audit chain: PASS.
+- Scoped Python reruns confirm seven failures. Full suite did not complete because it hung after about 63%.
+
+### Files updated
+
+- Testing Sheet, manual results, bug/defect/summary/technical reports and evidence index.
+- `docs/submission/testing/evidence/runtime-verification-2026-08-31.md`.
+- Browser E2E JSON/screenshots under `docs/evidence/session-3f/`.
+
+### Next exact step
+
+Fix `BUG-005` by gating forecast on current station status/freshness, add its regression test, then address
+`BUG-001`–`BUG-003` and rerun the full Python suite plus the nine remaining visual/public cases.
+
 ## Follow-up: AI20K four-part testing format
 
 ### Goal

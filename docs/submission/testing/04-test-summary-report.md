@@ -5,65 +5,71 @@
 | Trường | Kết quả |
 |---|---|
 | Evidence date | 31/08/2026 |
-| Code under automated test | Commit `a939966` |
-| Documentation commit | `2f2f47e` |
-| Overall status | **NOT READY — AUTOMATED GATE FAILED** |
-| Release recommendation | Không sign-off trước khi xử lý 20 failures và hoàn thành P0 live/manual |
+| Code under test | Branch `test-report`, commit `202037e` |
+| Overall status | **NOT READY — P0 DATA-QUALITY GATE FAILED** |
+| Sheet snapshot | 57 cases: **39 PASS, 9 FAIL, 9 NOT_RUN** |
+| Release recommendation | Không sign-off trước khi sửa offline forecast, xử lý regression failures và hoàn tất UI/public checks |
 
 ## Kết quả theo module/gate
 
 | Module/Gate | Kết quả | Status |
 |---|---|---|
-| Full Python suite | 763 passed, 20 failed, 2 warnings; 35.95s | FAIL |
+| Full Python suite | Chưa hoàn tất; bị treo sau khoảng 63%. Fail-fast: 14 PASS rồi 1 FAIL | FAIL |
+| Scoped Python reruns | 7 failures đã xác nhận; nhiều failure cũ đã được sửa sau merge main | FAIL |
 | Agent golden evaluation | 62/62; grounding/safety/tool selection 100% | PASS |
 | Forecast benchmark | PM2.5 MAE 7.65 → 1.65; cải thiện 78.5% | PASS |
-| Frontend build | 2323 modules; build 31.01s | PASS |
-| Frontend source-contract scripts | API URL, legend 28/28, personalized alerts, reports 22 PASS | PASS |
-| AI resilience live pass-through | 18 PASS, một live check nhận 503 khi stack dừng | BLOCKED |
-| Email snapshots | Runtime container không chạy | BLOCKED |
-| Docker configuration | `docker compose config --quiet` PASS | PASS |
-| Docker live services | Không có container chạy tại thời điểm kiểm tra | BLOCKED |
-| Browser E2E/manual acceptance | Chưa chạy trên final stack | NOT_RUN |
+| Live pipeline | S01–S05 online/fresh; MQTT → DB → API và browser live | PASS |
+| Alert/recovery | Spike tạo AQI/PM2.5 alert; recovery đóng alert | PASS |
+| Offline forecast gate | S05 offline vẫn nhận forecast `fresh` | FAIL |
+| Agent API/browser | Grounded current/compare/forecast; resilience 19/19; browser 6/6 | PASS |
+| HITL/device/audit | Pending, Resident 403, reject no-dispatch, approve → ACK, 7 audit records | PASS |
+| Reports | Frontend 22 PASS; email snapshots PASS; còn 2 report-generator failures | FAIL |
+| Frontend build | 2323 modules; 6.96s | PASS |
+| Clean Agent image build | PyPI timeout; runtime dùng cached dependencies + current source | BLOCKED |
+| Manual visual/public URL | Dashboard/timeline/PDF/full responsive/public URL còn thiếu | NOT_RUN |
 
 ## Defect summary
 
 | Nhóm | Số lượng | Trạng thái |
 |---|---:|---|
-| Agent route/geospatial/context | 17 automated failures | OPEN |
-| Report generator/export | 2 automated failures | OPEN |
-| Ventilation UI contract | 1 automated failure | OPEN |
-| Historical Agent UI issue | 1 historical case | NEEDS_RETEST |
-| Environment blockers | 3 chính | BLOCKED |
-| Dependency advisory | 1 high severity advisory | NEEDS_TRIAGE |
+| Agent route contract | 3 confirmed failures | OPEN |
+| Report generator/export | 2 confirmed failures | OPEN |
+| Ventilation UI contract | 1 confirmed failure | OPEN |
+| Offline forecast data-quality | 1 live failure | OPEN — release blocker |
+| Historical Agent UI issue | Browser E2E 6/6 | CLOSED |
+| Clean Agent build | 1 environment blocker | BLOCKED |
+| Dependency advisory | 1 high-severity advisory | NEEDS_TRIAGE |
 
-Chi tiết: [`03-bug-report.md`](03-bug-report.md).
+Chi tiết: [`03-bug-report.md`](03-bug-report.md) và
+[`evidence/runtime-verification-2026-08-31.md`](evidence/runtime-verification-2026-08-31.md).
 
 ## Các phần đã chứng minh được
 
-- Golden Agent fixture evaluation đạt toàn bộ 62 cases.
-- Forecast benchmark vượt acceptance threshold.
-- Frontend production build và các contract scripts chính PASS.
-- Compose file hợp lệ.
-- Evidence được gắn source simulator và không được diễn giải là quan trắc chính thức.
+- Live simulator pipeline có đủ năm trạm và trace được message ID/timestamps.
+- Forecast 24 giờ, bounds, model metadata, Golden Window và spatial API hoạt động trên trạm fresh.
+- Agent trả lời grounded và UI xử lý có kiểm soát 503/timeout/network/recovery.
+- Alert có consecutive gate, recovery tự resolve.
+- HITL chặn Resident, reject không dispatch, approve có command/ACK/audit đúng chuỗi.
+- Duplicate/stale checks cấp validator/storage/Agent PASS.
+- Email snapshots, report UI contract và production build PASS.
 
 ## Các phần chưa thể tuyên bố PASS
 
-- Full regression suite vì còn 20 failures.
-- Live simulator → MQTT → DB → API → UI trên final commit.
-- Browser Agent chat, personalized route và multi-turn route context.
-- HITL pending → review → dispatch → ACK và audit chain trên final stack.
-- Email snapshots, responsive view và public URL.
-- Report exports sau khi xử lý hai automated failures.
+- Offline/stale forecast: lỗi P0 `BUG-005`.
+- Full regression suite: chưa hoàn tất và còn 7 failures đã xác nhận.
+- Personalized route live và indoor fallback.
+- Kiểm tra trực quan dashboard history, timeline Play/Pause, PDF và toàn bộ responsive views.
+- Public URL incognito/HTTPS/CORS.
+- Clean Agent image build không phụ thuộc cache.
 
 ## Điều kiện sign-off
 
-- [ ] Resolve/disposition và retest toàn bộ BUG-001 đến BUG-004.
-- [ ] Full pytest không còn failure chưa được duyệt.
-- [ ] Start final stack và hoàn thành toàn bộ manual P0 trong Sheet.
-- [ ] Thêm screenshot/log/request IDs vào evidence index.
-- [ ] Review SEC-001 và ghi quyết định dependency risk.
-- [ ] Điền tester, Live URL, final commit và sign-off.
-- [ ] Export bộ bốn tài liệu thành PDF hoặc một PDF có bốn chương.
+- [ ] Sửa và retest `BUG-001`, `BUG-002`, `BUG-003`, `BUG-005`.
+- [ ] Full pytest hoàn tất và mọi failure có disposition được duyệt.
+- [ ] Clean Agent image build PASS.
+- [ ] Hoàn thành 9 mục `NOT_RUN` trong Sheet hoặc có waiver được ký.
+- [ ] Review `SEC-001`.
+- [ ] Điền final URL, final commit và chữ ký.
 
 ## Sign-off
 
@@ -72,5 +78,3 @@ Chi tiết: [`03-bug-report.md`](03-bug-report.md).
 | QA Lead | **NEEDS VERIFICATION** | | |
 | Technical Lead | **NEEDS VERIFICATION** | | |
 | Product/Team Lead | **NEEDS VERIFICATION** | | |
-
-Báo cáo kỹ thuật dài hơn được giữ tại [`TEST_REPORT.md`](TEST_REPORT.md).

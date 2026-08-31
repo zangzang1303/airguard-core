@@ -1,39 +1,30 @@
 # Testing Evidence Index
 
-## Evidence đã có trong repository
+## Evidence hiện tại
 
 | Evidence | Vị trí | Ghi chú |
 |---|---|---|
-| Forecast benchmark | [`../../../evidence/forecast-model-evaluation.md`](../../../evidence/forecast-model-evaluation.md) | Được tạo lại ngày 31/08/2026. |
+| Runtime verification 31/08 | [`runtime-verification-2026-08-31.md`](runtime-verification-2026-08-31.md) | Stack, pipeline, Agent, alert/recovery, offline gate, HITL/ACK/audit và scoped regressions tại `202037e`. |
+| Browser E2E JSON/screenshots | [`../../../evidence/session-3f/`](../../../evidence/session-3f/) | 6/6 failure/recovery cases được tạo lại trên live stack. |
+| Forecast benchmark | [`../../../evidence/forecast-model-evaluation.md`](../../../evidence/forecast-model-evaluation.md) | Tạo lại ngày 31/08/2026. |
 | Agent evaluation criteria | [`../../../agent-evaluation.md`](../../../agent-evaluation.md) | Tiêu chí/golden gate. |
-| Agent evaluation run | [`../../../../eval/reports/agent-evaluation-2026-08-08.md`](../../../../eval/reports/agent-evaluation-2026-08-08.md) | Runner cập nhật trường `Generated` ngày 31/08; filename là legacy. |
-| Backlog 2 QA evidence | [`../../../evidence/backlog2/`](../../../evidence/backlog2/) | Evidence ngày 11–12/08; dùng tham khảo, không thay final retest. |
-| Live evaluation reports | [`../../../evidence/release/`](../../../evidence/release/) | Các release run cũ; kiểm tra commit trước khi trích dẫn. |
-| Session 3F failure screenshots | [`../../../evidence/session-3f/`](../../../evidence/session-3f/) | Failure/recovery evidence lịch sử. |
-| UI report 24/08 | [`../../../ui-test-report-2026-08-24.md`](../../../ui-test-report-2026-08-24.md) | Có một UI Agent FAIL cần retest. |
+| Agent evaluation run | [`../../../../eval/reports/agent-evaluation-2026-08-08.md`](../../../../eval/reports/agent-evaluation-2026-08-08.md) | Filename legacy; kiểm tra trường Generated. |
+| Historical UI report 24/08 | [`../../../ui-test-report-2026-08-24.md`](../../../ui-test-report-2026-08-24.md) | Agent UI issue đã được đóng bằng browser E2E 31/08. |
 
-## Evidence còn thiếu cho final commit
+## Evidence còn cần
 
-- [ ] `01-compose-services.png` — service/container status trên final stack.
-- [ ] `02-health-readiness.png` — frontend, backend, Agent health/readiness.
-- [ ] `03-dashboard-five-stations.png` — S01–S05, source và freshness.
-- [ ] `04-station-history.png` — đúng station/metric/time range.
-- [ ] `05-forecast-24h.png` — bounds, confidence, model/source.
-- [ ] `06-golden-window-heatmap.png` — timeline và Golden Window/worst window.
-- [ ] `07-agent-grounded.png` — used tools, source, timestamp.
-- [ ] `08-agent-route.png` — route/evidence/map action sau khi route failures được xử lý.
-- [ ] `09-agent-insufficient-data.png` — stale/offline/outage fail closed.
-- [ ] `10-hitl-pending.png` — proposal ID/version và pending state.
-- [ ] `11-hitl-decision-ack.png` — Manager decision, command ID và ACK.
-- [ ] `12-audit-chain.png` — correlation IDs xuyên suốt.
-- [ ] `13-report-exports.png` — cùng report ID/checksum ở Markdown/HTML/PDF.
-- [ ] `14-responsive-ui.png` — viewport 375px và desktop.
-- [ ] `15-public-url-incognito.png` — HTTPS/CORS trên URL cuối.
+- [ ] Dashboard current/history khi đổi metric và time range.
+- [ ] Forecast/Golden Window/timeline với thao tác Play/Pause.
+- [ ] Personalized route/indoor fallback sau khi sửa `BUG-001`.
+- [ ] PDF tiếng Việt, watermark, matrix và page breaks sau khi sửa `BUG-002`.
+- [ ] Toàn bộ major views ở 375px và 1280px.
+- [ ] Public URL incognito, HTTPS và CORS.
+- [ ] Clean Agent image build không dùng dependency cache.
 
 ## Quy tắc evidence
 
-- Tên file bắt đầu bằng test/evidence ID.
-- Ghi commit, timestamp, môi trường và tester trong caption hoặc bảng kết quả.
-- Che API key, token, password, email nhận và dữ liệu cá nhân.
+- Ghi commit, timestamp, môi trường và tester.
+- Che API key, token, password, email người nhận và dữ liệu cá nhân.
 - Không dùng fixture cũ để chứng minh live pipeline hiện tại.
-- Không chỉnh sửa screenshot theo cách thay đổi ý nghĩa kết quả.
+- Không chỉnh screenshot theo cách thay đổi ý nghĩa kết quả.
+- ID rút gọn trong summary phải có bản đầy đủ trong runtime evidence.
