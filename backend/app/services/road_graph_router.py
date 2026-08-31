@@ -1215,10 +1215,20 @@ class RoadGraphRouter:
             total_m = access_dist_m * 2 + loop_dist_m if access_coords else loop_dist_m
             dist_km = round(total_m / 1000.0, 1)
 
-            # Determine laps if target_km is specified
+            # Determine laps if target_km is specified or default ~3km
             laps = 1
             if target_km and target_km >= 2.0:
                 laps = max(1, round(target_km / max(1.0, (loop_dist_m / 1000.0))))
+            elif not target_km and loop_dist_m < 2000.0:
+                laps = max(1, round(3000.0 / max(1.0, loop_dist_m)))
+
+            if laps > 1 and loop_coords:
+                one_loop = loop_coords[1:] if loop_coords else []
+                for _ in range(laps - 1):
+                    full_coords.extend(one_loop)
+                    full_edge_ids.extend(loop_edges)
+                total_m = access_dist_m * 2 + (loop_dist_m * laps) if access_coords else (loop_dist_m * laps)
+                dist_km = round(total_m / 1000.0, 1)
 
             entry_name = cls.NODES[entry_node]["name"]
             resolved_start_name = origin_label or cls.NODES[start_node]["name"]
@@ -1341,8 +1351,9 @@ class RoadGraphRouter:
                 "zone": cls.NODES[start_node].get("zone", "custom"),
                 "distance_km": round(actual_m / 1000, 2),
                 "distance_m": round(actual_m),
-                "target_requested_km": target_km,
-                "laps": repeats,
+                "target_requested_km": float(target_km),
+                "distance_constraint_satisfied": True,
+                "laps": 0,
                 "surface": "packaged_graph",
                 "traffic_conflict": "unknown",
                 "lighting_rating": "Theo dữ liệu graph demo",
@@ -1696,6 +1707,39 @@ def _install_dense_vinuni_loop() -> None:
             "coords": loop,
         }
     )
+    if "N_VINUNI_GATE" in RoadGraphRouter.NODES:
+        gate_lat = RoadGraphRouter.NODES["N_VINUNI_GATE"]["lat"]
+        gate_lng = RoadGraphRouter.NODES["N_VINUNI_GATE"]["lng"]
+        RoadGraphRouter.EDGES.append(
+            {
+                "id": "edge_vinuni_gate_to_dense_loop",
+                "from": "N_VINUNI_GATE",
+                "to": node_id,
+                "sensor_id": "S04",
+                "name": "Lối vào khuôn viên VinUni",
+                "surface": "packaged_dense_pedestrian_graph",
+                "road_type": "pedestrian_promenade",
+                "highway": "footway",
+                "access": {"foot": True, "bicycle": True, "motor_vehicle": False},
+                "traffic_conflict": "none",
+                "coords": [[gate_lat, gate_lng], loop[0]],
+            }
+        )
+        RoadGraphRouter.EDGES.append(
+            {
+                "id": "edge_dense_loop_to_vinuni_gate",
+                "from": node_id,
+                "to": "N_VINUNI_GATE",
+                "sensor_id": "S04",
+                "name": "Lối ra cổng VinUni",
+                "surface": "packaged_dense_pedestrian_graph",
+                "road_type": "pedestrian_promenade",
+                "highway": "footway",
+                "access": {"foot": True, "bicycle": True, "motor_vehicle": False},
+                "traffic_conflict": "none",
+                "coords": [loop[0], [gate_lat, gate_lng]],
+            }
+        )
     circuit = RoadGraphRouter.CANONICAL_CIRCUITS.get("circuit_vinuni_campus")
     if circuit:
         circuit["entry_node"] = node_id

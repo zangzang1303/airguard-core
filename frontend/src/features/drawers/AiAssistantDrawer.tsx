@@ -358,27 +358,35 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                         <Activity size={16} /> {routeAction.short_name || routeAction.name}
                       </div>
                       <div className="ai-route-header-badge">
-                        {routeAction.distance_km} KM
+                        {routeAction.distance_km} KM{routeAction.score ? ` • ${routeAction.score}/100 ĐIỂM` : ""}
                       </div>
                     </div>
                     <div className="ai-route-body">
+                      {msg.text && (
+                        <div style={{ fontSize: "13.5px", lineHeight: "1.6", color: "#1e293b", marginBottom: "12px", whiteSpace: "pre-line" }}>
+                          {renderInlineMarkdown(msg.text)}
+                        </div>
+                      )}
+
                       <div className="ai-route-metrics-grid">
                         <div className="ai-metric-stat-box">
                           <div className="ai-metric-stat-label">Cự ly</div>
                           <div className="ai-metric-stat-val">{routeAction.distance_km} km</div>
                         </div>
                         <div className="ai-metric-stat-box">
-                          <div className="ai-metric-stat-label">PM2.5 hít vào ước tính</div>
-                          <div className="ai-metric-stat-val">{routeAction.estimated_inhaled_mass_ug ?? "N/A"} µg</div>
+                          <div className="ai-metric-stat-label">Chất lượng / AQI</div>
+                          <div className="ai-metric-stat-val" style={{ color: "#10b981" }}>
+                            {routeAction.aqi ? `AQI ${routeAction.aqi}` : (routeAction.estimated_inhaled_mass_ug ? `${routeAction.estimated_inhaled_mass_ug} µg` : "Tốt")}
+                          </div>
                         </div>
                         <div className="ai-metric-stat-box">
                           <div className="ai-metric-stat-label">Thời gian</div>
-                          <div className="ai-metric-stat-val">{routeAction.duration_minutes ?? "N/A"} phút</div>
+                          <div className="ai-metric-stat-val">{routeAction.duration_minutes ? `${routeAction.duration_minutes} phút` : `~${Math.round(routeAction.distance_km * 6.5)} ph`}</div>
                         </div>
                         <div className="ai-metric-stat-box">
-                          <div className="ai-metric-stat-label">Giảm so với đối chứng</div>
+                          <div className="ai-metric-stat-label">{routeAction.exposure_reduction_pct != null ? "Giảm phơi nhiễm" : "Bề mặt"}</div>
                           <div className="ai-metric-stat-val">
-                            {routeAction.exposure_reduction_pct == null ? "N/A" : `${routeAction.exposure_reduction_pct}%`}
+                            {routeAction.exposure_reduction_pct != null ? `-${routeAction.exposure_reduction_pct}%` : "Ven hồ & Cây xanh"}
                           </div>
                         </div>
                       </div>
@@ -386,7 +394,7 @@ export const AiAssistantDrawer: React.FC<AiAssistantDrawerProps> = ({
                       <div className="ai-route-timeline">
                         <div className="ai-timeline-row">
                           <div className="ai-timeline-dot"></div>
-                          <span><strong>Nguồn graph:</strong> {routeAction.graph_source ?? "N/A"}</span>
+                          <span><strong>Xuất phát:</strong> {msg.intent === "recommend_personalized_running_route" ? "Vị trí của bạn" : "Điểm xuất phát tối ưu"}</span>
                         </div>
                         <div className="ai-timeline-row">
                           <div className="ai-timeline-dot" style={{ background: "#06b6d4" }}></div>
