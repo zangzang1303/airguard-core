@@ -40,6 +40,30 @@ def test_running_route_data_reversal():
     assert route_action_east["segments"]
 
 
+def test_cycling_route_uses_bicycle_permitted_edges():
+    agent = create_test_agent()
+    for station_id in ["S01", "S02", "S03", "S04", "S05"]:
+        live_engine.update_station(station_id, {"pm25": 15.0, "aqi": 40, "co2": 450.0, "noise_db": 48.0, "temperature": 26.0})
+
+    result = agent.process_query("Nên đạp xe đường nào không khí tốt nhất")
+
+    assert result["personalized_route"]["activity"] == "cycling"
+    edge_map = {edge["id"]: edge for edge in road_graph_router.EDGES}
+    assert all(edge_map[segment["edge_id"]]["access"]["bicycle"] for segment in result["personalized_route"]["segments"])
+
+
+def test_walking_route_uses_foot_permitted_edges():
+    agent = create_test_agent()
+    for station_id in ["S01", "S02", "S03", "S04", "S05"]:
+        live_engine.update_station(station_id, {"pm25": 15.0, "aqi": 40, "co2": 450.0, "noise_db": 48.0, "temperature": 26.0})
+
+    result = agent.process_query("Nên đi bộ đường nào không khí tốt nhất")
+
+    assert result["personalized_route"]["activity"] == "walking"
+    edge_map = {edge["id"]: edge for edge in road_graph_router.EDGES}
+    assert all(edge_map[segment["edge_id"]]["access"]["foot"] for segment in result["personalized_route"]["segments"])
+
+
 def test_elimination_of_famous_poi_bias():
     """
     CRITICAL TEST 2: Elimination of Famous POI Bias
@@ -170,8 +194,8 @@ def test_distance_and_detour_precision():
         assert route_action["approach_coordinates"][-1] == route_action["coordinates"][0]
 
 
-def test_vinuni_dense_loop_is_used_for_a_three_kilometre_request():
-    """A local VinUni request renders the packaged road trace, not coarse hops."""
+def test_vinuni_route_uses_stored_osm_edges_for_a_three_kilometre_request():
+    """A local VinUni request renders stored street edges, not coarse hops."""
     station_pm25 = {station_id: 15.0 for station_id in ["S01", "S02", "S03", "S04", "S05"]}
     candidates = road_graph_router.generate_candidate_routes_from_origin(
         origin_lat=20.9903,
@@ -180,12 +204,61 @@ def test_vinuni_dense_loop_is_used_for_a_three_kilometre_request():
         station_pm25_map=station_pm25,
         activity="running",
     )
-    route = next(candidate for candidate in candidates if candidate.get("target_requested_km") == 3.0)
+    route = candidates[0]
 
-    assert route["edge_ids"] == ["edge_vinuni_dense_loop"]
-    assert len(route["coordinates"]) >= 150
+    assert all(edge_id.startswith("osm_way_") for edge_id in route["edge_ids"])
+    assert len(route["coordinates"]) >= 20
     assert route["coordinates"][0] == route["coordinates"][-1]
     assert abs(route["distance_km"] - 3.0) / 3.0 <= 0.20
+
+
+def test_ocean_park_snapshot_is_complete_versioned_and_auditable():
+    metadata = road_graph_router.GRAPH_METADATA
+
+    assert metadata["source"] == "openstreetmap_snapshot"
+    assert metadata["graph_version"] == "2.0.0"
+    assert len(road_graph_router.GRAPH_METADATA["checksum_sha256"]) == 64
+    assert metadata["node_count"] == len(road_graph_router.NODES) >= 8_000
+    assert metadata["edge_count"] == len(road_graph_router.EDGES) >= 10_000
+    assert metadata["poi_count"] >= 150
+    assert metadata["attribution"] == "© OpenStreetMap contributors"
+    assert all(edge["id"].startswith("osm_way_") for edge in road_graph_router.EDGES)
+
+
+def test_three_kilometre_route_near_s03_uses_only_stored_road_geometry():
+    station_pm25 = {station_id: 15.0 for station_id in ["S01", "S02", "S03", "S04", "S05"]}
+    candidates = road_graph_router.generate_candidate_routes_from_origin(
+        origin_lat=20.9953,
+        origin_lng=105.9500,
+        target_km=3.0,
+        station_pm25_map=station_pm25,
+        activity="running",
+    )
+    route = candidates[0]
+
+    assert all(edge_id.startswith("osm_way_") for edge_id in route["edge_ids"])
+    assert len(route["coordinates"]) >= 40
+    assert abs(route["distance_km"] - 3.0) / 3.0 <= 0.02
+
+
+def test_all_station_origins_snap_and_support_full_distance_contract():
+    station_pm25 = {station_id: 15.0 for station_id in ["S01", "S02", "S03", "S04", "S05"]}
+
+    for origin in road_graph_router.STATION_COORDINATES.values():
+        snap = road_graph_router.snap_origin_to_network(*origin, activity="running")
+        assert snap["is_valid"] is True
+        assert snap["snap_distance_m"] <= 25
+        for target_km in (1.0, 3.0, 5.0, 10.0):
+            candidates = road_graph_router.generate_candidate_routes_from_origin(
+                origin_lat=origin[0],
+                origin_lng=origin[1],
+                target_km=target_km,
+                station_pm25_map=station_pm25,
+                activity="running",
+            )
+            assert len(candidates) == 3
+            assert all(abs(route["distance_km"] - target_km) / target_km <= 0.20 for route in candidates)
+            assert all(route["coordinates"][0] == route["coordinates"][-1] for route in candidates)
 
 
 def test_health_profile_sensitive_penalty():
@@ -373,11 +446,11 @@ def test_loop_closure_geometry():
     top = candidates[0]
     coords = top["coordinates"]
     assert len(coords) >= 4
-    # First point equals origin and last point equals origin
-    assert abs(coords[0][0] - origin[0]) < 1e-4
-    assert abs(coords[0][1] - origin[1]) < 1e-4
-    assert abs(coords[-1][0] - origin[0]) < 1e-4
-    assert abs(coords[-1][1] - origin[1]) < 1e-4
+    # The verified route closes at the snapped road node. The unverified
+    # origin-to-road access trace remains separate in the API contract.
+    snap = road_graph_router.snap_origin_to_network(*origin, activity="running")
+    assert coords[0] == snap["snapped_coordinate"]
+    assert coords[-1] == coords[0]
 
 
 def test_route_exposure_returns_grounded_drawable_segments():

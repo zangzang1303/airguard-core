@@ -20,9 +20,6 @@ export interface MapAction {
 
 export type OverlayChangeListener = (hasOverlay: boolean) => void;
 
-const DIRECTION_MARKER_INTERVAL_METERS = 130;
-const MAX_DIRECTION_MARKERS = 8;
-
 function distanceMeters(from: [number, number], to: [number, number]): number {
   const earthRadiusMeters = 6_371_000;
   const degreesToRadians = Math.PI / 180;
@@ -34,61 +31,6 @@ function distanceMeters(from: [number, number], to: [number, number]): number {
       Math.cos(to[0] * degreesToRadians) *
       Math.sin(lngDelta / 2) ** 2;
   return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function bearingDegrees(from: [number, number], to: [number, number]): number {
-  const degreesToRadians = Math.PI / 180;
-  const radiansToDegrees = 180 / Math.PI;
-  const longitudeDelta = (to[1] - from[1]) * degreesToRadians;
-  const fromLatitude = from[0] * degreesToRadians;
-  const toLatitude = to[0] * degreesToRadians;
-  const bearing = Math.atan2(
-    Math.sin(longitudeDelta) * Math.cos(toLatitude),
-    Math.cos(fromLatitude) * Math.sin(toLatitude) -
-      Math.sin(fromLatitude) * Math.cos(toLatitude) * Math.cos(longitudeDelta),
-  );
-  return (bearing * radiansToDegrees + 360) % 360;
-}
-
-function routeDirectionMarkers(coords: Array<[number, number]>): L.Marker[] {
-  const markers: L.Marker[] = [];
-  const segmentDistances = coords.slice(1).map((to, index) => distanceMeters(coords[index], to));
-  const routeDistance = segmentDistances.reduce((total, distance) => total + distance, 0);
-  const markerCount = Math.min(MAX_DIRECTION_MARKERS, Math.ceil(routeDistance / DIRECTION_MARKER_INTERVAL_METERS));
-  if (!Number.isFinite(routeDistance) || markerCount === 0) return markers;
-
-  const markerTargets = Array.from(
-    { length: markerCount },
-    (_, index) => (routeDistance * (index + 1)) / (markerCount + 1),
-  );
-  let travelledDistance = 0;
-  let markerTargetIndex = 0;
-
-  for (let index = 1; index < coords.length && markerTargetIndex < markerTargets.length; index += 1) {
-    const from = coords[index - 1];
-    const to = coords[index];
-    const segmentDistance = segmentDistances[index - 1];
-    if (!Number.isFinite(segmentDistance) || segmentDistance < 1) continue;
-
-    travelledDistance += segmentDistance;
-    if (travelledDistance < markerTargets[markerTargetIndex]) continue;
-
-    const icon = L.divIcon({
-      html: `<span class="ai-route-direction-arrow" style="transform: rotate(${bearingDegrees(from, to)}deg)" aria-hidden="true">▲</span>`,
-      className: "ai-route-direction-marker",
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
-    });
-    markers.push(
-      L.marker(to, { icon, interactive: false, keyboard: false }).bindTooltip("Chiều chạy đề xuất", {
-        direction: "top",
-        offset: [0, -8],
-      }),
-    );
-    markerTargetIndex += 1;
-  }
-
-  return markers;
 }
 
 export class MapActionController {
@@ -335,7 +277,20 @@ export class MapActionController {
             })
           : null;
 
-        const directionMarkers = routeDirectionMarkers(coords);
+        // A slim animated shimmer makes the walking/running path easy to
+        // follow without adding directional arrow markers over the basemap.
+        // It reuses the exact backend geometry and therefore cannot create a
+        // visual shortcut that is absent from the audited route.
+        const flowPolyline = L.polyline(coords, {
+          color: "#ffffff",
+          weight: 2,
+          opacity: 0.78,
+          dashArray: "2 13",
+          lineCap: "round",
+          lineJoin: "round",
+          interactive: false,
+          className: "ai-route-flow-path",
+        });
 
         // Start Point Pin with Animated Sonar Pulse
         const startHtml = `
@@ -377,7 +332,7 @@ export class MapActionController {
         this.aiOverlayLayer.addLayer(glowPolyline);
         if (corePolyline) this.aiOverlayLayer.addLayer(corePolyline);
         segmentPolylines.forEach((polyline) => this.aiOverlayLayer?.addLayer(polyline));
-        directionMarkers.forEach((marker) => this.aiOverlayLayer?.addLayer(marker));
+        this.aiOverlayLayer.addLayer(flowPolyline);
         this.aiOverlayLayer.addLayer(startMarker);
         // A loop returns to its entry point, so a second finish flag would
         // overlap the access endpoint and falsely suggest that the dashed

@@ -265,6 +265,7 @@ class CleanRunningRouteRequest(BaseModel):
     pace_minutes_per_km: float | None = None
     data_mode: str = "current"
     forecast_hour: int | None = None
+    activity: Literal["walking", "running", "cycling"] = "running"
 
 
 class NotificationPreferencesPatch(BaseModel):
@@ -1203,6 +1204,7 @@ def recommend_clean_running_route(body: CleanRunningRouteRequest) -> dict:
             pace_minutes_per_km=body.pace_minutes_per_km,
             data_mode=body.data_mode,
             forecast_hour=body.forecast_hour,
+            activity=body.activity,
         ),
         "contract_version": "b7-personalized-alerts-v1",
     }

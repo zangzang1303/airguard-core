@@ -679,12 +679,8 @@ class GeospatialAgentService:
             or (activity in {"running", "walking", "cycling"} and any(w in q for w in ["đường", "tuyến", "đoạn", "ở đâu", "lộ trình", "nơi nào", "chỗ nào"]))
         )
         if is_route_query:
-            if activity != "running":
-                raise ServiceError(
-                    "unsupported_route_activity",
-                    "The versioned route contract currently supports running only",
-                    422,
-                )
+            if activity not in {"walking", "running", "cycling"}:
+                raise ServiceError("unsupported_route_activity", "The route contract supports walking, running, and cycling", 422)
             # Never create an outdoor route when the grounded area-wide
             # conditions already fail the exercise policy.  The route service
             # ranks exposure, but ranking cannot make hazardous air safe.
@@ -713,13 +709,35 @@ class GeospatialAgentService:
                 "map_poi_selection": "named_poi",
                 "map_selection": "map_selection",
             }
+<<<<<<< HEAD
             if self.clean_route_service is not None:
                 if activity != "running":
                     raise ServiceError(
                         "unsupported_route_activity",
                         "The versioned route contract currently supports running only",
                         422,
-                    )
+=======
+            try:
+                # Prefer an explicitly injected canonical route service. Direct
+                # callers that supply grounded snapshots still use a
+                # request-scoped adapter and the same quality gates.
+                route_service = self.clean_route_service or self._route_service_from_request_data(
+                    station_snapshots,
+                    station_histories,
+                )
+                if route_service is None:
+                    raise ServiceError("route_service_unavailable", "Clean-running route service is unavailable", 503)
+                route = route_service.recommend(
+                    origin={
+                        "lat": origin_lat,
+                        "lon": origin_lng,
+                        "source": source_mapping.get(origin_source, "map_selection"),
+                    },
+                    target_distance_km=resolved_target_km,
+                    pace_minutes_per_km=None,
+                    data_mode="forecast" if is_forecast else "current",
+                    forecast_hour=forecast_hour if is_forecast else None,
+                    activity=activity,
                 resolved_target_km = target_distance_km if target_distance_km is not None else 3.0
                 source_mapping = {
                     "default_location": "demo_default",
@@ -739,6 +757,7 @@ class GeospatialAgentService:
                         pace_minutes_per_km=None,
                         data_mode="forecast" if is_forecast else "current",
                         forecast_hour=forecast_hour if is_forecast else None,
+                        activity=activity,
                     )
                 except ServiceError as exc:
                     fail_closed_codes = {
@@ -751,12 +770,13 @@ class GeospatialAgentService:
                         "route_service_unavailable",
                         "route_origin_out_of_bounds",
                         "route_origin_snap_failed",
+                        "unsupported_route_activity",
                     }
                     if exc.code not in fail_closed_codes:
                         raise
                     if exc.code in {"route_origin_out_of_bounds", "route_origin_snap_failed"}:
                         summary = (
-                            "Chưa tìm thấy lối chạy bộ phù hợp đủ gần điểm xuất phát đã chọn. "
+                            "Chưa tìm thấy lối đi phù hợp đủ gần điểm xuất phát đã chọn. "
                             "Hãy chọn một điểm trong khu vực Ocean Park 1 hoặc gần một tuyến đường trên bản đồ."
                         )
                         return {
@@ -790,8 +810,9 @@ class GeospatialAgentService:
                     if route.get("exposure_reduction_pct") is not None
                     else ""
                 )
+                activity_label = {"walking": "đi bộ", "running": "chạy bộ", "cycling": "đạp xe"}.get(activity, "chạy bộ")
                 summary = (
-                    f"Tuyến chạy {route['distance_km']} km từ {origin_label} có khối lượng PM2.5 "
+                    f"Tuyến {activity_label} {route['distance_km']} km từ {origin_label} có khối lượng PM2.5 "
                     f"ước tính hít vào {route['estimated_inhaled_mass_ug']} µg{reduction_text}. "
                     f"{route['disclaimer']}"
                 )
@@ -844,7 +865,7 @@ class GeospatialAgentService:
                             "type": "highlight_route",
                             "route_id": route["route_id"],
                             "rank": 1,
-                            "name": "Tuyến chạy ít phơi nhiễm hơn",
+                            "name": f"Tuyến {activity_label} ít phơi nhiễm hơn",
                             "coordinates": coordinates,
                             "approach_coordinates": approach_coordinates,
                             "approach_kind": "origin_to_graph_snap",
@@ -978,7 +999,18 @@ class GeospatialAgentService:
                     "avoid_sensor_id": avoid_sensor_id,
                 },
                 conversation_id=conversation_id,
-            )
+                        "source": "forecast" if route["data_mode"] == "forecast" else "spatial_idw_route_segment",
+                    },
+                    {
+                        "type": "fit_bounds",
+                        "bounds": [[min(lats), min(lngs)], [max(lats), max(lngs)]],
+                        "padding": [60, 60],
+                    },
+                ],
+                "used_tools": ["clean_running_route"],
+                "request_id": request_id,
+            }
+>>>>>>> origin/main
 
         # Intent OVERVIEW: General Area Overview (Vinhomes Ocean Park 1)
         detected_scope = spatial_registry.resolve_scope(q)

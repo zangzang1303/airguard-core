@@ -56,7 +56,7 @@ export const StationDetail: React.FC = () => {
         setStation(current);
         setHistory(points);
         try {
-          const fc = await api.getStationForecast(selectedStationId, forecastMetric);
+          const fc = await api.getStationForecast(selectedStationId, forecastMetric, 24, "extended");
           setForecast(fc);
         } catch {
           setForecast(null);
