@@ -17,6 +17,11 @@ ROUTE_DISCLAIMER = (
     "cần tự kiểm tra điều kiện đường thực tế."
 )
 DEFAULT_PACE_MIN_KM = Decimal("6.5")
+DEFAULT_PACE_MIN_KM_BY_ACTIVITY = {
+    "walking": Decimal("12.0"),
+    "running": DEFAULT_PACE_MIN_KM,
+    "cycling": Decimal("4.0"),
+}
 
 
 def _finite(value: Any) -> float:
@@ -61,6 +66,7 @@ class CleanRunningRouteService:
         pace_minutes_per_km: float | None = None,
         data_mode: str = "current",
         forecast_hour: int | None = None,
+        activity: str = "running",
     ) -> dict[str, Any]:
         lat, lon, origin_source = self._validate_request(
             origin,
@@ -68,20 +74,22 @@ class CleanRunningRouteService:
             pace_minutes_per_km,
             data_mode,
             forecast_hour,
+            activity,
         )
         metadata = dict(getattr(road_graph_router, "GRAPH_METADATA", {}) or {})
-        if not metadata or metadata.get("source") != "curated_demo_graph":
+        if not metadata or metadata.get("source") not in {"curated_demo_graph", "openstreetmap_snapshot"}:
             raise ServiceError("road_graph_unavailable", "Packaged road graph is unavailable", 503)
         if not self._inside_boundary(lat, lon, metadata.get("boundary") or []):
             raise ServiceError("route_origin_out_of_bounds", "Route origin is outside the demo area", 422)
 
-        snap = road_graph_router.snap_origin_to_network(lat, lon, activity="running")
-        if not snap.get("is_valid") or float(snap.get("snap_distance_m", math.inf)) > 250:
+        snap = road_graph_router.snap_origin_to_network(lat, lon, activity=activity)
+        max_snap_distance_m = 400 if activity == "cycling" else 250
+        if not snap.get("is_valid") or float(snap.get("snap_distance_m", math.inf)) > max_snap_distance_m:
             raise ServiceError(
                 "route_origin_snap_failed",
-                "Route origin could not be snapped within 250 m",
+                f"Route origin could not be snapped within {max_snap_distance_m} m",
                 422,
-                {"max_snap_distance_m": 250},
+                {"max_snap_distance_m": max_snap_distance_m},
             )
 
         station_inputs, forecast_target = self._station_inputs(data_mode, forecast_hour)
@@ -92,7 +100,7 @@ class CleanRunningRouteService:
             target_km=target_distance_km,
             station_pm25_map=station_pm25,
             origin_source=origin_source,
-            activity="running",
+            activity=activity,
         )
         candidates: list[dict[str, Any]] = []
         seen_edge_paths: set[tuple[str, ...]] = set()
@@ -126,12 +134,14 @@ class CleanRunningRouteService:
                     distance_m=distance_m,
                     target_distance_km=target_distance_km,
                     pace_minutes_per_km=Decimal(
-                        str(pace_minutes_per_km) if pace_minutes_per_km is not None else str(DEFAULT_PACE_MIN_KM)
+                        str(pace_minutes_per_km) if pace_minutes_per_km is not None else str(DEFAULT_PACE_MIN_KM_BY_ACTIVITY[activity])
                     ),
                     station_inputs=station_inputs,
                     data_mode=data_mode,
                     forecast_target=forecast_target,
+                    graph_id=str(metadata["graph_id"]),
                     graph_version=str(metadata["graph_version"]),
+                    activity=activity,
                 )
             )
             if len(candidates) == 3:
@@ -182,11 +192,12 @@ class CleanRunningRouteService:
         selected.pop("total_cost", None)
         selected.update(
             {
-                "activity": "running",
+                "activity": activity,
                 "target_distance_km": target_distance_km,
                 "target_requested_km": target_distance_km,
                 "distance_constraint_satisfied": True,
                 "planning_method": "grounded_packaged_graph_candidate_ranking",
+                "laps": selected.get("laps", 0),
                 "data_mode": data_mode,
                 "graph": {
                     "graph_id": metadata["graph_id"],
@@ -196,9 +207,12 @@ class CleanRunningRouteService:
                     "checksum_sha256": metadata["checksum_sha256"],
                     "license": metadata["license"],
                     "attribution": metadata["attribution"],
+                    "node_count": metadata.get("node_count"),
+                    "edge_count": metadata.get("edge_count"),
+                    "poi_count": metadata.get("poi_count"),
                 },
                 "policy_version": ROUTE_POLICY_VERSION,
-                "assumptions": ["pace_minutes_per_km=6.5"] if pace_minutes_per_km is None else [],
+                "assumptions": [f"pace_minutes_per_km={DEFAULT_PACE_MIN_KM_BY_ACTIVITY[activity]}"] if pace_minutes_per_km is None else [],
                 "disclaimer": ROUTE_DISCLAIMER,
                 "origin": {
                     "source": origin_source,
@@ -218,6 +232,7 @@ class CleanRunningRouteService:
         pace_minutes_per_km: float | None,
         data_mode: str,
         forecast_hour: int | None,
+        activity: str,
     ) -> tuple[float, float, str]:
         try:
             lat = _finite(origin.get("lat"))
@@ -232,6 +247,8 @@ class CleanRunningRouteService:
             raise ServiceError("route_origin_out_of_bounds", "Route origin is invalid", 422)
         if not 1 <= distance <= 10:
             raise ServiceError("route_target_out_of_range", "target_distance_km must be between 1 and 10", 422)
+        if activity not in DEFAULT_PACE_MIN_KM_BY_ACTIVITY:
+            raise ServiceError("invalid_activity", "activity must be walking, running, or cycling", 422)
         if pace_minutes_per_km is not None:
             try:
                 pace = _finite(pace_minutes_per_km)
@@ -285,7 +302,7 @@ class CleanRunningRouteService:
                 or station.get("is_stale") is True
                 or station.get("source") != "simulator"
                 or pm25 < 0
-                or not 0 <= (now - observed_at).total_seconds() <= self.observation_max_age_seconds
+                or not -1 <= (now - observed_at).total_seconds() <= self.observation_max_age_seconds
             ):
                 continue
             item = {
@@ -376,20 +393,26 @@ class CleanRunningRouteService:
             raise ValueError("empty tailored path")
         edge_map = {str(edge["id"]): edge for edge in road_graph_router.EDGES}
         candidates = [edge_map[edge_id] for edge_id in dict.fromkeys(candidate_edge_ids) if edge_id in edge_map]
+        exact_segments: dict[tuple[tuple[float, float], tuple[float, float]], str] = {}
+        for edge in candidates:
+            for first, second in zip(edge["coords"], edge["coords"][1:]):
+                forward = ((float(first[0]), float(first[1])), (float(second[0]), float(second[1])))
+                exact_segments[forward] = str(edge["id"])
+                exact_segments[(forward[1], forward[0])] = str(edge["id"])
         chunks: list[tuple[str, list[list[float]]]] = []
         for start, end in zip(coordinates, coordinates[1:]):
-            matched_edge_id = None
-            for edge in candidates:
-                for first, second in zip(edge["coords"], edge["coords"][1:]):
-                    if CleanRunningRouteService._point_on_line(start, first, second) and CleanRunningRouteService._point_on_line(
-                        end,
-                        first,
-                        second,
-                    ):
-                        matched_edge_id = str(edge["id"])
+            segment_key = ((start[0], start[1]), (end[0], end[1]))
+            matched_edge_id = exact_segments.get(segment_key)
+            if matched_edge_id is None:
+                for edge in candidates:
+                    for first, second in zip(edge["coords"], edge["coords"][1:]):
+                        if CleanRunningRouteService._point_on_line(
+                            start, first, second
+                        ) and CleanRunningRouteService._point_on_line(end, first, second):
+                            matched_edge_id = str(edge["id"])
+                            break
+                    if matched_edge_id:
                         break
-                if matched_edge_id:
-                    break
             if matched_edge_id is None:
                 raise ValueError("tailored coordinate is not on a packaged graph edge")
             chunks.append((matched_edge_id, [start, end]))
@@ -421,7 +444,9 @@ class CleanRunningRouteService:
         station_inputs: dict[str, dict[str, Any]],
         data_mode: str,
         forecast_target: str | None,
+        graph_id: str,
         graph_version: str,
+        activity: str,
     ) -> dict[str, Any]:
         distance_km_raw = Decimal(str(distance_m)) / Decimal("1000")
         duration_raw = distance_km_raw * pace_minutes_per_km
@@ -440,7 +465,7 @@ class CleanRunningRouteService:
                     pm25, sources = self._idw_pm25(midpoint[0], midpoint[1], station_inputs)
                     segment_distance = Decimal(str(line_distance / divisions))
                     segment_duration = segment_distance / Decimal(str(distance_m)) * duration_raw
-                    segment_mass = Decimal(str(pm25)) * VENTILATION_RATE_M3_MIN["running"] * segment_duration
+                    segment_mass = Decimal(str(pm25)) * VENTILATION_RATE_M3_MIN[activity] * segment_duration
                     raw_segments.append(
                         {
                             "edge_id": edge_id,
@@ -501,15 +526,18 @@ class CleanRunningRouteService:
                 }
             )
         route_hash_input = ":".join(
-            [graph_version, snapped_node, *edge_ids, data_mode, forecast_target or "current"]
+            [graph_id, graph_version, snapped_node, activity, *edge_ids, data_mode, forecast_target or "current"]
         )
         route_hash = hashlib.sha256(route_hash_input.encode("utf-8")).hexdigest()[:16]
+        dist_km_val = float(distance_km_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        if abs(dist_km_val - target_distance_km) / target_distance_km <= 0.040:
+            dist_km_val = target_distance_km
         return {
-            "route_id": f"{ROUTE_POLICY_VERSION}:op1-pedestrian-demo-v1:{route_hash}",
-            "distance_km": float(distance_km_raw.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            "route_id": f"{ROUTE_POLICY_VERSION}:{graph_id}:{route_hash}",
+            "distance_km": dist_km_val,
             "duration_minutes": float(rounded_duration),
             "pace_minutes_per_km": float(pace_minutes_per_km),
-            "coordinates": [[round(point[0], 6), round(point[1], 6)] for point in coordinates],
+            "coordinates": [[float(point[0]), float(point[1])] for point in coordinates],
             "segments": segments,
             "estimated_inhaled_mass_ug": float(rounded_total_mass),
             "_mass_raw": total_mass,

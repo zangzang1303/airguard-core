@@ -72,7 +72,7 @@ Base URL: `/api/v1`. JSON responses use ISO-8601 timestamps with timezone. Error
 
 ## Personalized exposure and route contract (`b7-personalized-alerts-v1`)
 
-`POST /exposure/inhaled-mass` accepts only `station_id`, required `activity=resting|running`, integer
+`POST /exposure/inhaled-mass` accepts only `station_id`, required `activity=resting|walking|running|cycling`, integer
 `duration_minutes=1..180`, `data_mode=current|forecast`, and a mode-compatible
 `forecast_hour`. The backend obtains PM2.5 and profile-independent model assumptions. It returns
 `estimated_inhaled_mass_ug`, concentration source/time/quality, ventilation preset, formula,
@@ -82,19 +82,22 @@ stale/offline/invalid current data and stale/low-confidence forecast data fail c
 
 `POST /routes/clean-running` accepts an origin (`lat`, `lon`,
 `source=map_selection|gps|named_poi|demo_default`), target distance 1..10 km, optional pace 3..20
-minutes/km (versioned default 6.5), data mode and forecast hour. Origin must be inside the packaged
-demo extent and snap to the graph within 250 m. At least three fresh valid online simulator stations
-(or three same-horizon quality-gated forecasts) are required. No live OSM call, straight-line
-geometry, station fallback or environmental default is allowed.
+minutes/km, `activity=walking|running|cycling` (default running; demo default pace 12.0/6.5/4.0 respectively), data mode and forecast hour. Origin must be inside the Ocean Park
+1 polygon and snap to a stored activity-permitted edge within 250 m for running or 400 m for cycling. At least three fresh valid online
+simulator stations (or three same-horizon quality-gated forecasts) are required. Runtime makes no
+OpenStreetMap/Overpass call: it reads the versioned, checksummed `openstreetmap_snapshot`, containing
+walkable road geometry and named POIs captured by the offline maintenance script. Straight-line
+route geometry, station fallback and environmental defaults are forbidden.
 
 The service returns at most one selected deterministic route from at most three candidates. Every
-segment has a packaged `edge_id`, coordinates sampled no farther than 35 m, distance/duration,
+segment has a packaged OSM-derived `edge_id`, coordinates sampled no farther than 35 m, distance/duration,
 grounded PM2.5, `estimated_inhaled_mass_ug`, contributing station IDs, time and source. Ranking is
 `0.70 * normalized_inhaled_mass + 0.30 * normalized_distance_deviation`, with tie-break by inhaled
 mass, distance deviation then route ID. A baseline must be a different candidate within 10% distance;
 otherwise `exposure_reduction_pct` is null. Segment duration and mass totals match route totals within
-0.01. Graph provenance is `source=curated_demo_graph` until an independently reviewed snapshot
-supersedes it. The selected route echoes `target_distance_km` as `target_requested_km`, declares
+0.01. Graph provenance is `source=openstreetmap_snapshot`, includes snapshot time, ODbL attribution,
+checksum and node/edge/POI counts, and must fail closed if validation fails. The selected route echoes
+`target_distance_km` as `target_requested_km`, declares
 `distance_constraint_satisfied=true` only after the graph tolerance gate, and labels its selection
 method as `grounded_packaged_graph_candidate_ranking`.
 
@@ -393,7 +396,8 @@ then follows that edge to the first route coordinate. Clients may render only th
 first coordinate as a visually distinct dashed access line; they must not derive or render the initial
 off-graph straight connector as navigation. The final point must equal the first route coordinate, never a
 route destination. It is not part of route distance, exposure calculation, or turn-by-turn guidance.
-Clients may add non-geometric direction arrows along the returned route coordinates.
+Clients must preserve the returned geometry. They may add a non-geometric visual flow effect along
+the route, but the default map overlay does not add direction-arrow markers that obscure roads or labels.
 
 Basic social messages are intercepted before profile, geospatial, telemetry or LLM access. Their
 response adds `conversation_kind`, has empty `used_tools`, `tool_arguments`, `sources`/`evidence`

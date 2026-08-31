@@ -54,6 +54,8 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
+    volumes:
+      - ./data:/data:ro
     environment:
       DATABASE_URL: postgresql://airguard:${POSTGRES_PASSWORD}@postgres:5432/airguard
       CORS_ORIGINS: ${CORS_ORIGINS:-https://${DEMO_DOMAIN}}

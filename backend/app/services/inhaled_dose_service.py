@@ -11,7 +11,11 @@ from .forecast_service import InsufficientForecastHistory, trend_forecast
 INHALED_MASS_POLICY_VERSION = "inhaled-mass-policy-v1"
 VENTILATION_RATE_M3_MIN = {
     "resting": Decimal("0.006"),
+    # Demo policy value for route comparison only; it is not a clinical estimate.
+    "walking": Decimal("0.020"),
     "running": Decimal("0.045"),
+    # Demo policy value for route comparison only; it is not a clinical estimate.
+    "cycling": Decimal("0.030"),
 }
 DISCLAIMER = "Ước tính mô hình demo; không phải liều hấp thụ hoặc tư vấn y tế."
 
@@ -46,7 +50,7 @@ def calculate_estimated_inhaled_mass(
     duration_minutes: int | Decimal,
 ) -> Decimal:
     if activity not in VENTILATION_RATE_M3_MIN:
-        raise ServiceError("invalid_activity", "activity must be resting or running", 422)
+        raise ServiceError("invalid_activity", "activity must be resting, walking, running, or cycling", 422)
     if isinstance(duration_minutes, bool):
         raise ServiceError("invalid_duration", "duration_minutes must be between 1 and 180", 422)
     duration = _finite_decimal(duration_minutes, code="invalid_duration", field="duration_minutes")
@@ -84,14 +88,14 @@ class InhaledDoseService:
         self,
         *,
         station_id: str,
-        activity: Literal["resting", "running"] | str,
+        activity: Literal["resting", "walking", "running", "cycling"] | str,
         duration_minutes: int,
         data_mode: Literal["current", "forecast"] | str = "current",
         forecast_hour: int | None = None,
     ) -> dict[str, Any]:
         self._validate_mode(data_mode, forecast_hour)
         if activity not in VENTILATION_RATE_M3_MIN:
-            raise ServiceError("invalid_activity", "activity must be resting or running", 422)
+            raise ServiceError("invalid_activity", "activity must be resting, walking, running, or cycling", 422)
         if isinstance(duration_minutes, bool) or not isinstance(duration_minutes, int) or not 1 <= duration_minutes <= 180:
             raise ServiceError("invalid_duration", "duration_minutes must be an integer between 1 and 180", 422)
 
