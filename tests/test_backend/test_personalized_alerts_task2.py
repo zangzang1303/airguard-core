@@ -59,6 +59,10 @@ def test_inhaled_mass_fixture_ratio_and_boundaries() -> None:
     resting = calculate_estimated_inhaled_mass(pm25_ug_m3=42.5, activity="resting", duration_minutes=30)
     running = calculate_estimated_inhaled_mass(pm25_ug_m3=42.5, activity="running", duration_minutes=30)
     assert running / resting == pytest.approx(7.5)
+    cycling = calculate_estimated_inhaled_mass(pm25_ug_m3=42.5, activity="cycling", duration_minutes=30)
+    walking = calculate_estimated_inhaled_mass(pm25_ug_m3=42.5, activity="walking", duration_minutes=30)
+    assert walking < running
+    assert cycling < running
     for duration in (1, 180):
         assert calculate_estimated_inhaled_mass(pm25_ug_m3=1, activity="running", duration_minutes=duration) > 0
     for duration in (0, 181):
@@ -121,7 +125,10 @@ def test_clean_route_is_graph_grounded_deterministic_and_segment_totals_match() 
     first = service.recommend(**request)
     second = service.recommend(**request)
     assert first["route_id"] == second["route_id"]
-    assert first["graph"]["graph_source"] == "curated_demo_graph"
+    assert first["graph"]["graph_source"] == "openstreetmap_snapshot"
+    assert first["graph"]["node_count"] >= 8_000
+    assert first["graph"]["edge_count"] >= 10_000
+    assert first["graph"]["poi_count"] >= 150
     assert all(segment["edge_id"] for segment in first["segments"])
     assert max(segment["distance_m"] for segment in first["segments"]) <= 35.01
     assert sum(segment["estimated_inhaled_mass_ug"] for segment in first["segments"]) == pytest.approx(
