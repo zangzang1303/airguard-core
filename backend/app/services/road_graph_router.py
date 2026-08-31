@@ -2007,8 +2007,12 @@ class RoadGraphRouter:
 def _load_packaged_graph() -> dict[str, Any]:
     configured = os.getenv("ROAD_GRAPH_SNAPSHOT_PATH", "").strip()
     candidates = [Path(configured)] if configured else [
+        Path("/data/ocean-park-1-pedestrian-graph.json"),
+        Path(__file__).resolve().parents[1] / "data" / "ocean-park-1-pedestrian-graph.json",
         Path(__file__).resolve().parents[2] / "data" / "ocean-park-1-pedestrian-graph.json",
         Path(__file__).resolve().parents[3] / "data" / "ocean-park-1-pedestrian-graph.json",
+        Path("/data/ocean-park-1-road-graph.json"),
+        Path(__file__).resolve().parents[1] / "data" / "ocean-park-1-road-graph.json",
         Path(__file__).resolve().parents[2] / "data" / "ocean-park-1-road-graph.json",
         Path(__file__).resolve().parents[3] / "data" / "ocean-park-1-road-graph.json",
     ]

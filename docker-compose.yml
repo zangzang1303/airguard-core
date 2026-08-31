@@ -88,6 +88,8 @@ services:
     build:
       context: ./backend
     container_name: airguard-backend
+    volumes:
+      - ./data:/data:ro
     environment:
       DATABASE_URL: postgresql://airguard:airguard@postgres:5432/airguard
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://frontend:5173
