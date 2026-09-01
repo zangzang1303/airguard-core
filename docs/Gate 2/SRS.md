@@ -157,38 +157,36 @@ AirGuard AI được thiết kế theo kiến trúc Monorepo phân tán đa cont
 
 ### 2.3 Chân dung người dùng & Đặc tính (User Classes & Personas)
 
+Hệ thống AirGuard AI phân quyền người dùng thành **02 Vai trò cốt lõi (User Roles)**: **Cư dân đô thị (Resident)** và **Quản lý đô thị (Urban Manager / BQL)**. Trong đó, các nhóm thể trạng (Nhạy cảm hô hấp, Thể thao ngoài trời) được quản lý dưới dạng **Hồ sơ sức khỏe cá nhân hóa (Health Profile)** của Cư dân:
+
 ```
        +-------------------------------------------------------------+
        |                  AIRGUARD AI USER PERSONAS                  |
        +-------------------------------------------------------------+
-               |                       |                      |
-      +--------+--------+     +--------+--------+    +--------+--------+
-      | Cư Dân Thường   |     | Nhóm Nhạy Cảm   |    | VĐV / Runner    |
-      | (Normal User)   |     | (Sensitive)     |    | (Athlete)       |
-      | - Tra cứu AQI   |     | - Trẻ nhỏ/Cụ già|    | - Cự ly chuẩn   |
-      | - Đi dạo hồ     |     | - Tiền sử hen   |    | - Né bụi mịn    |
-      | - Chat trợ lý AI|     | - Cần cảnh báo  |    | - Khép kín 100% |
-      +-----------------+     +-----------------+    +-----------------+
-               |                       |                      |
-               +-----------------------+----------------------+
-                                       |
-                                       v
-                     +-----------------------------------+
-                     | Quản Lý Đô Thị & Kiểm Toán Viên   |
-                     | (Manager / Auditor / Admin)       |
-                     | - Duyệt cảnh báo HITL 1-click     |
-                     | - Điều khiển hệ thống phun sương  |
-                     | - Soi nhật ký kiểm toán Audit Log |
-                     +-----------------------------------+
+               |                                             |
+               v                                             v
+     +----------------------------------+          +----------------------------------+
+     | 1. CƯ DÂN ĐÔ THỊ (RESIDENT ROLE) |          | 2. QUẢN LÝ ĐÔ THỊ (MANAGER ROLE) |
+     +----------------------------------+          +----------------------------------+
+     | • Nhóm Thông Thường (Normal)     |          | • Ban Quản Trị & Vận Hành BQL    |
+     | • Nhóm Nhạy Cảm (Sensitive)      |          | • Kỹ Sư Giám Sát Tiện Ích Môi    |
+     | • Nhóm Thể Thao (Outdoor Sport)  |          |   Trường Đô Thị Ocean Park 1     |
+     +----------------------------------+          +----------------------------------+
+     | - Quan sát AQI, PM2.5, CO2, nhiệt|          | - Phê duyệt đề xuất AI (HITL)    |
+     | - Bản đồ nhiệt IDW & trạm chi    |          | - Điều khiển máy lọc mô phỏng    |
+     |   tiết 24h/dự báo 1-3h           |          | - Truy vết nhật ký kiểm toán     |
+     | - Hỏi đáp Trợ lý AI tiếng Việt   |          |   bất biến (Audit Log)           |
+     | - Tìm đường chạy bộ sạch khép kín|          | - Xuất báo cáo môi trường & ESG  |
+     | - Tùy biến cảnh báo cá nhân      |          | - Ghi đè kịch bản thử nghiệm     |
+     +----------------------------------+          +----------------------------------+
 ```
 
-| Persona / Vai trò | Đặc điểm & Nhu cầu sử dụng | Mục tiêu giải pháp | Quyền hạn truy cập |
+| Vai trò người dùng (Role) | Hồ sơ / Đặc tính chi tiết | Nhu cầu & Hành vi thực tế | Quyền hạn truy cập hệ thống |
 |---|---|---|---|
-| **Cư dân thường (Resident - Normal)** | Cư dân sinh sống tại các tòa Sapphire, Zenpark, Ocean Park 1. Cần xem chất lượng không khí nhanh chóng trước khi ra ngoài đi dạo hoặc cho con chơi. | Trực quan hóa AQI, nhận lời khuyên trang phục/khẩu trang dễ hiểu, không cần hiểu sâu về kỹ thuật. | Xem bản đồ, xem thông số trạm, chat AI, tùy chỉnh hồ sơ cá nhân. |
-| **Nhóm nhạy cảm (Sensitive)** | Trẻ em, người cao tuổi, phụ nữ mang thai hoặc cư dân có tiền sử viêm xoang, hen suyễn, bệnh tim mạch. | Cần cảnh báo sớm ngay khi $AQI > 100$, lộ trình gợi ý phải tránh tuyệt đối các trục đường lớn có nồng độ bụi cao. | Được áp dụng trọng số phạt ô nhiễm gấp đôi ($2.0\times$), nhận cảnh báo ưu tiên. |
-| **Người tập thể thao (Athlete / Runner)** | Cư dân đam mê chạy bộ, đạp xe, đi bộ thể dục quanh hồ Ngọc Trai và Biển Hồ Nước Mặn. | Tuyến đường phải khép kín tuần hoàn ($S \to W \to S$), không chạy đi rồi chạy lùi lại đường cũ, hiển thị khối lượng bụi hít vào ($\mu g$). | Chọn cự ly mục tiêu ($1 \to 10\text{km}$), chọn phương thức vận động, xem phân tích phơi nhiễm hô hấp. |
-| **Quản lý đô thị (Urban Manager)** | Ban Quản trị Khu đô thị Vinhomes Ocean Park 1, Đội ngũ kỹ thuật môi trường & tiện ích. | Tiếp nhận các đề xuất cảnh báo ô nhiễm hoặc kích hoạt hệ thống phun sương dập bụi, kiểm tra bằng chứng trước khi duyệt. | Truy cập Cổng Phê duyệt HITL, xem Evidence, Duyệt (Approve) hoặc Từ chối (Reject), xem Audit Log. |
-| **Kiểm toán viên / Quản trị viên (Auditor / Admin)** | Ban Giám sát An toàn Vận hành, Kiểm toán nội bộ, Kỹ sư hệ thống SRE. | Thẩm tra lịch sử can thiệp thiết bị, kiểm tra tuân thủ chính sách, phát hiện gian lận hoặc sai lệch số liệu. | Toàn quyền tra cứu `audit_logs` bất biến, kiểm tra trạng thái sức khỏe dịch vụ, xuất báo cáo tuân thủ. |
+| **Cư dân đô thị (Resident)** | **Nhóm Thông Thường (Normal)**<br/>Cư dân sinh sống tại các phân khu Sapphire, Zenpark, San Hô, Sao Biển, Hải Âu. | Tra cứu nhanh chỉ số AQI tổng quan và thời tiết trước khi ra ngoài, nhận khuyến nghị sinh hoạt dễ hiểu, hỏi đáp Trợ lý AI. | Toàn quyền xem bản đồ, tra cứu chi tiết trạm, xem bản đồ nhiệt IDW, đàm thoại AI, định tuyến an toàn, tùy biến thông báo cá nhân. |
+| | **Nhóm Nhạy Cảm (Sensitive)**<br/>Trẻ em, người cao tuổi, phụ nữ có thai, người có tiền sử viêm xoang, hen phế quản, bệnh tim mạch. | Cần cảnh báo sớm khi $AQI > 100$, nhận lời khuyên y tế dự phòng, lộ trình thể thao phải né tuyệt đối các trục đường bụi cao. | Được hệ thống tự động nhân đôi trọng số phạt ô nhiễm ($2.0\times$) khi định tuyến, ưu tiên gửi cảnh báo tức thì. |
+| | **Nhóm Thể Thao Ngoài Trời (Outdoor Sport / Runner)**<br/>Cư dân thường xuyên chạy bộ, đạp xe, đi dạo quanh hồ Ngọc Trai và Biển Hồ. | Cần tuyến đường thể thao khép kín ($0\%$ chạy lùi trùng đường), đạt đúng cự ly mong muốn ($1 \to 10\text{km}$), tính toán lượng bụi mịn hít vào ($\mu g$). | Chọn cự ly, hình thức vận động, xem chi tiết phân tích liều lượng phơi nhiễm bụi mịn hô hấp, gợi ý khung giờ vàng. |
+| **Quản lý đô thị (Urban Manager / BQL)** | **Ban Quản Lý & Kỹ Sư Vận Hành Đô Thị**<br/>Đội ngũ quản lý vận hành Vinhomes Ocean Park 1, giám sát chất lượng môi trường và tiện ích. | Thẩm định các đề xuất can thiệp do AI tạo ra (HITL), điều khiển hệ thống thiết bị lọc không khí/thông gió, thanh tra an toàn và xuất báo cáo tuân thủ. | Toàn quyền truy cập Cổng Phê duyệt HITL (Approve/Reject 1-click), Bảng điều khiển thiết bị lọc không khí, Nhật ký kiểm toán Audit Log, Xuất báo cáo ESG/Môi trường. |
 
 ### 2.4 Môi trường vận hành (Operating Environment)
 - **Hệ điều hành máy chủ**: Ubuntu 22.04 LTS x86_64 / Azure Cloud VM (Standard B2ms).
@@ -248,10 +246,12 @@ Hệ thống cung cấp chuẩn OpenAPI 3.1 qua tiền tố `/api/v1`:
 - `GET /api/v1/stations/{id}/history?hours=24`: Lịch sử quan trắc 24 giờ phục vụ vẽ biểu đồ xu hướng.
 - `GET /api/v1/stations/{id}/forecast`: Dự báo xu hướng chất lượng không khí trong 1-3 giờ tới.
 - `POST /api/v1/agent/chat`: Xử lý hội thoại AI đa lượt, trích xuất intent và định tuyến lộ trình sạch.
-- `GET /api/v1/proposals/pending`: Danh sách các đề xuất can thiệp đang chờ Quản trị viên xử lý.
-- `POST /api/v1/proposals/{id}/approve`: Phê duyệt đề xuất, phát lệnh MQTT và gửi email thông báo cư dân.
-- `POST /api/v1/proposals/{id}/reject`: Từ chối đề xuất và bắt buộc lưu lý do từ chối.
+- `GET /api/v1/approvals`: Danh sách các đề xuất can thiệp đang chờ Quản lý xử lý.
+- `POST /api/v1/approvals/{id}/approve`: Phê duyệt đề xuất, phát lệnh MQTT và gửi email thông báo cư dân.
+- `POST /api/v1/approvals/{id}/reject`: Từ chối đề xuất và bắt buộc lưu lý do từ chối.
+- `POST /api/v1/devices/{device_id}/manual-control`: Quản lý trực tiếp bật/tắt thiết bị lọc không khí.
 - `GET /api/v1/audit/logs`: Tra cứu nhật ký kiểm toán bất biến phục vụ thanh tra an toàn.
+- `GET /api/v1/reports`: Tổng hợp và tải báo cáo định kỳ ESG/Môi trường (PDF, Excel, CSV, JSON).
 
 ### 3.4 Giao diện truyền thông & Mạng (Communications Interfaces)
 - Mọi kết nối Client-Server qua mạng công cộng bắt buộc dùng HTTPS mã hóa TLS 1.3.
@@ -266,234 +266,234 @@ Hệ thống cung cấp chuẩn OpenAPI 3.1 qua tiền tố `/api/v1`:
 ```mermaid
 flowchart LR
     subgraph Actors [Các Tác Nhân Hệ Thống]
-        Resident["👤 Cư Dân Thường<br/>(Resident)"]
-        Sensitive["🧒 Nhóm Nhạy Cảm<br/>(Sensitive Group)"]
-        Runner["🏃 Vận Động Viên / Runner<br/>(Athlete)"]
-        Manager["👨‍💼 Quản Lý Đô Thị<br/>(Urban Manager)"]
-        Auditor["🔍 Kiểm Toán Viên<br/>(Auditor/Admin)"]
-        Sensor["📡 Trạm Cảm Biến IoT<br/>(Simulator/Hardware)"]
+        Resident["👤 Cư Dân Đô Thị<br/>(Resident Role)<br/><i>• Bình thường (Normal)<br/>• Nhạy cảm (Sensitive)<br/>• Thể thao (Runner)</i>"]
+        Manager["👨‍💼 Quản Lý Đô Thị<br/>(Manager / BQL Role)"]
+        Sensor["📡 Trạm Cảm Biến & Thiết Bị IoT<br/>(Simulator/Hardware)"]
     end
 
-    subgraph Boundary [Ranh Giới Hệ Thống AirGuard AI]
-        UC01(["UC-01: Giám Sát Bản Đồ Realtime & Trạng Thái Trạm"])
-        UC02(["UC-02: Xem Phân Bố Ô Nhiễm Không Gian IDW"])
-        UC03(["UC-03: Xem Chi Tiết Trạm, Lịch Sử 24h & Dự Báo 1-3h"])
-        UC04(["UC-04: Định Tuyến Tuyến Đường Chạy Sạch Khép Kín"])
-        UC05(["UC-05: Đàm Thoại Với Trợ Lý AI Tiếng Việt"])
-        UC06(["UC-06: Quản Lý Hồ Sơ Sức Khỏe & Nhóm Nhạy Cảm"])
-        UC07(["UC-07: Tiếp Nhận Cảnh Báo Nguy Hại & Cooldown"])
-        UC08(["UC-08: Phê Duyệt Cảnh Báo & Can Thiệp HITL 1-Click"])
+    subgraph CoreDomain [Miền Chức Năng Cư Dân & Quan Sát]
+        UC01(["UC-01: Giám Sát Bản Đồ Realtime & Heatmap IDW"])
+        UC02(["UC-02: Tra Cứu Chi Tiết Trạm, Lịch Sử 24h & Dự Báo 1-3h"])
+        UC03(["UC-03: Tiếp Nhận Cảnh Báo Môi Trường & Cooldown"])
+        UC04(["UC-04: Đàm Thoại Trợ Lý AI Tiếng Việt Grounded"])
+        UC05(["UC-05: Định Tuyến Đường Chạy Sạch Khép Kín OSM"])
+        UC06(["UC-06: Quản Lý Hồ Sơ Sức Khỏe & Tùy Biến Cảnh Báo"])
+    end
+
+    subgraph AdminDomain [Miền Chức Năng Quản Lý & Vận Hành Đô Thị]
+        UC07(["UC-07: Điều Khiển Thủ Công Máy Lọc Không Khí"])
+        UC08(["UC-08: Phê Duyệt Đề Xuất Can Thiệp HITL 1-Click"])
         UC09(["UC-09: Truy Vết Nhật Ký Kiểm Toán Bất Biến"])
-        UC10(["UC-10: Ghi Đè & Điều Khiển Trạm Đo Mô Phỏng"])
+        UC10(["UC-10: Xuất Báo Cáo Chất Lượng Môi Trường & ESG"])
     end
 
     Sensor -->|Đẩy Telemetry MQTT| UC01
+    Sensor -->|Phản hồi ACK Status| UC07
+
     Resident --> UC01
     Resident --> UC02
     Resident --> UC03
+    Resident --> UC04
     Resident --> UC05
     Resident --> UC06
-    Resident --> UC07
 
-    Sensitive -.->|Thừa kế| Resident
-    Sensitive --> UC06
-    Sensitive --> UC07
-
-    Runner -.->|Thừa kế| Resident
-    Runner --> UC04
-    Runner --> UC05
-
+    Manager --> UC01
+    Manager --> UC02
+    Manager --> UC03
+    Manager --> UC04
+    Manager --> UC07
     Manager --> UC08
     Manager --> UC09
     Manager --> UC10
-    Manager --> UC01
-
-    Auditor --> UC09
 ```
 
-### 4.2 Ma Trận Phân Quyền Use Case (Actor vs Use Case Matrix)
+### 4.2 Ma Trận Phân Quyền Use Case (Actor-Use Case Permission Matrix)
 
-| Mã Use Case | Tên Use Case | Cư Dân (Resident) | Nhóm Nhạy Cảm (Sensitive) | VĐV / Runner (Athlete) | Quản Lý (Manager) | Kiểm Toán (Auditor) |
-|---|---|:---:|:---:|:---:|:---:|:---:|
-| **UC-01** | Giám sát Bản đồ Môi trường Realtime | ✔ Xem | ✔ Xem | ✔ Xem | ✔ Xem | ✔ Xem |
-| **UC-02** | Xem Phân bố Ô nhiễm Không gian IDW | ✔ Xem | ✔ Xem | ✔ Xem | ✔ Xem | ✔ Xem |
-| **UC-03** | Tra cứu Chi tiết Trạm, Lịch sử & Dự báo | ✔ Xem | ✔ Xem | ✔ Xem | ✔ Xem | ✔ Xem |
-| **UC-04** | Định tuyến Tuyến đường Chạy sạch Khép kín | ✔ Thực thi | ✔ Phạt x2 | ✔ Chọn cự ly | ✔ Xem | ✔ Xem |
-| **UC-05** | Đàm thoại với Trợ lý AI Tiếng Việt | ✔ Chat | ✔ Chat | ✔ Chat | ✔ Chat | ➖ |
-| **UC-06** | Quản lý Hồ sơ Sức khỏe Cá nhân | ✔ Cập nhật | ✔ Cập nhật | ✔ Cập nhật | ✔ Cập nhật | ➖ |
-| **UC-07** | Tiếp nhận Cảnh báo Môi trường Tự động | ✔ Nhận | ✔ Nhận ưu tiên | ✔ Nhận | ✔ Nhận | ✔ Nhận |
-| **UC-08** | Phê duyệt Cảnh báo & Can thiệp HITL | ❌ Không | ❌ Không | ❌ Không | ✔ Duyệt/Từ chối | ❌ Không |
-| **UC-09** | Truy vết Nhật ký Kiểm toán Bất biến | ❌ Không | ❌ Không | ❌ Không | ✔ Xem sự kiện | ✔ Toàn quyền |
-| **UC-10** | Ghi đè & Điều khiển Cảm biến Mô phỏng | ❌ Không | ❌ Không | ❌ Không | ✔ Thao tác Demo | ➖ |
+| Mã Use Case | Tên Use Case | Cư Dân Đô Thị (Resident) | Quản Lý Đô Thị (Urban Manager / BQL) | Mô tả quyền hạn & Ranh giới |
+|---|---|:---:|:---:|---|
+| **UC-01** | Giám Sát Bản Đồ Môi Trường Realtime & Heatmap IDW | ✔ Toàn quyền xem | ✔ Toàn quyền xem | Xem 5 trạm quan trắc, mã màu AQI EPA, lớp phủ nội suy không gian IDW và dự báo 0-3h. |
+| **UC-02** | Tra Cứu Chi Tiết Trạm, Lịch Sử 24h & Dự Báo 1-3h | ✔ Toàn quyền xem | ✔ Toàn quyền xem | Mở Station Drawer, xem 4 thông số (PM2.5, CO2, Noise, Temp), biểu đồ chuỗi thời gian 24h. |
+| **UC-03** | Tiếp Nhận Cảnh Báo Môi Trường Tự Động & Cooldown | ✔ Nhận cảnh báo | ✔ Nhận cảnh báo | Nhận thông báo vi phạm ngưỡng theo 4 cấp độ kèm khuyến nghị an toàn; tự động lọc chống spam. |
+| **UC-04** | Đàm Thoại Trợ Lý AI Tiếng Việt Grounded | ✔ Chat & Tương tác | ✔ Chat & Tương tác | Hỏi đáp tự nhiên tiếng Việt, AI kích hoạt Tool calling truy vấn DB SoR, cam kết Zero Hallucination. |
+| **UC-05** | Định Tuyến Tuyến Đường Chạy Sạch Khép Kín OSM | ✔ Tạo & Chọn lộ trình | ✔ Xem & Thử nghiệm | Sinh lộ trình thể thao $0\%$ trùng lặp ($1 \to 10\text{km}$), tính tích phân liều lượng bụi mịn hít vào ($\mu g$). |
+| **UC-06** | Quản Lý Hồ Sơ Sức Khỏe & Tùy Biến Cảnh Báo | ✔ Cấu hình cá nhân | ✔ Cấu hình cá nhân | Thiết lập nhóm sức khỏe (`normal`, `sensitive`, `outdoor_sport`) và bật/tắt nhận bản tin thông báo. |
+| **UC-07** | Điều Khiển Thủ Công Máy Lọc Không Khí Mô Phỏng | ❌ Không có quyền | ✔ Bật / Tắt trực tiếp | Quản lý gửi lệnh `ventilation_boost` / `standby` tới thiết bị mô phỏng qua MQTT, nhận ACK 0.8s. |
+| **UC-08** | Phê Duyệt Đề Xuất Can Thiệp HITL 1-Click | ❌ Không có quyền | ✔ Duyệt / Từ chối | Quản lý rà soát chứng cứ khoa học, Approve hoặc Reject đề xuất can thiệp do AI khởi tạo. |
+| **UC-09** | Truy Vết Nhật Ký Kiểm Toán Bất Biến (Audit Trail) | ❌ Không có quyền | ✔ Tra cứu & Thẩm tra | Xem lịch sử toàn bộ các tác vụ nhạy cảm trên bảng `audit_logs` Append-Only không thể chỉnh sửa. |
+| **UC-10** | Xuất Báo Cáo Chất Lượng Môi Trường & ESG | ❌ Không có quyền | ✔ Tạo & Tải báo cáo | Xuất báo cáo định kỳ theo ca/ngày/tháng dưới các định dạng chuẩn: PDF, Excel, CSV, JSON. |
 
 ---
 
 ### 4.3 Bảng Đặc Tả Chi Tiết Từng Use Case (UC-01 đến UC-10)
 
-#### Bảng UC-01: Giám Sát Bản Đồ Môi Trường Realtime & Trạng Thái Trạm
+#### Bảng UC-01: Giám Sát Bản Đồ Môi Trường Realtime & Bản Đồ Nhiệt Không Gian IDW
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-01` |
-| **Tên Use Case** | **Giám Sát Bản Đồ Môi Trường Realtime & Trạng Thái Trạm** |
-| **Actor Chính** | Cư dân (Resident), Vận động viên (Runner), Quản lý đô thị (Manager) |
+| **Tên Use Case** | **Giám Sát Bản Đồ Môi Trường Realtime & Bản Đồ Nhiệt Không Gian IDW** |
+| **Actor Chính** | Cư dân đô thị (Resident), Quản lý đô thị (Urban Manager) |
 | **Actor Phụ** | Hệ thống Trạm Cảm biến IoT (Simulator) |
-| **Mục đích** | Cho phép người dùng quan sát trực quan toàn bộ 5 trạm quan trắc tại Vinhomes Ocean Park 1 trên nền bản đồ GIS với mã màu AQI chuẩn hóa và nhận biết ngay trạm nào đang hoạt động hoặc mất kết nối. |
-| **Tiền điều kiện** | Người dùng truy cập vào ứng dụng AirGuard AI; dịch vụ Backend và Database hoạt động bình thường. |
+| **Mục đích** | Cung cấp cái nhìn trực quan toàn cảnh về hiện trạng chất lượng không khí (AQI tổng quan, PM2.5, CO2, Tiếng ồn, Nhiệt độ) tại 5 trạm quan trắc và phân bố ô nhiễm không gian trên toàn bộ khu đô thị Vinhomes Ocean Park 1. |
+| **Tiền điều kiện** | Người dùng truy cập ứng dụng web AirGuard AI; dịch vụ Backend và Database hoạt động bình thường. |
 | **Kích hoạt (Trigger)** | Người dùng mở trang Dashboard chính (`/dashboard`). |
-| **Luồng sự kiện chính (Basic Flow)** | 1. Hệ thống tải bản đồ số Leaflet căn giữa khu đô thị Vinhomes Ocean Park 1.<br/>2. Hệ thống gọi API `GET /api/v1/stations` lấy danh sách 5 trạm quan trắc.<br/>3. Hệ thống hiển thị 5 marker trạm tại các tọa độ thực tế kèm màu sắc đại diện cho cấp độ AQI tương ứng.<br/>4. Người dùng bấm vào một marker trạm trên bản đồ.<br/>5. Hệ thống hiển thị popup tóm tắt gồm: Tên trạm, Chỉ số AQI, Nồng độ PM2.5, Trạng thái kết nối (`online`/`offline`), Nguồn dữ liệu (`simulator`) và Thời điểm cập nhật.<br/>6. Hệ thống tự động làm mới số liệu theo chu kỳ 30 giây mà không gây giật lag giao diện. |
-| **Luồng thay thế (Alternative Flows)** | **A1 - Người dùng lọc trạm theo trạng thái**: Người dùng bấm nút bộ lọc (Filter) để chỉ xem các trạm có chất lượng không khí "Tốt" hoặc các trạm đang có cảnh báo.<br/>**A2 - Làm mới thủ công (Manual Refresh)**: Người dùng bấm nút "Làm mới" trên thanh công cụ để cưỡng bức cập nhật dữ liệu ngay lập tức. |
-| **Luồng ngoại lệ (Exception Flows)** | **E1 - Mất kết nối tới Backend (API Failure)**: Hệ thống hiển thị Banner cảnh báo lỗi kết nối và nút "Thử lại", đồng thời giữ nguyên trạng thái dữ liệu hợp lệ gần nhất.<br/>**E2 - Trạm đo mất kết nối (> 300s không có dữ liệu)**: Marker của trạm chuyển sang màu xám đậm kèm nhãn `OFFLINE/STALE`; hệ thống khóa các tính năng tính toán định tuyến đi qua trạm này. |
-| **Hậu điều kiện** | Người dùng nắm bắt được chất lượng không khí tổng quan và trạng thái vận hành của các trạm đo. |
-| **Quy tắc nghiệp vụ** | - Mã màu marker tuân thủ chuẩn US EPA 2012 (Xanh: 0-50, Vàng: 51-100, Cam: 101-150, Đỏ: 151-200, Tím: 201-300, Nâu: >300).<br/>- Nhãn "Dữ liệu mô phỏng MVP - Không phải quan trắc chính thức" luôn hiển thị cố định. |
+| **Luồng sự kiện chính (Basic Flow)** | 1. Hệ thống tải bản đồ GIS Leaflet căn giữa khu đô thị Vinhomes Ocean Park 1.<br/>2. Hệ thống gọi API `GET /api/v1/stations` lấy danh mục và trạng thái 5 trạm đo.<br/>3. Hiển thị 5 marker trạm (S01 Đa Tốn/VinUni, S02 Sapphire, S03 San Hô/Hồ Ngọc Trai, S04 VinUni, S05 Hải Âu) với mã màu chuẩn US EPA.<br/>4. Khi người dùng bật lớp "Bản đồ nhiệt IDW", hệ thống nội suy ma trận ô lưới không gian $60 \times 60$ điểm, kết xuất lớp phủ nhiệt và vẽ viền xanh bao quanh các hành lang không khí sạch.<br/>5. Người dùng bấm vào marker trạm để xem popup tóm tắt: Tên trạm, Chỉ số AQI, PM2.5, Trạng thái sống (`online`/`offline`), Thời gian cập nhật.<br/>6. Hệ thống tự động làm mới số liệu nền định kỳ mỗi 30 giây. |
+| **Luồng thay thế (Alternative Flows)** | **A1 - Lọc theo chỉ số môi trường**: Người dùng chọn xem riêng lớp PM2.5, CO2, Tiếng ồn hoặc Nhiệt độ trên thanh công cụ bản đồ.<br/>**A2 - Xem trước dòng thời gian dự báo (Forecast Timeline)**: Người dùng kéo thanh trượt thời gian sang +1h, +2h, +3h để xem phân bố nhiệt dự báo trong tương lai gần. |
+| **Luồng ngoại lệ (Exception Flows)** | **E1 - Mất kết nối tới Backend**: Hệ thống hiển thị trạng thái `Disconnected`, giữ nguyên dữ liệu hợp lệ gần nhất và cung cấp nút "Thử lại".<br/>**E2 - Trạm đo mất kết nối (> 300s không có dữ liệu)**: Marker trạm chuyển sang màu xám kèm nhãn `OFFLINE/STALE`, loại trừ trạm này khỏi thuật toán nội suy IDW. |
+| **Hậu điều kiện** | Người dùng nắm bắt được chất lượng không khí toàn khu và nhận biết chính xác các vùng ô nhiễm. |
+| **Quy tắc nghiệp vụ** | - Thang màu AQI tuân thủ US EPA (Xanh: 0-50, Vàng: 51-100, Cam: 101-150, Đỏ: 151-200, Tím: 201-300, Nâu: >300).<br/>- Mọi dữ liệu đo đều mang nhãn minh bạch `source=simulator`. |
 
 ---
 
-#### Bảng UC-02: Xem Phân Bố Ô Nhiễm Không Gian IDW
+#### Bảng UC-02: Tra Cứu Chi Tiết Trạm, Xu Hướng Lịch Sử 24h & Dự Báo 1-3 Giờ
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-02` |
-| **Tên Use Case** | **Xem Phân Bố Ô Nhiễm Không Gian IDW & Hành Lang Sạch** |
-| **Actor Chính** | Cư dân, Vận động viên, Quản lý đô thị |
-| **Mục đích** | Hiển thị bản đồ nhiệt liên tục (Heatmap) thể hiện mức độ ô nhiễm bụi mịn trên toàn bộ không gian khu đô thị, giúp người dùng nhận diện các vùng không khí trong lành và các điểm nóng ô nhiễm. |
-| **Tiền điều kiện** | Có tối thiểu 3 trạm quan trắc đang ở trạng thái `online` và dữ liệu còn tươi mới. |
-| **Kích hoạt** | Người dùng bật công tắc "Lớp Bản Đồ Nhiệt (Heatmap)" trên thanh công cụ bản đồ. |
-| **Luồng sự kiện chính** | 1. Người dùng bật toggle "Bản đồ nhiệt IDW".<br/>2. Frontend gọi API `GET /api/v1/spatial/dispersion` (hoặc tính toán nội suy ma trận ô lưới trên Client).<br/>3. Động cơ IDW tính toán giá trị PM2.5 tại mỗi điểm lưới dựa trên nghịch đảo bình phương khoảng cách tới 5 trạm.<br/>4. Hệ thống kết xuất lớp phủ màu bán trong suốt (Semi-transparent Gradient Layer) lên trên bản đồ OpenStreetMap.<br/>5. Hệ thống tự động vẽ viền xanh nổi bật bao quanh các "Hành lang không khí sạch" (vùng ven hồ Ngọc Trai có PM2.5 thấp). |
-| **Luồng thay thế** | **A1 - Tắt lớp bản đồ nhiệt**: Người dùng gạt toggle về tắt; bản đồ trở lại chế độ đường phố rõ nét. |
-| **Luồng ngoại lệ** | **E1 - Số lượng trạm online < 3**: Hệ thống hiển thị thông báo "Không đủ dữ liệu trạm để nội suy không gian đáng tin cậy" và tự động vô hiệu hóa lớp phủ nhiệt để tránh đánh lừa người dùng. |
-| **Hậu điều kiện** | Người dùng nhận diện được trực quan phân bố không gian ô nhiễm toàn khu đô thị. |
+| **Tên Use Case** | **Tra Cứu Chi Tiết Trạm, Xu Hướng Lịch Sử 24h & Dự Báo 1-3 Giờ** |
+| **Actor Chính** | Cư dân đô thị (Resident), Quản lý đô thị (Urban Manager) |
+| **Mục đích** | Cung cấp bảng điều khiển chi tiết về một trạm đo cụ thể gồm 4 chỉ số vi khí hậu thực tế, biểu đồ chuỗi thời gian 24 giờ qua và mô hình dự báo xu hướng 1-3 giờ tới. |
+| **Tiền điều kiện** | Trạm đo được chọn tồn tại trong hệ thống (S01 đến S05). |
+| **Kích hoạt** | Người dùng bấm vào marker trạm trên bản đồ hoặc chọn trạm từ danh sách giám sát. |
+| **Luồng sự kiện chính** | 1. Ngăn chi tiết trạm (Station Metrics Drawer) trượt ra từ cạnh phải màn hình.<br/>2. Hệ thống gọi đồng thời các API: `GET /stations/{id}/current`, `GET /stations/{id}/history?hours=24`, `GET /stations/{id}/forecast`.<br/>3. Hiển thị 4 thẻ thông số đo lường: Bụi mịn PM2.5 ($\mu g/m^3$), Khí CO2 ($ppm$), Tiếng ồn ($dB$), Nhiệt độ (°C) kèm nhãn đánh giá an toàn.<br/>4. Vẽ biểu đồ đường biểu diễn sự biến thiên nồng độ PM2.5 trong 24 giờ qua.<br/>5. Hiển thị khối dự báo 1-3 giờ kế tiếp với dự báo điểm, khoảng tin cậy và xu hướng (tăng/giảm/ổn định).<br/>6. Hiển thị nút bấm tiện ích "Hỏi AI về trạm này". |
+| **Luồng thay thế** | **A1 - Chuyển tiếp ngữ cảnh sang Trợ lý AI**: Người dùng bấm "Hỏi AI về trạm này", hệ thống mở AI Drawer và tự động nạp toàn bộ số liệu của trạm vào ngữ cảnh hội thoại. |
+| **Luồng ngoại lệ** | **E1 - Không đủ dữ liệu lịch sử để dự báo**: Khối dự báo hiển thị thông báo "Đang tích lũy dữ liệu chuỗi thời gian (cần tối thiểu 3 chu kỳ đo hợp lệ)". |
+| **Hậu điều kiện** | Người dùng hiểu sâu diễn biến vi khí hậu tại khu vực sinh sống hoặc làm việc. |
 
 ---
 
-#### Bảng UC-03: Tra Cứu Chi Tiết Trạm, Xu Hướng Lịch Sử & Dự Báo Ngắn Hạn
+#### Bảng UC-03: Tiếp Nhận Cảnh Báo Môi Trường Tự Động & Lọc Chống Spam (Cooldown)
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-03` |
-| **Tên Use Case** | **Tra Cứu Chi Tiết Trạm, Lịch Sử 24h & Dự Báo 1-3 Giờ** |
-| **Actor Chính** | Cư dân, Người tập thể thao, Quản lý đô thị |
-| **Mục đích** | Cung cấp cái nhìn chuyên sâu về một trạm quan trắc cụ thể gồm 4 thông số môi trường đo lường, biểu đồ diễn biến 24 giờ qua và dự báo xu hướng chất lượng không khí trong 1-3 giờ tới. |
-| **Tiền điều kiện** | Trạm đo được chọn tồn tại trong cơ sở dữ liệu hệ thống (S01 đến S05). |
-| **Kích hoạt** | Người dùng bấm vào nút "Xem chi tiết" trên popup trạm hoặc trong danh sách trạm. |
-| **Luồng sự kiện chính** | 1. Ngăn chi tiết trạm (Station Metrics Drawer) trượt ra từ bên phải màn hình.<br/>2. Hệ thống gọi đồng thời 3 API: `GET /stations/{id}/current`, `GET /stations/{id}/history?hours=24`, `GET /stations/{id}/forecast`.<br/>3. Hiển thị 4 thẻ thông số vi khí hậu: PM2.5 ($\mu g/m^3$), CO2 ($ppm$), Tiếng ồn ($dB$), Nhiệt độ (°C) kèm đánh giá mức độ an toàn.<br/>4. Vẽ biểu đồ đường biểu diễn sự biến thiên của PM2.5 trong 24 giờ qua.<br/>5. Hiển thị khối dự báo 1-3 giờ tiếp theo với nhãn độ tin cậy và xu hướng (tăng/giảm/ổn định). |
-| **Luồng thay thế** | **A1 - Thay đổi khoảng thời gian lịch sử**: Người dùng chọn xem lịch sử 6 giờ, 12 giờ hoặc 24 giờ.<br/>**A2 - Chuyển sang hỏi Trợ lý AI về trạm này**: Người dùng bấm nút "Hỏi AI về trạm này"; hệ thống mở ngăn AI Chat và tự động đính kèm ngữ cảnh của trạm. |
-| **Luồng ngoại lệ** | **E1 - Trạm chưa có đủ dữ liệu dự báo**: Thẻ dự báo hiển thị trạng thái "Đang thu thập thêm dữ liệu (Cần tối thiểu 3 chu kỳ đo hợp lệ)". |
-| **Hậu điều kiện** | Người dùng hiểu rõ diễn biến chất lượng môi trường tại điểm đo quan tâm. |
+| **Tên Use Case** | **Tiếp Nhận Cảnh Báo Môi Trường Tự Động & Lọc Chống Spam (Cooldown Policy)** |
+| **Actor Chính** | Cư dân đô thị (Resident), Quản lý đô thị (Urban Manager) |
+| **Actor Phụ** | Động cơ Cảnh báo Tự động (Alert Evaluation Engine) |
+| **Mục đích** | Phát hiện kịp thời các biến cố môi trường bất thường (PM2.5 vượt ngưỡng, tích tụ CO2, tiếng ồn cao, trạm mất kết nối) và phát cảnh báo đến người dùng kèm giải pháp sinh hoạt phòng ngừa. |
+| **Tiền điều kiện** | Bản tin telemetry từ cảm biến gửi về vi phạm các ngưỡng kỹ thuật quy định. |
+| **Kích hoạt** | Động cơ Alert Engine phát hiện điều kiện kích hoạt sau khi xác thực 2 lần đo vượt ngưỡng liên tiếp (`consecutive measurements = 2`). |
+| **Luồng sự kiện chính** | 1. Sensor gửi dữ liệu đo có nồng độ $PM2.5 > 50\ \mu g/m^3$ ($AQI > 100$) tại trạm S04.<br/>2. Backend kiểm tra cơ chế Cooldown: trạm S04 chưa có cảnh báo cùng loại trong vòng 15 phút qua.<br/>3. Hệ thống tạo bản ghi cảnh báo mới ở trạng thái `active` trong bảng `alerts`.<br/>4. Hiển thị thông báo nổi (Alert Badge / Toast) trên giao diện người dùng.<br/>5. Cư dân mở thông báo để xem trạm vi phạm, chỉ số đo thực tế, mức độ nghiêm trọng và khuyến nghị sinh hoạt tức thì (đeo khẩu trang N95, hạn chế mở cửa sổ hướng gió). |
+| **Luồng thay thế** | **A1 - Tự động giải phóng cảnh báo (Auto-Resolution)**: Khi trạm đo ghi nhận chỉ số an toàn liên tục trong 2 chu kỳ đo kế tiếp, cảnh báo tự động chuyển sang `resolved`. |
+| **Luồng ngoại lệ** | **E1 - Vi phạm lặp lại trong thời gian Cooldown (< 15 phút)**: Hệ thống chỉ cập nhật giá trị mới nhất vào bản ghi hiện có, không bắn thông báo trùng lặp gây phiền toái. |
+| **Hậu điều kiện** | Cảnh báo được ghi nhận chính xác, bảo vệ sức khỏe cư dân và ngăn ngừa tình trạng quá tải thông báo (Alert Fatigue). |
 
 ---
 
-#### Bảng UC-04: Định Tuyến Tuyến Đường Chạy Sạch Chu Kỳ Khép Kín
+#### Bảng UC-04: Đàm Thoại Với Trợ Lý AI Tiếng Việt Grounded Zero-Hallucination
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-04` |
-| **Tên Use Case** | **Định Tuyến Tuyến Đường Chạy Sạch Chu Kỳ Khép Kín (OSM Routing)** |
-| **Actor Chính** | Vận động viên / Người chạy bộ (Athlete / Runner), Cư dân (Resident) |
-| **Mục đích** | Tự động sinh ra một tuyến đường tập luyện thể thao khép kín tuần hoàn ($S \to W \to S$) bám 100% trên mạng lưới đường thực tế OpenStreetMap, đạt chính xác cự ly yêu cầu, triệt tiêu việc chạy đi rồi lùi lại trùng đường ($0\%$ retracing) và né tránh tối đa các vùng ô nhiễm không khí. |
-| **Tiền điều kiện** | Tọa độ xuất phát $S$ nằm trong ranh giới Ocean Park 1; cự ly mục tiêu từ $1.0\text{km}$ đến $10.0\text{km}$. |
-| **Kích hoạt** | Người dùng yêu cầu qua Trợ lý AI (ví dụ: "Tìm đường chạy 5km sạch bụi") hoặc bấm công cụ "Định tuyến chạy sạch" trên giao diện. |
-| **Luồng sự kiện chính** | 1. Hệ thống xác định điểm xuất phát $S$, cự ly mục tiêu (ví dụ 5km), loại hình vận động (chạy bộ/đi bộ/đạp xe) và nhóm người dùng.<br/>2. Backend snap tọa độ $S$ vào nút giao gần nhất trên đồ thị đường thực OSM.<br/>3. **Chặng 1 (Leg 1)**: Thuật toán Dijkstra tìm đường từ $S$ tới Waypoint $W$ xa nhất theo hướng có chất lượng không khí tốt nhất.<br/>4. **Phạt trọng số quay đầu**: Hệ thống gán trọng số phạt $30\times$ lên toàn bộ các cạnh và nút đã đi qua trong Chặng 1.<br/>5. **Chặng 2 (Leg 2)**: Thuật toán Dijkstra tìm đường từ $W$ quay về $S$ trên đồ thị đã bị phạt, ép tuyến đường phải chọn các nhánh đường song song khác.<br/>6. Hệ thống ghép nối $P = P_1 + P_2$ tạo thành chu kỳ khép kín tuần hoàn ($0\%$ trùng lặp).<br/>7. Động cơ tính tích phân khối lượng bụi mịn PM2.5 hít vào: $M_{inhaled} = \sum PM2.5(e) \times \Delta t \times V_{ventilation}$.<br/>8. Tuyến đường được vẽ nổi bật trên bản đồ Leaflet; bản đồ tự động căn chỉnh khung hình (`fitBounds`) bao trọn lộ trình. |
-| **Luồng thay thế** | **A1 - Người dùng nhóm nhạy cảm**: Trọng số phạt nồng độ ô nhiễm được nhân đôi ($2.0\times$), tuyến đường ưu tiên ép sát ven hồ điều hòa.<br/>**A2 - Tùy chỉnh cự ly**: Người dùng đổi cự ly từ 5km sang 3km; hệ thống tái định tuyến trong $< 1.5$ giây. |
-| **Luồng ngoại lệ** | **E1 - Điểm xuất phát nằm ngoài ranh giới đô thị**: Hệ thống từ chối định tuyến và khuyến nghị người dùng chọn điểm xuất phát quanh KTX VinUni, San Hô hoặc Biển Hồ. |
+| **Tên Use Case** | **Đàm Thoại Với Trợ Lý AI Tiếng Việt (Zero-Hallucination Agent)** |
+| **Actor Chính** | Cư dân đô thị (Resident), Quản lý đô thị (Urban Manager) |
+| **Mục đích** | Hỗ trợ người dùng tra cứu thông tin môi trường, so sánh trạm, xin lời khuyên thể thao/sức khỏe và điều khiển bản đồ qua ngôn ngữ tự nhiên tiếng Việt, cam kết 100% câu trả lời có căn cứ dữ liệu thực tế (Zero Hallucination). |
+| **Tiền điều kiện** | Dịch vụ AI Agent (`agent:8001`) và Backend REST API hoạt động bình thường. |
+| **Kích hoạt** | Người dùng bấm nút "Hỏi AI" trên thanh điều hướng hoặc mở AI Drawer. |
+| **Luồng sự kiện chính** | 1. Người dùng nhập câu hỏi (ví dụ: "Khu vực KTX VinUni hiện tại có thích hợp cho người già đi dạo không?").<br/>2. LangGraph Agent phân tích Intent và các thực thể địa danh.<br/>3. Agent kích hoạt Tool Calling tương ứng (`get_current_pm25(station_id='S01')`, `get_user_profile()`).<br/>4. Backend trả về số liệu quan trắc thực tế từ PostgreSQL SoR.<br/>5. Cổng kiểm soát căn cứ (Grounding Policy Gate) kiểm tra và đối chiếu dữ liệu.<br/>6. Agent phản hồi bằng tiếng Việt chuẩn mực: thông báo chỉ số PM2.5, mức AQI, đưa ra lời khuyên y tế dự phòng phù hợp và đính kèm các gợi ý hành động tiếp theo.<br/>7. Người dùng hỏi câu tiếp theo; Agent duy trì ngữ cảnh đàm thoại đa lượt liền mạch. |
+| **Luồng thay thế** | **A1 - Người dùng chọn gợi ý nhanh (Quick Prompts)**: Hệ thống tự động điền các câu hỏi mẫu như "Tổng quan không khí hôm nay", "So sánh các trạm", "Tìm đường chạy sạch".<br/>**A2 - Yêu cầu định tuyến**: AI gọi Tool `recommend_running_route` và chiếu trực tiếp tuyến đường lên bản đồ. |
+| **Luồng ngoại lệ** | **E1 - Mất kết nối LLM hoặc Timeout (> 8.0s)**: Hệ thống tự động kích hoạt bộ chuyển mạch dự phòng nội bộ (Deterministic Response Composer) tổng hợp câu trả lời từ kết quả Tool, không bao giờ để giao diện bị lỗi. |
+| **Hậu điều kiện** | Người dùng nhận được phản hồi chính xác, tin cậy tuyệt đối, không có hiện tượng bịa đặt số liệu. |
+| **Quy tắc nghiệp vụ** | - Agent tuyệt đối không tự chẩn đoán bệnh thay bác sĩ; luôn khuyến cáo khám chuyên khoa khi có triệu chứng nặng.<br/>- 100% số liệu môi trường phải trích xuất từ Tool Result của cùng một request. |
+
+---
+
+#### Bảng UC-05: Định Tuyến Tuyến Đường Thể Thao Sạch Chu Kỳ Khép Kín (OSM Routing)
+| Thuộc tính | Nội dung đặc tả chi tiết |
+|---|---|
+| **Mã Use Case** | `UC-05` |
+| **Tên Use Case** | **Định Tuyến Tuyến Đường Thể Thao Sạch Chu Kỳ Khép Kín (OSM Routing)** |
+| **Actor Chính** | Cư dân đô thị (Resident) — Nhóm Thể thao ngoài trời, Nhóm Nhạy cảm |
+| **Mục đích** | Tự động sinh ra tuyến đường thể thao khép kín tuần hoàn ($S \to W \to S$) bám $100\%$ trên đồ thị đường thực tế OpenStreetMap Ocean Park 1, đạt đúng cự ly yêu cầu ($1 \to 10\text{km}$), triệt tiêu việc chạy đi rồi lùi lại trùng đường ($0\%$ retracing) và né tránh tối đa các vùng ô nhiễm không khí. |
+| **Tiền điều kiện** | Điểm xuất phát $S$ nằm trong ranh giới Ocean Park 1; cự ly yêu cầu từ $1.0\text{km}$ đến $10.0\text{km}$. |
+| **Kích hoạt** | Cư dân yêu cầu qua Trợ lý AI hoặc bấm nút "Định tuyến đường chạy sạch" trên giao diện. |
+| **Luồng sự kiện chính** | 1. Hệ thống xác định điểm xuất phát $S$, cự ly mục tiêu (ví dụ 5km), hình thức vận động (chạy bộ/đạp xe/đi bộ) và nhóm sức khỏe.<br/>2. Backend snap tọa độ $S$ vào nút giao gần nhất trên đồ thị đường thực OSM.<br/>3. **Chặng 1 (Leg 1)**: Thuật toán Dijkstra tìm đường từ $S$ tới Waypoint $W$ xa nhất theo hướng có chất lượng không khí tốt nhất.<br/>4. **Phạt trọng số quay đầu**: Hệ thống gán trọng số phạt $30\times$ lên toàn bộ các cạnh đã đi qua ở Chặng 1.<br/>5. **Chặng 2 (Leg 2)**: Thuật toán Dijkstra tìm đường từ $W$ quay về $S$ trên đồ thị đã bị phạt, ép tuyến đường phải chọn các nhánh đường song song khác.<br/>6. Ghép nối $P = P_1 + P_2$ tạo thành chu kỳ khép kín tuần hoàn ($0\%$ trùng lặp).<br/>7. Động cơ tính tích phân khối lượng bụi mịn PM2.5 hít vào: $M_{inhaled} = \sum PM2.5(e) \times \Delta t \times V_{ventilation}$.<br/>8. Tuyến đường được vẽ nổi bật trên bản đồ Leaflet kèm cờ Start/Finish và thẻ tóm tắt liều lượng phơi nhiễm. |
+| **Luồng thay thế** | **A1 - Cư dân thuộc Nhóm nhạy cảm**: Trọng số phạt ô nhiễm được nhân đôi ($2.0\times$), tuyến đường ưu tiên tối đa đường dạo bộ ven hồ điều hòa.<br/>**A2 - Đổi cự ly mục tiêu**: Cư dân chọn cự ly khác (ví dụ từ 5km sang 3km); hệ thống tái định tuyến trong $< 1.5$ giây. |
+| **Luồng ngoại lệ** | **E1 - Điểm xuất phát nằm ngoài ranh giới đô thị**: Hệ thống từ chối định tuyến và hướng dẫn chọn điểm xuất phát nội khu Ocean Park 1. |
 | **Hậu điều kiện** | Tuyến đường khép kín hiển thị trên bản đồ kèm thẻ tóm tắt: Cự ly (km), Thời gian ước tính, Lượng bụi hít vào ($\mu g$) và Đánh giá an toàn hô hấp. |
 | **Quy tắc nghiệp vụ** | - Tuyến đường bắt buộc phải khép kín: Điểm đầu trùng điểm cuối (`coordinates[0] == coordinates[-1]`).<br/>- Tỷ lệ trùng lặp cạnh giữa lượt đi và lượt về phải $< 15\%$ (thực tế đạt $0.0\%$). |
 
 ---
 
-#### Bảng UC-05: Đàm Thoại Với Trợ Lý AI Tiếng Việt Grounded Zero-Hallucination
-| Thuộc tính | Nội dung đặc tả chi tiết |
-|---|---|
-| **Mã Use Case** | `UC-05` |
-| **Tên Use Case** | **Đàm Thoại Với Trợ Lý AI Tiếng Việt (Zero-Hallucination Agent)** |
-| **Actor Chính** | Cư dân (Resident), Vận động viên (Runner), Người dùng nhạy cảm |
-| **Mục đích** | Hỗ trợ người dùng đàm thoại tự nhiên bằng tiếng Việt để hỏi thông tin ô nhiễm, so sánh trạm, xin lời khuyên sức khỏe và tìm đường vận động, đảm bảo 100% câu trả lời có căn cứ dữ liệu thực tế (Zero Hallucination). |
-| **Tiền điều kiện** | Dịch vụ AI Agent đang hoạt động; Backend kết nối cơ sở dữ liệu SoR bình thường. |
-| **Kích hoạt** | Người dùng mở ngăn AI Drawer và gửi tin nhắn thoại/văn bản. |
-| **Luồng sự kiện chính** | 1. Người dùng nhập câu hỏi (ví dụ: "Hiện tại trạm KTX VinUni không khí thế nào, có nên cho trẻ nhỏ đi dạo không?").<br/>2. Hệ thống phân tích Intent và các thực thể (Entity: Trạm S01, Nhóm nhạy cảm).<br/>3. LangGraph Orchestrator kích hoạt Tool calling tương ứng (`get_current_pm25`, `get_user_profile`).<br/>4. Tool truy vấn cơ sở dữ liệu SoR và trả về kết quả số liệu quan trắc thực tế.<br/>5. Cổng kiểm soát căn cứ (Grounding Policy Gate) kiểm tra đối chiếu dữ liệu phát ngôn.<br/>6. AI trả lời bằng tiếng Việt văn phong thân thiện, cung cấp đúng số liệu PM2.5, mức AQI, khuyến nghị y tế dự phòng và gợi ý hành động tiếp theo.<br/>7. Người dùng hỏi câu tiếp theo (Follow-up: "Thế còn trạm Biển Hồ thì sao?"); hệ thống ghi nhớ ngữ cảnh và trả lời liền mạch. |
-| **Luồng thay thế** | **A1 - Người dùng bấm thẻ câu hỏi nhanh (Quick Prompts)**: Hệ thống tự động gửi câu hỏi mẫu mà người dùng không cần gõ phím.<br/>**A2 - Yêu cầu tìm đường chạy**: AI gọi Tool `clean_running_route` và trả về thẻ lộ trình tương tác trực tiếp trên bản đồ. |
-| **Luồng ngoại lệ** | **E1 - Mất kết nối tới LLM ngoài hoặc Timeout (> 8.0s)**: Hệ thống tự động kích hoạt bộ chuyển mạch dự phòng nội bộ (Deterministic Response Composer) tổng hợp câu trả lời dựa trên Tool result, đảm bảo không bao giờ lỗi HTTP 5xx. |
-| **Hậu điều kiện** | Người dùng nhận được phản hồi chính xác, tin cậy tuyệt đối, không có số liệu bịa đặt. |
-| **Quy tắc nghiệp vụ** | - Tuyệt đối không đưa ra chẩn đoán y khoa chuyên sâu; luôn kèm khuyến nghị tham vấn bác sĩ đối với bệnh nhân hen nặng.<br/>- 100% phát ngôn phải trích xuất từ dữ liệu đo lường Backend. |
-
----
-
-#### Bảng UC-06: Quản Lý Hồ Sơ Sức Khỏe & Nhóm Nhạy Cảm
+#### Bảng UC-06: Quản Lý Hồ Sơ Sức Khỏe & Tùy Biến Cảnh Báo Cá Nhân Hóa
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-06` |
-| **Tên Use Case** | **Quản Lý Hồ Sơ Sức Khỏe & Nhóm Nhạy Cảm** |
-| **Actor Chính** | Cư dân (Resident), Nhóm nhạy cảm, Vận động viên |
-| **Mục đích** | Cho phép người dùng thiết lập nhóm đối tượng sức khỏe của mình (`normal`, `sensitive`, `outdoor_sport`) để hệ thống tự động cá nhân hóa ngưỡng cảnh báo và thuật toán định tuyến đường chạy an toàn. |
-| **Tiền điều kiện** | Người dùng đã đăng nhập vào hệ thống. |
-| **Kích hoạt** | Người dùng mở trang hoặc modal "Hồ Sơ Của Tôi" (`/profile`). |
-| **Luồng sự kiện chính** | 1. Hệ thống hiển thị thông tin hồ sơ hiện tại và nhóm sức khỏe đang áp dụng.<br/>2. Người dùng chọn nhóm sức khỏe mong muốn (ví dụ: chuyển từ `normal` sang `sensitive` do có tiền sử viêm phế quản).<br/>3. Người dùng tùy chỉnh các tùy chọn bổ sung: cự ly chạy thói quen, tốc độ vận động, đồng ý nhận cảnh báo khẩn cấp.<br/>4. Người dùng bấm nút "Lưu Thay Đổi".<br/>5. Hệ thống cập nhật bảng `user_profiles` và phản hồi thông báo thành công.<br/>6. Kể từ thời điểm này, toàn bộ các câu trả lời của Trợ lý AI và các thuật toán định tuyến sẽ tự động áp dụng hồ sơ mới này. |
-| **Luồng thay thế** | **A1 - Hủy thay đổi**: Người dùng bấm "Hủy bỏ"; hệ thống giữ nguyên cấu hình cũ. |
-| **Luồng ngoại lệ** | **E1 - Lỗi kết nối lưu trữ**: Hệ thống báo lỗi và cho phép người dùng bấm "Thử lại". |
-| **Hậu điều kiện** | Hồ sơ người dùng được cập nhật trên cơ sở dữ liệu SoR. |
+| **Tên Use Case** | **Quản Lý Hồ Sơ Sức Khỏe & Tùy Biến Cảnh Báo Cá Nhân Hóa** |
+| **Actor Chính** | Cư dân đô thị (Resident), Quản lý đô thị (Urban Manager) |
+| **Mục đích** | Cho phép người dùng thiết lập nhóm thể trạng sức khỏe (`normal`, `sensitive`, `outdoor_sport`) và cấu hình các tùy chọn nhận bản tin/cảnh báo để hệ thống tự động cá nhân hóa trải nghiệm. |
+| **Tiền điều kiện** | Người dùng đã đăng nhập vào hệ thống AirGuard AI. |
+| **Kích hoạt** | Người dùng mở ngăn "Hồ Sơ Của Tôi" (`/profile`) hoặc cài đặt thông báo. |
+| **Luồng sự kiện chính** | 1. Hệ thống hiển thị thông tin hồ sơ hiện tại và nhóm sức khỏe đang áp dụng.<br/>2. Người dùng chọn nhóm sức khỏe mong muốn (chuyển đổi giữa: Bình thường / Nhạy cảm / Thể thao ngoài trời).<br/>3. Người dùng cấu hình sở thích vận động (chạy bộ, đi bộ, đạp xe), cự ly thói quen.<br/>4. Người dùng bật/tắt các kênh nhận thông báo: Cảnh báo khẩn cấp đẩy trên web, Bản tin thời tiết & chất lượng không khí hàng ngày (Daily Weather Digest).<br/>5. Người dùng bấm "Lưu Thay Đổi".<br/>6. Hệ thống cập nhật bảng `resident_notification_preferences` và áp dụng cấu hình mới ngay lập tức cho các thuật toán định tuyến và Trợ lý AI. |
+| **Luồng thay thế** | **A1 - Đặt lại mặc định**: Người dùng chọn khôi phục cấu hình tiêu chuẩn ban đầu. |
+| **Luồng ngoại lệ** | **E1 - Lỗi lưu trữ server**: Hệ thống thông báo lỗi và cho phép bấm "Thử lại". |
+| **Hậu điều kiện** | Toàn bộ thuật toán định tuyến, ngưỡng cảnh báo và nội dung đàm thoại AI được cá nhân hóa chính xác theo hồ sơ vừa lưu. |
 
 ---
 
-#### Bảng UC-07: Tiếp Nhận Cảnh Báo Môi Trường Tự Động & Cooldown
+#### Bảng UC-07: Điều Khiển Thủ Công Hệ Thống Thiết Bị Lọc Không Khí Mô Phỏng
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-07` |
-| **Tên Use Case** | **Tiếp Nhận Cảnh Báo Môi Trường Tự Động & Lọc Chống Spam (Cooldown)** |
-| **Actor Chính** | Cư dân, Nhóm nhạy cảm, Vận động viên, Quản lý đô thị |
-| **Actor Phụ** | Động cơ Cảnh báo Tự động (Alert Engine Backend) |
-| **Mục đích** | Tự động phát hiện các diễn biến môi trường bất thường (bụi mịn vượt ngưỡng, ngột ngạt CO2, tiếng ồn lớn hoặc trạm mất kết nối) và gửi cảnh báo kịp thời tới người dùng mà không gây phiền toái nhờ cơ chế Cooldown thông minh. |
-| **Tiền điều kiện** | Trạm đo gửi bản tin telemetry vi phạm ngưỡng an toàn quy định. |
-| **Kích hoạt** | Động cơ Alert Engine phát hiện vi phạm ngưỡng sau khi xử lý bản tin MQTT. |
-| **Luồng sự kiện chính** | 1. Sensor gửi dữ liệu có $PM2.5 > 55.4\ \mu g/m^3$ ($AQI > 150$) tại trạm S04.<br/>2. Backend kiểm tra bảng `alerts` xem trạm S04 đã có cảnh báo đang hoạt động trong vòng 15 phút qua hay chưa.<br/>3. Nếu chưa (hết thời gian Cooldown), hệ thống ghi nhận một bản ghi cảnh báo mới ở trạng thái `active`.<br/>4. Hệ thống đẩy thông báo Toast notification lên giao diện cư dân và cập nhật số lượng cảnh báo trên thanh điều hướng.<br/>5. Người dùng bấm vào thông báo cảnh báo để xem chi tiết trạm vi phạm và các khuyến nghị an toàn hô hấp. |
-| **Luồng thay thế** | **A1 - Tự động giải phóng cảnh báo (Auto-Resolve)**: Khi trạm đo ghi nhận chỉ số an toàn liên tục trong 3 chu kỳ đo kế tiếp, hệ thống tự động đổi trạng thái cảnh báo sang `resolved`. |
-| **Luồng ngoại lệ** | **E1 - Vi phạm lặp lại trong thời gian Cooldown (< 15 phút)**: Hệ thống cập nhật giá trị quan trắc mới nhất vào bản ghi hiện có nhưng không bắn thông báo mới, tránh gây phiền toái (Alert Fatigue). |
-| **Hậu điều kiện** | Cảnh báo được ghi nhận chính xác và người dùng được thông tin kịp thời. |
+| **Tên Use Case** | **Điều Khiển Thủ Công Hệ Thống Thiết Bị Lọc Không Khí Mô Phỏng (Direct Manual Control)** |
+| **Actor Chính** | Quản lý đô thị (Urban Manager / BQL) |
+| **Actor Phụ** | Hệ thống Thiết bị Mô phỏng (Device Simulator S01-S05), MQTT Broker |
+| **Mục đích** | Cho phép Quản lý đô thị chủ động can thiệp tức thì bằng cách bật/tắt chế độ lọc không khí tăng cường tại các điểm đo mô phỏng, đếm ngược thời gian vận hành và theo dõi hiệu quả làm sạch thực tế. |
+| **Tiền điều kiện** | Quản lý đô thị đã đăng nhập tài khoản có quyền `manager`. |
+| **Kích hoạt** | Quản lý bấm vào icon máy lọc trên bản đồ hoặc mở ngăn chi tiết thiết bị (Device Detail Drawer). |
+| **Luồng sự kiện chính** | 1. Ngăn chi tiết thiết bị trượt ra, hiển thị trạng thái hiện tại (ví dụ: `FILTER-S01` đang ở "Chế độ chờ - STANDBY").<br/>2. Quản lý bấm nút **`[+ Bật máy lọc]`** (gửi lệnh `ventilation_boost`).<br/>3. Nút chuyển sang trạng thái "Đang bật…", frontend gửi API `POST /api/v1/devices/FILTER-S01/manual-control` kèm Idempotency-Key.<br/>4. Backend lưu `command_intent` và phát lệnh MQTT tới topic `airguard/devices/FILTER-S01/command`.<br/>5. Container `device-simulator-s01` nhận lệnh qua MQTT, chuyển trạng thái sang `RUNNING_BOOST` và phát bản tin ACK `succeeded` tới `airguard/devices/FILTER-S01/status`.<br/>6. MQTT Consumer nhận ACK và cập nhật trạng thái vào PostgreSQL.<br/>7. Cơ chế Fast-Polling tự động (chu kỳ 800ms) trên Frontend nhận diện thay đổi: Giao diện lập tức chuyển sang màu xanh **"Đang lọc không khí tăng cường"**, đồng hồ đếm ngược 45 phút chạy giật lùi, nút đổi thành **`[Tắt máy lọc]`**.<br/>8. Toàn bộ thao tác can thiệp được tự động ghi vào `audit_logs`. |
+| **Luồng thay thế** | **A1 - Tắt máy lọc thủ công**: Quản lý bấm `[Tắt máy lọc]` (gửi lệnh `standby`); thiết bị chuyển về "Chế độ chờ", dừng đồng hồ đếm ngược.<br/>**A2 - Tự động kết thúc chu kỳ**: Sau 45 phút chạy hết chu kỳ, thiết bị tự động chuyển về `STANDBY`. |
+| **Luồng ngoại lệ** | **E1 - Thiết bị đã đang chạy (HTTP 409 Conflict)**: Hệ thống từ chối lệnh bật trùng lặp và thông báo "Thiết bị đang trong chu kỳ hoạt động". |
+| **Hậu điều kiện** | Lệnh can thiệp được thực thi qua MQTT, giao diện phản ánh trạng thái thực và lưu vết kiểm toán 100%. |
+| **Quy tắc nghiệp vụ** | - Chỉ tài khoản `manager` mới có quyền gửi lệnh điều khiển thiết bị.<br/>- Chu kỳ lọc tăng cường mặc định: 45 phút, công suất 80%. |
 
 ---
 
-#### Bảng UC-08: Phê Duyệt Cảnh Báo & Can Thiệp Human-in-the-Loop 1-Click
+#### Bảng UC-08: Phê Duyệt Đề Xuất Can Thiệp Human-in-the-Loop 1-Click (HITL Portal)
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-08` |
-| **Tên Use Case** | **Phê Duyệt Cảnh Báo & Can Thiệp Human-in-the-Loop 1-Click (HITL Portal)** |
-| **Actor Chính** | Quản lý đô thị (Urban Manager / Admin) |
-| **Actor Phụ** | Dịch vụ Gửi Email (Resend API), Hệ thống Phun Sương (Device Simulator) |
-| **Mục đích** | Cung cấp cho Quản lý đô thị một cổng thẩm định nghiêm ngặt để rà soát chứng cứ khoa học trước khi phê duyệt phát thông báo khẩn diện rộng hoặc kích hoạt hệ thống phun sương dập bụi, đảm bảo không có bất kỳ hành động nguy hiểm nào diễn ra tự động mà thiếu sự kiểm soát của con người. |
-| **Tiền điều kiện** | Hệ thống đã sinh ra một đề xuất can thiệp ở trạng thái `pending`; Quản lý đã đăng nhập tài khoản có quyền `manager`. |
+| **Tên Use Case** | **Phê Duyệt Đề Xuất Can Thiệp Human-in-the-Loop 1-Click (HITL Approval Portal)** |
+| **Actor Chính** | Quản lý đô thị (Urban Manager / BQL) |
+| **Actor Phụ** | Dịch vụ Gửi Email (Resend API), Hệ thống Thiết bị Mô phỏng (Device Simulator) |
+| **Mục đích** | Cung cấp cổng thẩm định nghiêm ngặt có con người giám sát (Human-in-the-Loop) để Quản lý đô thị rà soát chứng cứ khoa học trước khi phê duyệt phát thông báo khẩn hoặc kích hoạt hệ thống thông gió/lọc khí, đảm bảo AI không bao giờ tự ý can thiệp nguy hiểm. |
+| **Tiền điều kiện** | AI Agent đã phát hiện chất lượng không khí suy giảm liên tục và tạo ra một đề xuất ở trạng thái `pending`. Quản lý đã đăng nhập quyền `manager`. |
 | **Kích hoạt** | Quản lý truy cập vào Cổng Phê Duyệt (`/approvals`). |
-| **Luồng sự kiện chính** | 1. Quản lý mở danh sách các đề xuất đang chờ xử lý (`pending`).<br/>2. Quản lý bấm vào một đề xuất để mở màn hình thẩm định chi tiết (Proposal Detail).<br/>3. Màn hình hiển thị đầy đủ chứng cứ khách quan (Evidence Card): Chỉ số PM2.5, thời điểm đo, thời tiết hiện tại, xu hướng dự báo 1h tới và nội dung hành động can thiệp đề xuất.<br/>4. Quản lý kiểm tra và bấm nút **[PHÊ DUYỆT (APPROVE)]**.<br/>5. Hệ thống hiển thị hộp thoại xác nhận kèm tóm tắt các hành động sẽ được thực thi.<br/>6. Quản lý xác nhận phê duyệt 1-click.<br/>7. Server-side cập nhật trạng thái đề xuất thành `approved`, ghi nhận `approved_by` và thời gian duyệt.<br/>8. Server kích hoạt đồng thời 2 tiến trình: Gửi email cảnh báo cư dân qua Resend API và phát lệnh MQTT kích hoạt giàn phun sương dập bụi dập tắt ô nhiễm.<br/>9. Hệ thống tự động ghi nhật ký bất biến vào bảng `audit_logs`.<br/>10. Màn hình chuyển sang trạng thái thành công và hiển thị mã tham chiếu kiểm toán. |
-| **Luồng thay thế** | **A1 - Quản lý Từ chối (Reject)**: Quản lý thấy số liệu không thuyết phục hoặc trạm đang bảo dưỡng. Quản lý bấm **[TỪ CHỐI (REJECT)]** -> Hệ thống bắt buộc nhập lý do từ chối -> Server chuyển trạng thái thành `rejected` -> **Tuyệt đối không gửi email và không phát lệnh điều khiển thiết bị**. |
-| **Luồng ngoại lệ** | **E1 - Xung đột phê duyệt đồng thời (HTTP 409 Conflict)**: Một Quản lý khác đã xử lý đề xuất này trước vài giây. Hệ thống hiển thị thông báo "Đề xuất đã được xử lý bởi Quản lý khác" và tự động tải lại dữ liệu mới nhất. |
-| **Hậu điều kiện** | Đề xuất được xử lý dứt điểm; hành động can thiệp được phát lệnh an toàn và lưu vết kiểm toán 100%. |
-| **Quy tắc nghiệp vụ** | - AI và hệ thống tự động tuyệt đối không được tự ý chuyển trạng thái sang `approved`.<br/>- Thao tác từ chối bắt buộc phải có lý do (Reject Reason không được để trống). |
+| **Luồng sự kiện chính** | 1. Quản lý mở danh sách các đề xuất đang chờ xử lý (`pending`).<br/>2. Quản lý bấm vào đề xuất để xem thẻ thẩm định chứng cứ (Evidence Card): Nồng độ PM2.5/CO2, thời điểm đo, xu hướng dự báo 1-3h, trạm vi phạm và hành động đề xuất.<br/>3. Quản lý kiểm tra và bấm nút **[PHÊ DUYỆT (APPROVE)]**.<br/>4. Hệ thống hiển thị hộp thoại xác nhận 1-click.<br/>5. Server-side cập nhật trạng thái đề xuất thành `approved`, ghi nhận `approved_by` và thời gian duyệt.<br/>6. Server tự động kích hoạt: Phát lệnh MQTT điều khiển thiết bị lọc khí và/hoặc gửi email thông báo cư dân khu vực qua Resend API.<br/>7. Hệ thống tự động ghi nhật ký bất biến vào bảng `audit_logs`.<br/>8. Màn hình chuyển sang trạng thái thành công kèm mã tham chiếu kiểm toán. |
+| **Luồng thay thế** | **A1 - Quản lý Từ chối (Reject)**: Quản lý nhận thấy số liệu không thuyết phục hoặc trạm đang bảo trì. Quản lý bấm **[TỪ CHỐI (REJECT)]** $\to$ Bắt buộc nhập lý do từ chối $\to$ Trạng thái chuyển thành `rejected` $\to$ **Tuyệt đối không phát lệnh MQTT và không gửi email**. |
+| **Luồng ngoại lệ** | **E1 - Xung đột phê duyệt đồng thời (HTTP 409 Conflict)**: Một Quản lý khác đã xử lý đề xuất trước đó vài giây. Hệ thống thông báo xung đột và tự động làm mới danh sách. |
+| **Hậu điều kiện** | Đề xuất được giải quyết dứt điểm; can thiệp được thực thi có kiểm soát và lưu vết kiểm toán 100%. |
+| **Quy tắc nghiệp vụ** | - AI tuyệt đối không thể tự chuyển trạng thái sang `approved`. Chỉ con người (Role Manager) mới có quyền duyệt.<br/>- Thao tác từ chối bắt buộc phải có lý do (Review Note không được để trống). |
 
 ---
 
-#### Bảng UC-09: Truy Vết Nhật Ký Kiểm Toán Bất Biến
+#### Bảng UC-09: Truy Vết Nhật Ký Kiểm Toán Bất Biến (Immutable Audit Trail)
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-09` |
-| **Tên Use Case** | **Truy Vết Nhật Ký Kiểm Toán Bất Biến (Immutable Audit Logging)** |
-| **Actor Chính** | Kiểm toán viên (Auditor), Quản trị viên (Admin), Quản lý đô thị (Manager) |
-| **Mục đích** | Cho phép rà soát, thanh tra và truy vết toàn bộ lịch sử các can thiệp hệ thống, quyết định phê duyệt/từ chối của quản lý và các lệnh điều khiển thiết bị nhằm phục vụ mục đích kiểm toán an toàn và giải trình pháp lý. |
-| **Tiền điều kiện** | Người dùng đăng nhập với quyền `manager` hoặc `admin`. |
-| **Kích hoạt** | Người dùng truy cập trang Nhật Ký Kiểm Toán (`/audit`). |
-| **Luồng sự kiện chính** | 1. Hệ thống tải danh sách các bản ghi kiểm toán từ bảng `audit_logs`.<br/>2. Các trường hiển thị gồm: Thời gian sự kiện (`occurred_at`), Tác nhân (`actor_id`, `role`), Hành động (`action`), Đối tượng tác động (`target_type`, `target_id`), Kết quả (`outcome`) và Mã tương quan (`request_id`).<br/>3. Người dùng có thể lọc theo: Khoảng thời gian, Tên tác nhân, Loại hành động (Duyệt/Từ chối/Phát lệnh).<br/>4. Người dùng bấm vào một dòng để xem chi tiết JSON payload sự kiện đã được khử trùng thông tin nhạy cảm (Redacted Details). |
-| **Luồng thay thế** | **A1 - Xuất dữ liệu kiểm toán (Export)**: Quản trị viên bấm "Xuất CSV" để phục vụ báo cáo định kỳ. |
-| **Luồng ngoại lệ** | **E1 - Không có quyền truy cập (HTTP 403)**: Cư dân thường gõ trực tiếp URL `/audit` sẽ bị hệ thống chặn và chuyển hướng về trang chủ kèm thông báo từ chối quyền. |
-| **Hậu điều kiện** | Báo cáo kiểm toán minh bạch được cung cấp đầy đủ, không thể bị xóa sửa. |
-| **Quy tắc nghiệp vụ** | - Bảng cơ sở dữ liệu `audit_logs` là Append-Only (Chỉ thêm, không cung cấp API sửa hoặc xóa). |
+| **Tên Use Case** | **Truy Vết Nhật Ký Kiểm Toán Bất Biến (Immutable Audit Trail)** |
+| **Actor Chính** | Quản lý đô thị (Urban Manager / BQL) |
+| **Mục đích** | Cung cấp công cụ tra cứu và thanh tra toàn bộ lịch sử các hành động nhạy cảm trong hệ thống (phê duyệt HITL, điều khiển máy lọc thủ công, thay đổi cấu hình, đăng nhập) nhằm phục vụ công tác kiểm toán an toàn và giải trình vận hành. |
+| **Tiền điều kiện** | Quản lý đô thị đã đăng nhập với quyền `manager`. |
+| **Kích hoạt** | Quản lý truy cập vào trang hoặc modal Nhật Ký Kiểm Toán (`/audit`). |
+| **Luồng sự kiện chính** | 1. Hệ thống tải danh sách các bản ghi kiểm toán từ bảng cơ sở dữ liệu `audit_logs`.<br/>2. Hiển thị bảng dữ liệu với các trường: Thời gian sự kiện (`occurred_at`), Tác nhân (`actor_id`, `role`), Hành động (`action`), Đối tượng tác động (`target_type`, `target_id`), Kết quả (`outcome`) và Mã tương quan (`request_id`).<br/>3. Quản lý có thể lọc theo: Khoảng thời gian, Loại hành động (Phê duyệt/Từ chối/Bật thiết bị/Tắt thiết bị), Kết quả (Thành công/Thất bại).<br/>4. Quản lý bấm vào một dòng sự kiện để xem chi tiết JSON payload đã được khử trùng thông tin nhạy cảm. |
+| **Luồng thay thế** | **A1 - Xuất dữ liệu kiểm toán**: Quản lý bấm "Xuất CSV" để tải file nhật ký phục vụ báo cáo giải trình. |
+| **Luồng ngoại lệ** | **E1 - Người dùng không có quyền truy cập (HTTP 403 Forbidden)**: Cư dân thường truy cập trực tiếp URL `/audit` sẽ bị hệ thống chặn và chuyển hướng về trang chủ. |
+| **Hậu điều kiện** | Báo cáo kiểm toán minh bạch, khách quan được cung cấp đầy đủ và không thể bị xóa sửa. |
+| **Quy tắc nghiệp vụ** | - Bảng `audit_logs` là Append-Only (Chỉ thêm mới, không cung cấp bất kỳ API nào để chỉnh sửa hoặc xóa dữ liệu). |
 
 ---
 
-#### Bảng UC-10: Ghi Đè & Điều Khiển Cảm Biến Mô Phỏng
+#### Bảng UC-10: Xuất Báo Cáo Chất Lượng Môi Trường & Đánh Giá Tác Động ESG
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-10` |
-| **Tên Use Case** | **Ghi Đè & Điều Khiển Cảm Biến Mô Phỏng (Demo Station Override)** |
-| **Actor Chính** | Quản lý đô thị, Giám khảo, Kỹ sư Demo (Demo Presenter) |
-| **Mục đích** | Cung cấp bảng điều khiển nhanh để điều chỉnh tức thì nồng độ PM2.5 của một trạm bất kỳ trong các buổi thuyết trình/demo trực tiếp, nhằm kích hoạt ngay lập tức các kịch bản cảnh báo, đổi màu bản đồ và sinh đề xuất can thiệp HITL mà không phải chờ đợi thời gian mô phỏng tự nhiên. |
-| **Tiền điều kiện** | Ứng dụng đang chạy ở chế độ Demo/Staging; tài khoản người dùng có quyền Quản lý. |
-| **Kích hoạt** | Người dùng bấm vào nút "Bảng Điều Khiển Demo (Demo Control)" nổi ở góc dưới màn hình. |
-| **Luồng sự kiện chính** | 1. Mở ngăn điều khiển trạm demo.<br/>2. Chọn trạm quan trắc cần thao tác (ví dụ: S04 - Sao Biển).<br/>3. Kéo thanh trượt hoặc bấm chọn nhanh kịch bản ô nhiễm: "Ô nhiễm nghiêm trọng (PM2.5 = 160 $\mu g/m^3$)" hoặc "Trong lành (PM2.5 = 15 $\mu g/m^3$)".<br/>4. Bấm nút "Áp dụng giá trị".<br/>5. Backend tiếp nhận, cập nhật giá trị tức thì vào trạm và kích hoạt chuỗi phản ứng: Cột mốc trên bản đồ đổi sang màu tím/đỏ, động cơ Alert Engine sinh cảnh báo và tạo đề xuất `pending` cho kịch bản HITL. |
-| **Luồng thay thế** | **A1 - Khôi phục giá trị tự nhiên**: Người dùng bấm nút "Đặt lại mặc định" để trạm trở về dữ liệu tự nhiên của Simulator. |
-| **Hậu điều kiện** | Trạng thái toàn hệ thống phản ánh tức thì kịch bản demo mong muốn. |
+| **Tên Use Case** | **Xuất Báo Cáo Chất Lượng Môi Trường & Đánh Giá Tác Động ESG (Environmental & ESG Report Export)** |
+| **Actor Chính** | Quản lý đô thị (Urban Manager / BQL) |
+| **Mục đích** | Tự động tổng hợp dữ liệu vi khí hậu, tính toán chỉ số ESG (Môi trường - Xã hội - Quản trị), đánh giá hiệu quả vận hành tiện ích đô thị và xuất báo cáo định kỳ dưới nhiều định dạng chuẩn hóa. |
+| **Tiền điều kiện** | Quản lý đô thị đã đăng nhập với quyền `manager`; hệ thống có dữ liệu quan trắc trong khoảng thời gian yêu cầu. |
+| **Kích hoạt** | Quản lý truy cập vào mục "Báo Cáo Môi Trường & ESG" (`/reports`). |
+| **Luồng sự kiện chính** | 1. Quản lý chọn loại báo cáo: Báo cáo Ca Vận Hành (Shift Report), Báo cáo Ngày (Daily Report), Báo cáo Tuần (Weekly Report) hoặc Báo cáo Tháng (Monthly ESG Report).<br/>2. Quản lý chọn phạm vi trạm quan trắc (Tất cả 5 trạm hoặc từng phân khu cụ thể).<br/>3. Hệ thống tổng hợp các chỉ số cốt lõi: Nồng độ PM2.5/CO2 trung bình, Tỷ lệ thời gian không khí đạt chuẩn EPA Tốt/Trung bình, Độ bao phủ dữ liệu (Data Coverage Ratio $\ge 75\%$), Số giờ vận hành máy lọc không khí và mức cải thiện chất lượng không khí ghi nhận.<br/>4. Quản lý chọn định dạng xuất mong muốn: **PDF Báo cáo Đồ họa**, **Excel (XLSX)**, **CSV Dữ liệu thô**, hoặc **JSON API Export**.<br/>5. Hệ thống sinh file báo cáo và tự động kích hoạt tiến trình tải về máy tính của Quản lý. |
+| **Luồng thay thế** | **A1 - Lên lịch xuất báo cáo tự động**: Cấu hình tự động gửi báo cáo tổng kết tuần vào email của Ban Quản Lý vào 08:00 sáng thứ Hai hàng tuần. |
+| **Luồng ngoại lệ** | **E1 - Độ bao phủ dữ liệu không đạt yêu cầu (< 75%)**: Hệ thống hiển thị cảnh báo chất lượng dữ liệu "Tỷ lệ mẫu đo không đạt tiêu chuẩn kiểm toán (Coverage < 75%)" trên trang bìa báo cáo để đảm bảo tính minh bạch. |
+| **Hậu điều kiện** | File báo cáo chuẩn hóa được xuất thành công, phục vụ công tác quản trị đô thị thông minh và công bố thông tin ESG. |
+| **Quy tắc nghiệp vụ** | - Mọi số liệu trong báo cáo phải trích xuất trực tiếp từ cơ sở dữ liệu SoR, có mã checksum và thời điểm kết xuất rõ ràng. |
 
 ---
 
