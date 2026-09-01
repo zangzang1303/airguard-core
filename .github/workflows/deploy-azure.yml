@@ -44,8 +44,36 @@ jobs:
         run: |
           set -euo pipefail
           install -d -m 700 "$HOME/.ssh"
-          install -m 600 /dev/null "$HOME/.ssh/airguard_deploy"
-          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/airguard_deploy"
+          python3 -c "
+          import os, sys
+          key = os.environ.get('DEPLOY_KEY', '')
+          if not key.strip():
+              print('::error::AZURE_DEPLOY_SSH_KEY secret is empty!', file=sys.stderr)
+              sys.exit(1)
+          # Handle literal \n (if key was saved as single-line escaped string)
+          if '\\\n' not in key and '\\n' in key and '\n' not in key.strip():
+              key = key.replace('\\n', '\n')
+          elif '\\n' in key and key.count('\n') < 3:
+              key = key.replace('\\n', '\n')
+          key = key.replace('\r', '')
+          key = key.strip() + '\n'
+          target = os.path.expanduser('~/.ssh/airguard_deploy')
+          with open(target, 'w') as f:
+              f.write(key)
+          os.chmod(target, 0o600)
+          "
+
+          # Verify that OpenSSH / libcrypto can actually read the key
+          if ! ssh-keygen -y -f "$HOME/.ssh/airguard_deploy" > "$HOME/.ssh/airguard_deploy.pub" 2>/dev/null; then
+            echo "::error::SSH key could not be parsed by OpenSSH (libcrypto). Please re-check AZURE_DEPLOY_SSH_KEY in GitHub Secrets."
+            echo "Key diagnostics (lines, characters):"
+            wc -l -c "$HOME/.ssh/airguard_deploy"
+            echo "First line:"
+            head -n 1 "$HOME/.ssh/airguard_deploy"
+            echo "Last line:"
+            tail -n 1 "$HOME/.ssh/airguard_deploy"
+            exit 1
+          fi
 
           ssh-keyscan -t ed25519 -H "$AZURE_HOST" > "$HOME/.ssh/known_hosts.pending"
           actual_fingerprint="$(ssh-keygen -lf "$HOME/.ssh/known_hosts.pending" -E sha256 | awk '{print $2}')"
@@ -63,6 +91,7 @@ jobs:
         run: |
           cat "$RUNNER_TEMP/airguard.bundle" | \
             ssh \
+              -v \
               -o BatchMode=yes \
               -o IdentitiesOnly=yes \
               -i "$HOME/.ssh/airguard_deploy" \
