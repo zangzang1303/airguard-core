@@ -9,7 +9,7 @@ Nguyên nhân chính là **lệch runtime–mã nguồn** kết hợp với **ba
 ## Phạm vi và bằng chứng
 
 - Đọc luồng UI, API backend, Agent `src/`, dịch vụ geospatial, social gate, forecast, contracts, ADR và tests.
-- Đối chiếu lại [kết quả 32 test case](ai-chat-test-results-2026-08-24.md).
+- Đối chiếu lại [báo cáo hợp nhất 32 test case](evidence/ai-chat-test-report-2026-08-24.md).
 - Gọi cùng một câu hỏi `AQI hiện tại ở S03 là bao nhiêu?` đến hai endpoint lúc 15:35 ICT.
 - Không thay đổi code nghiệp vụ, không tạo/approve/reject proposal, không dừng dịch vụ.
 

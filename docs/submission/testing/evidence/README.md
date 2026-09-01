@@ -1,30 +1,27 @@
-# Testing Evidence Index
+# Testing evidence index
 
-## Evidence hiện tại
+## Evidence hiện hành
 
-| Evidence | Vị trí | Ghi chú |
-|---|---|---|
-| Runtime verification 31/08 | [`runtime-verification-2026-08-31.md`](runtime-verification-2026-08-31.md) | Stack, pipeline, Agent, alert/recovery, offline gate, HITL/ACK/audit và scoped regressions tại `202037e`. |
-| Browser E2E JSON/screenshots | [`../../../evidence/session-3f/`](../../../evidence/session-3f/) | 6/6 failure/recovery cases được tạo lại trên live stack. |
-| Forecast benchmark | [`../../../evidence/forecast-model-evaluation.md`](../../../evidence/forecast-model-evaluation.md) | Tạo lại ngày 31/08/2026. |
-| Agent evaluation criteria | [`../../../agent-evaluation.md`](../../../agent-evaluation.md) | Tiêu chí/golden gate. |
-| Agent evaluation run | [`../../../../eval/reports/agent-evaluation-2026-08-08.md`](../../../../eval/reports/agent-evaluation-2026-08-08.md) | Filename legacy; kiểm tra trường Generated. |
-| Historical UI report 24/08 | [`../../../ui-test-report-2026-08-24.md`](../../../ui-test-report-2026-08-24.md) | Agent UI issue đã được đóng bằng browser E2E 31/08. |
+- [`runtime-verification-2026-09-01.md`](runtime-verification-2026-09-01.md): regression 801 tests, frontend/browser retest, live route/indoor và offline forecast reproduction trên commit `aeda2ab`.
+- [`runtime-verification-2026-08-31.md`](runtime-verification-2026-08-31.md): live pipeline, alert/recovery, HITL reject/approve, device ACK và audit chain trên commit `202037e`.
+- [`../../../evidence/session-3f/browser_e2e_evidence.json`](../../../evidence/session-3f/browser_e2e_evidence.json): browser 503/timeout/network/recovery evidence và screenshots.
+- [`../../../evidence/forecast-model-evaluation.md`](../../../evidence/forecast-model-evaluation.md): forecast benchmark.
+- [`../../../../eval/reports/agent-evaluation-2026-08-08.md`](../../../../eval/reports/agent-evaluation-2026-08-08.md): Agent golden evaluation.
 
-## Evidence còn cần
+## Evidence còn thiếu
 
-- [ ] Dashboard current/history khi đổi metric và time range.
-- [ ] Forecast/Golden Window/timeline với thao tác Play/Pause.
-- [ ] Personalized route/indoor fallback sau khi sửa `BUG-001`.
-- [ ] PDF tiếng Việt, watermark, matrix và page breaks sau khi sửa `BUG-002`.
-- [ ] Toàn bộ major views ở 375px và 1280px.
-- [ ] Public URL incognito, HTTPS và CORS.
-- [ ] Clean Agent image build không dùng dependency cache.
+- [ ] Dashboard current/history multi-metric visual check.
+- [ ] Forecast API/UI comparison.
+- [ ] Timeline Play/Pause và heatmap visual check.
+- [ ] PDF tiếng Việt, matrix và page-break inspection.
+- [ ] Full responsive review 375/1280.
+- [ ] Public URL incognito/HTTPS/CORS.
+- [ ] Clean image build trên final commit.
+- [ ] Dependency advisory disposition.
 
 ## Quy tắc evidence
 
-- Ghi commit, timestamp, môi trường và tester.
-- Che API key, token, password, email người nhận và dữ liệu cá nhân.
-- Không dùng fixture cũ để chứng minh live pipeline hiện tại.
-- Không chỉnh screenshot theo cách thay đổi ý nghĩa kết quả.
-- ID rút gọn trong summary phải có bản đầy đủ trong runtime evidence.
+- Ghi commit, thời gian, môi trường, command và actual result.
+- Log/screenshot phải được làm sạch secret, token và PII.
+- Historical evidence không thay thế retest trên final release commit.
+- External provider chưa được gọi không được mô tả là delivery PASS.

@@ -639,6 +639,7 @@ Runtime entry points:
 - [Testing submission pack](docs/submission/testing/README.md): báo cáo kiểm thử tổng hợp, defects, manual sign-off và evidence index.
 - [PRD](docs/Gate%201/PRD.md): yêu cầu sản phẩm hiện hành.
 - [API contracts](specs/api-contracts.md).
+- [Weekly Mentor Duty logs](docs/submission/weekly-logs/README.md): báo cáo Done/Doing/Blocked và kế hoạch theo từng tuần của nhóm T-074.
 - [Data contracts](specs/data-contracts.md).
 - [Domain model](specs/domain-model.md).
 - [Agent evaluation](docs/agent-evaluation.md).
