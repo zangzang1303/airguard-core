@@ -1,11 +1,11 @@
-# 🤖 PROMPT TỔNG THỂ TẠO BỘ SLIDE PITCHING AIRGUARD AI (ALL-IN-ONE MASTER PROMPT)
+# 🤖 PROMPT TỔNG THỂ TẠO BỘ SLIDE PITCHING AIRGUARD AI (8 SLIDE CHUYÊN SÂU KỸ THUẬT)
 > **Cách sử dụng**: Copy toàn bộ khối văn bản bên dưới và dán trực tiếp vào các công cụ AI tạo slide như **Gamma.app**, **Tome.ai**, **Canva Magic Presentation**, **SlidesAI**, hoặc **Microsoft Copilot**.  
-> AI sẽ tự động phân tích và tạo ra bộ slide hoàn chỉnh **7 trang chuẩn cấu trúc Pitching 5 phút**.
+> AI sẽ tự động tạo ra bộ slide hoàn chỉnh **8 trang chuyên sâu công nghệ và chuẩn cấu trúc Pitching 5 phút**.
 
 ---
 
 ```text
-Hãy tạo một bài thuyết trình chuyên nghiệp (Presentation Pitch Deck) gồm đúng 7 slide theo phong cách Clean-Tech Dark Mode hiện đại (Nền xanh đen đậm #0B1120, màu nhấn Xanh lục bảo #10B981 và Xanh dương công nghệ #0EA5E9, Glassmorphism, font chữ Inter/Outfit sắc nét, bố cục chia Card trực quan và số liệu nổi bật):
+Hãy tạo một bài thuyết trình chuyên nghiệp (Pitch Deck) gồm đúng 8 slide theo phong cách Clean-Tech Dark Mode hiện đại (Nền xanh đen công nghệ #0B1120, màu nhấn Xanh lục bảo #10B981 và Xanh dương #0EA5E9, Glassmorphism, font chữ Inter/Outfit sắc nét, bố cục chia Card trực quan và số liệu nổi bật):
 
 ---
 
@@ -32,35 +32,45 @@ SLIDE 2: BỐI CẢNH & THỰC TRẠNG (THE PROBLEM)
 
 ---
 
-SLIDE 3: GIẢI PHÁP TỔNG THỂ & TÍNH NĂNG MỚI ĐỘT PHÁ (SOLUTION & KILLER FEATURE)
-- Tiêu đề chính: AirGuard AI: Chu Trình Khép Kín & Đột Phá AI Định Tuyến Thể Thao Sạch
-- Chu trình khép kín 3 bước:
-  1. Giám Sát & Dự Báo Realtime: 5 trạm quan trắc IoT (chu kỳ 15s), Bản đồ nhiệt IDW 60x60 và dự báo chuỗi thời gian 1-24h.
-  2. 🌟 KILLER FEATURE — Chat Agent Định Tuyến Chạy Bộ Sạch 0% Trùng Lặp:
-     - Cư dân chat tự nhiên: "Tôi muốn chạy 5km quanh hồ lúc này cho người nhạy cảm".
-     - Thuật toán độc quyền 2-Leg Penalized Dijkstra trên đồ thị OpenStreetMap (>10,500 cạnh) phạt 30x chiều về.
-     - Kết quả: Sinh ra đường chạy khép kín tuần hoàn đúng 0.0% lặp đường cũ, tích phân liều lượng bụi mịn hít vào phổi giảm tới 45%!
-  3. Cổng HITL An Toàn: AI chuẩn bị sẵn Thẻ bằng chứng (Evidence Card) để Ban Quản Lý duyệt 1-click kích hoạt máy lọc không khí phản hồi tức thì trong 0.8 giây.
+SLIDE 3: TỔNG QUAN GIẢI PHÁP & 10 USE CASES (THE SOLUTION)
+- Tiêu đề chính: AirGuard AI: Chu Trình Khép Kín Từ Cảm Biến Đến Hành Động
+- 2 Vai trò người dùng & 10 Ca sử dụng chuẩn hóa:
+  * Vai Trò Cư Dân: Giám sát bản đồ GIS & Heatmap IDW, Chi tiết trạm & Dự báo 1-24h, Hồ sơ sức khỏe 3 nhóm thể trạng, Đàm thoại Trợ lý AI và Nhận tuyến đường chạy bộ sạch khép kín.
+  * Vai Trò Ban Quản Lý: Cổng phê duyệt HITL 1-click, Điều khiển thủ công máy lọc dập bụi (ACK 0.8s), Nhật ký kiểm toán bất biến và Xuất báo cáo ESG định kỳ.
+- Thông điệp: "Chuyển hóa dữ liệu vi khí hậu rời rạc thành hành động bảo vệ sức khỏe và điều hành thông minh."
 
 ---
 
-SLIDE 4: KIẾN TRÚC HỆ THỐNG • SYSTEM ARCHITECTURE & AI SAFETY
-- Tiêu đề chính: KIẾN TRÚC HỆ THỐNG • SYSTEM ARCHITECTURE & AI SAFETY
-- Bố cục 2 Cột Cân Đối:
-  * Cột 1 (Kiến Trúc Monorepo 5 Phân Tầng):
-    - Tầng 1: IoT Mosquitto Broker (5 Sensor Simulators + 5 Device Simulators).
-    - Tầng 2: Data Quality Gate (Fail-Closed Ingestion, loại bỏ dữ liệu Stale >300s).
-    - Tầng 3: PostgreSQL 16 System of Record (Append-Only audit_logs chống sửa xóa).
-    - Tầng 4: FastAPI Core Backend & LangGraph AI Agent State Machine.
-    - Tầng 5: React 18 Leaflet GIS Dashboard (Fast-Polling UI 800ms) sau Caddy HTTPS Proxy.
-  * Cột 2 (An Toàn AI Tuyệt Đối & HITL):
-    - Nguyên tắc "Grounding Trước Fluency": Cổng Grounding Policy Gate đối chiếu 100% số liệu từ Database SoR, cam kết Zero Hallucination (0% bịa đặt số liệu).
-    - Bộ chuyển mạch tiền định (Deterministic Fallback): Phản hồi từ cảm biến cục bộ trong < 500ms khi LLM ngoài timeout (>8s), đảm bảo 0% lỗi HTTP 5xx.
-    - Bảo mật HITL Server-Side: AI chỉ tạo đề xuất Pending, quyền kích hoạt thiết bị thuộc về con người (Manager).
+SLIDE 4: KIẾN TRÚC HỆ THỐNG, CÁC LUỒNG DỮ LIỆU & TECH STACK
+- Tiêu đề chính: KIẾN TRÚC MONOREPO 5 PHÂN TẦNG, LUỒNG DỮ LIỆU & TECH STACK
+- Mô hình phân tầng & Công nghệ sử dụng (5-Tier Architecture):
+  1. Tầng IoT & Telemetry: 5 Trạm cảm biến + 5 Cụm máy lọc -> Mosquitto MQTT Broker (QoS 1, chu kỳ 15s).
+  2. Tầng Ingestion & Data Quality: Paho MQTT Consumer + Pydantic Quality Gate (Fail-Closed, loại bỏ Stale >300s).
+  3. Tầng Dữ Liệu & SoR: PostgreSQL 16 System of Record (Append-Only audit_logs chống sửa xóa, measurements, alerts).
+  4. Tầng Ứng Dụng & AI Engine: FastAPI Core Backend, Celery Background Tasks, LangGraph Agent State Machine & OSM Router.
+  5. Tầng Giao Diện & Phân Phối: React 18 Leaflet GIS Dashboard (Fast-Polling UI 800ms) sau Caddy HTTPS Reverse Proxy (8 Docker Containers trên Azure VM B2ms).
+- 3 Luồng dữ liệu chính:
+  * Luồng Telemetry Stream: Sensor -> MQTT -> Quality Gate -> PostgreSQL SoR.
+  * Luồng Query & Geospatial: Frontend -> FastAPI REST API -> IDW Heatmap Matrix (Latency < 120ms).
+  * Luồng Action & Audit: HITL Portal -> MQTT Command Dispatcher -> Thiết bị -> Append-Only Audit Log.
 
 ---
 
-SLIDE 5: KHOẢNH KHẮC TRẢI NGHIỆM THỰC TẾ (LIVE PRODUCT DEMO)
+SLIDE 5: CÁC KỸ THUẬT ĐỘT PHÁ & KỸ THUẬT CHÍNH ĐÃ ÁP DỤNG
+- Tiêu đề chính: 4 KỸ THUẬT ĐỘT PHÁ CỐT LÕI (CORE TECHNICAL INNOVATIONS)
+- Bố cục Lưới 4 Ô Công Nghệ (2x2 Grid):
+  1. 🌟 Động Cơ Định Tuyến 2-Leg Penalized Dijkstra OSM (>10,500 cạnh):
+     - Phạt 30 lần trọng số các cạnh đường chặng đi -> Sinh đường chạy khép kín tuần hoàn đúng 0.0% lặp đường cũ, tích phân liều lượng bụi mịn hít vào phổi (ug) giảm 45%!
+  2. Cơ Chế Chống Ảo Giác "Grounding Trước Fluency":
+     - LangGraph State Machine kết hợp Grounding Policy Gate: 100% số liệu đối chiếu DB SoR. Bộ chuyển mạch tiền định Fallback (<500ms khi LLM timeout >8s) đảm bảo 0% lỗi HTTP 5xx.
+  3. Bản Đồ Nhiệt Lan Truyền Không Gian IDW (Ma trận 60x60):
+     - Thuật toán Inverse Distance Weighting kết hợp vector hướng gió Open-Meteo và chuẩn mã màu US EPA 2012.
+  4. Cổng An Toàn HITL Server-Side & Fast-Polling ACK 0.8s:
+     - Khóa Cooldown 15 phút chống spam cảnh báo, phê duyệt 1-click với Thẻ bằng chứng (Evidence Card), đếm ngược chu kỳ 45 phút và tự ngắt an toàn.
+
+---
+
+SLIDE 6: KHOẢNH KHẮC TRẢI NGHIỆM THỰC TẾ (LIVE PRODUCT DEMO)
 - Tiêu đề chính: KHOẢNH KHẮC TRẢI NGHIỆM THỰC TẾ (LIVE PRODUCT DEMO)
 - Tiêu đề phụ: Nền Tảng Đang Vận Hành Trực Tiếp Trên Đám Mây Azure Cloud VM
 - Bố cục 3 Hộp Luồng Trải Nghiệm Trọng Tâm:
@@ -71,7 +81,7 @@ SLIDE 5: KHOẢNH KHẮC TRẢI NGHIỆM THỰC TẾ (LIVE PRODUCT DEMO)
 
 ---
 
-SLIDE 6: TÁC ĐỘNG ĐỊNH LƯỢNG, NGHIỆM THU KỸ THUẬT & MÔ HÌNH KINH DOANH (BIZ & TRACTION)
+SLIDE 7: TÁC ĐỘNG ĐỊNH LƯỢNG, NGHIỆM THU KỸ THUẬT & MÔ HÌNH KINH DOANH (BIZ & TRACTION)
 - Tiêu đề chính: Giá Trị Định Lượng, Độ Hoàn Thiện Kỹ Thuật 100% & Tiềm Năng Thương Mại
 - 3 Hộp Metric Số Liệu Lớn (Big Impact Numbers):
   * [ -45% Liều Lượng Bụi PM2.5 Hít Vào Phổi (Bảo vệ runner & nhóm nhạy cảm hô hấp) ]
@@ -83,7 +93,7 @@ SLIDE 6: TÁC ĐỘNG ĐỊNH LƯỢNG, NGHIỆM THU KỸ THUẬT & MÔ HÌNH KI
 
 ---
 
-SLIDE 7: ĐỘI NGŨ THỰC HIỆN, TẦM NHÌN DÀI HẠN & PHIÊN HỎI ĐÁP (VISION, TEAM & ASK)
+SLIDE 8: ĐỘI NGŨ THỰC HIỆN, TẦM NHÌN DÀI HẠN & PHIÊN HỎI ĐÁP (VISION, TEAM & ASK)
 - Tiêu đề chính: Đội Ngũ Nhóm P-074 (Tứ Kỵ Sĩ Khải Huyền) & Phiên Hỏi Đáp (Q&A)
 - Thẻ 4 Thành viên nòng cốt:
   1. Lê Tuấn Cảnh — Team Lead / Backend & Cloud (Kiến trúc Monorepo, FastAPI, Postgres SoR, Azure VM).
