@@ -1,22 +1,40 @@
 # 2. Test Cases — AirGuard AI
 
+> **Vai trò của tài liệu:** giải thích bảng test case và giúp truy vết từ kết quả sang defect/evidence. Giám khảo
+> không cần đọc tuần tự 57 dòng; hãy xem bảng tổng quan dưới đây rồi mở CSV khi cần kiểm tra một case cụ thể.
+
 ## Sheet kết quả chính
 
 File [`test-cases-sheet.csv`](test-cases-sheet.csv) là nguồn Pass/Fail có thể mở bằng Excel hoặc import
 trực tiếp vào Google Sheets và lọc theo `Module`, `Priority`, `Test_Type`, `Status`.
 
-Snapshot tại commit `202037e` có **57 dòng**:
+## Cách đọc nhanh
 
-- **39 PASS**.
-- **9 FAIL**.
-- **9 NOT_RUN**.
-- **0 BLOCKED** trong Sheet; clean Agent image build được quản lý ở Bug Report dưới `ENV-004`.
+| Chỉ số | Giá trị | Ý nghĩa |
+|---|---:|---|
+| Tổng test case | 57 | Toàn bộ phạm vi được quản lý trong Sheet |
+| Đã thực hiện | 48 (84,2%) | Bao gồm PASS và FAIL |
+| PASS | 39 | 68,4% tổng số case; 81,3% số case đã thực hiện |
+| FAIL | 9 | Quy về 7 failure observations thuộc 4 bug đang mở |
+| NOT_RUN | 9 | Chủ yếu là visual UI/PDF/responsive và public URL |
+| BLOCKED trong Sheet | 0 | Blocker clean image được quản lý riêng bằng `ENV-004` |
 
 Các số này phản ánh evidence đã chạy ngày 31/08/2026, không phải mục tiêu cuối của release. Full Python suite
 chưa hoàn tất, vì vậy 9 FAIL là số case được xác nhận trong Sheet chứ không phải tổng failure cuối cùng của
-toàn bộ repository.
+toàn bộ repository. Hai case có thể cùng phản ánh một defect; ví dụ `API-001` và `M-09` đều truy về `BUG-005`.
 
-## Ý nghĩa các cột
+## Kết quả theo module
+
+| Module | Tổng | PASS | FAIL | NOT_RUN | Nhận định nhanh |
+|---|---:|---:|---:|---:|---|
+| AI Agent | 25 | 19 | 4 | 2 | Golden/grounding tốt; còn route và fail-closed regression |
+| Forecast/Spatial | 4 | 1 | 1 | 2 | Offline forecast là lỗi chặn release |
+| Frontend UI/UX | 10 | 8 | 0 | 2 | Automated/browser PASS; còn kiểm tra trực quan |
+| HITL/Audit | 5 | 4 | 1 | 0 | Luồng live PASS; còn một source-contract mismatch |
+| Infrastructure/Data | 7 | 6 | 0 | 1 | Pipeline PASS; public URL chưa kiểm tra |
+| Reports | 6 | 1 | 3 | 2 | Còn report contract và PDF visual checks |
+
+## Ý nghĩa các cột trong CSV
 
 | Cột | Nội dung |
 |---|---|
@@ -33,7 +51,7 @@ toàn bộ repository.
 | Evidence | Link file, screenshot, log hoặc request ID đã làm sạch. |
 | Owner_Note | Bug ID, blocker hoặc bước tiếp theo. |
 
-## Trạng thái theo nhóm
+## Các phát hiện cần chú ý
 
 ### AI Agent và route
 
@@ -54,7 +72,7 @@ Riêng forecast vẫn dùng history của station offline/stale, nên `API-001` 
 
 - Không đổi `NOT_RUN/BLOCKED` thành PASS chỉ vì code đã tồn tại.
 - PASS phải có `Actual_Result`, commit/ngày run và evidence.
-- FAIL phải liên kết Bug ID trong [`03-bug-report.md`](03-bug-report.md).
+- FAIL phải liên kết Bug ID trong [`03-test-report.md`](03-test-report.md#4-defect-và-blocker).
 - Retest giữ kết quả cũ trong Git history và cập nhật evidence mới.
 - Không đưa secret, token, mật khẩu, email người nhận hoặc raw prompt nhạy cảm vào Sheet.
 

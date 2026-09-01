@@ -1,5 +1,9 @@
 # 1. Test Plan — AirGuard AI
 
+> **Vai trò của tài liệu:** mô tả cách kiểm thử và tiêu chí đánh giá. Kết quả thực tế và quyết định release nằm
+> trong [`03-test-report.md`](03-test-report.md). Giám khảo chỉ cần đọc phần 1–4 để hiểu phạm vi; phần 5–8 phục vụ
+> truy vết kỹ thuật.
+
 ## 1. Mục tiêu
 
 Chứng minh AirGuard AI hoạt động đúng trên luồng simulator, dashboard, forecast, Agent grounded, HITL,
@@ -35,29 +39,33 @@ audit và reports; đồng thời xác nhận hệ thống fail closed khi dữ 
 | Browser | Chrome headless qua browser E2E |
 | Dữ liệu | Simulator-derived MVP data |
 | Scenarios | normal, spike, recovery, station-silence, rồi trả về normal |
-| Tester | Codex automated/runtime verification; human visual sign-off pending |
+| Người thực hiện | Automated/runtime verification bởi Codex; human visual sign-off chưa thực hiện |
 
 Giới hạn: clean Agent image build bị PyPI timeout. Runtime Agent dùng current `src/` trên cached dependency
 image; không được dùng evidence này để ký clean-build gate.
 
 ## 5. Entry criteria
 
-- [x] Dependencies local có thể chạy scoped tests và frontend scripts.
-- [x] Docker stack khởi động; backend ready, Agent healthy, frontend truy cập được.
-- [x] Simulator phát ít nhất hai chu kỳ dữ liệu.
-- [x] Commit, timestamp, URLs và scenarios được ghi.
-- [ ] Final release commit/tag đã freeze và worktree sạch.
-- [ ] Clean Agent image build hoàn tất.
+| Điều kiện đầu vào | Trạng thái tại lần chạy 31/08 | Bằng chứng hoặc lý do |
+|---|---|---|
+| Dependencies local chạy được scoped tests và frontend scripts | ĐẠT | Các scoped suite và frontend scripts đã có output |
+| Docker stack, backend, Agent và frontend hoạt động | ĐẠT | Health/readiness và frontend HTTP 200 |
+| Simulator phát ít nhất hai chu kỳ dữ liệu | ĐẠT | S01–S05 online/fresh và có message ID truy vết |
+| Commit, timestamp, URL local và scenarios được ghi | ĐẠT | Metadata trong Test Report và runtime evidence |
+| Final release commit/tag đã freeze, worktree sạch | CHƯA ĐẠT | Lần chạy dùng commit `202037e`, chưa phải release commit cuối |
+| Clean Agent image build hoàn tất | BLOCKED | `ENV-004`: timeout tải dependency từ PyPI |
 
 ## 6. Exit criteria
 
-- [ ] Không còn P0 `FAIL/BLOCKED` chưa có disposition được duyệt.
-- [ ] Full pytest hoàn tất, không treo và không còn failure chưa giải thích.
-- [x] Agent golden grounding/safety đạt 100%.
-- [ ] Không có stale/offline data usage; hiện `BUG-005` chưa đạt.
-- [x] HITL chặn Resident và dispatch chỉ xảy ra sau Manager approval.
-- [ ] Toàn bộ P0 manual/visual cases có evidence trên final commit.
-- [ ] QA và Technical Lead sign-off Test Summary Report.
+| Điều kiện đầu ra | Trạng thái | Kết luận ngắn |
+|---|---|---|
+| Không còn P0 `FAIL/BLOCKED` chưa được xử lý | CHƯA ĐẠT | `BUG-005` là release blocker |
+| Full pytest hoàn tất và mọi failure có disposition | CHƯA ĐẠT | Suite treo khoảng 63%; còn 7 failures đã xác nhận |
+| Agent golden grounding/safety đạt 100% | ĐẠT | 62/62 golden cases PASS |
+| Không dùng dữ liệu stale/offline cho downstream | CHƯA ĐẠT | Offline forecast vẫn trả dữ liệu `fresh` |
+| HITL chặn Resident; dispatch chỉ sau Manager approval | ĐẠT | Resident 403; approve → command → ACK có audit |
+| P0 manual/visual có evidence trên final commit | CHƯA ĐẠT | Còn dashboard, timeline, PDF và responsive checks |
+| QA và Technical Lead ký Test Report | CHƯA KÝ | Chỉ ký sau khi các điều kiện release được xử lý |
 
 ## 7. Quy ước trạng thái
 

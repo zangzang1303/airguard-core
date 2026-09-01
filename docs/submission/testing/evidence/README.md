@@ -6,6 +6,7 @@
 |---|---|---|
 | Runtime verification 31/08 | [`runtime-verification-2026-08-31.md`](runtime-verification-2026-08-31.md) | Stack, pipeline, Agent, alert/recovery, offline gate, HITL/ACK/audit và scoped regressions tại `202037e`. |
 | Browser E2E JSON/screenshots | [`../../../evidence/session-3f/`](../../../evidence/session-3f/) | 6/6 failure/recovery cases được tạo lại trên live stack. |
+| AI Chat 32 cases | [`../../../evidence/ai-chat-test-report-2026-08-24.md`](../../../evidence/ai-chat-test-report-2026-08-24.md) | Báo cáo hợp nhất baseline và các phiên 3A–3F; kết quả cuối 32/32 PASS. |
 | Forecast benchmark | [`../../../evidence/forecast-model-evaluation.md`](../../../evidence/forecast-model-evaluation.md) | Tạo lại ngày 31/08/2026. |
 | Agent evaluation criteria | [`../../../agent-evaluation.md`](../../../agent-evaluation.md) | Tiêu chí/golden gate. |
 | Agent evaluation run | [`../../../../eval/reports/agent-evaluation-2026-08-08.md`](../../../../eval/reports/agent-evaluation-2026-08-08.md) | Filename legacy; kiểm tra trường Generated. |
