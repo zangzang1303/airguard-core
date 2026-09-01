@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
 
-from app.services.resend_email_provider import EmailDeliveryResult, ResendEmailProvider  # noqa: E402
+from app.services.resend_email_provider import ResendEmailProvider  # noqa: E402
 
 
 def test_provider_disabled_returns_not_configured_without_sdk_call() -> None:
@@ -129,7 +129,7 @@ def test_resend_missing_id_in_response_returns_failed() -> None:
         from_email="sender@mail.example.com",
         provider_name="resend",
     )
-    with patch("resend.Emails.send", return_value={}) as mock_send:
+    with patch("resend.Emails.send", return_value={}):
         result = provider.send(
             recipient="user@example.com",
             subject="Test",

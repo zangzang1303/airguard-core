@@ -1442,21 +1442,12 @@ async def agent_chat(
         if not effective_station_id and body.map_context:
             effective_station_id = body.map_context.get("selected_sensor")
 
-        try:
-            agent_result = await agent_service.chat(
-                message=body.message,
-                user_id=effective_user_id,
-                station_id=effective_station_id,
-                request_id=req_id,
-            )
-        except Exception as exc:
-            agent_result = {
-                "answer": "",
-                "used_tools": [],
-                "sources": [],
-                "request_id": req_id,
-                "trace": {"agent_fallback": True, "error": str(exc)},
-            }
+        agent_result = await agent_service.chat(
+            message=body.message,
+            user_id=effective_user_id,
+            station_id=effective_station_id,
+            request_id=req_id,
+        )
 
         # Safety decisions from the canonical Agent graph are terminal. A
         # deterministic geospatial fallback must never replace a HITL refusal

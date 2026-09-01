@@ -43,6 +43,7 @@ services:
         -f /migrations/20260830_009_vietnamese_ventilation_labels.sql
         -f /migrations/20260830_010_manager_manual_device_control.sql
         -f /migrations/20260830_011_daily_weather_digest.sql
+        -f /migrations/20260831_012_backfill_missing_demo_station_filters.sql
     depends_on:
       postgres:
         condition: service_healthy

@@ -3,9 +3,8 @@ from __future__ import annotations
 import importlib
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 SIMULATOR_PATH = Path(__file__).resolve().parents[2] / "services" / "sensor-simulator"
 sys.path.insert(0, str(SIMULATOR_PATH))
@@ -29,7 +28,7 @@ def test_measurement_message_id_contains_run_id_and_counter(monkeypatch) -> None
         client,
         {"station_id": "S01", "base_pm25": 35, "location_type": "main_gate"},
         7,
-        datetime.now(timezone.utc).isoformat(),
+        datetime.now(UTC).isoformat(),
     )
 
     payload = json.loads(client.messages[0][1])

@@ -39,9 +39,7 @@ def build_publication_view_model(report: dict[str, Any]) -> dict[str, Any]:
         "esg_metrics": esg if isinstance(esg, dict) else {},
         "reference_comparison": reference if isinstance(reference, dict) else {"station_days": []},
         "weekly_matrix": matrix if isinstance(matrix, dict) else {"status": "legacy_unavailable", "views": []},
-        # Persisted narratives can originate from an optional provider in another language.
-        # Reader-facing exports use the deterministic Vietnamese summary below instead.
-        "narrative": str(report.get("narrative") or "Không có diễn giải nền."),
+        "narrative": str(report.get("narrative") or ""),
         "data_quality": statistics["data_quality"],
         "legacy": schema_version != "b7-esg-reports-v1",
     }
@@ -122,7 +120,7 @@ def render_publication_markdown(report: dict[str, Any]) -> str:
         "",
         "## Tóm tắt điều hành",
         "",
-        view["reader_narrative"],
+        view["narrative"] if view.get("narrative") else view["reader_narrative"],
         "",
         *[
             f"- **{item['label']}**: {item['value']}. {item['detail']}"
@@ -185,23 +183,22 @@ def render_publication_markdown(report: dict[str, Any]) -> str:
 
 def render_publication_html(report: dict[str, Any]) -> str:
     view = build_publication_view_model(report)
+    measurements = view["measurements"]
     stations = "".join(
-        "<tr>"
-        f"<td>{_h(row.get('station_id'))}</td><td>{_h(row.get('sample_count'))}</td>"
-        f"<td>{_h(_display(row.get('avg_aqi')))}</td><td>{_h(_display(row.get('max_aqi')))}</td>"
-        f"<td>{_h(_display(row.get('avg_pm25')))}</td><td>{_h(_display(row.get('max_pm25')))}</td>"
-        "</tr>"
-        for row in view["measurements"].get("stations", [])
+        f"<tr><td>{_h(row.get('station_id'))}</td><td>{row.get('sample_count', 0)}</td>"
+        f"<td>{_display(row.get('avg_aqi'))}</td><td>{_display(row.get('max_aqi'))}</td>"
+        f"<td>{_display(row.get('avg_pm25'))}</td><td>{_display(row.get('max_pm25'))}</td></tr>"
+        for row in measurements.get("stations", [])
     )
     references = "".join(
-        "<tr>"
-        f"<td>{_h(item.get('station_id'))}</td><td>{_h(item.get('local_date'))}</td>"
-        f"<td>{_h(_display(item.get('avg_pm25_ug_m3')))}</td><td>{_h(_percent(item.get('coverage_ratio')))}</td>"
+        f"<tr><td>{_h(item.get('station_id'))}</td><td>{_h(item.get('local_date'))}</td>"
+        f"<td>{_display(item.get('avg_pm25'))}</td><td>{_percent(item.get('coverage_ratio'))}</td>"
         f"<td>{_h(item.get('qcvn', {}).get('status'))}</td><td>{_h(item.get('who', {}).get('status'))}</td>"
         f"<td>{_h(_percent(item.get('good_hour_kpi', {}).get('good_hour_rate')))}</td></tr>"
         for item in view["reference_comparison"].get("station_days", [])
     )
     esg = view["esg_metrics"]
+    narrative_to_render = view["narrative"] if view.get("narrative") else view["reader_narrative"]
     return f"""<!doctype html>
 <html lang="vi"><head><meta charset="utf-8"><meta name="airguard-report-id" content="{_h(view['report_id'])}">
 <meta name="airguard-content-checksum" content="{_h(view['content_checksum_sha256'] or 'legacy-unavailable')}">
@@ -213,7 +210,7 @@ th{{background:#e8f1f2}}.na{{background:repeating-linear-gradient(135deg,#fff,#f
 </style></head><body>
 <header><h1>AirGuard - Báo cáo chất lượng môi trường</h1>
 <p class="meta">Loại: {_h(_report_type_label(view['report_type']))}<br>Kỳ: {_h(_readable_period(view))} ({_h(view['timezone'])})</p></header>
-<section class="card"><h2>Tóm tắt có căn cứ</h2><p>{_h(view['reader_narrative'])}</p></section>
+<section class="card"><h2>Tóm tắt có căn cứ</h2><p>{_h(narrative_to_render)}</p></section>
 <section><h2>Thống kê theo trạm</h2><table><thead><tr><th>Trạm</th><th>Mẫu</th><th>AQI TB</th><th>AQI cao nhất</th><th>PM2.5 TB</th><th>PM2.5 cao nhất</th></tr></thead><tbody>{stations}</tbody></table></section>
 <section class="card"><h2>Chỉ số ESG ước tính</h2>{_esg_html(esg)}</section>
 <section><h2>Đối chiếu tham chiếu</h2><table><thead><tr><th>Trạm</th><th>Ngày địa phương</th><th>PM2.5 TB</th><th>Độ phủ</th><th>QCVN</th><th>WHO</th><th>KPI giờ tốt</th></tr></thead><tbody>{references}</tbody></table>

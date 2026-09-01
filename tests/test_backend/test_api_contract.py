@@ -75,14 +75,19 @@ MOCK_PROFILE = {
 
 MOCK_STATIONS = [
     {
-        "station_id": "S03",
-        "name": "S03 - VinUni",
+        "station_id": s_id,
+        "name": f"{s_id} - Station",
         "status": "online",
         "freshness": "fresh",
         "aqi": 85,
+        "pm25": 25.0,
+        "co2": 500.0,
+        "noise_db": 50.0,
+        "temperature": 26.0,
         "source": "simulator",
         "updated_at": "2026-08-24T15:00:00Z",
     }
+    for s_id in ["S01", "S02", "S03", "S04", "S05"]
 ]
 
 ENVIRONMENTAL_QUERY = "Chất lượng không khí và AQI hiện tại ở trạm S03 VinUni thế nào?"
