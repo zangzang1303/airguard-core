@@ -74,14 +74,16 @@
 
 ---
 
-### 🏗️ SLIDE 4: KIẾN TRÚC HỆ THỐNG, CÁC LUỒNG DỮ LIỆU & TECH STACK (1:45 – 2:25 | 40 GIÂY)
-* **Visual trên Slide**:
-  * Sơ đồ phân tầng 5 lớp (Layered Diagram) kết hợp sơ đồ luồng dữ liệu mũi tên thời gian thực:
-    * `Tầng 1 (IoT Telemetry)`: 5 Trạm cảm biến + 5 Cụm máy lọc $\to$ **Mosquitto MQTT Broker** (QoS 1, chu kỳ 15s).
-    * `Tầng 2 (Ingestion & Quality)`: **Paho MQTT Consumer + Pydantic Quality Gate** (Fail-Closed, lọc Stale >300s).
-    * `Tầng 3 (Data & SoR)`: **PostgreSQL 16** (Append-Only `audit_logs`, `measurements`, `alerts`, Idempotent Seeds).
-    * `Tầng 4 (App & AI Engine)`: **FastAPI Core Backend, Celery Tasks, LangGraph Agent & OSM 2-Leg Router**.
-    * `Tầng 5 (Presentation)`: **React 18 + Leaflet GIS + Fast-Polling 800ms** sau **Caddy HTTPS Reverse Proxy** (8 Docker Containers trên Azure VM B2ms).
+### 🏗️ SLIDE 4: KIẾN TRÚC HỆ THỐNG: 3 LUỒNG DỮ LIỆU KHÉP KÍN & TECH STACK (1:45 – 2:25 | 40 GIÂY)
+* **Visual trên Slide (Sơ đồ 3 chuỗi mũi tên luồng đi cực kỳ trực quan)**:
+  * **➔ LUỒNG 1: THU THẬP TELEMETRY REALTIME (15s)**:  
+    `[ 5 Trạm Đo IoT ]` ➔ `[ Mosquitto MQTT ]` ➔ `[ Data Quality Gate ]` ➔ `[ PostgreSQL 16 SoR ]`
+  * **➔ LUỒNG 2: TRUY VẤN BẢN ĐỒ & AI ĐỊNH TUYẾN (< 120ms)**:  
+    `[ Cư Dân / Runner ]` ➔ `[ React 18 Leaflet GIS ]` ➔ `[ FastAPI Backend ]` ➔ `[ LangGraph + 2-Leg OSM Router ]`
+  * **➔ LUỒNG 3: CẢNH BÁO & ĐIỀU KHIỂN THIẾT BỊ HITL (0.8s ACK)**:  
+    `[ Ô Nhiễm Vượt Ngưỡng ]` ➔ `[ Cổng HITL (BQL Duyệt 1-Click) ]` ➔ `[ Lệnh MQTT ]` ➔ `[ Bật Máy Lọc 45 Phút ]`
+  * **Thanh Tech Stack Tinh Gọn Dưới Cùng**:  
+    `[MQTT Mosquitto]` • `[PostgreSQL 16]` • `[FastAPI & Celery]` • `[LangGraph Agent]` • `[React 18 Leaflet]` • `[Docker & Caddy]`
 
 > 🗣️ **Lời thoại người trình bày (Integration / Lead - Hán Vũ Long / Lê Tuấn Cảnh)**:  
 > *"Về mặt kiến trúc, AirGuard AI được xây dựng theo mô hình Monorepo 5 phân tầng hoàn chỉnh với các luồng dữ liệu khép kín:  

@@ -1,11 +1,11 @@
-# 🤖 PROMPT TỔNG THỂ TẠO BỘ SLIDE PITCHING AIRGUARD AI (8 SLIDE CHUYÊN SÂU KỸ THUẬT)
-> **Cách sử dụng**: Copy toàn bộ khối văn bản bên dưới và dán trực tiếp vào các công cụ AI tạo slide như **Gamma.app**, **Tome.ai**, **Canva Magic Presentation**, **SlidesAI**, hoặc **Microsoft Copilot**.  
-> AI sẽ tự động tạo ra bộ slide hoàn chỉnh **8 trang chuyên sâu công nghệ và chuẩn cấu trúc Pitching 5 phút**.
+# 🤖 PROMPT TỔNG THỂ TẠO BỘ SLIDE PITCHING AIRGUARD AI (ALL-IN-ONE MASTER PROMPT)
+> **Cách sử dụng**: Copy toàn bộ khối văn bản bên dưới và dán trực tiếp vào các công cụ AI tạo slide như **Gemini trong Google Workspace**, **Gamma.app**, **Tome.ai**, **Canva Magic Presentation**, **SlidesAI**, hoặc **Microsoft Copilot**.  
+> **Đặc biệt**: `Slide 4` đã được tối ưu hóa toàn bộ thành **sơ đồ luồng mũi tên (Flowchart Pipelines)** cực kỳ trực quan, ngắn gọn, dễ hiểu và không còn đoạn văn dài.
 
 ---
 
 ```text
-Hãy tạo một bài thuyết trình chuyên nghiệp (Pitch Deck) gồm đúng 8 slide theo phong cách Clean-Tech Dark Mode hiện đại (Nền xanh đen công nghệ #0B1120, màu nhấn Xanh lục bảo #10B981 và Xanh dương #0EA5E9, Glassmorphism, font chữ Inter/Outfit sắc nét, bố cục chia Card trực quan và số liệu nổi bật):
+Hãy tạo một bài thuyết trình chuyên nghiệp (Pitch Deck) gồm đúng 8 slide theo phong cách Clean-Tech Dark Mode hiện đại (Nền xanh đen công nghệ #0B1120, màu nhấn Xanh lục bảo #10B981 và Xanh dương #0EA5E9, Glassmorphism, font chữ Inter/Outfit sắc nét, bố cục dạng Flowchart mũi tên và Card trực quan):
 
 ---
 
@@ -41,18 +41,21 @@ SLIDE 3: TỔNG QUAN GIẢI PHÁP & 10 USE CASES (THE SOLUTION)
 
 ---
 
-SLIDE 4: KIẾN TRÚC HỆ THỐNG, CÁC LUỒNG DỮ LIỆU & TECH STACK
-- Tiêu đề chính: KIẾN TRÚC MONOREPO 5 PHÂN TẦNG, LUỒNG DỮ LIỆU & TECH STACK
-- Mô hình phân tầng & Công nghệ sử dụng (5-Tier Architecture):
-  1. Tầng IoT & Telemetry: 5 Trạm cảm biến + 5 Cụm máy lọc -> Mosquitto MQTT Broker (QoS 1, chu kỳ 15s).
-  2. Tầng Ingestion & Data Quality: Paho MQTT Consumer + Pydantic Quality Gate (Fail-Closed, loại bỏ Stale >300s).
-  3. Tầng Dữ Liệu & SoR: PostgreSQL 16 System of Record (Append-Only audit_logs chống sửa xóa, measurements, alerts).
-  4. Tầng Ứng Dụng & AI Engine: FastAPI Core Backend, Celery Background Tasks, LangGraph Agent State Machine & OSM Router.
-  5. Tầng Giao Diện & Phân Phối: React 18 Leaflet GIS Dashboard (Fast-Polling UI 800ms) sau Caddy HTTPS Reverse Proxy (8 Docker Containers trên Azure VM B2ms).
-- 3 Luồng dữ liệu chính:
-  * Luồng Telemetry Stream: Sensor -> MQTT -> Quality Gate -> PostgreSQL SoR.
-  * Luồng Query & Geospatial: Frontend -> FastAPI REST API -> IDW Heatmap Matrix (Latency < 120ms).
-  * Luồng Action & Audit: HITL Portal -> MQTT Command Dispatcher -> Thiết bị -> Append-Only Audit Log.
+SLIDE 4: SƠ ĐỒ LUỒNG DỮ LIỆU & CÔNG NGHỆ (DATA FLOWS & TECH PIPELINE)
+- Tiêu đề chính: KIẾN TRÚC HỆ THỐNG: 3 LUỒNG DỮ LIỆU KHÉP KÍN & TECH STACK
+- Trực quan hóa bằng 3 chuỗi mũi tên luồng đi (3 Arrow Flow Pipelines):
+
+  ➔ LUỒNG 1: THU THẬP TELEMETRY REALTIME (Mỗi 15s)
+  [ 5 Trạm Đo IoT ] ➔ [ Mosquitto MQTT ] ➔ [ Data Quality Gate (Lọc Stale) ] ➔ [ PostgreSQL 16 SoR ]
+
+  ➔ LUỒNG 2: TRUY VẤN BẢN ĐỒ & AI ĐỊNH TUYẾN (< 120ms)
+  [ Cư Dân / Runner ] ➔ [ React 18 Leaflet GIS ] ➔ [ FastAPI Core Backend ] ➔ [ LangGraph + 2-Leg OSM Router ]
+
+  ➔ LUỒNG 3: CẢNH BÁO & ĐIỀU KHIỂN THIẾT BỊ HITL (ACK 0.8s)
+  [ Ô Nhiễm Vượt Ngưỡng ] ➔ [ Cổng HITL (BQL Duyệt 1-Click) ] ➔ [ Lệnh MQTT ] ➔ [ Bật Máy Lọc 45 Phút ]
+
+- Thanh Tech Stack Tinh Gọn Dưới Cùng:
+  [ MQTT Mosquitto ] • [ PostgreSQL 16 ] • [ FastAPI & Celery ] • [ LangGraph Agent ] • [ React 18 Leaflet ] • [ Docker & Caddy ]
 
 ---
 
