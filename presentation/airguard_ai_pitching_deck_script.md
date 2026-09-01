@@ -1,273 +1,214 @@
-# 🎤 KỊCH BẢN PITCHING SLIDE AIRGUARD AI (P-074)
-> **BÁM SÁT 100% KIẾN TRÚC & TÀI LIỆU HỆ THỐNG THỰC TẾ**  
-> **Đính kèm tài sản hình ảnh trích xuất trực tiếp từ dự án trong thư mục `image/`**  
-> **Thời lượng chuẩn**: **5 - 7 phút** | **Số lượng Slide**: **12 Slides**
+# 🎤 KỊCH BẢN PITCHING ĐỈNH CAO — AIRGUARD AI (P-074)
+> **Dự án**: AirGuard AI — AI Agent Giám Sát Vi Khí Hậu, Định Tuyến Thể Thao Sạch & Điều Khiển Thiết Bị Đô Thị Thông Minh  
+> **Đơn vị thực hiện**: Nhóm P-074 / Tứ Kỵ Sĩ Khải Huyền (AI20K Build Phase Cohort 3)  
+> **Điểm nhấn cốt lõi**: **Đáp ứng 100% yêu cầu Đề bài (Cơ bản + Nâng cao) + Bùng nổ Tính năng mới: AI Agent Chat Định Tuyến Chạy Bộ Sạch Khép Kín 0% Trùng Lặp trên Đồ Thị OSM**.  
+> **Thời lượng chuẩn**: **5 - 7 phút** | **Web Demo Live**: [https://airguard-074-app.indonesiacentral.cloudapp.azure.com](https://airguard-074-app.indonesiacentral.cloudapp.azure.com)
 
 ---
 
-## 🗺️ BẢNG ÁNH XẠ HÌNH ẢNH HỆ THỐNG VÀO TỪNG SLIDE
+## 🗺️ MA TRẬN 12 SLIDE BÁM SÁT ĐỀ BÀI & HÌNH ẢNH HỆ THỐNG
 
-| STT | Slide | Tiêu đề Slide | Hình ảnh hệ thống đính kèm trong `image/` | Nguồn tài liệu hệ thống |
-|:---:|---|---|---|---|
-| **1** | Slide 1 | **Cover**: AirGuard AI — Người Gác Cổng Vi Khí Hậu | `image/Mockup 1 - GIS Dashboard & Heatmap.png` | Live App / README.md |
-| **2** | Slide 2 | **The Problem**: Nỗi Đau Ô Nhiễm Siêu Cục Bộ Tại Đô Thị | *Bản đồ vi khí hậu Ocean Park 1 & Biểu đồ chênh lệch AQI* | SRS Mục 1.2 & 2.1 |
-| **3** | Slide 3 | **The Solution & Use Cases**: 2 Role & 10 Ca Sử Dụng | `image/Use Case Diagram.png` | SRS Mục 4.1 |
-| **4** | Slide 4 | **System Architecture**: Kiến Trúc Tổng Thể & 5 Phân Tầng | `image/Sơ đồ kiến trúc tổng thể.png` / `image/Kiến trúc phân tầng 5 lớp.png` | ARCHITECTURE Mục 2 |
-| **5** | Slide 5 | **IoT Pipeline & Quality Gate**: Thu Thập & Lọc Dữ Liệu | `image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png` | ARCHITECTURE Mục 3.1 |
-| **6** | Slide 6 | **Core Algorithm**: Định Tuyến Chạy Sạch 2-Leg Dijkstra | `image/Kiến trúc thuật toán tìm đường chạy sạch.png` | SRS Mục 5.3 & ADR-0005 |
-| **7** | Slide 7 | **Safe AI & Grounding Gate**: AI Agent Không Ảo Giác | `image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png` | SRS Mục 5.4 & 8 |
-| **8** | Slide 8 | **HITL & Device Control**: Phê Duyệt & Bật Máy Lọc 0.8s | `image/Luồng cảnh báo tự động & HITL.png` / `image/Mockup 5 - HITL Approval Center.png`| SRS Mục 5.7 & ADR-0003 |
-| **9** | Slide 9 | **Live Product Showcase**: Giao Diện Thực Tế Trên Web | `image/Mockup 1` + `Mockup 2` + `Mockup 3` | Azure Cloud VM Live |
-| **10**| Slide 10| **Business Impact & ESG**: Tác Động Sức Khỏe & Vận Hành | `image/Mockup 6 - Audit Log Center.png` | reports/business_impact_metrics.md |
-| **11**| Slide 11| **Quality & Deployment**: 153 Tests & Azure Topology | `image/Sơ đồ triển khai hạ tầng.png` | reports/technical_metrics_evaluation.md |
-| **12**| Slide 12| **Team P-074 & Closing**: Đội Ngũ Tứ Kỵ Sĩ & Hỏi Đáp | *Ảnh 4 thành viên nhóm P-074 & Mã QR Web Demo* | Project Charter |
-
----
-
-## 📑 CHI TIẾT TỪNG SLIDE: NỘI DUNG, HÌNH ẢNH, LỜI THOẠI & PROMPT AI
+| Slide | Tiêu đề Slide | Đáp ứng yêu cầu đề bài & Tính năng mới | Hình ảnh đính kèm từ thư mục `image/` |
+|:---:|---|---|---|
+| **Slide 1** | **Cover Slide** | Khẳng định tên tuổi, giải pháp và cam kết chất lượng | `image/Mockup 1 - GIS Dashboard & Heatmap.png` |
+| **Slide 2** | **Thực Trạng & Đề Bài** | Thực trạng dữ liệu rời rạc, nhu cầu AI Agent đa điểm | *Bản đồ vi khí hậu Ocean Park 1 (AQI 35 vs 150+)* |
+| **Slide 3** | **Tổng Quan Giải Pháp** | 2 Vai trò (Cư dân & BQL), 10 Use Cases, Khép kín IoT -> AI -> Action | `image/Use Case Diagram.png` |
+| **Slide 4** | **🌟 KILLER FEATURE: AI Routing** | **TÍNH NĂNG MỚI ĐỘT PHÁ**: Chat Agent sinh đường chạy sạch 2-Leg OSM 0% lặp | `image/Kiến trúc thuật toán tìm đường chạy sạch.png` / `Mockup 3` |
+| **Slide 5** | **Dashboard & Dự Báo** | Dashboard AQI EPA, Heatmap IDW, Dự báo chuỗi thời gian 1-24h | `image/Mockup 1` + `Mockup 2 - Station Detail Drawer.png` |
+| **Slide 6** | **Cá Nhân Hóa & Chống Nhiễu** | 3 Nhóm sức khỏe, Trọng số phạt 2.0x, Cooldown 15m chống cảnh báo rác | `image/Mockup 4 - Health Profile Modal.png` |
+| **Slide 7** | **Cổng HITL & Thiết Bị 0.8s** | Ràng buộc HITL bắt buộc, điều khiển máy lọc phản hồi 0.8s, tự ngắt 45m | `image/Luồng cảnh báo tự động & HITL.png` / `Mockup 5` |
+| **Slide 8** | **Kiến Trúc & Safe AI** | Monorepo 5 lớp, Data Quality Gate, Grounding Policy Gate (Không ảo giác) | `image/Sơ đồ kiến trúc tổng thể.png` / `image/Luồng hội thoại...` |
+| **Slide 9** | **Live Product Demo** | Trình diễn trực tiếp 3 kịch bản vận hành trên Azure Cloud VM | Ghép `Mockup 1` + `Mockup 3` + `Mockup 5` |
+| **Slide 10**| **Tác Động & Báo Cáo ESG** | Giảm 45% bụi hít, giảm 90% thời gian xử lý, Báo cáo môi trường định kỳ | `image/Mockup 6 - Audit Log Center.png` |
+| **Slide 11**| **Chất Lượng Kỹ Thuật** | 153/153 Tests Passed (100%), Độ trễ API <120ms, Docker 8 Containers | `image/Sơ đồ triển khai hạ tầng.png` |
+| **Slide 12**| **Đội Ngũ P-074 & Q&A** | 4 Thành viên nòng cốt, Mã QR Web Live, Sẵn sàng phản biện | *Ảnh 4 thành viên P-074 & QR Code* |
 
 ---
 
-### 🟢 SLIDE 1: TRANG BÌA (COVER SLIDE)
-* **Hình ảnh đính kèm**: `image/Mockup 1 - GIS Dashboard & Heatmap.png` (Làm hình nền mờ công nghệ).
-* **Nội dung trên Slide**:
-  * **AIRGUARD AI** — *AI Agent Giám Sát Vi Khí Hậu & Điều Khiển Thiết Bị Đô Thị Thông Minh Vinhomes Ocean Park 1*
-  * **Nhóm thực hiện**: `P-074 / Tứ Kỵ Sĩ Khải Huyền (AI20K Build Phase Cohort 3)`
-  * **Huy hiệu chất lượng**: `153/153 Tests Passed (100%)` | `Live on Azure Cloud VM` | `Zero-Hallucination AI`
-  * **Đường link**: `https://airguard-074-app.indonesiacentral.cloudapp.azure.com`
-
-* **🗣️ Lời thoại người trình bày (30s)**:
-  > *"Kính chào quý Ban giám khảo, các Mentor và toàn thể hội đồng! Chúng tôi là **Nhóm P-074 — Tứ Kỵ Sĩ Khải Huyền**.  
-  > Hôm nay, chúng tôi rất tự hào mang đến dự án **AirGuard AI** — giải pháp toàn diện kết hợp IoT vi khí hậu thời gian thực, thuật toán định tuyến đồ thị đường thực OSM và Trợ lý AI tiếng Việt có kiểm soát căn cứ (Zero Hallucination), bảo vệ sức khỏe cho hàng chục ngàn cư dân tại đại đô thị Vinhomes Ocean Park 1.  
-  > Một sản phẩm **đã được xây dựng hoàn chỉnh, vượt qua 153 bài kiểm thử tự động và đang chạy thực tế trên Azure Cloud**."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create a modern dark-mode title slide for "AirGuard AI - Smart Urban Microclimate Monitoring & Device Control System". Subtitle: "Vinhomes Ocean Park 1 - Team P-074 (Four Horsemen)". Include badges: "153/153 Tests Passed (100%)", "Live on Azure Cloud", "Zero-Hallucination AI". Sleek tech background with glowing GIS elements, emerald green and cyan accents.
-  ```
+## 🎯 KỊCH BẢN CHI TIẾT TỪNG SLIDE (WORD-FOR-WORD SCRIPT)
 
 ---
 
-### 🔴 SLIDE 2: NỖI ĐAU THỊ TRƯỜNG & BỐI CẢNH ĐÔ THỊ (THE PROBLEM)
-* **Hình ảnh đính kèm**: Sơ đồ so sánh trạm khí tượng xa 15km vs thực địa Ocean Park 1.
-* **Nội dung trên Slide (3 Nỗi đau lớn)**:
-  1. **Mù mờ số liệu vi khí hậu siêu cục bộ**: Trạm quan trắc quốc gia cách xa 15km không phản ánh được chênh lệch vi khí hậu giữa mặt nước Biển Hồ 6.1ha (AQI 35) và trục đường thi công Sao Biển (AQI 150+).
-  2. **Người tập thể thao & Nhóm nhạy cảm hít bụi độc hại**: Không biết chạy ở đâu trong lành; các app chỉ đường thông thường hướng dẫn chạy vào trục đường ô nhiễm nặng.
-  3. **Ban Quản Lý bị động**: Thiếu công cụ phát hiện tức thì điểm nóng ô nhiễm và thiếu quy trình phê duyệt can thiệp thiết bị dập bụi an toàn.
+### 🟢 SLIDE 1: TRANG TIÊU ĐỀ (COVER SLIDE)
+* **Visual trên Slide**: Logo AirGuard AI hiện đại trên nền tối, hình nền bản đồ GIS Ocean Park 1 phát sáng, huy hiệu `153/153 Tests Passed` và `Live on Azure Cloud`.
+* **Mục tiêu**: Gây ấn tượng mạnh mẽ ngay từ giây đầu tiên về sự hoàn thiện và tính thực chiến của dự án.
 
-* **🗣️ Lời thoại người trình bày (45s)**:
-  > *"Thưa quý vị, tại các đại đô thị quy mô lớn, **chất lượng không khí biến thiên siêu cục bộ từng góc phố**.  
-  > Tại Vinhomes Ocean Park 1, khu vực biển hồ nước mặn rất trong lành với AQI 35, nhưng chỉ cách đó vài trăm mét, trục đường thi công Sao Biển lại có AQI lên tới 150+.  
-  > Cư dân chạy bộ không biết chạy ở đâu để an toàn, vô tình hít phải hàng microgram bụi mịn vào phổi; trong khi Ban quản lý lại hoàn toàn bị động, thiếu công cụ giám sát tập trung để kích hoạt hệ thống lọc dập bụi kịp thời."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create a 3-column Problem Statement slide: Title: "Hyper-local Air Pollution & 3 Critical Urban Pain Points". Card 1 (Runners & Residents): "Blind to local microclimate, inhaling toxic PM2.5 during workouts". Card 2 (Sensitive Groups): "No personalized health-aware alerts for asthma/children". Card 3 (Urban Management): "Passive monitoring, manual Excel reports, no rapid device intervention". High-contrast warning icons, red/amber accents.
-  ```
+> 🗣️ **Lời thoại người trình bày (Lead - Lê Tuấn Cảnh - 30 giây)**:  
+> *"Kính chào quý Ban giám khảo, các Mentor và toàn thể hội đồng!  
+> Chúng tôi là **Nhóm P-074 — Tứ Kỵ Sĩ Khải Huyền**.  
+> 
+> Hôm nay, chúng tôi rất tự hào mang đến dự án **AirGuard AI** — Hệ sinh thái AI Agent toàn diện: từ giám sát vi khí hậu thời gian thực, cảnh báo cá nhân hóa theo thể trạng sức khỏe, đến liên động điều khiển thiết bị dập bụi đô thị.  
+> 
+> Đặc biệt, chúng tôi mang đến **một bước đột phá hoàn toàn mới**: **Trợ lý AI đàm thoại tự động vẽ tuyến đường thể thao sạch bụi khép kín cho cư dân trên đồ thị đường thực OSM**.  
+> Một sản phẩm **đã vượt qua 153 bài kiểm thử tự động và đang vận hành thực tế 100% trên đám mây Azure**."*
 
 ---
 
-### 💡 SLIDE 3: TỔNG THỂ HỆ THỐNG & 10 USE CASES (THE SOLUTION & USE CASES)
-* **Hình ảnh đính kèm**: `image/Use Case Diagram.png` (Trích xuất từ Mục 4.1 SRS).
-* **Nội dung trên Slide**:
-  * **2 Vai trò người dùng (Roles)**:
-    * `Cư Dân Đô Thị (Resident)`: Bao gồm 3 nhóm thể trạng (`normal`, `sensitive`, `outdoor_sport`).
-    * `Quản Lý Đô Thị (Urban Manager / BQL)`: Quyền quản trị, thẩm định HITL, điều khiển thiết bị và xuất báo cáo.
-  * **10 Use Cases cốt lõi**:
-    * Nhóm Cư dân: `UC-01` Giám sát bản đồ & Heatmap $\to$ `UC-02` Chi tiết trạm & Dự báo $\to$ `UC-03` Cảnh báo Cooldown $\to$ `UC-04` Trợ lý AI $\to$ `UC-05` Định tuyến chạy sạch $\to$ `UC-06` Hồ sơ sức khỏe.
-    * Nhóm Quản lý: `UC-07` Điều khiển máy lọc 0.8s $\to$ `UC-08` Cổng phê duyệt HITL $\to$ `UC-09` Nhật ký kiểm toán bất biến $\to$ `UC-10` Báo cáo ESG.
+### 🔴 SLIDE 2: BỐI CẢNH ĐỀ BÀI, THỰC TRẠNG & THÁCH THỨC ĐÔ THỊ (THE PROBLEM)
+* **Visual trên Slide**: Sơ đồ so sánh trạm khí tượng xa 15km vs thực tế Vinhomes Ocean Park 1 (Biển hồ AQI 35 vs Trục đường thi công Sao Biển AQI 150+). Hình ảnh dữ liệu cảm biến rời rạc và người tập thể dục bị mù mờ thông tin.
+* **Mục tiêu**: Bám sát 100% phần "Thực trạng" và "Vấn đề" của Đề bài gốc.
 
-* **🗣️ Lời thoại người trình bày (45s)**:
-  > *"Để giải quyết triệt để vấn đề trên, AirGuard AI được thiết kế với **2 vai trò rõ ràng và 10 ca sử dụng chuẩn hóa**:  
-  > * Đối với **Cư dân**: Cung cấp bản đồ vi khí hậu trực quan, đàm thoại Trợ lý AI và tự động sinh lộ trình chạy bộ trong lành theo thể trạng sức khỏe.  
-  > * Đối với **Ban quản lý**: Cung cấp Cổng phê duyệt HITL để thẩm định chứng cứ trước khi phát cảnh báo khẩn và trực tiếp điều khiển các cụm máy lọc không khí."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create an architecture & use case overview slide featuring an embedded Use Case Diagram. Title: "AirGuard AI Solution: 2 Roles & 10 Core Use Cases". Left side: Resident Domain (GIS Map, Station Drawer, Clean Routing, AI Chat, Health Profile). Right side: Urban Manager Domain (Device Manual Control, HITL Approval Portal, Immutable Audit Trail, ESG Reporting). Clean two-column layout with glowing role badges.
-  ```
+> 🗣️ **Lời thoại người trình bày (Lead - Lê Tuấn Cảnh - 45 giây)**:  
+> *"Thưa quý vị, đề bài đặt ra cho chúng ta một thực trạng rất rõ ràng: Tại các khu đô thị hiện đại, dù đã có cảm biến bụi mịn, CO2, tiếng ồn và nhiệt độ, nhưng **dữ liệu hoàn toàn rời rạc**.  
+> 
+> Tại Vinhomes Ocean Park 1, chất lượng không khí biến thiên siêu cục bộ: Cùng một thời điểm, mặt nước Biển Hồ 6.1 ha có chỉ số AQI rất tốt (35), nhưng chỉ cách đó vài trăm mét, trục đường thi công Sao Biển nồng độ PM2.5 lại tăng vọt lên mức Nguy hại (AQI 150+).  
+> 
+> Hậu quả là:  
+> 1. **Cư dân tập thể dục, chạy bộ ngoài trời** không biết đi đâu, vô tình hít phải hàng chục microgram bụi mịn độc hại vào sâu phế nang.  
+> 2. **Nhóm nhạy cảm** (trẻ em, người già, người bệnh hô hấp) không có cảnh báo sớm theo thể trạng.  
+> 3. **Ban Quản Lý** thì lúng túng, thiếu công cụ AI tổng hợp đa điểm để liên động kích hoạt hệ thống lọc dập bụi kịp thời."*
 
 ---
 
-### 🏗️ SLIDE 4: KIẾN TRÚC MONOREPO 5 LỚP (SYSTEM ARCHITECTURE)
-* **Hình ảnh đính kèm**: `image/Sơ đồ kiến trúc tổng thể.png` hoặc `image/Kiến trúc phân tầng 5 lớp.png` (Trích xuất từ ARCHITECTURE.md Mục 2).
-* **Nội dung trên Slide (5 Tầng công nghệ)**:
-  1. **IoT & Telemetry**: 5 Trạm cảm biến + 5 Cụm máy lọc $\to$ Mosquitto MQTT Broker (chu kỳ 15s).
-  2. **Ingestion & Validation**: Paho MQTT Consumer, Data Quality Gate (Lọc Stale/Invalid, Fail-closed).
-  3. **System of Record (SoR)**: PostgreSQL 16 (Append-Only `audit_logs`, `measurements`, `alerts`).
-  4. **Application & AI Engine**: FastAPI Backend, LangGraph AI Agent, 2-Leg OSM Router, Open-Meteo Weather API.
-  5. **Presentation Layer**: React 18 Leaflet GIS Dashboard, Fast-Polling UI (800ms ACK), Caddy HTTPS Proxy.
+### 💡 SLIDE 3: TỔNG QUAN GIẢI PHÁP & 10 USE CASES (THE SOLUTION)
+* **Visual trên Slide**: Chèn ảnh `image/Use Case Diagram.png` (Mục 4.1 SRS). Bố cục 2 cột phân quyền rõ rệt: Cư Dân (Resident) & Ban Quản Lý (Urban Manager).
+* **Mục tiêu**: Chứng minh hệ thống giải quyết trọn vẹn cả yêu cầu Cơ bản lẫn Nâng cao của Đề bài.
 
-* **🗣️ Lời thoại người trình bày (45s)**:
-  > *"Về mặt kiến trúc, AirGuard AI tuân thủ nghiêm ngặt mô hình Monorepo 5 phân tầng chuẩn công nghiệp:  
-  > Dữ liệu vi khí hậu đi qua Gateway kiểm soát chất lượng nghiêm ngặt trước khi nạp vào PostgreSQL SoR. Backend FastAPI đóng vai trò nguồn chân lý duy nhất (Single Source of Truth), phân quyền độc lập giữa luồng tra cứu công khai của Cư dân và luồng can thiệp thiết bị bảo mật của Quản lý đô thị."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create a 5-Layer Monorepo Architecture slide. Title: "Industrial 5-Layer Monorepo System Architecture". Layer 1: IoT & Telemetry (Mosquitto MQTT). Layer 2: Ingestion & Quality Gate (Fail-Closed Validation). Layer 3: System of Record (PostgreSQL 16, Append-Only Audit). Layer 4: Application & AI Engine (FastAPI, LangGraph, 2-Leg Dijkstra OSM Router). Layer 5: Presentation (React 18 Leaflet GIS, Fast-Polling UI). Clean vertical layered diagram.
-  ```
+> 🗣️ **Lời thoại người trình bày (Lead - Lê Tuấn Cảnh - 45 giây)**:  
+> *"Để giải quyết toàn diện bài toán trên, AirGuard AI được thiết kế chuẩn mực với **2 vai trò người dùng và 10 ca sử dụng khép kín**:  
+> 
+> * **Với Cư dân**: Cung cấp Dashboard bản đồ nhiệt AQI thời gian thực (`UC-01`), ngăn chi tiết trạm và dự báo 1-24h (`UC-02`), thiết lập hồ sơ sức khỏe cá nhân hóa (`UC-06`), đàm thoại cùng Trợ lý AI (`UC-04`) và **nhận tuyến đường chạy thể thao sạch bụi khép kín** (`UC-05`).  
+> * **Với Ban Quản Lý**: Cung cấp Cổng phê duyệt HITL 1-click (`UC-08`), điều khiển thủ công trạm lọc khí phản hồi 0.8s (`UC-07`), truy vết nhật ký kiểm toán bất biến (`UC-09`) và tự động xuất báo cáo môi trường định kỳ (`UC-10`).  
+> 
+> Một chu trình trọn vẹn từ **Quan trắc $\to$ Dự báo $\to$ Phân tích AI $\to$ Hành động can thiệp**!"*
 
 ---
 
-### 📡 SLIDE 5: PIPELINE THU THẬP TELEMETRY & KIỂM SOÁT CHẤT LƯỢNG (IOT PIPELINE)
-* **Hình ảnh đính kèm**: `image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png` (Trích xuất từ ARCHITECTURE.md Mục 3.1).
-* **Nội dung trên Slide**:
-  * **Chu kỳ phát sóng**: 15 giây/lần cho 5 trạm quan trắc (`S01` đến `S05`) qua topics `airguard/stations/{id}/measurements`.
-  * **Công thức AQI chuẩn hóa**: Tính toán theo thuật toán nội suy nồng độ US EPA 2012 (24h Concentration Sub-Index).
-  * **Cơ chế Fail-Closed Gate**:
-    * Từ chối các bản tin thiếu trường bắt buộc, giá trị âm hoặc vượt ngưỡng vật lý ($PM2.5 > 1000\mu g/m^3$).
-    * Đánh dấu `stale/offline` nếu trạm ngưng phát quá 300 giây; **tuyệt đối không dùng dữ liệu trạm hỏng để vẽ đường chạy hoặc đưa ra kết luận môi trường**.
+### 🌟 SLIDE 4: TÍNH NĂNG MỚI ĐỘT PHÁ: AGENT ĐỊNH TUYẾN CHẠY BỘ SẠCH 0% LẶP (KILLER FEATURE)
+* **Visual trên Slide**: Chèn ảnh `image/Kiến trúc thuật toán tìm đường chạy sạch.png` kết hợp `image/Mockup 3 - AI Chat & Clean Running Route.png`. Sơ đồ 2 chặng: Forward Leg (S->W) và Backward Leg (W->S) phạt 30x trọng số né đường cũ.
+* **Mục tiêu**: **LÀM NỔI BẬT TÍNH NĂNG MỚI ĐỘC QUYỀN** theo đúng yêu cầu người dùng!
 
-* **🗣️ Lời thoại người trình bày (40s)**:
-  > *"Trái tim dữ liệu của hệ thống là Pipeline IoT thời gian thực. Mỗi 15 giây, các trạm đo đẩy telemetry đo 4 thông số về broker Mosquitto.  
-  > Tại đây, **Data Quality Gate** áp dụng nguyên tắc Fail-Closed: Tự động loại bỏ dữ liệu bất thường và từ chối sử dụng dữ liệu trạm stale/offline để vẽ đường chạy an toàn, đảm bảo tính trung thực tuyệt đối của số liệu đầu vào."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create an IoT Data Pipeline & Quality Gate slide. Title: "Real-time Telemetry Ingestion & Fail-Closed Quality Gate". Features: MQTT 15s publishing cycle, US EPA 2012 AQI derivation, automated validation (rejecting negative/out-of-bounds values), stale detection (>300s). Flow diagram showing Simulator -> Mosquitto -> Consumer Validator -> PostgreSQL SoR.
-  ```
-
----
-
-### 🧭 SLIDE 6: THUẬT TOÁN ĐỊNH TUYẾN CHẠY BỘ SẠCH 2-LEG PENALIZED DIJKSTRA (CORE ALGORITHM)
-* **Hình ảnh đính kèm**: `image/Kiến trúc thuật toán tìm đường chạy sạch.png` (Trích xuất từ SRS Mục 5.3 & ADR-0005).
-* **Nội dung trên Slide (Đột phá thuật toán)**:
-  * **Vấn đề của thuật toán thông thường**: Dijkstra tiêu chuẩn tìm đường khép kín sẽ quay đầu chạy lùi 100% đường cũ (100% Retracing).
-  * **Giải pháp 2-Leg Penalized Dijkstra**:
-    1. `Chặng đi (Forward Leg S -> W)`: Tìm đường ngắn nhất và sạch nhất đến điểm mốc Waypoint $W$.
-    2. `Phạt trọng số quay đầu`: Nhân trọng số $30\times$ lên toàn bộ các cạnh đã đi qua ở chặng đi.
-    3. `Chặng về (Backward Leg W -> S)`: Buộc thuật toán tìm cung đường hoàn toàn mới men theo bờ hồ 24.5ha $\to$ **Đạt 0% trùng lặp đường cũ**.
-  * **Tích phân liều lượng bụi hít vào**: Tính $M_{inhaled} = \int C(t) \cdot V_E \, dt$ ($\mu g$) dựa trên vận tốc chạy và thông khí phổi.
-
-* **🗣️ Lời thoại người trình bày (60s)**:
-  > *"Đây là một trong những đột phá công nghệ lớn nhất của chúng tôi: **Thuật toán định tuyến chạy bộ sạch 2-Leg Penalized Dijkstra trên đồ thị đường thực OSM hơn 10,500 cạnh**.  
-  > Thay vì bắt runner quay đầu chạy lùi đường cũ như các thuật toán thông thường, thuật toán 2 chặng của chúng tôi phạt 30 lần trọng số chiều về, ép cung đường khép kín tuần hoàn quanh biển hồ với **0% trùng lặp**, đạt đúng cự ly 1 đến 10km và tính toán chính xác lượng bụi mịn hít vào phổi."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create an algorithm highlight slide for "2-Leg Penalized Dijkstra OSM Clean Routing Engine". Title: "Proprietary 2-Leg Routing: 0% Retracing Closed-Loop". Visuals: Diagram showing Forward Leg (S->W) in solid green, 30x Penalty applied to used edges, and Backward Leg (W->S) in dashed blue around the lake. Metric callout: "0.0% Route Retracing | Integrated PM2.5 Inhaled Dose (ug)".
-  ```
+> 🗣️ **Lời thoại người trình bày (AI Engineer - Hoàng Lê Minh - 60 giây)**:  
+> *"Bên cạnh các yêu cầu cơ bản, điểm sáng tạo đột phá lớn nhất của AirGuard AI chính là: **Ứng dụng AI Agent đàm thoại tự động vẽ lộ trình thể thao sạch bụi cho cư dân trên đồ thị đường thực OpenStreetMap (OSM)**!  
+> 
+> Hãy thử tưởng tượng: Một cư dân mở app và chat với AI: *'Tôi muốn chạy bộ 5km quanh hồ lúc 17h, hãy chọn đường sạch nhất cho người nhạy cảm'*.  
+> 
+> Các ứng dụng chỉ đường thông thường như Google Maps sẽ hướng dẫn chạy đến điểm 2.5km rồi bắt người dùng quay đầu chạy lùi 100% đường cũ.  
+> Nhưng với AirGuard AI, chúng tôi sáng tạo thuật toán độc quyền **2-Leg Penalized Dijkstra trên đồ thị hơn 10,500 cạnh OSM**:  
+> 1. Chặng đi, thuật toán dẫn runner đến điểm mốc trong lành ven hồ.  
+> 2. Lập tức, hệ thống **nhân hệ số phạt 30 lần** lên toàn bộ các đoạn đường vừa đi qua.  
+> 3. Buộc chặng về phải tìm một cung đường hoàn toàn mới men theo công viên biển hồ.  
+> 
+> 👉 **Kết quả**: Sinh ra một cung đường thể thao khép kín tuần hoàn với **đúng 0.0% trùng lặp**, đạt cự ly chính xác 5.0km và **tính toán tích phân lượng bụi hít vào phổi giảm tới 45%** so với chạy tự do!"*
 
 ---
 
-### 🤖 SLIDE 7: TRỢ LÝ AI GROUNDED & CỔNG CHỐNG ẢO GIÁC (AI SAFETY & GROUNDING)
-* **Hình ảnh đính kèm**: `image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png` (Trích xuất từ SRS Mục 5.4 & Mục 8).
-* **Nội dung trên Slide**:
-  * **LangGraph State Machine**: Điều phối hội thoại đa lượt, phân tích Intent, gọi Registry 8 Backend Tools.
-  * **Cổng kiểm soát Grounding Policy Gate (Zero Hallucination)**:
-    * 100% thông tin môi trường bắt buộc phải có chứng cứ từ kết quả Tool calling trong cùng request.
-    * Tự động gắn nhãn minh bạch `source=simulator`.
-  * **Bộ chuyển mạch tiền định (Deterministic Fallback Switcher)**:
-    * Kích hoạt khi LLM Timeout ($> 8.0\text{s}$) hoặc mất mạng $\to$ Phản hồi cục bộ trong $< 500\text{ms}$, đảm bảo **0% lỗi HTTP 5xx**.
+### 📊 SLIDE 5: DASHBOARD GIS REALTIME, HEATMAP IDW & DỰ BÁO 1-24H (DASHBOARD & FORECAST)
+* **Visual trên Slide**: Ghép ảnh `image/Mockup 1 - GIS Dashboard & Heatmap.png` và `image/Mockup 2 - Station Detail Drawer.png`. Thể hiện thanh đo AQI US EPA 2012, lưới nội suy IDW 60x60 và biểu đồ dự báo xu hướng vi khí hậu 1-24h.
+* **Mục tiêu**: Minh chứng tính năng Dashboard đa điểm và Dự báo chuỗi thời gian của Đề bài.
 
-* **🗣️ Lời thoại người trình bày (45s)**:
-  > *"Trong bài toán sức khỏe, AI không được phép ảo giác. Chúng tôi thiết lập nguyên tắc **'Grounding trước Fluency'**:  
-  > Mọi phát ngôn của AI đều phải được thẩm định qua Cổng Grounding Gate đối chiếu trực tiếp từ Database. Nếu mạng ngoài bị nghẽn, bộ chuyển mạch tiền định sẽ kích hoạt trong nửa giây, trả về dữ liệu trạm đo chính xác mà không bao giờ gây lỗi sập hệ thống."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create an AI Safety slide. Title: "LangGraph AI Agent: Zero-Hallucination Grounding Policy Gate". Flowchart: User Message -> Router -> Tool Calling (8 Tools) -> Grounding Policy Gate (Fact Verification) -> Response Composer. Highlight box: "Deterministic Fallback Switcher (<500ms response if LLM timeouts >8s, 0% 5xx errors)". Clean emerald green safety shield visual.
-  ```
+> 🗣️ **Lời thoại người trình bày (Frontend/QA - Phạm Thế Dũng - 45 giây)**:  
+> *"Về khả năng quan trắc và dự báo môi trường đa điểm:  
+> 
+> * **Bản đồ nhiệt IDW thời gian thực**: Hệ thống tính toán ma trận lưới 60x60 kết hợp hướng gió, trực quan hóa vùng lan truyền ô nhiễm và tự động làm nổi bật 'hành lang không khí sạch' dọc theo mặt nước 24.5 ha.  
+> * **Thanh đo chuẩn hóa US EPA 2012**: Đánh giá nồng độ PM2.5, CO2, tiếng ồn và nhiệt độ/độ ẩm theo 6 cấp độ màu sắc trực quan, đạt chuẩn tiếp cận WCAG 2.1 AA.  
+> * **Dự báo chuỗi thời gian 1 đến 24 giờ**: Kết hợp mô hình Moving Average trọng số và Open-Meteo context, giúp cư dân chủ động lên kế hoạch sinh hoạt và tập luyện từ sớm."*
 
 ---
 
-### 🛡️ SLIDE 8: CỔNG PHÊ DUYỆT HITL & ĐIỀU KHIỂN THIẾT BỊ 0.8S (HITL & DEVICE CONTROL)
-* **Hình ảnh đính kèm**: `image/Luồng cảnh báo tự động & HITL.png` kết hợp `image/Mockup 5 - HITL Approval Center.png`.
-* **Nội dung trên Slide**:
-  * **Cơ chế Cảnh Báo Cooldown 15 Phút**: Chỉ kích hoạt khi vượt ngưỡng liên tiếp 2 chu kỳ đo ($30\text{s}$), chống spam thông báo.
-  * **Quy tắc HITL nghiêm ngặt**: AI **chỉ tạo đề xuất ở trạng thái Pending** kèm Thẻ bằng chứng (Evidence Card); chỉ Quản lý đô thị (Manager) có quyền Approve/Reject.
-  * **Điều khiển thiết bị siêu tốc (Fast-Polling ACK 0.8s)**:
-    * Quản lý bấm Bật máy lọc `FILTER-S01`..`S05` qua MQTT.
-    * Phản hồi ACK xác nhận trạng thái tức thì trong **0.8 giây** với chu kỳ Fast-Polling $800\text{ms}$.
-    * Tự động đếm ngược chu kỳ lọc tăng cường 45 phút công suất 80% và ngắt an toàn.
+### 🧒 SLIDE 6: CẢNH BÁO CÁ NHÂN HÓA & CƠ CHẾ CHỐNG CẢNH BÁO NHIỄU (HEALTH PROFILE & COOLDOWN)
+* **Visual trên Slide**: Chèn ảnh `image/Mockup 4 - Health Profile Modal.png`. Minh họa 3 nhóm sức khỏe (`normal`, `sensitive` phạt 2.0x, `outdoor_sport`) và biểu đồ Cooldown 15 phút chống spam.
+* **Mục tiêu**: Đáp ứng ràng buộc "Cảnh báo cá nhân hóa theo nhóm sức khỏe" và "Tránh cảnh báo nhiễu gây mệt mỏi" trong đề bài.
 
-* **🗣️ Lời thoại người trình bày (50s)**:
-  > *"Đối với các can thiệp vật lý ra môi trường, quyền quyết định tối hậu thuộc về con người.  
-  > Khi phát hiện ô nhiễm kéo dài, AI chuẩn bị sẵn Thẻ bằng chứng quan trắc. Quản lý chỉ cần 1 cú nhấp chuột để phê duyệt, lệnh MQTT truyền tức thì đến máy lọc và giao diện cập nhật trạng thái chỉ trong **0.8 giây** kèm đồng hồ đếm ngược 45 phút."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create an HITL & IoT Device Control slide. Title: "Human-in-the-Loop Approval & 0.8s Fast-Polling Device Control". Left: Evidence Card (PM2.5, Weather, Forecast) with 1-Click Approve/Reject. Right: Real-time MQTT Device Command Dispatcher with 0.8s ACK Fast-Polling and 45-minute boost timer countdown. Dark UI with glowing green success badge.
-  ```
+> 🗣️ **Lời thoại người trình bày (Lead - Lê Tuấn Cảnh - 45 giây)**:  
+> *"Đề bài yêu cầu: Cảnh báo phải cá nhân hóa theo nhóm sức khỏe nhưng tuyệt đối **tránh cảnh báo nhiễu gây mệt mỏi cho người dân**. Chúng tôi giải quyết bài toán này bằng 2 cơ chế:  
+> 
+> * **Hồ sơ sức khỏe 3 nhóm đối tượng**: Người dùng có thể chọn nhóm Bình thường, Nhóm Nhạy cảm hô hấp (trẻ em, người cao tuổi) hoặc Người tập thể thao. Với nhóm nhạy cảm, thuật toán định tuyến sẽ **tự động nhân đôi trọng số phạt ô nhiễm (2.0x)** và hạ ngưỡng kích hoạt cảnh báo xuống AQI > 100.  
+> * **Cơ chế Chống Cảnh Báo Nhiễu (15-Minute Cooldown Gate)**: Cảnh báo chỉ kích hoạt khi nồng độ bụi vượt ngưỡng liên tiếp trong 2 chu kỳ đo (30 giây), và áp dụng thời gian chờ 15 phút giữa 2 lần gửi cảnh báo liên tiếp, loại bỏ hoàn toàn hiện tượng spam thông báo."*
 
 ---
 
-### 💻 SLIDE 9: TRÌNH DIỄN GIAO DIỆN THỰC TẾ TRÊN AZURE CLOUD (LIVE DEMO SHOWCASE)
-* **Hình ảnh đính kèm**: Ghép 3 ảnh giao diện thật:
-  * `image/Mockup 1 - GIS Dashboard & Heatmap.png` (Bản đồ GIS)
-  * `image/Mockup 2 - Station Detail Drawer.png` (Chi tiết trạm & Dự báo 1-24h)
-  * `image/Mockup 3 - AI Chat & Clean Running Route.png` (Thẻ đường chạy 5km)
-* **Nội dung trên Slide**:
-  * **Trải nghiệm thực tế tại**: `https://airguard-074-app.indonesiacentral.cloudapp.azure.com`
-  * 3 Luồng trải nghiệm mượt mà:
-    1. Bản đồ GIS với 5 trạm đo chuẩn mã màu EPA và lớp phủ nhiệt IDW 60x60.
-    2. Ngăn chi tiết trạm: Biểu đồ lịch sử 24h và khối dự báo vi khí hậu 1-24h.
-    3. Trợ lý AI đàm thoại & Thẻ lộ trình chạy bộ xanh khép kín 5.0km.
+### 🛡️ SLIDE 7: CỔNG HITL BẮT BUỘC & ĐIỀU KHIỂN MÁY LỌC 0.8S (HITL & DEVICE CONTROL)
+* **Visual trên Slide**: Chèn ảnh `image/Luồng cảnh báo tự động & HITL.png` và `image/Mockup 5 - HITL Approval Center.png`. Minh họa Thẻ Thẩm Định Chứng Cứ (Evidence Card) và nút bấm duyệt 1-click phản hồi ACK 0.8s.
+* **Mục tiêu**: Đáp ứng ràng buộc khắt khe nhất của Đề bài: "Lệnh liên động thiết bị thông gió/lọc khí PHẢI HITL với BQL".
 
-* **🗣️ Lời thoại người trình bày (60s - Kết hợp mở tab demo live)**:
-  > *"Kính mời quý hội đồng cùng nhìn lên màn hình giao diện thực tế đang chạy live trên đám mây Azure:  
-  > Người dùng có thể quan sát bản đồ nhiệt IDW thời gian thực, mở ngăn chi tiết xem dự báo 24 giờ tới và yêu cầu Trợ lý AI gợi ý đường chạy 5km sạch bụi quanh hồ Ngọc Trai. Toàn bộ thao tác đều diễn ra mượt mà với độ trễ phản hồi dưới 120ms."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create a Product UI Showcase slide with 3 high-fidelity screenshots. Title: "Live Production Dashboard on Azure Cloud VM". Showcase 1: Interactive GIS Heatmap Dashboard. Showcase 2: Station Metrics Drawer with 24h Recharts & 1-24h Forecast. Showcase 3: AI Chat Drawer with Clean Route Card. Floating glass frames on dark navy background.
-  ```
+> 🗣️ **Lời thoại người trình bày (Integration Engineer - Hán Vũ Long - 45 giây)**:  
+> *"Ràng buộc bảo mật quan trọng nhất của đề bài là: **Lệnh liên động hệ thống lọc khí/thông gió chung BẮT BUỘC phải có sự phê duyệt của Ban Quản Lý (HITL)**.  
+> 
+> * Khi phát hiện ô nhiễm kéo dài, AI **chỉ tạo đề xuất ở trạng thái Pending** kèm theo Thẻ Thẩm Định Chứng Cứ (Evidence Card) ghi nhận đầy đủ số liệu trạm, thời tiết và so sánh trạm lân cận.  
+> * Người quản lý thẩm định và bấm **[Phê duyệt 1-Click]**.  
+> * Lập tức, bộ Dispatcher đẩy lệnh MQTT kích hoạt máy lọc FILTER-S01..S05 chạy tăng cường 80% công suất trong 45 phút, nhận bản tin xác nhận ACK trên giao diện trong đúng **0.8 giây**!  
+> * Hệ thống tự động đếm ngược và ngắt an toàn, tiết kiệm điện năng và bảo vệ tuổi thọ thiết bị."*
 
 ---
 
-### 📈 SLIDE 10: TÁC ĐỘNG KINH TẾ, XÃ HỘI & CHỈ SỐ ESG (BUSINESS IMPACT & ESG)
-* **Hình ảnh đính kèm**: `image/Mockup 6 - Audit Log Center.png` (Nhật ký kiểm toán & Xuất báo cáo ESG).
-* **Nội dung trên Slide (3 Trục tác động)**:
-  * **Sức Khỏe Cư Dân**: Giảm **35% – 45%** khối lượng bụi mịn PM2.5 hít vào phổi khi vận động ngoài trời.
-  * **Vận Hành Đô Thị**: Giảm **90%** thời gian phản ứng xử lý ô nhiễm; tiết kiệm năng lượng nhờ tự ngắt máy lọc sau 45 phút.
-  * **Quản Trị Bền Vững ESG**: Bảng `audit_logs` Append-Only bất biến, tự động xuất báo cáo ca/ngày/tháng định dạng PDF/Excel phục vụ chứng chỉ đô thị xanh.
+### 🏗️ SLIDE 8: KIẾN TRÚC MONOREPO 5 LỚP & AI GROUNDING GATE (ARCHITECTURE & AI SAFETY)
+* **Visual trên Slide**: Ghép `image/Sơ đồ kiến trúc tổng thể.png` và `image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png`.
+* **Mục tiêu**: Thể hiện chiều sâu kỹ thuật, công nghệ LangGraph và nguyên tắc Zero-Hallucination.
 
-* **🗣️ Lời thoại người trình bày (35s)**:
-  > *"AirGuard AI mang lại giá trị thiết thực: Giúp bảo vệ lá phổi cho hàng ngàn cư dân mỗi ngày, tối ưu hóa 90% thời gian xử lý sự cố của ban quản lý và cung cấp báo cáo ESG chuẩn mực, nâng tầm Vinhomes Ocean Park thành hình mẫu đô thị thông minh tiêu chuẩn quốc tế."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create a Business Impact & ESG Metrics slide. Title: "Measurable Impact: Resident Health & Urban ESG Governance". 3 Big Metric Cards: Card 1: "-35% to -45% Inhaled PM2.5 Dose (Sports & Runners)". Card 2: "-90% Incident Response Time (0.8s ACK intervention)". Card 3: "100% Automated ESG Reporting (Append-Only Audit Trail)". Clean charts and sustainability badges.
-  ```
+> 🗣️ **Lời thoại người trình bày (AI Engineer - Hoàng Lê Minh - 45 giây)**:  
+> *"Về kiến trúc nền tảng, AirGuard AI được xây dựng theo mô hình Monorepo 5 phân tầng hoàn chỉnh: IoT Mosquitto $\to$ Fail-Closed Quality Gate $\to$ PostgreSQL SoR $\to$ FastAPI & LangGraph $\to$ React Leaflet GIS.  
+> 
+> Đặc biệt, để đảm bảo an toàn y tế và môi trường, chúng tôi áp dụng nguyên tắc **'Grounding trước Fluency'**:  
+> 100% câu trả lời của AI đều được thẩm định qua **Cổng Grounding Policy Gate** đối chiếu trực tiếp từ cơ sở dữ liệu.  
+> Nếu mạng LLM ngoài bị gián đoạn quá 8.0 giây, **Bộ chuyển mạch tiền định (Deterministic Fallback)** sẽ kích hoạt trong 500ms để trả lời ngay từ dữ liệu cảm biến cục bộ, cam kết **0% lỗi HTTP 5xx** và không bao giờ ảo giác."*
 
 ---
 
-### 🏆 SLIDE 11: ĐẢM BẢO CHẤT LƯỢNG KỸ THUẬT & HẠ TẦNG DEPLOY (QUALITY & DEPLOYMENT)
-* **Hình ảnh đính kèm**: `image/Sơ đồ triển khai hạ tầng.png` (Trích xuất từ ARCHITECTURE.md Mục 4.1).
-* **Nội dung trên Slide**:
-  * **153 / 153 Automated Test Cases Passed (100% PASS)**: Bao phủ Unit tests, API Contract, Routing Algorithm, AI Safety, HITL RBAC.
-  * **Hiệu năng thực tế**:
-    * Độ trễ API: $< 120\text{ms}$ (Vượt chuẩn $< 200\text{ms}$).
-    * Độ trễ phản hồi thiết bị: $0.8\text{s}$ (Vượt chuẩn $< 1.5\text{s}$).
-    * Uptime SLA: $99.9\%$ trên Azure VM B2ms.
-  * **Đóng gói Docker Compose 8 Containers**: Caddy Reverse Proxy, Frontend, Backend, Agent, Consumer, 3 Simulators, PostgreSQL.
+### 💻 SLIDE 9: TRÌNH DIỄN SẢN PHẨM THỰC TẾ TRÊN AZURE CLOUD (LIVE DEMO SHOWCASE)
+* **Visual trên Slide**: Ghép 3 khung hình UI thực tế trên nền tối: Bản đồ GIS + AI Chat Tuyến Đường 5km + Cổng Phê Duyệt HITL.
+* **Mục tiêu**: Khẳng định sản phẩm đã chạy thực tế trên production, không phải mockup tĩnh.
 
-* **🗣️ Lời thoại người trình bày (35s)**:
-  > *"Về chất lượng kỹ thuật, sản phẩm của chúng tôi đã vượt qua **153/153 kịch bản kiểm thử tự động**, đạt độ trễ API dưới 120ms và vận hành ổn định trên hạ tầng đám mây Azure VM với cấu hình 8 container cô lập, bảo mật tối đa."*
-
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create a Quality Engineering & Deployment Topology slide. Title: "153/153 Tests Passed (100%) & Azure Cloud Deployment". Left: Test coverage badges (153 Automated Tests, <120ms API latency, 0.8s ACK, 99.9% SLA). Right: Infrastructure deployment topology showing 8 Docker containers behind Caddy HTTPS Reverse Proxy on Azure VM B2ms.
-  ```
+> 🗣️ **Lời thoại người trình bày (Frontend/QA - Phạm Thế Dũng - 60 giây - Thao tác mở tab live)**:  
+> *"Kính mời quý hội đồng cùng nhìn lên màn hình trải nghiệm trực tiếp trên Azure Cloud VM:  
+> 
+> * **Thao tác 1**: Trên Dashboard, 5 trạm quan trắc vi khí hậu cập nhật liên tục mỗi 15 giây. Khi bấm vào trạm San Hô, ngăn chi tiết hiển thị đầy đủ 4 chỉ số và biểu đồ diễn biến 24 giờ qua.  
+> * **Thao tác 2 (Killer Feature)**: Khi cư dân mở ngăn chat và yêu cầu lộ trình chạy bộ 5km, AI Agent gọi động cơ 2-Leg Dijkstra, lập tức vẽ đường chạy màu xanh tuyệt đẹp ôm trọn mặt hồ nước mặn, khẳng định 0% lặp đường cũ và hiển thị liều lượng bụi mịn hít vào chỉ 4.8 microgram!  
+> * **Thao tác 3**: Khi trạm Sao Biển ô nhiễm, Quản lý chuyển sang Cổng HITL, bấm [Phê duyệt], trạng thái máy lọc lập tức chuyển xanh và đếm ngược 45 phút chỉ trong **0.8 giây**!"*
 
 ---
 
-### 👥 SLIDE 12: ĐỘI NGŨ THỰC HIỆN & KẾT LUẬN Q&A (TEAM & CLOSING)
-* **Hình ảnh đính kèm**: Thẻ ảnh 4 thành viên nhóm P-074 và Mã QR truy cập Web Demo.
-* **Nội dung trên Slide**:
-  * **Đội ngũ P-074 (Tứ Kỵ Sĩ Khải Huyền)**:
-    1. **Lê Tuấn Cảnh** — *Team Lead / Backend & Data / IoT* (Architecture, FastAPI, Postgres SoR, Azure VM).
-    2. **Hán Vũ Long** — *Integration / AI Engineer* (MQTT Broker, Consumer, Forecast Service).
-    3. **Hoàng Lê Minh** — *AI Engineer* (LangGraph AI Agent, Grounding Policy Gate).
-    4. **Phạm Thế Dũng** — *Frontend / QA Engineer* (React 18 Leaflet GIS, Test Suite 153 Tests).
-  * **Kênh kết nối**: `https://airguard-074-app.indonesiacentral.cloudapp.azure.com`
-  * **Thông điệp kết**: *"AirGuard AI — Vì Một Đại Đô Thị Xanh, Thông Minh & Khỏe Mạnh!"*
+### 📈 SLIDE 10: TÁC ĐỘNG SỨC KHỎE, VẬN HÀNH & BÁO CÁO ESG (BUSINESS IMPACT & ESG)
+* **Visual trên Slide**: Chèn ảnh `image/Mockup 6 - Audit Log Center.png`. 3 Hộp số liệu lớn: `-45% Bụi hít vào`, `-90% Thời gian xử lý`, `100% Tự động hóa Báo cáo ESG`.
+* **Mục tiêu**: Đáp ứng tính năng nâng cao "Báo cáo môi trường định kỳ" và định lượng giá trị kinh tế - xã hội.
 
-* **🗣️ Lời thoại người trình bày (30s)**:
-  > *"Xin chân thành cảm ơn quý Ban giám khảo, các Mentor và toàn thể hội đồng đã lắng nghe bài thuyết trình của nhóm P-074!  
-  > **Toàn đội chúng tôi rất sẵn sàng lắng nghe các câu hỏi và nhận xét đóng góp từ Hội đồng!**"*
+> 🗣️ **Lời thoại người trình bày (Lead - Lê Tuấn Cảnh - 35 giây)**:  
+> *"AirGuard AI mang lại giá trị định lượng thiết thực trên cả 3 phương diện:  
+> * **Với Cư Dân**: Giảm từ **35% đến 45%** lượng bụi mịn độc hại hít vào phổi khi tập thể thao ngoài trời.  
+> * **Với Vận Hành Đô Thị**: Giảm **90%** thời gian phản ứng xử lý điểm nóng ô nhiễm; tiết kiệm năng lượng nhờ tự ngắt máy lọc sau 45 phút.  
+> * **Với Bền Vững & ESG**: Bảng `audit_logs` Append-Only bất biến, tự động xuất báo cáo môi trường và năng lượng định dạng PDF/Excel chuẩn mực, phục vụ kiểm toán và chứng chỉ đô thị xanh quốc tế."*
 
-* **🤖 Prompt cho AI Slide**:
-  ```text
-  Create a Team & Q&A Closing slide. Title: "Team P-074 & Q&A Session". Showcase 4 team member cards: Le Tuan Canh (Team Lead / Backend), Han Vu Long (Integration / AI), Hoang Le Minh (AI Engineer), Pham The Dung (Frontend / QA). Center QR code linking to live Azure demo: "https://airguard-074-app.indonesiacentral.cloudapp.azure.com". Slogan: "AirGuard AI - For a Cleaner, Healthier Smart City".
-  ```
+---
+
+### 🏆 SLIDE 11: NGHIỆM THU KỸ THUẬT & HẠ TẦNG DEPLOY (QUALITY & DEPLOYMENT)
+* **Visual trên Slide**: Chèn ảnh `image/Sơ đồ triển khai hạ tầng.png`. Huy hiệu `153/153 Tests Passed (100%)`, biểu đồ độ trễ API `< 120ms`, sơ đồ 8 Docker Containers sau Caddy Reverse Proxy trên Azure VM B2ms.
+* **Mục tiêu**: Khẳng định chất lượng kỹ thuật vượt trội và tính sẵn sàng chuyển giao.
+
+> 🗣️ **Lời thoại người trình bày (Frontend/QA - Phạm Thế Dũng - 35 giây)**:  
+> *"Về chất lượng kỹ thuật, sản phẩm đã hoàn thành **100% các tiêu chí nghiệm thu nghiêm ngặt nhất**:  
+> * Vượt qua **153 trên 153 kịch bản kiểm thử tự động**, bao phủ toàn diện từ Unit test, API Contract, Thuật toán OSM Router đến AI Safety và HITL RBAC.  
+> * Độ trễ phản hồi API trung bình đạt dưới **120ms**, thời gian nhận ACK thiết bị chỉ **0.8 giây**.  
+> * Toàn bộ hệ thống được đóng gói trong 8 Docker containers, bảo mật HTTPS qua Caddy Reverse Proxy và duy trì độ sẵn sàng SLA 99.9% trên Azure Cloud."*
+
+---
+
+### 👥 SLIDE 12: ĐỘI NGŨ THỰC HIỆN P-074 & PHIÊN HỎI ĐÁP (TEAM & CLOSING)
+* **Visual trên Slide**: Thẻ 4 thành viên nhóm P-074 kèm vai trò chuyên trách. Mã QR quét truy cập trực tiếp Website Demo live và GitHub Repo.
+* **Mục tiêu**: Khép lại bài thuyết trình trang trọng, tự tin và mở màn phiên Q&A bùng nổ.
+
+> 🗣️ **Lời thoại người trình bày (Lead - Lê Tuấn Cảnh - 30 giây)**:  
+> *"Thành quả này là kết tinh từ sự phối hợp kỷ luật và đam mê công nghệ của 4 thành viên nhóm P-074 — Tứ Kỵ Sĩ Khải Huyền:  
+> * **Lê Tuấn Cảnh**: Team Lead, Kiến trúc Monorepo & Backend FastAPI.  
+> * **Hán Vũ Long**: Integration & Telemetry Pipeline.  
+> * **Hoàng Lê Minh**: AI Agent LangGraph & Grounding Policy Gate.  
+> * **Phạm Thế Dũng**: Frontend React Leaflet GIS & Test Suite 153 Tests.  
+> 
+> **AirGuard AI — Vì Một Đại Đô Thị Xanh, Thông Minh & Khỏe Mạnh!**  
+> Chúng tôi xin chân thành cảm ơn quý Hội đồng và rất sẵn sàng đón nhận các câu hỏi!"*
+
+---
+
+## 💡 BỘ CÂU HỎI PHẢN BIỆN "ĐINH" CỦA HỘI ĐỒNG & CÁCH TRẢ LỜI CHUẨN
+
+#### 1. ❓ Hội đồng hỏi: *"Tính năng vẽ đường chạy thể dục của các bạn có gì khác biệt so với việc người dùng tự mở Google Maps hoặc Strava?"*
+* **👉 Trả lời sắc bén**:  
+  > *"Dạ thưa Ban giám khảo, có **3 điểm khác biệt cốt tử mang tính bản quyền**:  
+  > 1. **Khả năng nhận biết chất lượng không khí thời gian thực (AQI-Aware)**: Google Maps chỉ tìm đường ngắn nhất mà không biết đường đó đang bị ô nhiễm do công trường thi công. Thuật toán của chúng tôi phạt nặng các cạnh đường đi qua vùng có nồng độ PM2.5 cao để ép đường chạy né sang hành lang trong lành quanh biển hồ.  
+  > 2. **Đường chạy khép kín tuần hoàn 0% trùng lặp (Zero Retracing)**: Google Maps nếu tìm đường vòng 5km từ điểm xuất phát sẽ bắt người dùng chạy 2.5km rồi quay đầu chạy lùi 100% đường cũ. Thuật toán 2 chặng (2-Leg Penalized) của chúng tôi phạt 30x chiều về, tạo cung đường vòng quanh hồ tròn trịa, 0% chạy lùi.  
+  > 3. **Tích phân định lượng liều lượng bụi hít vào ($\mu g$)**: Chúng tôi tính toán cụ thể người chạy hít vào bao nhiêu microgram bụi mịn dựa trên cự ly và thông khí phổi, giúp runner kiểm soát sức khỏe chính xác."*
+
+#### 2. ❓ Hội đồng hỏi: *"Làm sao các bạn bảo đảm AI Agent không tự động bật máy lọc không khí trái phép hoặc gửi cảnh báo rác làm phiền cư dân?"*
+* **👉 Trả lời sắc bén**:  
+  > *"Dạ thưa Hội đồng, chúng tôi áp dụng 2 chốt chặn kỹ thuật bất khả xâm phạm:  
+  > 1. **Nguyên tắc HITL máy chủ (Server-Side HITL Gate)**: AI Agent tuyệt đối không có quyền phát lệnh MQTT điều khiển thiết bị; nó chỉ được tạo một đề xuất ở trạng thái `pending`. Chỉ tài khoản có vai trò `Manager` mới có nút bấm gửi lệnh MQTT sau khi thẩm định Thẻ bằng chứng quan trắc.  
+  > 2. **Cơ chế Cooldown Gate 15 phút**: Cảnh báo chỉ được sinh ra khi nồng độ bụi vượt ngưỡng liên tiếp trong 2 chu kỳ đo (30 giây) và bị khóa trong 15 phút sau đó, ngăn chặn 100% tình trạng cảnh báo rác do cảm biến bị nhiễu tức thời."*
