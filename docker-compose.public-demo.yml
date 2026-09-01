@@ -94,6 +94,15 @@ services:
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
       RESEND_FROM_NAME: ${RESEND_FROM_NAME:-AirGuard AI}
       RESEND_REPLY_TO: ${RESEND_REPLY_TO:-}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-memory://}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-cache+memory://}
+      CELERY_TASK_ALWAYS_EAGER: ${CELERY_TASK_ALWAYS_EAGER:-true}
+      JOB_PERSISTENCE_ENABLED: "true"
+      AUTO_PROPOSAL_ENABLED: ${AUTO_PROPOSAL_ENABLED:-true}
+      VENTILATION_SAFE_PM25_THRESHOLD: ${VENTILATION_SAFE_PM25_THRESHOLD:-25}
+      VENTILATION_SAFE_CO2_THRESHOLD: ${VENTILATION_SAFE_CO2_THRESHOLD:-700}
+      VENTILATION_DEFAULT_DURATION_MINUTES: ${VENTILATION_DEFAULT_DURATION_MINUTES:-45}
+      VENTILATION_INTENSITY_PERCENT: ${VENTILATION_INTENSITY_PERCENT:-80}
       VENTILATION_TRIGGER_SECONDS: ${VENTILATION_TRIGGER_SECONDS:-30}
       VERIFICATION_TOKEN_TTL_SECONDS: ${VERIFICATION_TOKEN_TTL_SECONDS:-600}
       WEATHER_API_BASE_URL: ${WEATHER_API_BASE_URL:-https://api.open-meteo.com/v1/forecast}
@@ -189,6 +198,81 @@ services:
       backend:
         condition: service_started
 
+  device-simulator:
+    build:
+      context: ./services/device-simulator
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      DEVICE_ID: FILTER-01
+      DEVICE_STATE_PATH: /data/processed-keys.json
+    volumes:
+      - device_state:/data
+    depends_on:
+      - mqtt
+
+  device-simulator-s01:
+    build:
+      context: ./services/device-simulator
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      DEVICE_ID: FILTER-S01
+      DEVICE_STATE_PATH: /data/processed-keys.json
+    volumes:
+      - device_state_s01:/data
+    depends_on:
+      - mqtt
+
+  device-simulator-s02:
+    build:
+      context: ./services/device-simulator
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      DEVICE_ID: FILTER-02
+      DEVICE_STATE_PATH: /data/processed-keys.json
+    volumes:
+      - device_state_s02:/data
+    depends_on:
+      - mqtt
+
+  device-simulator-s04:
+    build:
+      context: ./services/device-simulator
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      DEVICE_ID: FILTER-04
+      DEVICE_STATE_PATH: /data/processed-keys.json
+    volumes:
+      - device_state_s04:/data
+    depends_on:
+      - mqtt
+
+  device-simulator-s05:
+    build:
+      context: ./services/device-simulator
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_QOS: 1
+      DEVICE_ID: FILTER-05
+      DEVICE_STATE_PATH: /data/processed-keys.json
+    volumes:
+      - device_state_s05:/data
+    depends_on:
+      - mqtt
+
   caddy:
     image: caddy:2.8-alpine
     restart: unless-stopped
@@ -210,3 +294,8 @@ volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+  device_state:
+  device_state_s01:
+  device_state_s02:
+  device_state_s04:
+  device_state_s05:
