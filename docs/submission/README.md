@@ -8,6 +8,8 @@
 [![MQTT](https://img.shields.io/badge/MQTT-Mosquitto-660066.svg?style=flat&logo=EclipseMosquitto&logoColor=white)](https://mosquitto.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?style=flat&logo=Docker&logoColor=white)](https://www.docker.com/)
 
+> 📌 **Lưu ý nộp bài / Submission Notice:** Toàn bộ tài liệu nộp cuối cần thiết của dự án (Bao gồm SRS, Architecture, Testing, Weekly Logs...) đều được lưu trữ đầy đủ tại thư mục [**`docs/submission/`**](./).
+
 > **Tuyên bố minh bạch:** Toàn bộ dữ liệu cảm biến trong MVP hiện tại đến từ hệ thống mô phỏng (`source=simulator`) phục vụ mục đích nghiên cứu, học tập và trình diễn công nghệ. Đây không phải hệ thống quan trắc môi trường chính thức được cấp phép. Không sử dụng dữ liệu này để chẩn đoán y tế chuyên sâu, ban bố tình trạng khẩn cấp hoặc ra các quyết định pháp lý.
 
 ---
