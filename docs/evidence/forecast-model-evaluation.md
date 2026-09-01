@@ -2,7 +2,7 @@
 
 > **Mô hình:** `extended_additive_fourier_v3` (Additive Fourier nhẹ; không phải thư viện Prophet)
 > **Baseline:** `damped_linear_trend_v1`
-> **Thời điểm đánh giá:** 2026-08-31T14:26:35.490527+00:00
+> **Thời điểm đánh giá:** 2026-08-31T05:35:56.644003+00:00
 > **Phạm vi kiểm thử:** holdout 24 giờ mới nhất từ chuỗi simulator 72 giờ, 5 trạm S01-S05.
 
 ---
@@ -11,10 +11,10 @@
 
 | Chỉ số Dự báo | Baseline Tuyến tính | Extended Additive | Mức độ Cải thiện (%) | Ngưỡng B7-01 (>= 7%) |
 |---|:---:|:---:|:---:|:---:|
-| **PM2.5 (MAE)** | **6.85 µg/m³** | **1.84 µg/m³** | **73.1%** | **ĐẠT** |
-| **AQI (MAE)** | **15.84** | **4.15** | **73.8%** | Tham khảo |
-| **Toàn diện Multi-Metric (MAE)** | **31.6** | **8.02** | **74.6%** | Tham khảo |
-| **Toàn diện Multi-Metric (RMSE)** | **38.82** | **8.88** | **77.1%** | Tham khảo |
+| **PM2.5 (MAE)** | **7.65 µg/m³** | **1.65 µg/m³** | **78.5%** | **ĐẠT** |
+| **AQI (MAE)** | **18.02** | **3.69** | **79.5%** | Tham khảo |
+| **Toàn diện Multi-Metric (MAE)** | **38.81** | **7.55** | **80.5%** | Tham khảo |
+| **Toàn diện Multi-Metric (RMSE)** | **45.25** | **8.5** | **81.2%** | Tham khảo |
 
 ---
 
@@ -22,11 +22,11 @@
 
 | Trạm | PM2.5 (Base vs ML) | Cải thiện PM2.5 | AQI (Base vs ML) | Cải thiện AQI |
 |---|:---:|:---:|:---:|:---:|
-| **S01 (Trục Đa Tốn)** | 7.83 vs 2.04 | +73.9% | 19.29 vs 5.04 | +73.9% |
-| **S02 (Khu Sapphire)** | 6.22 vs 2.11 | +66.0% | 15.22 vs 5.25 | +65.5% |
-| **S03 (Ven Hồ Ngọc Trai)** | 6.26 vs 1.97 | +68.5% | 13.29 vs 4.33 | +67.4% |
-| **S04 (Khuôn viên VinUni)** | 6.04 vs 2.5 | +58.6% | 12.73 vs 5.12 | +59.7% |
-| **S05 (Khu Hải Âu)** | 7.92 vs 0.6 | +92.4% | 18.65 vs 1.0 | +94.6% |
+| **S01 (Trục Đa Tốn)** | 7.02 vs 0.35 | +95.1% | 17.14 vs 0.83 | +95.1% |
+| **S02 (Khu Sapphire)** | 8.1 vs 2.77 | +65.7% | 19.14 vs 6.29 | +67.1% |
+| **S03 (Ven Hồ Ngọc Trai)** | 8.03 vs 1.08 | +86.5% | 18.03 vs 2.38 | +86.8% |
+| **S04 (Khuôn viên VinUni)** | 7.96 vs 2.42 | +69.6% | 18.65 vs 5.42 | +71.0% |
+| **S05 (Khu Hải Âu)** | 7.15 vs 1.62 | +77.4% | 17.12 vs 3.54 | +79.3% |
 
 ---
 
