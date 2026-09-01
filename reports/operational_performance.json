@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-08-24T09:24:07.537743+00:00",
+  "timestamp": "2026-08-31T14:23:30.172672+00:00",
   "mqtt_validation": {
     "iterations": 1000,
-    "mean_ms": 0.007,
+    "mean_ms": 0.008,
     "p50_ms": 0.006,
     "p95_ms": 0.007,
-    "p99_ms": 0.014,
-    "throughput_ops_sec": 147861
+    "p99_ms": 0.012,
+    "throughput_ops_sec": 122316
   },
   "alert_engine": {
     "iterations": 1000,
@@ -14,37 +14,37 @@
     "mean_ms": 0.0,
     "p50_ms": 0.0,
     "p95_ms": 0.0,
-    "p99_ms": 0.001
+    "p99_ms": 0.0
   },
   "prophet_forecast_24h": {
     "iterations": 100,
     "horizons_generated": 24,
-    "mean_ms": 0.138,
-    "p50_ms": 0.13,
-    "p95_ms": 0.182,
-    "p99_ms": 0.259
+    "mean_ms": 1.158,
+    "p50_ms": 1.128,
+    "p95_ms": 1.376,
+    "p99_ms": 1.492
   },
   "spatial_heatmap_468_points": {
     "iterations": 100,
     "grid_points_count": 468,
-    "mean_ms": 4.241,
-    "p50_ms": 4.217,
-    "p95_ms": 4.635,
-    "p99_ms": 4.755
+    "mean_ms": 4.491,
+    "p50_ms": 4.49,
+    "p95_ms": 4.791,
+    "p99_ms": 4.86
   },
   "road_routing": {
     "iterations": 100,
-    "mean_ms": 2.588,
-    "p50_ms": 2.529,
-    "p95_ms": 2.801,
-    "p99_ms": 3.338
+    "mean_ms": 2235.455,
+    "p50_ms": 2203.664,
+    "p95_ms": 2644.284,
+    "p99_ms": 2771.698
   },
   "composite_latencies": {
     "mqtt_ingest_p95_ms": 0.007,
     "alert_detection_p95_ms": 0.0,
     "mqtt_to_alert_latency_p95_ms": 0.007,
-    "api_spatial_p95_ms": 4.635,
-    "api_forecast_p95_ms": 0.182,
+    "api_spatial_p95_ms": 4.791,
+    "api_forecast_p95_ms": 1.376,
     "dashboard_polling_interval_sec": 30.0,
     "simulator_publish_interval_sec": 30.0
   }

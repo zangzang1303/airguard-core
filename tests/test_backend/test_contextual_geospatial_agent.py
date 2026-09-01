@@ -11,6 +11,7 @@ Covers all test groups defined in docs/AirGuard_Contextual_Geospatial_Agent_Mast
 """
 
 import pytest
+
 from backend.app.services.conversation_state_manager import conversation_state_manager
 from backend.app.services.geospatial_agent_service import GeospatialAgentService
 from backend.app.services.response_composer import ResponseValidator

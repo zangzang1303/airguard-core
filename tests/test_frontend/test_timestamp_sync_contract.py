@@ -8,8 +8,8 @@ Validates:
 5. Inactive heatmap does not trigger requests, request key guards against race conditions.
 """
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 FRONTEND_ROOT = Path(__file__).resolve().parent.parent.parent / "frontend" / "src"
 DATETIME_FILE = FRONTEND_ROOT / "utils" / "datetime.ts"

@@ -80,17 +80,7 @@ class GeospatialAgentService:
             def get_forecast_history(self, station_id: str) -> list[dict[str, Any]]:
                 return list(station_histories.get(station_id, []) if station_histories else [])
 
-        sample_time = None
-        for snapshot in station_snapshots.values():
-            ts = snapshot.get("updated_at") or snapshot.get("measured_at") or snapshot.get("timestamp")
-            if ts:
-                try:
-                    sample_time = _timestamp(ts)
-                    break
-                except Exception:
-                    pass
-        clock = (lambda: sample_time) if sample_time is not None else None
-        return CleanRunningRouteService(_RequestScopedStationAdapter(), clock=clock)
+        return CleanRunningRouteService(_RequestScopedStationAdapter())
 
     def process_query(
         self,
@@ -555,7 +545,7 @@ class GeospatialAgentService:
                     return self._handle_comparison_intent(q, ranked_pois, time_ctx, request_id, candidates=[c_a, c_b], conversation_id=conversation_id)
 
         # Cycling / Alternative Activity Inquiry ("tôi có thể đạp xe thay vì chạy bộ ko")
-        is_cycling_inquiry = any(w in q for w in ["dap xe", "xe dap", "cycling", "dap xe thay vi", "thay vi chay bo"])
+        is_cycling_inquiry = any(w in q for w in ["thay vi chay bo", "dap xe thay vi", "thay vi chay", "chuyen sang dap xe"])
         if is_cycling_inquiry:
             headline = "🚴 **Được chứ. Bạn có thể đạp xe ngoài trời hoặc chuyển sang tập luyện trong nhà.**"
             advice = "Nếu muốn, mình có thể giúp bạn tìm khu vực trong nhà thuận tiện hơn gần vị trí hiện tại."
@@ -709,7 +699,7 @@ class GeospatialAgentService:
                 "cleanest station",
                 "station with the lowest aqi",
             )
-        ) and not any(term in q_normalized for term in ("chay", "chay bo", "cung duong", "lo trinh", "tuyen"))
+        ) and not any(term in q_normalized for term in ("chay", "chay bo", "cung duong", "lo trinh", "tuyen", "duong", "dap xe", "di bo"))
         if is_best_station_inquiry:
             return self._handle_best_station_intent(
                 station_data_map,
@@ -752,7 +742,7 @@ class GeospatialAgentService:
             )
             and not any(
                 term in q_normalized
-                for term in ("chay", "chay bo", "cung duong", "lo trinh", "tuyen", "may gio", "luc nao", "khi nao")
+                for term in ("chay", "chay bo", "cung duong", "lo trinh", "tuyen", "duong", "dap xe", "di bo", "may gio", "luc nao", "khi nao")
             )
         )
         if is_area_best_inquiry:
@@ -766,6 +756,8 @@ class GeospatialAgentService:
             )
 
         # Intent C: Indoor Activity Inquiry / Negation Pivot ("ngoài chạy bộ...", "trong nhà", "ở nhà", "indoor")
+        is_hazardous_air = all(s.get("aqi", 0) >= 150 for s in station_data_map.values()) if station_data_map else False
+        is_outdoor_exercise_question = any(w in q for w in ["tập thể dục ngoài trời", "chạy bộ ngoài trời", "thể thao ngoài trời", "tập thể dục", "ngoài trời"]) and any(w in q for w in ["có nên", "có thể", "được không", "được ko", "không?", "không"])
         is_indoor_inquiry = (
             any(w in q for w in ["trong nhà", "ở trong nhà", "indoor", "ở nhà", "phòng gym", "gym", "yoga", "bể bơi bốn mùa", "trong phòng"])
             or (
@@ -777,6 +769,7 @@ class GeospatialAgentService:
                 and not any(w in q for w in ["ngoài trời", "ngoài hồ", "ngoài công viên", "ngoài sân", "ra ngoài"])
                 and any(w in q for w in ["chạy", "chạy bộ", "tập thể dục", "thể thao", "hoạt động"])
             )
+            or (is_hazardous_air and is_outdoor_exercise_question)
         )
         if is_indoor_inquiry:
             return self._handle_explicit_indoor_intent(q, ranked_pois, time_ctx, request_id, user_loc=user_loc, conversation_id=conversation_id)
@@ -785,9 +778,12 @@ class GeospatialAgentService:
         is_cycling = any(w in q for w in ["đạp xe", "xe đạp", "cycling", "đua xe"])
         if is_cycling:
             activity = "cycling"
+        is_walking = any(w in q for w in ["đi bộ", "di bo", "walking", "tản bộ", "dạo bộ"])
+        if is_walking:
+            activity = "walking"
 
         is_route_query = (
-            any(w in q for w in ["đoạn đường", "cung đường", "tuyến đường", "lộ trình", "đường chạy", "chạy bộ ở đâu", "tuyến chạy", "chạy ở đâu", "tuyến nào", "đường nào", "chạy bộ", "đạp xe", "xe đạp"])
+            any(w in q for w in ["đoạn đường", "cung đường", "tuyến đường", "lộ trình", "đường chạy", "chạy bộ ở đâu", "tuyến chạy", "chạy ở đâu", "tuyến nào", "đường nào", "chạy bộ", "đạp xe", "xe đạp", "đi bộ"])
             or target_distance_km is not None
             or (activity in {"running", "walking", "cycling"} and any(w in q for w in ["đường", "tuyến", "đoạn", "ở đâu", "lộ trình", "nơi nào", "chỗ nào"]))
         )

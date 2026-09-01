@@ -62,12 +62,47 @@ export const DeviceDetailDrawer: React.FC<DeviceDetailDrawerProps> = ({
   });
   const [now, setNow] = useState(Date.now());
   const [pendingAction, setPendingAction] = useState<"ventilation_boost" | "standby" | null>(null);
+  const [awaitingAction, setAwaitingAction] = useState<"ventilation_boost" | "standby" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  // Tự động kiểm tra trạng thái phản hồi ACK từ thiết bị mô phỏng (chu kỳ 800ms)
+  useEffect(() => {
+    if (!awaitingAction) return;
+
+    const isTargetReached =
+      awaitingAction === "ventilation_boost"
+        ? Boolean(device.is_active || device.operating_mode === "RUNNING_BOOST" || device.operating_mode === "AIR_PURIFIER_ON")
+        : Boolean(!device.is_active && device.operating_mode === "STANDBY");
+
+    if (isTargetReached) {
+      setNotice(
+        awaitingAction === "ventilation_boost"
+          ? "Thiết bị đã xác nhận lệnh: Đang lọc không khí tăng cường."
+          : "Thiết bị đã xác nhận lệnh: Đã chuyển về chế độ chờ."
+      );
+      setAwaitingAction(null);
+      const dismissTimer = window.setTimeout(() => setNotice(null), 4000);
+      return () => window.clearTimeout(dismissTimer);
+    }
+
+    const pollTimer = window.setInterval(() => {
+      void onRefresh();
+    }, 800);
+
+    const timeoutTimer = window.setTimeout(() => {
+      setAwaitingAction(null);
+    }, 10_000);
+
+    return () => {
+      window.clearInterval(pollTimer);
+      window.clearTimeout(timeoutTimer);
+    };
+  }, [awaitingAction, device.is_active, device.operating_mode, onRefresh]);
 
   const remainingSeconds = useMemo(() => {
     if (!device.ends_at || !device.is_active) return 0;
@@ -82,9 +117,13 @@ export const DeviceDetailDrawer: React.FC<DeviceDetailDrawerProps> = ({
     setNotice(null);
     try {
       await onManualControl(action);
-      setNotice(action === "ventilation_boost" ? "BQL đã gửi lệnh bật máy lọc. Đang chờ thiết bị phản hồi." : "BQL đã gửi lệnh tắt máy lọc. Đang chờ thiết bị phản hồi.");
+      setAwaitingAction(action);
+      setNotice(action === "ventilation_boost" ? "BQL đã gửi lệnh bật máy lọc. Đang chờ thiết bị phản hồi…" : "BQL đã gửi lệnh tắt máy lọc. Đang chờ thiết bị phản hồi…");
+      // Thực hiện refresh ngay lần đầu
+      void onRefresh();
     } catch (requestError: any) {
       setNotice(requestError?.message || "Không thể gửi lệnh từ trạng thái hiện tại.");
+      setAwaitingAction(null);
     } finally {
       setPendingAction(null);
     }

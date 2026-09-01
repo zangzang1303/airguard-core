@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import pytest
 
 from backend.app.services.environmental_scoring import EnvironmentalScoringEngine, environmental_scoring
-from backend.app.services.geospatial_agent_service import GeospatialAgentService, geospatial_agent
+from backend.app.services.geospatial_agent_service import GeospatialAgentService
 from backend.app.services.live_telemetry_engine import live_engine
-from backend.app.services.spatial_registry import spatial_registry
-from backend.app.services.temporal_resolver import TemporalResolver
 
 
 def demo_agent() -> GeospatialAgentService:
@@ -155,7 +152,6 @@ def test_phase5_general_out_of_scope_rejection():
 # =========================================================================
 
 def test_phase6_health_profile_differentiation():
-    agent = demo_agent()
     # At moderate pollution (AQI = 115, PM2.5 = 42.0)
     for s_id in ["S01", "S02", "S03", "S04", "S05"]:
         live_engine.update_station(s_id, {"pm25": 42.0, "aqi": 115, "co2": 600.0, "noise_db": 55.0, "temperature": 29.0})
@@ -278,7 +274,7 @@ def test_phase31_eval_cases_dataset():
     eval_file = Path(__file__).parent / "eval_cases.json"
     assert eval_file.exists(), "eval_cases.json must exist"
 
-    with open(eval_file, "r", encoding="utf-8") as f:
+    with open(eval_file, encoding="utf-8") as f:
         cases = json.load(f)
 
     assert len(cases) >= 20, "Must contain at least 20 evaluation cases"

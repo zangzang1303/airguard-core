@@ -26,8 +26,8 @@ def test_boost_marker_is_animated_but_respects_reduced_motion() -> None:
 def test_device_drawer_shows_countdown_effectiveness_and_hitl_actions() -> None:
     assert "remainingSeconds" in DRAWER
     assert "pm25_reduction_percent" in DRAWER
-    assert 'requestProposal("eco_mode")' in DRAWER
-    assert 'requestProposal("standby")' in DRAWER
-    assert "chỉ tạo proposal pending" in DRAWER
-    assert "createVentilationDeviceProposal" in APP
+    assert 'controlDevice("ventilation_boost")' in DRAWER
+    assert 'controlDevice("standby")' in DRAWER
+    assert "Thao tác thủ công của BQL" in DRAWER
+    assert "manuallyControlVentilationDevice" in APP
     assert "refreshRevision={refreshRevision}" in APP
