@@ -1224,12 +1224,12 @@ Toàn bộ **10 Ca Sử Dụng (UC-01 đến UC-10)** và **10 Tính Năng Cốt
 
 > **Bảng Ký Duyệt & Chấp Thuận Yêu Cầu (Stakeholder Sign-Off Matrix)**:
 
-| Vai trò phê duyệt | Họ và tên | Chức danh / Đơn vị | Trạng thái phê duyệt | Ngày ký duyệt |
-|---|---|---|---|---|
-| **Chủ Nhiệm Dự Án (Product Owner)** | Lê Tuấn Cảnh | Trưởng Dự Án AirGuard AI | **ĐÃ DUYỆT (APPROVED)** | `01/09/2026` |
-| **Kiến Trúc Sư Trưởng (Lead Architect)** | Nhóm Kiến Trúc Hệ Thống P-074 | Kỹ Sư Trưởng Hệ Thống | **ĐÃ DUYỆT (APPROVED)** | `01/09/2026` |
-| **Trưởng Nhóm Kiểm Thử (QA Lead)** | Nhóm Đảm Bảo Chất Lượng AI20K | Trưởng Nhóm QA/QC | **ĐÃ DUYỆT (153/153 PASS)** | `01/09/2026` |
-| **Đại Diện Vận Hành (Operations/SRE)** | Kỹ Sư Đám Mây & Hạ Tầng | Quản Trị Hệ Thống Azure Cloud | **ĐÃ DUYỆT (AZURE VM B2ms)**| `01/09/2026` |
+| STT | Họ và tên | Vai trò / Trách nhiệm chuyên môn | Chức danh / Đơn vị | Trạng thái phê duyệt | Ngày ký duyệt |
+|:---:|---|---|---|:---:|:---:|
+| 1 | **Lê Tuấn Cảnh** | Team Lead / Backend & Data / IoT | Trưởng Dự Án & Kỹ Sư Backend / IoT | **ĐÃ DUYỆT (APPROVED)** | `01/09/2026` |
+| 2 | **Hán Vũ Long** | Integration / AI Engineer | Kỹ Sư Tích Hợp Hệ Thống & AI Agent | **ĐÃ DUYỆT (APPROVED)** | `01/09/2026` |
+| 3 | **Hoàng Lê Minh** | AI Engineer | Kỹ Sư Phát Triển Mô Hình & Trí Tuệ Nhân Tạo | **ĐÃ DUYỆT (APPROVED)** | `01/09/2026` |
+| 4 | **Phạm Thế Dũng** | Frontend / QA Engineer | Kỹ Sư Giao Diện Người Dùng & Kiểm Thử QA | **ĐÃ DUYỆT (153/153 PASS)** | `01/09/2026` |
 
 ---
 *Tài liệu đặc tả yêu cầu phần mềm SRS AirGuard AI — Phiên bản 2.2.0 hoàn tất và có hiệu lực thi hành kể từ ngày 01/09/2026.*
