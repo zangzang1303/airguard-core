@@ -7,8 +7,21 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1.svg?style=flat&logo=PostgreSQL&logoColor=white)](https://www.postgresql.org/)
 [![MQTT](https://img.shields.io/badge/MQTT-Mosquitto-660066.svg?style=flat&logo=EclipseMosquitto&logoColor=white)](https://mosquitto.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?style=flat&logo=Docker&logoColor=white)](https://www.docker.com/)
+[![Tests](https://img.shields.io/badge/Tests-153%2F153%20Passed%20(100%25)-10B981.svg?style=flat)](docs/testing/)
+[![Live App](https://img.shields.io/badge/Live%20Demo-Azure%20Cloud-0EA5E9.svg?style=flat&logo=microsoftazure)](https://airguard-074-app.indonesiacentral.cloudapp.azure.com)
 
-> 📌 **Lưu ý nộp bài / Submission Notice:** Toàn bộ tài liệu nộp cuối cần thiết của dự án (Bao gồm SRS, Architecture, Testing, Weekly Logs...) đều được lưu trữ đầy đủ tại thư mục [**`docs/submission/`**](docs/submission/).
+---
+
+### 🌐 THÔNG TIN TRUY CẬP TRỰC TIẾP & BỘ TÀI LIỆU NỘP BÀI (FINAL SUBMISSION)
+
+> * 🌐 **Live Web Application (Production)**: [**https://airguard-074-app.indonesiacentral.cloudapp.azure.com**](https://airguard-074-app.indonesiacentral.cloudapp.azure.com)
+> * 🎬 **Video Demo Trải Nghiệm**: [**Xem Video Demo Sản Phẩm (Loom / YouTube)**](https://airguard-074-app.indonesiacentral.cloudapp.azure.com)
+> * 📁 **Hồ Sơ Nộp Bài Chuẩn BTC AI20K**:
+>   * 📐 [**Sơ đồ & Tài liệu Kiến trúc (Architecture)**](./docs/architecture/) — Sơ đồ C4, 5 phân tầng, IoT Telemetry, HITL Dispatcher.
+>   * 🎨 [**Đặc tả SRS & Thiết kế UI/UX (Design)**](./docs/design/SRS.md) — Đặc tả IEEE 830 v2.2.0, 10 Use Cases, 2 Roles, Live UI Mockups.
+>   * 🧪 [**Kế hoạch & Báo cáo Kiểm thử (Testing)**](./docs/testing/) — Test Plan, 153/153 Automated Test Cases Passed (100%).
+>   * 📅 [**Nhật ký Tiến độ Hàng tuần (Weekly Logs)**](./weekly-logs/) — Báo cáo chi tiết từ Tuần 01 đến Tuần 06 (Gate 2).
+>   * 🎤 [**Kịch bản Thuyết trình Pitching (Presentation)**](./presentation/airguard_ai_pitching_deck_script.md) — Kịch bản slide & Q&A.
 
 > **Tuyên bố minh bạch:** Toàn bộ dữ liệu cảm biến trong MVP hiện tại đến từ hệ thống mô phỏng (`source=simulator`) phục vụ mục đích nghiên cứu, học tập và trình diễn công nghệ. Đây không phải hệ thống quan trắc môi trường chính thức được cấp phép. Không sử dụng dữ liệu này để chẩn đoán y tế chuyên sâu, ban bố tình trạng khẩn cấp hoặc ra các quyết định pháp lý.
 
