@@ -1,5 +1,6 @@
--- Backfill missing simulated filter mappings for demo stations S02 and S05
--- on existing database volumes. This migration is additive and idempotent.
+-- Backfill simulated filter devices for legacy demo volumes created before the
+-- complete five-station device registry was introduced.  The insert remains
+-- safe to run on a freshly bootstrapped database.
 BEGIN;
 
 INSERT INTO devices (device_id, device_name, device_type, station_id, status, is_simulated)
