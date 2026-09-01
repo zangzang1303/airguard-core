@@ -1,0 +1,61 @@
+=== ACTUAL IMAGE FILES IN image/ ===
+Kiến trúc phân tầng 5 lớp.png
+Kiến trúc thuật toán tìm đường chạy sạch.png
+Luồng cảnh báo tự động & HITL.png
+Luồng hội thoại của AI Agent & Grounding Policy Gate.png
+Luồng thu thập dữ liệu và Kiểm soát chất lượng.png
+Mockup 1 - GIS Dashboard & Heatmap.png
+Mockup 2 - Station Detail Drawer.png
+Mockup 3 - AI Chat & Clean Running Route.png
+Mockup 4 - Health Profile Modal.png
+Mockup 5 - HITL Approval Center.png
+Mockup 6 - Audit Log Center.png
+Sơ đồ kiến thức tổng thể.png
+Sơ đồ triển khai hạ tầng.png
+Use Case Diagram.png
+User Flow 1.png
+User Flow 2.png
+User Flow 3.png
+User Flow 4.png
+User Flow 5.png
+User Flow 6.png
+
+=== CHECKING IMAGE LINKS IN MARKDOWN FILES ===
+
+--- SRS.md ---
+  Link: <image/Use Case Diagram.png> -> Resolved: image\Use Case Diagram.png -> Exists: True
+  Link: <image/Mockup 1 - GIS Dashboard & Heatmap.png> -> Resolved: image\Mockup 1 - GIS Dashboard & Heatmap.png -> Exists: True
+  Link: <image/Mockup 2 - Station Detail Drawer.png> -> Resolved: image\Mockup 2 - Station Detail Drawer.png -> Exists: True
+  Link: <image/Mockup 3 - AI Chat & Clean Running Route.png> -> Resolved: image\Mockup 3 - AI Chat & Clean Running Route.png -> Exists: True
+  Link: <image/Mockup 4 - Health Profile Modal.png> -> Resolved: image\Mockup 4 - Health Profile Modal.png -> Exists: True
+  Link: <image/Mockup 5 - HITL Approval Center.png> -> Resolved: image\Mockup 5 - HITL Approval Center.png -> Exists: True
+  Link: <image/Mockup 6 - Audit Log Center.png> -> Resolved: image\Mockup 6 - Audit Log Center.png -> Exists: True
+
+--- ARCHITECTURE.md ---
+  Link: <image/Sơ đồ kiến thức tổng thể.png> -> Resolved: image\Sơ đồ kiến thức tổng thể.png -> Exists: True
+  Link: <image/Kiến trúc phân tầng 5 lớp.png> -> Resolved: image\Kiến trúc phân tầng 5 lớp.png -> Exists: True
+  Link: <image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png> -> Resolved: image\Luồng thu thập dữ liệu và Kiểm soát chất lượng.png -> Exists: True
+  Link: <image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png> -> Resolved: image\Luồng hội thoại của AI Agent & Grounding Policy Gate.png -> Exists: True
+  Link: <image/Luồng cảnh báo tự động & HITL.png> -> Resolved: image\Luồng cảnh báo tự động & HITL.png -> Exists: True
+  Link: <image/Kiến trúc thuật toán tìm đường chạy sạch.png> -> Resolved: image\Kiến trúc thuật toán tìm đường chạy sạch.png -> Exists: True
+  Link: <image/Sơ đồ triển khai hạ tầng.png> -> Resolved: image\Sơ đồ triển khai hạ tầng.png -> Exists: True
+
+--- docs/design/SRS.md ---
+  Link: <image/Use Case Diagram.png> -> Resolved: docs\design\image\Use Case Diagram.png -> Exists: False
+  Link: <image/Mockup 1 - GIS Dashboard & Heatmap.png> -> Resolved: docs\design\image\Mockup 1 - GIS Dashboard & Heatmap.png -> Exists: False
+  Link: <image/Mockup 2 - Station Detail Drawer.png> -> Resolved: docs\design\image\Mockup 2 - Station Detail Drawer.png -> Exists: False
+  Link: <image/Mockup 3 - AI Chat & Clean Running Route.png> -> Resolved: docs\design\image\Mockup 3 - AI Chat & Clean Running Route.png -> Exists: False
+  Link: <image/Mockup 4 - Health Profile Modal.png> -> Resolved: docs\design\image\Mockup 4 - Health Profile Modal.png -> Exists: False
+  Link: <image/Mockup 5 - HITL Approval Center.png> -> Resolved: docs\design\image\Mockup 5 - HITL Approval Center.png -> Exists: False
+  Link: <image/Mockup 6 - Audit Log Center.png> -> Resolved: docs\design\image\Mockup 6 - Audit Log Center.png -> Exists: False
+File docs/design/README.md DOES NOT EXIST
+File docs/architecture/README.md DOES NOT EXIST
+
+--- docs/architecture/ARCHITECTURE.md ---
+  Link: <image/Sơ đồ kiến thức tổng thể.png> -> Resolved: docs\architecture\image\Sơ đồ kiến thức tổng thể.png -> Exists: False
+  Link: <image/Kiến trúc phân tầng 5 lớp.png> -> Resolved: docs\architecture\image\Kiến trúc phân tầng 5 lớp.png -> Exists: False
+  Link: <image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png> -> Resolved: docs\architecture\image\Luồng thu thập dữ liệu và Kiểm soát chất lượng.png -> Exists: False
+  Link: <image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png> -> Resolved: docs\architecture\image\Luồng hội thoại của AI Agent & Grounding Policy Gate.png -> Exists: False
+  Link: <image/Luồng cảnh báo tự động & HITL.png> -> Resolved: docs\architecture\image\Luồng cảnh báo tự động & HITL.png -> Exists: False
+  Link: <image/Kiến trúc thuật toán tìm đường chạy sạch.png> -> Resolved: docs\architecture\image\Kiến trúc thuật toán tìm đường chạy sạch.png -> Exists: False
+  Link: <image/Sơ đồ triển khai hạ tầng.png> -> Resolved: docs\architecture\image\Sơ đồ triển khai hạ tầng.png -> Exists: False

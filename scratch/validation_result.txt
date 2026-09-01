@@ -1,0 +1,66 @@
+Checking SRS.md:
+  [OK] <image/Use Case Diagram.png> -> image\Use Case Diagram.png
+  [OK] <image/Mockup 1 - GIS Dashboard & Heatmap.png> -> image\Mockup 1 - GIS Dashboard & Heatmap.png
+  [OK] <image/Mockup 2 - Station Detail Drawer.png> -> image\Mockup 2 - Station Detail Drawer.png
+  [OK] <image/Mockup 3 - AI Chat & Clean Running Route.png> -> image\Mockup 3 - AI Chat & Clean Running Route.png
+  [OK] <image/Mockup 4 - Health Profile Modal.png> -> image\Mockup 4 - Health Profile Modal.png
+  [OK] <image/Mockup 5 - HITL Approval Center.png> -> image\Mockup 5 - HITL Approval Center.png
+  [OK] <image/Mockup 6 - Audit Log Center.png> -> image\Mockup 6 - Audit Log Center.png
+Checking ARCHITECTURE.md:
+  [OK] <image/Sơ đồ kiến thức tổng thể.png> -> image\Sơ đồ kiến thức tổng thể.png
+  [OK] <image/Kiến trúc phân tầng 5 lớp.png> -> image\Kiến trúc phân tầng 5 lớp.png
+  [OK] <image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png> -> image\Luồng thu thập dữ liệu và Kiểm soát chất lượng.png
+  [OK] <image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png> -> image\Luồng hội thoại của AI Agent & Grounding Policy Gate.png
+  [OK] <image/Luồng cảnh báo tự động & HITL.png> -> image\Luồng cảnh báo tự động & HITL.png
+  [OK] <image/Kiến trúc thuật toán tìm đường chạy sạch.png> -> image\Kiến trúc thuật toán tìm đường chạy sạch.png
+  [OK] <image/Sơ đồ triển khai hạ tầng.png> -> image\Sơ đồ triển khai hạ tầng.png
+Checking docs/design/SRS.md:
+  [OK] <../../image/Use Case Diagram.png> -> image\Use Case Diagram.png
+  [OK] <../../image/Mockup 1 - GIS Dashboard & Heatmap.png> -> image\Mockup 1 - GIS Dashboard & Heatmap.png
+  [OK] <../../image/Mockup 2 - Station Detail Drawer.png> -> image\Mockup 2 - Station Detail Drawer.png
+  [OK] <../../image/Mockup 3 - AI Chat & Clean Running Route.png> -> image\Mockup 3 - AI Chat & Clean Running Route.png
+  [OK] <../../image/Mockup 4 - Health Profile Modal.png> -> image\Mockup 4 - Health Profile Modal.png
+  [OK] <../../image/Mockup 5 - HITL Approval Center.png> -> image\Mockup 5 - HITL Approval Center.png
+  [OK] <../../image/Mockup 6 - Audit Log Center.png> -> image\Mockup 6 - Audit Log Center.png
+Checking docs/design/README.md:
+  [OK] <../../image/Use Case Diagram.png> -> image\Use Case Diagram.png
+  [OK] <../../image/Mockup 1 - GIS Dashboard & Heatmap.png> -> image\Mockup 1 - GIS Dashboard & Heatmap.png
+  [OK] <../../image/Mockup 2 - Station Detail Drawer.png> -> image\Mockup 2 - Station Detail Drawer.png
+  [OK] <../../image/Mockup 3 - AI Chat & Clean Running Route.png> -> image\Mockup 3 - AI Chat & Clean Running Route.png
+  [OK] <../../image/Mockup 4 - Health Profile Modal.png> -> image\Mockup 4 - Health Profile Modal.png
+  [OK] <../../image/Mockup 5 - HITL Approval Center.png> -> image\Mockup 5 - HITL Approval Center.png
+  [OK] <../../image/Mockup 6 - Audit Log Center.png> -> image\Mockup 6 - Audit Log Center.png
+Checking docs/architecture/README.md:
+  [OK] <../../image/Sơ đồ kiến thức tổng thể.png> -> image\Sơ đồ kiến thức tổng thể.png
+  [OK] <../../image/Kiến trúc phân tầng 5 lớp.png> -> image\Kiến trúc phân tầng 5 lớp.png
+  [OK] <../../image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png> -> image\Luồng thu thập dữ liệu và Kiểm soát chất lượng.png
+  [OK] <../../image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png> -> image\Luồng hội thoại của AI Agent & Grounding Policy Gate.png
+  [OK] <../../image/Luồng cảnh báo tự động & HITL.png> -> image\Luồng cảnh báo tự động & HITL.png
+  [OK] <../../image/Kiến trúc thuật toán tìm đường chạy sạch.png> -> image\Kiến trúc thuật toán tìm đường chạy sạch.png
+  [OK] <../../image/Sơ đồ triển khai hạ tầng.png> -> image\Sơ đồ triển khai hạ tầng.png
+Checking docs/architecture/ARCHITECTURE.md:
+  [OK] <../../image/Sơ đồ kiến thức tổng thể.png> -> image\Sơ đồ kiến thức tổng thể.png
+  [OK] <../../image/Kiến trúc phân tầng 5 lớp.png> -> image\Kiến trúc phân tầng 5 lớp.png
+  [OK] <../../image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png> -> image\Luồng thu thập dữ liệu và Kiểm soát chất lượng.png
+  [OK] <../../image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png> -> image\Luồng hội thoại của AI Agent & Grounding Policy Gate.png
+  [OK] <../../image/Luồng cảnh báo tự động & HITL.png> -> image\Luồng cảnh báo tự động & HITL.png
+  [OK] <../../image/Kiến trúc thuật toán tìm đường chạy sạch.png> -> image\Kiến trúc thuật toán tìm đường chạy sạch.png
+  [OK] <../../image/Sơ đồ triển khai hạ tầng.png> -> image\Sơ đồ triển khai hạ tầng.png
+Checking docs/submission/SRS.md:
+  [OK] <../../image/Use Case Diagram.png> -> image\Use Case Diagram.png
+  [OK] <../../image/Mockup 1 - GIS Dashboard & Heatmap.png> -> image\Mockup 1 - GIS Dashboard & Heatmap.png
+  [OK] <../../image/Mockup 2 - Station Detail Drawer.png> -> image\Mockup 2 - Station Detail Drawer.png
+  [OK] <../../image/Mockup 3 - AI Chat & Clean Running Route.png> -> image\Mockup 3 - AI Chat & Clean Running Route.png
+  [OK] <../../image/Mockup 4 - Health Profile Modal.png> -> image\Mockup 4 - Health Profile Modal.png
+  [OK] <../../image/Mockup 5 - HITL Approval Center.png> -> image\Mockup 5 - HITL Approval Center.png
+  [OK] <../../image/Mockup 6 - Audit Log Center.png> -> image\Mockup 6 - Audit Log Center.png
+Checking docs/submission/ARCHITECTURE.md:
+  [OK] <../../image/Sơ đồ kiến thức tổng thể.png> -> image\Sơ đồ kiến thức tổng thể.png
+  [OK] <../../image/Kiến trúc phân tầng 5 lớp.png> -> image\Kiến trúc phân tầng 5 lớp.png
+  [OK] <../../image/Luồng thu thập dữ liệu và Kiểm soát chất lượng.png> -> image\Luồng thu thập dữ liệu và Kiểm soát chất lượng.png
+  [OK] <../../image/Luồng hội thoại của AI Agent & Grounding Policy Gate.png> -> image\Luồng hội thoại của AI Agent & Grounding Policy Gate.png
+  [OK] <../../image/Luồng cảnh báo tự động & HITL.png> -> image\Luồng cảnh báo tự động & HITL.png
+  [OK] <../../image/Kiến trúc thuật toán tìm đường chạy sạch.png> -> image\Kiến trúc thuật toán tìm đường chạy sạch.png
+  [OK] <../../image/Sơ đồ triển khai hạ tầng.png> -> image\Sơ đồ triển khai hạ tầng.png
+
+RESULT ALL PASSED: True
