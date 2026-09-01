@@ -8,8 +8,12 @@ readonly PUBLIC_READY_URL="https://airguard-074-app.indonesiacentral.cloudapp.az
 
 if [[ "${SSH_ORIGINAL_COMMAND:-}" =~ ^deploy[[:space:]]([0-9a-f]{40})$ ]]; then
   readonly TARGET_COMMIT="${BASH_REMATCH[1]}"
+elif [[ "${1:-}" =~ ^([0-9a-f]{40})$ ]]; then
+  readonly TARGET_COMMIT="${1}"
+elif [[ "${1:-}" == "deploy" && "${2:-}" =~ ^([0-9a-f]{40})$ ]]; then
+  readonly TARGET_COMMIT="${2}"
 else
-  echo "This SSH key only accepts: deploy <40-character-commit-sha>."
+  echo "This deploy command only accepts: deploy <40-character-commit-sha>."
   exit 64
 fi
 

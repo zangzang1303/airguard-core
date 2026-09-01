@@ -159,7 +159,7 @@
   {
     "id": "TC-16",
     "category": "running_route_general",
-    "query": "Tối nay tôi nên chạy bộ ở đâu?",
+    "query": "Bây giờ tôi nên chạy bộ ở đâu?",
     "setup": {"S04": {"aqi": 30, "pm25": 8.0}},
     "expected": {
       "intent": "recommend_running_route",

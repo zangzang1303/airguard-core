@@ -19,7 +19,7 @@ from app.services.auth_crypto import hash_password  # noqa: E402
 from app.services.auth_service import AuthService  # noqa: E402
 from app.services.database import ServiceError  # noqa: E402
 from app.services.email_service import AuthEmailService  # noqa: E402
-from app.services.resend_email_provider import EmailDeliveryResult, ResendEmailProvider  # noqa: E402
+from app.services.resend_email_provider import ResendEmailProvider  # noqa: E402
 
 
 class FakeCursor:

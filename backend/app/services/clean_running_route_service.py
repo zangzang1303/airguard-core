@@ -232,7 +232,7 @@ class CleanRunningRouteService:
         pace_minutes_per_km: float | None,
         data_mode: str,
         forecast_hour: int | None,
-        activity: str,
+        activity: str = "running",
     ) -> tuple[float, float, str]:
         try:
             lat = _finite(origin.get("lat"))

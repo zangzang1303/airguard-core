@@ -11,8 +11,8 @@ Tests requirements from docs/AirGuard_Task_Fix_Social_Intent_Domain_Fallback.md:
 """
 
 import pytest
+
 from backend.app.services.conversation_state_manager import conversation_state_manager
-from backend.app.services.conversational_agent_service import conversational_agent
 from backend.app.services.geospatial_agent_service import GeospatialAgentService
 
 

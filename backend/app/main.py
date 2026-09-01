@@ -1505,6 +1505,12 @@ async def agent_chat(
             "recommend_outdoor_location",
             "unsupported_precipitation_weather",
             "unknown_location",
+            "insufficient_data",
+            "route_origin_unavailable",
+            "area_overview",
+            "conversation.clarification",
+            "conversation.reject",
+            "conversation.answer_slot",
         }:
             evidence_source = "prophet_time_series_v1" if time_context["is_forecast"] else None
             for evidence_item in result.get("evidence", []):
@@ -1554,19 +1560,24 @@ async def agent_chat(
             return result
 
         if not isinstance(agent_sources, list) or not agent_sources:
+            fallback_answer = (
+                result.get("answer")
+                or ({"summary": agent_result["answer"], "details": ""} if agent_result.get("answer") else {"summary": result.get("response", ""), "details": ""})
+            )
+            fallback_response = result.get("response") or agent_result.get("answer") or (fallback_answer.get("summary") if isinstance(fallback_answer, dict) else "")
             return {
-                "answer": result.get("answer") or {"summary": agent_result["answer"], "details": ""},
-                "response": result.get("response") or agent_result["answer"],
-                "intent": canonical_intent,
-                "conversation_kind": canonical_kind,
+                "answer": fallback_answer,
+                "response": fallback_response,
+                "intent": canonical_intent or result.get("intent", "domain"),
+                "conversation_kind": canonical_kind or result.get("conversation_kind"),
                 "evidence": result.get("evidence", []),
-                "sources": [],
+                "sources": result.get("sources", []) or ["simulator_engine"],
                 "map_actions": result.get("map_actions", []),
-                "used_tools": agent_result.get("used_tools", []),
+                "used_tools": agent_result.get("used_tools", []) or result.get("used_tools", []),
                 "tool_arguments": canonical_arguments,
                 "proposal_id": agent_result.get("proposal_id"),
                 "request_id": req_id,
-                "trace": agent_result.get("trace", {}),
+                "trace": {**agent_result.get("trace", {}), **result.get("trace", {})},
             }
 
         evidence_source = "prophet_time_series_v1" if time_context["is_forecast"] else None

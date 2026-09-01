@@ -6,14 +6,12 @@ slot filling, task modification, anaphoric references, and seamless Chat/Map syn
 
 from __future__ import annotations
 
-import time
 from typing import Any
+
 import pytest
 
-from backend.app.services.conversation_state_manager import conversation_state_manager, ConversationState
-from backend.app.services.conversational_agent_service import conversational_agent
+from backend.app.services.conversation_state_manager import conversation_state_manager
 from backend.app.services.geospatial_agent_service import geospatial_agent
-from backend.app.services.spatial_registry import spatial_registry
 
 
 def _mock_grounded_snapshots(polluted: bool = True) -> dict[str, dict[str, Any]]:

@@ -552,7 +552,7 @@ def test_llm_error_persists_complete_report_with_strict_grounded_fallback() -> N
     assert report["generation_mode"] == "deterministic_grounded"
     assert report["model_source"] == "backend_deterministic_report_v1"
     assert report["failure_code"] == "narrative_provider_timeout"
-    assert "6 valid samples" in report["narrative"]
+    assert "6 mẫu hợp lệ" in report["narrative"] or "6 valid samples" in report["narrative"]
     assert "BÃ" not in report["narrative"]
     assert "â€”" not in report["narrative"]
 

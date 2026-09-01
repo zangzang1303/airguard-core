@@ -5,7 +5,6 @@ contain zero technical leakage (no tool names, raw IDW grid counts, model identi
 and maintain strict consistency between chat entities and map actions across all ACs.
 """
 
-import pytest
 
 from backend.app.services.response_composer import (
     ResponseComposer,
