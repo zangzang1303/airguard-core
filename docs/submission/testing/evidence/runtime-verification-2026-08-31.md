@@ -77,7 +77,7 @@ checks dưới đây là evidence hợp lệ cho mã Agent hiện tại, nhưng 
   liệu cũ `763 PASS / 20 FAIL` làm kết quả của commit này.
 - Scoped route/context/report/frontend group: 122 PASS, 3 FAIL.
 - Scoped HITL/device/alert/report group: 103 PASS, 2 FAIL.
-- Có 7 failures đã xác nhận, xem [`../03-test-report.md`](../03-test-report.md#4-defect-và-blocker). Các scoped run có thể
+- Có 7 failures đã xác nhận tại thời điểm chạy; xem báo cáo hiện hành ở [`../03-test-report.md`](../03-test-report.md#4-defect-và-rủi-ro-còn-mở). Các scoped run có thể
   chồng test; không cộng số PASS thành tổng regression suite.
 - `npm run test:reports`: 22 PASS.
 - `npm run test:email-snapshots`: PASS tại viewport 375/1280.

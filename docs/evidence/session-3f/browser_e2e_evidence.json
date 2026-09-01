@@ -1,6 +1,6 @@
 {
   "test_suite": "AI Assistant Browser E2E Resilience & Recovery Suite",
-  "timestamp": "2026-08-31T14:11:48.356Z",
+  "timestamp": "2026-09-01T12:30:22.295Z",
   "results": {
     "structured_503": true,
     "recovery_503": true,
@@ -10,19 +10,19 @@
     "recovery_network": true
   },
   "all_passed": true,
-  "transportAttempts": 1,
+  "transportAttempts": 2,
   "cumulative_proxy_records": [
     {
       "ordinal": 1,
       "mode": "structured_503",
-      "reqId": "e2e-req-1788185475833-1",
+      "reqId": "e2e-req-1788265804747-1",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-31T14:11:15.834Z",
+      "timestamp": "2026-09-01T12:30:04.747Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
         "accept": "*/*",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
       },
       "outcome": {
         "status": 503,
@@ -32,32 +32,32 @@
     {
       "ordinal": 2,
       "mode": "pass",
-      "reqId": "e2e-req-1788185476218-2",
+      "reqId": "e2e-req-1788265805128-2",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-31T14:11:16.218Z",
+      "timestamp": "2026-09-01T12:30:05.128Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
         "accept": "*/*",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
       },
       "outcome": {
         "status": 200,
-        "response_id": "e2e-req-1788185476218-2"
+        "response_id": "e2e-req-1788265805128-2"
       },
-      "requestBody": "{\"message\":\"Chất lượng không khí ở trạm S03 hôm nay thế nào?\",\"station_id\":null,\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":{\"lat\":20.993,\"lng\":105.946,\"source\":\"default\",\"name\":\"Vị trí của bạn (Ocean Park 1)\"},\"selected_origin\":null},\"conversation_id\":\"conv_1788185475356\"}"
+      "requestBody": "{\"message\":\"Chất lượng không khí ở trạm S03 hôm nay thế nào?\",\"station_id\":null,\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":{\"lat\":20.993,\"lng\":105.946,\"source\":\"default\",\"name\":\"Vị trí của bạn (Ocean Park 1)\"},\"selected_origin\":null},\"conversation_id\":\"conv_1788265804258\"}"
     },
     {
       "ordinal": 3,
       "mode": "timeout",
-      "reqId": "e2e-req-1788185482046-3",
+      "reqId": "e2e-req-1788265806609-3",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-31T14:11:22.046Z",
+      "timestamp": "2026-09-01T12:30:06.609Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
         "accept": "*/*",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
       },
       "outcome": {
         "status": "held_for_client_timeout",
@@ -67,32 +67,32 @@
     {
       "ordinal": 4,
       "mode": "pass",
-      "reqId": "e2e-req-1788185493330-4",
+      "reqId": "e2e-req-1788265817839-4",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-31T14:11:33.330Z",
+      "timestamp": "2026-09-01T12:30:17.839Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
         "accept": "*/*",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
       },
       "outcome": {
         "status": 200,
-        "response_id": "e2e-req-1788185493330-4"
+        "response_id": "e2e-req-1788265817839-4"
       },
-      "requestBody": "{\"message\":\"Dự báo chất lượng không khí 1 giờ tới tại Ocean Park?\",\"station_id\":null,\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":{\"lat\":20.993,\"lng\":105.946,\"source\":\"default\",\"name\":\"Vị trí của bạn (Ocean Park 1)\"},\"selected_origin\":null},\"conversation_id\":\"conv_1788185475356\"}"
+      "requestBody": "{\"message\":\"Dự báo chất lượng không khí 1 giờ tới tại Ocean Park?\",\"station_id\":null,\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":{\"lat\":20.993,\"lng\":105.946,\"source\":\"default\",\"name\":\"Vị trí của bạn (Ocean Park 1)\"},\"selected_origin\":null},\"conversation_id\":\"conv_1788265804258\"}"
     },
     {
       "ordinal": 5,
       "mode": "network_failure",
-      "reqId": "e2e-req-1788185505477-5",
+      "reqId": "e2e-req-1788265820317-5",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-31T14:11:45.477Z",
+      "timestamp": "2026-09-01T12:30:20.317Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
         "accept": "*/*",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
       },
       "outcome": {
         "status": "socket_destroyed_transport_failure"
@@ -100,24 +100,40 @@
     },
     {
       "ordinal": 6,
-      "mode": "pass",
-      "reqId": "e2e-req-1788185505893-6",
+      "mode": "network_failure",
+      "reqId": "e2e-req-1788265820320-6",
       "url": "/api/v1/agent/chat",
-      "timestamp": "2026-08-31T14:11:45.893Z",
+      "timestamp": "2026-09-01T12:30:20.320Z",
       "requestHeaders": {
         "content-type": "application/json",
         "origin": "http://127.0.0.1:5188",
         "accept": "*/*",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36"
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
+      },
+      "outcome": {
+        "status": "socket_destroyed_transport_failure"
+      }
+    },
+    {
+      "ordinal": 7,
+      "mode": "pass",
+      "reqId": "e2e-req-1788265820672-7",
+      "url": "/api/v1/agent/chat",
+      "timestamp": "2026-09-01T12:30:20.672Z",
+      "requestHeaders": {
+        "content-type": "application/json",
+        "origin": "http://127.0.0.1:5188",
+        "accept": "*/*",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36"
       },
       "outcome": {
         "status": 200,
-        "response_id": "e2e-req-1788185505893-6"
+        "response_id": "e2e-req-1788265820672-7"
       },
-      "requestBody": "{\"message\":\"So sánh trạm S01 và S05 hiện tại\",\"station_id\":null,\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":{\"lat\":20.993,\"lng\":105.946,\"source\":\"default\",\"name\":\"Vị trí của bạn (Ocean Park 1)\"},\"selected_origin\":null},\"conversation_id\":\"conv_1788185475356\"}"
+      "requestBody": "{\"message\":\"So sánh trạm S01 và S05 hiện tại\",\"station_id\":null,\"user_id\":\"00000000-0000-0000-0000-000000000101\",\"map_context\":{\"selected_sensor\":null,\"active_layer\":\"aqi\",\"user_location\":{\"lat\":20.993,\"lng\":105.946,\"source\":\"default\",\"name\":\"Vị trí của bạn (Ocean Park 1)\"},\"selected_origin\":null},\"conversation_id\":\"conv_1788265804258\"}"
     }
   ],
-  "total_proxy_requests": 6,
+  "total_proxy_requests": 7,
   "screenshots": [
     {
       "name": "screenshot_structured_503",
