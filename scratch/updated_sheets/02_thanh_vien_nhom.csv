@@ -1,0 +1,7 @@
+﻿DANH SÁCH THÀNH VIÊN NHÓM P-074,,,,,,,,
+Thông tin thành viên và phân vai trách nhiệm chính thức — Nhóm P-074 Tứ Kỵ Sĩ Khải Huyền,,,,,,,,
+STT,Họ và tên,Vai trò chính,Trách nhiệm chuyên môn,Email,Discord,GitHub,Cam kết (giờ/tuần),Ghi chú
+1,Lê Tuấn Cảnh,Team Lead / Backend & Data / IoT,"Project Management, System Architecture, FastAPI Backend, PostgreSQL DB, HITL Portal, Mosquitto MQTT, Sensor/Device Simulators, Azure Cloud Deployment",le.tuan.canh@vinuni.edu.vn,canh_lead#074,canhle-dev,40,"Owner báo cáo mentor, tích hợp hệ thống, deploy server"
+2,Hán Vũ Long,Integration / AI Engineer,"System Integration, Mosquitto Broker, Paho MQTT Consumer, Forecast Service, Baseline Model Integration, Celery Asynchronous Worker",han.vu.long@vinuni.edu.vn,long_ai#074,long-han,40,"Owner pipeline MQTT, 5 trạm quan trắc, forecast API"
+3,Hoàng Lê Minh,AI Engineer,"LangGraph Orchestrator State Machine, Tool Calling Registry, Grounding Policy Gate (Zero Hallucination), Deterministic Fallback Composer",hoang.le.minh@vinuni.edu.vn,minh_ai#074,minh-hoang,40,"Owner AI Agent evaluation, safety checks, grounding gate"
+4,Phạm Thế Dũng,Frontend / QA Engineer,"React 18 + Vite Dashboard, Leaflet GIS Engine, IDW Spatial Dispersion Heatmap, Device Fast-Polling UI, Test Automation (153 Tests)",pham.the.dung@vinuni.edu.vn,dung_fe#074,dung-pham,40,"Owner Map UI, Station Metrics Drawer, E2E Test Suite"

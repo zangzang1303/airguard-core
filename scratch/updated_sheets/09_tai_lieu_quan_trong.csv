@@ -1,0 +1,10 @@
+﻿DANH SÁCH TÀI LIỆU QUAN TRỌNG DỰ ÁN AIRGUARD AI (P-074),,,,
+"Tập hợp đường link và mô tả toàn bộ tài liệu kỹ thuật, kiến trúc, kiểm thử của dự án",,,,
+STT,Phân loại,Tên tài liệu,Mô tả ngắn gọn,Đường dẫn trong repository
+1,Đặc tả Yêu Cầu,Software Requirements Specification (SRS.md),"Đặc tả 10 Use Cases, 10 Tính năng, 2 Role, User Flows, Mockups chuẩn IEEE 830",SRS.md (hoặc docs/SRS.md)
+2,Kiến Trúc Hệ Thống,Architecture Design Document (ARCHITECTURE.md),"Sơ đồ C4 Model, Monorepo layout, Data flow, Docker topology, Security design",ARCHITECTURE.md
+3,Quy Chuẩn Vận Hành,Agent Handoff & Runbook (AGENTS.md),"Quy tắc Grounding, Fail-closed, 2-role system, Docker runbook, Repository map",AGENTS.md
+4,Nhật Ký Phát Triển,Project Journal & Worklog (JOURNAL.md),"Ghi chép toàn bộ tiến độ làm việc, các quyết định kiến trúc và bài học kinh nghiệm",JOURNAL.md (hoặc WORKLOG.md)
+5,Báo Cáo Kiểm Thử,Technical Metrics Evaluation Report,"Đánh giá chi tiết 153/153 Automated Test Cases, độ trễ API, độ chính xác thuật toán",reports/technical_metrics_evaluation.md
+6,Báo Cáo Tác Động,Business Impact & ESG Metrics Report,"Đánh giá hiệu quả kinh tế, bảo vệ sức khỏe cư dân và giá trị bền vững ESG",reports/business_impact_metrics.md
+7,Quyết Định Kiến Trúc,Architecture Decision Records (ADRs),"Tập hợp 10 bản ghi ADR (FastAPI, PostgreSQL, MQTT, LangGraph, HITL, OSM, v.v.)",adrs/ADR-0001-to-0010.md

@@ -1,0 +1,36 @@
+﻿DANH SÁCH USER STORY / USE CASE,,,,,,,,,
+Mọi tình huống sử dụng cần thực hiện — Mỗi câu chuyện có mã riêng để liên kết với Backlog,,,,,,,,,
+Mã,Tên câu chuyện sử dụng,Mô tả ngắn,Với vai trò,Tôi muốn,Để đạt được,Mức ưu tiên,Trạng thái,Sprint dự kiến,Xem đặc tả
+US-001,Xem PM2.5 trên bản đồ,Hiển thị 5 điểm cảm biến PM2.5 trên bản đồ thật,Cư dân,xem PM2.5 theo từng vị trí,biết khu vực nào nên tránh,Bắt buộc,Chưa làm,Sprint 1,Spec #1
+US-002,Xem lịch sử PM2.5,Xem biểu đồ/lịch sử PM2.5 theo trạm,Cư dân,xem dữ liệu theo thời gian,hiểu xu hướng ô nhiễm,Bắt buộc,Chưa làm,Sprint 1,Spec #1
+US-003,Nhận cảnh báo PM2.5 cao,Tạo cảnh báo khi PM2.5 vượt ngưỡng,Ban quản lý,nhận cảnh báo theo vị trí,phát hiện sớm khu vực rủi ro,Bắt buộc,Chưa làm,Sprint 2,Spec #2
+US-004,Theo dõi trạng thái cảm biến,Phát hiện cảm biến offline hoặc dữ liệu lỗi,Ban quản lý,xem trạng thái cảm biến,không nhầm thiếu dữ liệu là không khí tốt,Bắt buộc,Chưa làm,Sprint 2,Spec #2
+US-005,Hỏi AI Agent về chất lượng không khí,"Agent trả lời dựa trên dữ liệu PM2.5, thời tiết, dự báo",Cư dân,hỏi tình trạng hiện tại và dự báo,nhận giải thích dễ hiểu,Bắt buộc,Chưa làm,Sprint 2,Spec #2
+US-006,Khuyến nghị theo nhóm người dùng,"Khuyến nghị khác nhau cho người thường, nhạy cảm, người tập thể thao",Cư dân,nhận khuyến nghị cá nhân hóa,ra quyết định hoạt động ngoài trời phù hợp,Bắt buộc,Chưa làm,Sprint 3,Spec #2
+US-007,Dự báo PM2.5 1–3 giờ,Dự báo ngắn hạn và đánh giá bằng MAE/RMSE,Ban quản lý,xem xu hướng sắp tới,cảnh báo trước khi tình trạng xấu hơn,Nên có,Chưa làm,Sprint 3,Spec #2
+US-008,Phê duyệt cảnh báo diện rộng,HITL cho cảnh báo gửi tới nhiều người,Ban quản lý,phê duyệt/từ chối cảnh báo,tránh cảnh báo sai hoặc quá nhiều,Nên có,Chưa làm,Sprint 3,Spec #2
+US-009,Phê duyệt lệnh thiết bị giả lập,HITL trước khi gửi lệnh thông gió/lọc khí qua MQTT,Ban quản lý,phê duyệt lệnh thiết bị,đảm bảo AI không tự điều khiển thiết bị,Nên có,Chưa làm,Sprint 3,Spec #2
+US-010,Xem audit log,"Lưu lịch sử cảnh báo, phê duyệt và lệnh thiết bị",Ban quản lý,xem lịch sử thao tác,truy vết quyết định và lỗi,Có thì tốt,Chưa làm,Sprint 4,Spec #2
+US-011,,,,,,,,,
+US-012,,,,,,,,,
+US-013,,,,,,,,,
+US-014,,,,,,,,,
+US-015,,,,,,,,,
+US-016,,,,,,,,,
+US-017,,,,,,,,,
+US-018,,,,,,,,,
+US-019,,,,,,,,,
+US-020,,,,,,,,,
+US-021,,,,,,,,,
+US-022,,,,,,,,,
+US-023,,,,,,,,,
+US-024,,,,,,,,,
+US-025,,,,,,,,,
+US-026,,,,,,,,,
+US-027,,,,,,,,,
+US-028,,,,,,,,,
+THANG MỨC ƯU TIÊN,,,,,,,,,
+Bắt buộc,Sản phẩm không hoạt động nếu thiếu — Phải hoàn thành,,,,,,,,
+Nên có,Tăng giá trị đáng kể nhưng không ảnh hưởng đến hoạt động cốt lõi,,,,,,,,
+Có thì tốt,Làm nếu còn thời gian — Không ảnh hưởng nếu bỏ qua,,,,,,,,
+Không làm,Ngoài phạm vi giai đoạn này,,,,,,,,

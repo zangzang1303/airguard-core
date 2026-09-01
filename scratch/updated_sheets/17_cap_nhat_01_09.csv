@@ -1,0 +1,10 @@
+﻿CẬP NHẬT TIẾN ĐỘ & NGHIỆM THU DỰ ÁN AIRGUARD AI (01/09/2026),,,,
+Tổng kết nghiệm thu Gate 2 và hiện trạng hệ thống triển khai thực tế,,,,
+Hạng mục nghiệm thu,Hiện trạng thực tế,Kết quả kiểm thử,Bằng chứng / Địa chỉ xác thực,Đánh giá
+1. Pipeline IoT & Telemetry,5 trạm đo phát telemetry chu kỳ 15s qua Mosquitto MQTT vào PostgreSQL,"100% dữ liệu hợp lệ, không mất gói tin",Topic: airguard/stations/+/measurements,ĐẠT (Gate 1 & 2)
+2. Bản đồ Realtime & Heatmap IDW,"Giao diện Leaflet hiển thị 5 trạm, mã màu EPA, lớp phủ nhiệt 60x60","Mượt mà 60fps, viền xanh hành lang sạch",https://airguard-074-app.indonesiacentral.cloudapp.azure.com,ĐẠT
+3. Định tuyến chạy sạch OSM,"Thuật toán 2-Leg Penalized Dijkstra chạy trên đồ thị >10,500 cạnh","0% trùng lặp đường cũ, cự ly chuẩn 1-10km",test_osm_routing_aqi_aware.py (12/12 pass),ĐẠT
+4. Trợ lý AI Tiếng Việt Grounded,"LangGraph Agent kết hợp Grounding Gate, gọi 8 backend tools","Zero Hallucination, phản hồi tiếng Việt chuẩn",test_geospatial_agent.py (28/28 pass),ĐẠT
+5. HITL Portal & Device Control,"Manager duyệt đề xuất 1-click, gửi lệnh bật máy lọc qua MQTT","Phản hồi ACK tức thì trong 0.8s, Fast-Polling UI",Container: device-simulator-s01..s05 (Live ACK),ĐẠT
+6. Audit Trail & Báo Cáo ESG,"Bảng audit_logs Append-Only, xuất báo cáo PDF/Excel/CSV/JSON","Lưu vết 100% can thiệp, tính chỉ số ESG","Endpoint: /api/v1/audit/logs, /api/v1/reports",ĐẠT
+7. Triển khai Production Azure Cloud,Đã deploy toàn bộ 8 containers lên Azure Cloud VM B2ms với HTTPS Caddy,153/153 Automated Test Cases Passed (100%),https://airguard-074-app.indonesiacentral.cloudapp.azure.com,XUẤT SẮC

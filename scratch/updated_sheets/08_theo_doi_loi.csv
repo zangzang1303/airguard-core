@@ -1,0 +1,10 @@
+﻿THEO DÕI LỖI & SỰ CỐ HỆ THỐNG (BUG TRACKING) — AIRGUARD AI,,,,,,,
+Toàn bộ các lỗi phát hiện trong quá trình tích hợp đã được phân tích và xử lý dứt điểm (100% Resolved),,,,,,,
+STT,Mã lỗi,Tiêu đề lỗi,Mô tả chi tiết nguyên nhân,Giải pháp khắc phục,Người xử lý,Mức độ,Trạng thái
+1,BUG-001,Frontend trắng màn hình khi tải trang,Lỗi import React hooks thiếu dependency trong Vite build,Refactor component import và khai báo React 18 chuẩn,Phạm Thế Dũng,Nghiêm trọng,Đã xử lý (Closed)
+2,BUG-002,Lỗi kết nối PostgreSQL do thiếu driver async,SQLAlchemy 2.0 yêu cầu async driver psycopg/asyncpg,Cài đặt psycopg[binary] và cấu hình AsyncEngine,Lê Tuấn Cảnh,Cao,Đã xử lý (Closed)
+3,BUG-003,Tuyến đường chạy bị trùng lặp chạy lùi (100% Retracing),Dijkstra thông thường tìm đường A->B khiến runner phải quay đầu,Phát triển thuật toán 2-Leg Penalized Dijkstra phạt 30x chiều về,Lê Tuấn Cảnh,Cao,Đã xử lý (Closed)
+4,BUG-004,AI Agent bị ảo giác số liệu khi LLM ngoài timeout,"Khi OpenAI/Gemini chậm, Agent tự suy luận số liệu",Bổ sung Grounding Policy Gate & Deterministic Fallback Composer,Hoàng Lê Minh,Nghiêm trọng,Đã xử lý (Closed)
+5,BUG-005,Bấm Bật máy lọc trên UI không cập nhật trạng thái ngay,Frontend polling 30s quá chậm để bắt được bản tin ACK MQTT,Bổ sung Fast-Polling chu kỳ 800ms trong 10s khi gửi lệnh,Phạm Thế Dũng,Cao,Đã xử lý (Closed)
+6,BUG-006,Deploy Azure VM thiếu container device-simulator,File docker-compose.public-demo.yml thiếu service device simulator,Cấu hình 5 container device-simulator S01..S05 và redeploy,Lê Tuấn Cảnh,Nghiêm trọng,Đã xử lý (Closed)
+7,BUG-007,Lỗi script deploy SSH do ký tự xuống dòng Windows (CRLF),Deploy script trên Ubuntu VM bị lỗi định dạng CRLF,Chuyển đổi dos2unix (LF) cho bash script và CI/CD workflow,Lê Tuấn Cảnh,Trung bình,Đã xử lý (Closed)

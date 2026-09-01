@@ -1,0 +1,36 @@
+Mẫu báo cáo tuần — Giai đoạn RA,,,
+Nộp hàng ngày qua Daily Standup | Tổng hợp nộp trước mỗi Mentor Meeting (T4 tối),,,
+,,,
+Phần 1: Thông tin cơ bản,,,
+Team:,T-074 / Tứ Kỵ Sĩ Khải Huyền,,
+Tuần:,W3 — cập nhật ngày 10/08/2026,,
+Người báo cáo:,Lê Tuấn Cảnh,,
+Ngày nộp:,10/08/2026,,
+,,,
+Phần 2: Tiến độ,,,
+1,Tích hợp Frontend và Backend,Done,FE-BE đã tích hợp xong và chạy được theo luồng cơ bản
+2,Chuẩn hóa API contract FE-BE,Done,Đã thống nhất format request/response/error và các endpoint chính
+3,AI Agent pipeline,Done,Nhóm hoàn thành tasks Agent; pipeline chạy cơ bản: intent → tool → evidence → trace
+4,Agent tools chính,Done,"get_current_pm25, get_station_history, compare_stations, alerts, profile, proposal, trace"
+5,PostgreSQL,In Progress,"Đang cấu hình database thật, schema/seed và kết nối backend"
+6,Docker Compose,In Progress,"Đang đóng gói frontend, backend, postgres, mosquitto, sensor simulator"
+7,MQTT + Sensor Simulator,In Progress,Cần test lại khi chạy trong Docker và nối DB thật
+8,,,
+Metric,Giá trị,Ghi chú,
+Trạng thái checkpoint,Đang chuyển từ tích hợp sang vận hành local/docker,Ưu tiên E2E chạy chắc trước khi polish,
+Backend local,OK,Swagger /docs trả 200,
+Frontend local,Đang sửa,Từng lỗi trắng màn hình do React import,
+Blocker / Risk,Mức độ,Hướng xử lý,Owner
+Docker/DATABASE_URL khác local,P0,"Dùng service name postgres trong docker-compose, rà .env",Backend
+Chưa chốt schema.sql/seed.sql hay Alembic,P1,Hỏi mentor; đề xuất schema.sql + seed.sql cho MVP,Team Lead
+Full E2E chưa chạy hoàn chỉnh trên Docker,,,
+Sensor Simulator/MQTT cần test lại với Docker,,,
+Repo review từ ChatGPT chưa xác thực trực tiếp,P2,Cần cung cấp ZIP/file tree nếu muốn audit code chi tiết,Team Lead
+,,,
+,,,
+1,Tạo GitHub repo + push skeleton AirGuard AI,Team Lead / Backend,High
+2,Chạy Mosquitto + sensor simulator publish PM2.5,Data / IoT,High
+3,React Leaflet map hiển thị 5 marker mock,Frontend / QA,High
+,,,
+Phần 6: Bằng chứng (Screenshots / Links / File quản trị),,,
+File quản trị: https://docs.google.com/spreadsheets/d/1Ev7LPKwftglGVaGVJkRN9JFRGkX9NJTq/edit | GitHub/demo link sẽ bổ sung sau khi push,,,

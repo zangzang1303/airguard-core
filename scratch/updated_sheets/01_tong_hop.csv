@@ -1,0 +1,18 @@
+﻿HỒ SƠ QUẢN LÝ DỰ ÁN AIRGUARD AI,,,,
+Được cập nhật liên tục bởi Trưởng nhóm và các thành viên,,,,
+Tình hình hiện tại,ĐÃ HOÀN THÀNH 100% TOÀN BỘ MVP & TRIỂN KHAI AZURE CLOUD LIVE,,,
+Tên dự án,AirGuard AI — AI Agent Giám Sát Chất Lượng Không Khí & Điều Khiển Thiết Bị Đô Thị Thông Minh,,,
+Nhóm,P-074 / Tứ Kỵ Sĩ Khải Huyền (AI20K Build Phase Cohort 3),,,
+Ngày bắt đầu,29/07/2026,,,
+Ngày nghiệm thu Gate 2,01/09/2026,,,
+Trạng thái dự án,HOÀN THÀNH (153/153 Automated Tests Passed - 100%),,,
+Địa chỉ Demo Production,https://airguard-074-app.indonesiacentral.cloudapp.azure.com,,,
+Kho lưu trữ GitHub,https://github.com/AI20K-Build-Phase-Cohort-3/P-074,,,
+,,,,
+TÓM TẮT TIẾN ĐỘ THEO WORKSTREAM,,,,
+Workstream,Thành viên phụ trách,Tiến độ,Trạng thái,Ghi chú
+1. Management & Architecture,Lê Tuấn Cảnh (Lead),100%,Hoàn thành,"Project Charter, SRS, Architecture, DB Schema, HITL"
+2. Backend & Data/IoT,Lê Tuấn Cảnh,100%,Hoàn thành,"FastAPI REST, Mosquitto MQTT, Sensor & Device Simulators, DB"
+3. System Integration & Agent,Hán Vũ Long,100%,Hoàn thành,"Paho MQTT, Docker Compose, Forecast Service, Celery Worker"
+4. AI Agent & LLM Tool Calling,Hoàng Lê Minh,100%,Hoàn thành,"LangGraph Orchestrator, Zero-Hallucination Grounding Gate"
+5. Frontend & QA Automation,Phạm Thế Dũng,100%,Hoàn thành,"React 18, Leaflet GIS, Fast-Polling ACK, 153 Tests Passed"

@@ -1,0 +1,13 @@
+﻿TẬP HỢP ĐƯỜNG LINK QUAN TRỌNG DỰ ÁN AIRGUARD AI (P-074),,,,
+"Lưu trữ mọi đường link liên quan đến mã nguồn, triển khai, tài liệu và dashboard vận hành",,,,
+STT,Phân loại,Nội dung / Mô tả,Địa chỉ (URL),Người quản lý
+1,Mã nguồn & CI/CD,Kho lưu trữ GitHub chính thức (Organization Repo),https://github.com/AI20K-Build-Phase-Cohort-3/P-074,Lê Tuấn Cảnh
+2,Mã nguồn & Backup,Kho lưu trữ GitHub dự phòng (Core Repo),https://github.com/zangzang1303/airguard-core,Lê Tuấn Cảnh
+3,Triển khai Trực tiếp,Ứng dụng Production Web Dashboard (Live Cloud),https://airguard-074-app.indonesiacentral.cloudapp.azure.com,Lê Tuấn Cảnh
+4,Tài liệu API,FastAPI Backend Swagger OpenAPI 3.1 Documentation,https://airguard-074-app.indonesiacentral.cloudapp.azure.com/backend/docs,Lê Tuấn Cảnh
+5,Thăm dò Sức khỏe,Backend Liveness Probe & Station Health Check,https://airguard-074-app.indonesiacentral.cloudapp.azure.com/backend/health,Lê Tuấn Cảnh
+6,Dịch vụ AI Agent,AI Agent LangGraph Health & Capabilities Endpoint,https://airguard-074-app.indonesiacentral.cloudapp.azure.com/backend/api/v1/agent/health,Hoàng Lê Minh
+7,Tài liệu SRS,Đặc tả Yêu Cầu Phần Mềm SRS v2.2.0 Chuẩn IEEE 830,https://github.com/AI20K-Build-Phase-Cohort-3/P-074/blob/Canh/SRS.md,Lê Tuấn Cảnh
+8,Kiến trúc Hệ thống,Tài liệu Kiến Trúc & Thiết Kế Monorepo (ARCHITECTURE.md),https://github.com/AI20K-Build-Phase-Cohort-3/P-074/blob/Canh/ARCHITECTURE.md,Lê Tuấn Cảnh
+9,Hướng Dẫn Vận Hành,Agent Handoff & Runbook Vận Hành (AGENTS.md),https://github.com/AI20K-Build-Phase-Cohort-3/P-074/blob/Canh/AGENTS.md,Lê Tuấn Cảnh
+10,Báo Cáo Kỹ Thuật,Technical Metrics Evaluation & Test Reports (153 Tests),https://github.com/AI20K-Build-Phase-Cohort-3/P-074/blob/Canh/reports/technical_metrics_evaluation.md,Phạm Thế Dũng

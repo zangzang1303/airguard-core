@@ -1,0 +1,31 @@
+﻿BACKLOG — QUẢN LÝ CÔNG VIỆC THEO SPRINT,,,,,,,,,,,,,
+"Mọi công việc của dự án, chia theo Sprint, liên kết với User Story, có hạn chót và người phụ trách rõ ràng",,,,,,,,,,,,,
+STT,Mã việc,Tên công việc,Mã US liên quan,Mô tả chi tiết,Sprint,Ưu tiên,Dự kiến (giờ),Người phụ trách,Hạn chót,Trạng thái,Link Spec / PR,Vướng mắc,Ghi chú
+,Sprint 1: Khởi động và Thiết kế (W1-W2),,,,,,,,,,,,
+1.0,T-001,Cập nhật Project Charter,—,"Hoàn thiện vấn đề, giải pháp, SMART, scope, stakeholders, risks",Sprint 1,P0,3.0,Team Lead,02/08/2026,Hoàn thành,,,Đã có nội dung chính; cần bổ sung tên/link thật nếu có
+2.0,T-002,Tạo GitHub repo và cấu trúc dự án,—,"Tạo repo AirGuard AI, branch convention, README ban đầu",Sprint 1,P0,2.0,Team Lead / Backend,02/08/2026,Hoàn thành,,https://github.com/AI20K-Build-Phase-Cohort-3/P-074,Đã merge frontend + backend; cần dán link repo chính thức
+3.0,T-003,Chọn khu vực bản đồ và 5 điểm cảm biến,US-001,"Chọn khu vực thật, lấy tọa độ center và 5 marker PM2.5",Sprint 1,P0,3.0,Frontend / QA,02/08/2026,Hoàn thành,,,Đã chốt 5 điểm sensor mô phỏng; cần xác nhận tọa độ cuối
+4.0,T-004,Thiết kế kiến trúc hệ thống v0.1,—,"Sơ đồ Sensor Simulator, MQTT, FastAPI, PostgreSQL, Forecast, Agent, Dashboard, HITL",Sprint 1,P0,4.0,Team Lead / Backend,03/08/2026,Hoàn thành,,,Đã chốt kiến trúc Sensor Simulator → MQTT → Backend → DB → FE/Agent
+5.0,T-005,Thiết kế database schema ban đầu,"US-001,US-003,US-008","Schema stations, measurements, weather, alerts, users, approvals, devices",Sprint 1,P0,4.0,Backend,03/08/2026,Đang làm,,,Đang chuyển sang PostgreSQL thật; cần schema.sql/seed.sql hoặc migration theo mentor chốt
+,Sprint 2: Phát triển vòng 1 (W2-W3),,,,,,,,,,,,
+6.0,T-006,Dựng MQTT Broker bằng Docker,US-001,"Chạy Mosquitto, topic convention, kiểm tra publish/subscribe",Sprint 2,P0,3.0,Data / IoT,05/08/2026,Hoàn thành,,,QoS 0 cho telemetry
+7.0,T-007,Viết PM2.5 Sensor Simulator,US-001,"Python simulator 5 trạm, publish MQTT mỗi 10–30 giây",Sprint 2,P0,6.0,Data / IoT,06/08/2026,Hoàn thành,,,"Đã mô tả simulator PM2.5 theo base value, rush hour, weather, scenario, noise"
+8.0,T-008,Xây FastAPI endpoint cơ bản,"US-001,US-002","Health, stations, current measurement, history, alerts",Sprint 2,P0,8.0,Backend,07/08/2026,Hoàn thành,,,Backend FastAPI đã có API chính và đã chuẩn hóa contract FE-BE
+9.0,T-009,Prototype React Leaflet map,US-001,Hiển thị bản đồ thật và 5 marker cảm biến mock/realtime,Sprint 2,P0,8.0,Frontend / QA,07/08/2026,Hoàn thành,,,Frontend đã tích hợp với Backend theo API contract; tiếp tục polish UI/error states
+,Sprint 3: Phát triển vòng 2 và Sửa lỗi (W4-W5),,,,,,,,,Đang làm,,,Alert Engine tiếp tục nối với dữ liệu thật/PostgreSQL và scenario
+10.0,T-010,Alert Engine PM2.5,"US-003,US-004","Rule vượt ngưỡng, cảm biến offline, cooldown cảnh báo",Sprint 3,P0,6.0,Backend,14/08/2026,Đang làm,,,Forecast baseline giữ mức cơ bản; ưu tiên E2E trước
+11.0,T-011,Forecast Service baseline,US-007,Dự báo PM2.5 1–3 giờ và tính MAE/RMSE,Sprint 3,P1,8.0,AI / ML,21/08/2026,Hoàn thành,,,Nhóm đã hoàn thành các task chính của Agent; pipeline chạy cơ bản: intent → tool → evidence → trace
+12.0,T-012,AI Agent tool-calling skeleton,"US-005,US-006","Tool lấy PM2.5, history, forecast, weather, user profile, alerts",Sprint 3,P1,8.0,AI / ML,21/08/2026,Chưa làm,,,Agent không tự sinh số liệu
+,Sprint 4: Hoàn thiện và Bàn giao (W6),,,,,,,,,,,,
+13.0,T-013,HITL approval workflow,"US-008,US-009","Approval request, approve/reject, audit log",Sprint 4,P1,8.0,Backend + Frontend,28/08/2026,Chưa làm,,,100% lệnh thiết bị cần approved
+14.0,T-014,Device Simulator qua MQTT,US-009,Thiết bị thông gió/lọc khí giả lập nhận command và trả status,Sprint 4,P2,5.0,Data / IoT,28/08/2026,Chưa làm,,,Không điều khiển thiết bị thật
+15.0,T-015,Docker Compose + README,—,"Đóng gói frontend, backend, postgres, mosquitto, simulator",Sprint 4,P0,6.0,Team Lead / Backend,02/09/2026,Đang làm,,,Đang Docker hóa frontend/backend/postgres/mosquitto/simulator; cần test service network và env
+16.0,T-016,Chuẩn bị demo cuối kỳ,—,"Slide, video dự phòng, kịch bản 5 demo end-to-end",Sprint 4,P0,5.0,Cả nhóm,04/09/2026,Chưa làm,,,Demo script rõ ràng
+17.0,T-017,Celery/RabbitMQ/Redis skeleton optional,—,"Skeleton cho background jobs Agent/Forecast, không bắt buộc Demo 1",Sprint 4,P3,4.0,Backend / AI,Nếu còn thời gian,Chưa làm,,Scope mở rộng,Máy hiện chưa nhận docker command; đang chạy thủ công FE/BE
+18.0,T-018,,,,,,,,,,,,
+19.0,T-019,,,,,,,,,,,,
+18,T-018,Cấu hình PostgreSQL cho MVP,"US-001,US-003,US-008","Tạo schema chính, seed 5 stations, users demo, measurements mẫu, alerts/proposals mẫu nếu cần",Sprint 3,P0,5,Backend,12/08/2026,Đang làm,,Cần chốt schema.sql/seed.sql hay Alembic,Ưu tiên chạy được E2E nhanh
+19,T-019,Docker Compose full stack,—,"Chạy frontend, backend, postgres, mosquitto, sensor simulator bằng docker-compose",Sprint 3,P0,6,Team Lead / Backend,13/08/2026,Đang làm,,Cần kiểm tra DATABASE_URL và service name,Backend trong Docker gọi postgres bằng service name
+20,T-020,E2E demo flow đầu tiên,"US-001,US-005,US-008",Chạy luồng Sensor → MQTT → Backend → PostgreSQL → Frontend → Agent → Proposal,Sprint 3,P0,6,Cả nhóm,14/08/2026,Đang làm,,Cần script demo/frozen data,Mục tiêu checkpoint tới
+21,T-021,Rà soát repo và cập nhật sheet,—,Cập nhật sheet theo tiến độ repo/main và báo cáo nhóm,Sprint 2,P1,2,Team Lead,10/08/2026,Hoàn thành,https://github.com/AI20K-Build-Phase-Cohort-3/P-074/tree/main,Không đọc được repo trực tiếp từ môi trường ChatGPT nếu repo không public/indexed,Đã cập nhật theo thông tin nhóm báo cáo
+24.0,T-024,,,,,,,,,,,,

@@ -1,0 +1,9 @@
+﻿LỘ TRÌNH DỰ ÁN — CÁC MỐC QUAN TRỌNG (MILESTONES),,,,,,
+Tổng hợp các mốc quan trọng và trạng thái hoàn thành thực tế của dự án AirGuard AI P-074,,,,,,
+Mã,Mốc quan trọng,Mô tả chi tiết,Tuần,Thời hạn,Trạng thái,Ghi chú nghiệm thu
+M1,Project Charter & System Scope,"Xác định mục tiêu SMART, phạm vi 5 trạm vi khí hậu, phân vai 4 thành viên",W1,29/07/2026,HOÀN THÀNH,Đã duyệt Project Charter
+M2,Kiến trúc Hệ thống & Data Contracts,"Chốt kiến trúc Monorepo, Database Schema PostgreSQL, MQTT Topics, EPA AQI Formula",W2,05/08/2026,HOÀN THÀNH,Đã duyệt ADR 0001 - 0006
+M3,Telemetry Pipeline & Heatmap IDW (Demo 1),Sensor Simulator -> Mosquitto MQTT -> Consumer -> DB -> FastAPI -> Leaflet Map,W3,12/08/2026,HOÀN THÀNH,Đạt Gate 1 (100% Pipeline chạy thực tế)
+M4,Grounded AI Agent & OSM Clean Routing,"LangGraph State Machine, Zero Hallucination Gate, 2-Leg Penalized Dijkstra OSM",W4,19/08/2026,HOÀN THÀNH,"Định tuyến khép kín 0% lặp, tích phân bụi hít"
+M5,HITL Portal & Điều Khiển Thiết Bị Simulator,"Cổng duyệt 1-click cho Manager, MQTT command dispatcher, Device Simulator ACK 0.8s, Audit log",W5,26/08/2026,HOÀN THÀNH,Đạt 153/153 Tests Passed
+M6,Nghiệm thu Gate 2 & Triển khai Azure Cloud,"Deploy toàn bộ container lên Azure Cloud VM, cấu hình Caddy HTTPS, E2E Verification",W6,01/09/2026,HOÀN THÀNH,Live tại airguard-074-app.indonesiacentral.cloudapp.azure.com

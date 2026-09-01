@@ -1,0 +1,30 @@
+﻿DANH SÁCH TÀI LIỆU QUAN TRỌNG,,,,,,,
+Tập hợp link tới mọi tài liệu dự án — Cập nhật ngay khi có tài liệu mới,,,,,,,
+STT,Phân loại,Tên tài liệu,Mô tả ngắn,Đường link,Người tạo,Ngày tạo,Cập nhật lần cuối
+,Quy trình và Hướng dẫn,,,,,,
+1.0,,Project Charter (Hiến chương dự án),"Mục tiêu, phạm vi, đối tác, chỉ số đo lường thành công",Trong sheet Project Charter / docs,Team Lead,29/07/2026,01/08/2026
+2.0,,Quy chế làm việc nội bộ,"Quy tắc phân việc, họp hành, liên lạc",Trong sheet Hướng dẫn sử dụng / docs,Team Lead,01/08/2026,01/08/2026
+3.0,,Lộ trình 6 tuần (chi tiết),Kế hoạch từng tuần từ W1 đến W6,Trong sheet Lộ trình,Team Lead,01/08/2026,01/08/2026
+,Thiết kế và Đặc tả,,,,,,
+4.0,,Sơ đồ kiến trúc hệ thống,"Kiến trúc tổng thể, các thành phần, luồng dữ liệu",Sẽ bổ sung link Draw.io/Figma,Team Lead,01/08/2026,01/08/2026
+5.0,,Tài liệu thiết kế giải pháp,"Phương án kỹ thuật, công nghệ, data model",Trong sheet Đặc tả tính năng,Team Lead,01/08/2026,01/08/2026
+6.0,,Tài liệu API,Swagger / Postman — Danh sách endpoints,http://127.0.0.1:8000/docs khi chạy local,Backend,10/08/2026,10/08/2026
+7.0,,Sơ đồ cơ sở dữ liệu,"ER diagram, cấu trúc bảng, quan hệ",Sẽ bổ sung ERD/schema.sql/seed.sql sau khi chốt PostgreSQL,Backend,10/08/2026,10/08/2026
+8.0,,Thiết kế giao diện (Wireframes),Figma / design files — Mô phỏng giao diện,Figma + Frontend đã tích hợp ở mức cơ bản,Frontend,10/08/2026,10/08/2026
+,Báo cáo và Biên bản họp,,,,,,
+9.0,,Biên bản họp với đối tác,Ghi chép mọi buổi gặp với stakeholder,Sẽ bổ sung sau coaching,Team Lead,01/08/2026,
+10.0,,Báo cáo phản hồi Demo 1,Phản hồi từ đối tác sau buổi demo lần 1,Sẽ bổ sung sau Demo 1,Team Lead,Sau Demo 1,
+11.0,,Báo cáo phản hồi Demo 2,Phản hồi từ đối tác sau buổi demo lần 2,Sẽ bổ sung sau Demo 2,Team Lead,Sau Demo 2,
+12.0,,Báo cáo tuần,Tổng hợp tình hình từng tuần gửi mentor,Weekly submit đã chuẩn bị,Team Lead,01/08/2026,01/08/2026
+,Tài liệu kỹ thuật,,,,,,
+13,Tài liệu kỹ thuật,API Convention FE-BE,"Quy chuẩn response, endpoint, error format giữa frontend và backend",Trong sheet API Convention,Team Lead / Backend,10/08/2026,10/08/2026
+14,Tài liệu kỹ thuật,Agent Tools,"Danh sách tool, input/output, guardrail và trace",Trong sheet Agent Tools,AI / Team Lead,10/08/2026,10/08/2026
+15,Tài liệu kỹ thuật,Agent Definition,"Định nghĩa Supervisor, Sensor, Weather, Forecast, Risk, Recommendation, Proposal, Response, Trace Agent",Trong sheet Agent Definition,AI / Team Lead,10/08/2026,10/08/2026
+16,Tài liệu kỹ thuật,Docker/PostgreSQL Plan,"Kế hoạch cấu hình Docker Compose, PostgreSQL, schema/seed và E2E",Cần bổ sung vào README/docs,Backend / Team Lead,10/08/2026,10/08/2026
+17,Repo,GitHub P-074 main,Repo project chính của nhóm,https://github.com/AI20K-Build-Phase-Cohort-3/P-074/tree/main,Team Lead,10/08/2026,10/08/2026
+17.0,,Báo cáo tác động (Impact Report),"Chỉ số đo lường, kết quả thực tế, bài học",[Dán link vào đây],[Họ tên],,
+18.0,,Slide thuyết trình cuối kỳ,Slide cho buổi đánh giá cuối kỳ,[Dán link vào đây],[Họ tên],,
+19.0,,Kịch bản demo,Kịch bản chi tiết cho Demo 1 và Demo 2,[Dán link vào đây],[Họ tên],,
+Agent Definition,Mô tả từng agent trong hệ thống AirGuard AI,Agent Definition,Google Sheet tab,06/08/2026,AI/ML + Backend,Mới cập nhật,Dùng khi triển khai Agent tool-calling
+Agent Tools,"Tool contract chính thức: input/output, endpoint, guardrail, test case",Agent Tools,Google Sheet tab,06/08/2026,AI/ML + Backend,Đã cập nhật,Dùng để FE/BE/Agent thống nhất
+Đặc tả tính năng,"Feature spec MVP: Dashboard, Data, Agent, HITL, Admin scope",Đặc tả tính năng,Google Sheet tab,06/08/2026,Team,Đã cập nhật,Phục vụ mentor review

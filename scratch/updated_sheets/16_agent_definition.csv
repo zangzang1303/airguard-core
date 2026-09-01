@@ -1,0 +1,8 @@
+﻿AGENT ARCHITECTURE & POLICY DEFINITION — AIRGUARD AI,,,,
+Đặc tả kiến trúc LangGraph State Machine và Cổng kiểm soát chống ảo giác,,,,
+Thành phần / Node,Loại hình,Vai trò & Nhiệm vụ cốt lõi,Đầu vào (Input State),Đầu ra (Output State)
+Supervisor / Router,LLM Orchestrator,"Phân tích Intent người dùng, bóc tách thực thể trạm/cự ly, chọn Tool phù hợp","messages, user_profile, context","detected_intent, tool_calls[]"
+Tool Execution Node,Deterministic Executor,Thực thi các Tool calling backend truy vấn cơ sở dữ liệu PostgreSQL SoR,"tool_calls, parameters","tool_results, observations"
+Grounding Policy Gate,Safety Validator,Kiểm tra 100% phát ngôn chứa số liệu phải có chứng cứ từ tool_results (Zero Hallucination),"draft_response, tool_results","grounding_pass: bool, verified_facts"
+Response Composer,Natural Language Generator,"Soạn câu trả lời bằng tiếng Việt thân thiện, rõ ràng, đính kèm thẻ dữ liệu trực quan","verified_facts, intent","final_message, ui_cards[]"
+Deterministic Fallback,Rule-based Switcher,"Kích hoạt khi LLM ngoài timeout (>8.0s) hoặc mất mạng, tổng hợp trực tiếp từ Tool","tool_results, error_context",fallback_message (100% No 5xx Error)

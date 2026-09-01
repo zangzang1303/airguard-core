@@ -1,0 +1,23 @@
+﻿BACKLOG — QUẢN LÝ CÔNG VIỆC THEO SPRINT (AIRGUARD AI),,,,,,
+Toàn bộ các đầu việc kỹ thuật đã hoàn thành 100% trong 6 tuần phát triển,,,,,,
+Mã Task,Tên công việc,Mã UC / US,Mô tả chi tiết kỹ thuật,Người phụ trách,Ưu tiên,Trạng thái
+T-001,Khởi tạo Project Charter & SRS,All,"Hoàn thiện vấn đề, giải pháp SMART, phạm vi, use cases",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-002,Tạo Repo & Docker Compose,All,"Khởi tạo monorepo, Docker Compose 8 containers, Caddy proxy",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-003,Database Schema & Idempotent Seed,UC-01..10,"Tạo schema PostgreSQL: stations, measurements, alerts, proposals, audit_logs",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-004,Sensor Simulator & MQTT Mosquitto,UC-01,"Mô phỏng 5 trạm vi khí hậu đo PM2.5, CO2, noise, temp, pub chu kỳ 15s",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-005,MQTT Consumer & Data Quality Gate,UC-01,"Validate schema, lọc dữ liệu stale/invalid, lưu measurements vào PostgreSQL",Hán Vũ Long,Cao,Hoàn thành
+T-006,FastAPI Core REST Endpoints,"UC-01,02","Cung cấp API GET /stations, /current, /history, /forecast chuẩn OpenAPI 3.1",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-007,React 18 + Leaflet GIS Dashboard,UC-01,Render 5 trạm trên bản đồ Ocean Park 1 với mã màu phân cấp US EPA 2012,Phạm Thế Dũng,Cao,Hoàn thành
+T-008,Nội suy không gian IDW Heatmap,UC-01,"Tính ma trận ô lưới 60x60, hiển thị lớp phủ nhiệt và viền hành lang sạch",Phạm Thế Dũng,Trung bình,Hoàn thành
+T-009,Station Metrics Drawer & Biểu đồ Recharts,UC-02,"Ngăn chi tiết trạm trượt từ bên phải, biểu đồ 24h và khối dự báo 1-24h",Phạm Thế Dũng,Trung bình,Hoàn thành
+T-010,Alert Evaluation Engine & Cooldown 15m,UC-03,"Phát hiện ô nhiễm sau 2 lần đo liên tiếp, lọc spam bằng Cooldown Policy",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-011,Đồ thị đường thực tế OSM Ocean Park 1,UC-05,"Trích xuất đồ thị giao thông OSM >10,500 cạnh và 3,200 nút giao",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-012,Thuật toán 2-Leg Penalized Dijkstra Routing,UC-05,"Định tuyến chạy sạch khép kín tuần hoàn S->W->S, 0% chạy lùi trùng đường",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-013,Tích phân liều lượng bụi mịn hít vào,UC-05,"Tính M_inhaled (microgram) dựa trên vận tốc, thể tích thông khí phổi",Hán Vũ Long,Trung bình,Hoàn thành
+T-014,LangGraph AI Agent & Tool Calling,UC-04,"Xây dựng State Machine đàm thoại tiếng Việt, gọi 8 Backend Tools chuẩn hóa",Hoàng Lê Minh,Cao,Hoàn thành
+T-015,Grounding Policy Gate (Zero Hallucination),UC-04,"Thẩm định 100% số liệu môi trường từ DB SoR, từ chối bịa đặt số liệu",Hoàng Lê Minh,Cao,Hoàn thành
+T-016,Cổng Phê Duyệt HITL 1-Click cho Manager,UC-08,"Giao diện thẩm định chứng cứ (Evidence Card), API Approve/Reject an toàn",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-017,Device Simulator & Điều Khiển Máy Lọc,UC-07,"Mô phỏng 5 cụm máy lọc FILTER-S01..S05, nhận lệnh MQTT, phản hồi ACK 0.8s",Lê Tuấn Cảnh,Cao,Hoàn thành
+T-018,Fast-Polling UI cho điều khiển thiết bị,UC-07,Cập nhật trạng thái máy lọc tức thì trong 800ms mà không cần reload trang,Phạm Thế Dũng,Cao,Hoàn thành
+T-019,Nhật ký kiểm toán bất biến Append-Only,UC-09,Bảng audit_logs lưu vết toàn bộ can thiệp hệ thống kèm request_id,Lê Tuấn Cảnh,Cao,Hoàn thành
+T-020,Triển khai Production Azure Cloud VM,All,"Deploy Docker Compose trên Azure VM B2ms, HTTPS Caddy, E2E Test Suite",Lê Tuấn Cảnh,Cao,Hoàn thành

@@ -1,0 +1,24 @@
+﻿TẬP HỢP ĐƯỜNG LINK QUAN TRỌNG,,,,,
+Lưu mọi đường link liên quan đến dự án — Cập nhật ngay khi có link mới,,,,,
+STT,Phân loại,Nội dung / Mô tả,Địa chỉ (URL),Người quản lý,Ghi chú
+,Mã nguồn và Triển khai,,,,
+1.0,,Kho lưu mã nguồn (GitHub Repository),Sẽ bổ sung sau khi push GitHub,Team Lead / Backend,Chưa có link chính thức
+2.0,,Địa chỉ sản phẩm (Production),Chưa triển khai,Team Lead / Backend,Mục tiêu sau Demo 2
+3.0,,Địa chỉ thử nghiệm (Staging),Chưa triển khai,Team Lead / Backend,Có thể dùng local/Docker trước
+4.0,,Quy trình tự động (CI/CD Pipeline),Chưa cấu hình,Team Lead / Backend,Không bắt buộc Demo 1
+5.0,,Trang giám sát hệ thống (Monitoring),Chưa có,Team Lead / Backend,Không thuộc ưu tiên hiện tại
+,Tài liệu thiết kế,,,,
+6.0,,Sơ đồ kiến trúc hệ thống,Sẽ bổ sung Figma/mockup,Frontend / QA,React Leaflet prototype trước
+7.0,,Thiết kế giao diện (UI/UX),Sẽ bổ sung Swagger/Postman,Backend,Sau khi có FastAPI endpoints
+8.0,,Tài liệu API,Sẽ bổ sung ERD/SQL schema,Backend,Schema ban đầu đã xác định
+9.0,,Sơ đồ cơ sở dữ liệu,[Dán link vào đây],[Họ tên],
+,Liên lạc và Hợp tác,,,,
+10.0,,Kênh Discord nhóm,Sẽ bổ sung link Meet/Zoom,Team Lead,Cần nhóm cập nhật
+11.0,,Kênh họp trực tuyến (Teams/Zoom),Link Drive hiện tại: https://docs.google.com/spreadsheets/d/1Ev7LPKwftglGVaGVJkRN9JFRGkX9NJTq/edit,Team Lead,File quản lý dự án
+12.0,,Ổ đĩa dùng chung (Google Drive),Sẽ bổ sung sau buổi mentor,Team Lead,Biên bản coaching
+,Đối tác (Stakeholder),,,,
+13.0,,Biên bản họp với đối tác,,,
+14.0,,Báo cáo phản hồi từ đối tác,,,
+15.0,,,,,
+16.0,,,,,
+17.0,,,,,

@@ -1,0 +1,16 @@
+﻿API CONVENTION & CONTRACT — QUY CHUẨN KẾT NỐI BACKEND (OPENAPI 3.1),,,,,
+Toàn bộ các endpoint REST API được chuẩn hóa dưới tiền tố /api/v1,,,,,
+Phương thức,Endpoint URL,Mô tả chức năng,Quyền truy cập (RBAC),Payload / Params,Response mẫu
+GET,/api/v1/stations,Lấy danh mục 5 trạm quan trắc vi khí hậu,Public / Resident / Manager,None,"[{""station_id"": ""S01"", ""name"": ""KTX VinUni"", ""pm25"": 12.4, ""aqi"": 35}]"
+GET,/api/v1/stations/{id}/current,Lấy dữ liệu 4 thông số đo lường mới nhất,Public / Resident / Manager,station_id (path),"{""pm25"": 12.4, ""co2"": 420.0, ""noise_db"": 52.4, ""temperature"": 28.5, ""aqi"": 35}"
+GET,/api/v1/stations/{id}/history,Lấy chuỗi thời gian lịch sử phục vụ vẽ biểu đồ,Public / Resident / Manager,hours=24 (query),"{""station_id"": ""S01"", ""measurements"": [...]}"
+GET,/api/v1/stations/{id}/forecast,Lấy dự báo xu hướng vi khí hậu 1-24 giờ,Public / Resident / Manager,station_id (path),"{""station_id"": ""S01"", ""horizon_hours"": 24, ""forecasts"": [...]}"
+POST,/api/v1/routing/clean-route,Sinh tuyến đường thể thao sạch khép kín OSM,Resident / Runner,"{""start_point"": [20.98, 105.94], ""target_km"": 5.0}","{""route_id"": ""RT-01"", ""coordinates"": [...], ""total_km"": 5.0, ""inhaled_dose_ug"": 4.8}"
+POST,/api/v1/agent/chat,Hội thoại Trợ lý AI đa lượt có kiểm chứng,Public / Resident / Manager,"{""message"": ""Không khí San Hô thế nào?"", ""user_group"": ""normal""}","{""reply"": ""Trạm San Hô hiện có AQI 68..."", ""evidence"": {...}}"
+GET,/api/v1/alerts,Lấy danh sách các cảnh báo ô nhiễm đang mở,Public / Resident / Manager,status=active (query),"[{""alert_id"": ""ALT-01"", ""station_id"": ""S04"", ""severity"": ""WARNING""}]"
+GET,/api/v1/approvals,Lấy danh sách đề xuất can thiệp đang chờ duyệt,Manager Only,status=pending (query),"[{""proposal_id"": ""PROP-01"", ""evidence"": {...}, ""action"": ""ventilation_boost""}]"
+POST,/api/v1/approvals/{id}/approve,Phê duyệt đề xuất can thiệp 1-click,Manager Only,"proposal_id (path), {""note"": ""Đã duyệt""}","{""status"": ""approved"", ""approved_by"": ""manager"", ""audit_id"": ""AUD-01""}"
+POST,/api/v1/approvals/{id}/reject,Từ chối đề xuất can thiệp kèm lý do,Manager Only,"proposal_id (path), {""reject_reason"": ""Bảo trì trạm""}","{""status"": ""rejected"", ""review_note"": ""Bảo trì trạm""}"
+POST,/api/v1/devices/{id}/manual-control,Điều khiển thủ công máy lọc không khí mô phỏng,Manager Only,"device_id (path), {""action"": ""ventilation_boost""}","{""device_id"": ""FILTER-S01"", ""status"": ""RUNNING_BOOST"", ""ack_status"": ""succeeded""}"
+GET,/api/v1/audit/logs,Tra cứu nhật ký kiểm toán bất biến Append-Only,Manager Only,limit=50 (query),"[{""audit_id"": ""AUD-01"", ""actor_id"": ""manager"", ""action"": ""PROPOSAL_APPROVE""}]"
+GET,/api/v1/reports,Tổng hợp và xuất báo cáo môi trường / ESG,Manager Only,"type=monthly_esg, format=pdf",File Stream PDF / Excel / CSV / JSON

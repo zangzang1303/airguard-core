@@ -1,0 +1,17 @@
+﻿PROJECT CHARTER — HIẾN CHƯƠNG DỰ ÁN AIRGUARD AI (P-074),,,,
+Mẫu theo chuẩn quản lý dự án PMP — Dự án AirGuard AI Cohort 3,,,,
+1. Thông tin dự án,,,,
+Tên dự án,AirGuard AI — AI Agent Giám Sát Chất Lượng Không Khí & Điều Khiển Thiết Bị Đô Thị Thông Minh,,,
+Nhóm thực hiện,P-074 / Tứ Kỵ Sĩ Khải Huyền (AI20K Build Phase Cohort 3),,,
+Người lập,Lê Tuấn Cảnh (Team Lead),,,
+Ngày lập & cập nhật,29/07/2026 — Nghiệm thu: 01/09/2026,,,
+Phiên bản,2.2.0 (Final Release),,,
+2. Lý do thực hiện & Mục tiêu,,,,
+Vấn đề thực tế,"Khu đô thị Vinhomes Ocean Park 1 có tính chất vi khí hậu đặc thù (biển hồ nước mặn 6.1ha, hồ ngọc trai 24.5ha) khiến chất lượng không khí từng phân khu khác biệt lớn so với trạm khí tượng nội đô. Cư dân thiếu công cụ đo vi khí hậu siêu cục bộ để chọn đường chạy bộ an toàn; Ban quản lý thiếu công cụ phát hiện ô nhiễm tức thì và cơ chế thẩm định can thiệp thiết bị thông gió.",,,
+Giải pháp AirGuard AI,"Xây dựng hệ thống quan sát vi khí hậu thời gian thực với 5 trạm quan trắc (S01-S05), thuật toán định tuyến chạy bộ sạch khép kín 0% lặp trên đồ thị đường thực OSM, Trợ lý AI tiếng Việt có căn cứ số liệu 100% (Zero Hallucination), Cổng quản trị HITL 1-click và điều khiển trực tiếp hệ thống máy lọc không khí qua MQTT.",,,
+Mục tiêu SMART,"Xây dựng hoàn chỉnh MVP Monorepo trong 6 tuần, đạt 100% 10 Use Cases, 153/153 Automated Tests Passed, phản hồi API < 200ms, phản hồi ACK thiết bị < 1.0s, triển khai live trên Azure Cloud VM.",,,
+3. Thành viên & Trách nhiệm,,,,
+1. Lê Tuấn Cảnh,Team Lead / Backend & Data / IoT,"Kiến trúc hệ thống, FastAPI Backend, PostgreSQL DB, HITL Portal, Mosquitto MQTT, Simulators, Azure VM",40h/tuần,Hoàn thành 100%
+2. Hán Vũ Long,Integration / AI Engineer,"Tích hợp hệ thống, Mosquitto Broker, Paho MQTT Consumer, Forecast Service, Celery Worker",40h/tuần,Hoàn thành 100%
+3. Hoàng Lê Minh,AI Engineer,"LangGraph State Machine, Tool Calling Registry, Grounding Policy Gate, Deterministic Fallback",40h/tuần,Hoàn thành 100%
+4. Phạm Thế Dũng,Frontend / QA Engineer,"React 18 Dashboard, Leaflet GIS Engine, IDW Spatial Heatmap, Fast-Polling UI, Test Automation",40h/tuần,Hoàn thành 100%

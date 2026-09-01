@@ -1,0 +1,11 @@
+﻿LỘ TRÌNH DỰ ÁN — CÁC MỐC CHÍNH,,,,,,,,
+Tổng hợp các mốc quan trọng — Cập nhật trạng thái ngay khi đạt được,,,,,,,,
+Mã,Mốc quan trọng,Mô tả chi tiết,Tuần,Từ ngày,Đến ngày,Người chịu trách nhiệm,Trạng thái,Kết quả giao nộp
+M1,Hoàn thành Project Charter,"Mục tiêu, phạm vi, SMART, stakeholders, risks, tiêu chí thành công đã cập nhật",W1,25/07/2026,31/07/2026,Team Lead,Hoàn thành,Project Charter
+M2,Chốt kiến trúc và khu vực bản đồ,"Chọn bản đồ thật, 5 điểm cảm biến, kiến trúc v0.1, schema DB",W2,01/08/2026,07/08/2026,Cả nhóm,Hoàn thành,"Architecture, schema, tọa độ cảm biến"
+M3,Hoàn thành Demo 1 data-to-map,Sensor Simulator → MQTT → FastAPI → PostgreSQL → React Leaflet Map,W3,08/08/2026,14/08/2026,Cả nhóm,Đang làm,"Demo 1: FE-BE đã tích hợp, API chuẩn hóa, Agent pipeline cơ bản; đang nối Docker/PostgreSQL/E2E"
+M4,Hoàn thành cảnh báo và dự báo cơ bản,"Alert Engine, dự báo PM2.5 1–3 giờ, MAE/RMSE baseline",W4,15/08/2026,21/08/2026,AI/ML + Backend,Đang làm,Alert Engine + Forecast baseline tiếp tục sau khi PostgreSQL/E2E ổn định
+M5,Hoàn thành Agent và HITL,"AI Agent tool-calling, approval workflow, device simulator qua MQTT",W5,22/08/2026,28/08/2026,Backend + AI + Frontend,Đang làm,Agent pipeline cơ bản đã xong; tiếp tục Warning Proposal + HITL với DB thật
+M6,Hoàn thiện sản phẩm và deploy,"Docker Compose, README, test report, demo script",W6,29/08/2026,02/09/2026,Cả nhóm,Đang làm,"Đang chuẩn bị Docker Compose, README, PostgreSQL, demo script"
+M7,Đánh giá cuối kỳ,"Báo cáo tác động, slide, video demo dự phòng",W6,03/09/2026,04/09/2026,Cả nhóm + Mentor,Chưa bắt đầu,"Slide, impact report"
+M8,Cải tiến sau demo,"Tổng hợp phản hồi, đề xuất mở rộng PM10/CO2/route optimization",W6,04/09/2026,04/09/2026,Cả nhóm,Chưa bắt đầu,Backlog mở rộng

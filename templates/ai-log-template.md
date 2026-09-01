@@ -1,1 +1,0 @@
-﻿# AI Work Log\n\n## Date / agent / machine\n## Goal\n## Context read\n## Files changed\n## Decisions and rationale\n## Commands/tests run and results\n## Contracts/risks changed\n## Blockers/open questions\n## Next exact step\n## Handoff IDs (request/message/proposal/job)\n

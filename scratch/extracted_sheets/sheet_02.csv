@@ -1,0 +1,15 @@
+﻿DANH SÁCH THÀNH VIÊN NHÓM,,,,,,,,
+Thông tin thành viên và phân vai — Cập nhật khi có thay đổi nhân sự,,,,,,,,
+STT,Họ và tên,Vai trò chính,Vai trò phụ,Email,Discord,GitHub,Cam kết (giờ/tuần),Ghi chú
+1.0,Lê Tuấn Cảnh,Team Lead / Backend & Data / IoT,"Project management, architecture, FastAPI, DB, HITL, MQTT, sensor simulator, weather API",,,,40.0,Owner báo cáo mentor và tích hợp hệ thống
+2.0,Hán Vũ Long,Integration / AI Engineer,"Forecast Service, AI Agent, metrics",,,,40.0,"Owner Mosquitto, Paho MQTT, 5 trạm PM2.5"
+3.0,Hoàng Lê Minh,AI  Engineer,"Forecast Service, AI Agent, metrics",,,,40.0,"Owner MAE/RMSE, Agent tools, forecast baseline"
+4.0,Phạm Thế Dũng,Frontend / QA Engineer,"React Leaflet, charts, QA",,,,40.0,"Owner map dashboard, UI, test cases"
+BẢNG THAM KHẢO PHÂN VAI,,,,,,,,
+Vai trò,Trách nhiệm chính,Kỹ năng cần có,Công việc cụ thể trong giai đoạn RA,,,,,
+Team Lead / Backend,"Điều phối dự án, báo cáo mentor, chốt quyết định, tích hợp hệ thống","FastAPI, PostgreSQL, Docker, quản lý task","Project Charter, API contract, schema, HITL, integration",,,,,
+Data / IoT Engineer,Thu thập và mô phỏng dữ liệu môi trường,"Python, MQTT, API, data validation","Mosquitto, Paho MQTT, sensor simulator, weather collector",,,,,
+Frontend / QA Engineer,Xây dựng giao diện và kiểm thử luồng người dùng,"React, Leaflet, chart, testing","Map dashboard, marker PM2.5, history chart, test case",,,,,
+AI / ML Engineer,Xây dựng dự báo và AI Agent,"Python, ML baseline, LLM tool calling","Forecast PM2.5, MAE/RMSE, Agent tool specs",,,,,
+Backend / DevOps hỗ trợ,Đóng gói và triển khai hệ thống,"Docker, GitHub, REST API","docker-compose, README, environment setup",,,,,
+Kiểm thử / Tài liệu,"Kiểm thử sản phẩm, báo cáo lỗi, viết tài liệu","Test case, tài liệu kỹ thuật","README, bug tracking, demo script",,,,,

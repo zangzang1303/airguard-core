@@ -1,0 +1,58 @@
+﻿HƯỚNG DẪN SỬ DỤNG TEMPLATE,,,,
+Đọc kỹ trước khi bắt đầu điền — Tránh sai sót và tận dụng tối đa các tính năng,,,,
+A. TỔNG QUAN VỀ TEMPLATE,,,,
+Mục đích,"Template này là hồ sơ quản lý dự án duy nhất của nhóm. Mọi thông tin về tiến độ, công việc, lỗi, và tài liệu đều được ghi nhận tại đây. Trưởng nhóm chịu trách nhiệm cập nhật liên tục.",,,
+Nguyên tắc cốt lõi,"• Chỉ có 1 bản duy nhất — không tách file, không copy
+• Cập nhật ít nhất 1 lần/ngày trong giờ làm việc
+• Mọi thành viên đều đọc được, chỉ Trưởng nhóm và người được ủy quyền mới sửa",,,
+Đối tượng sử dụng,"• Trưởng nhóm: Quản lý, phân việc, báo cáo
+• Thành viên: Xem công việc, cập nhật trạng thái
+• Mentor: Theo dõi tiến độ, đánh giá
+• Đối tác (Stakeholder): XemDemo, phản hồi",,,
+B. HƯỚNG DẪN TỪNG SHEET,,,,
+1. Tổng hợp,"• Điền thông tin dự án ở phần đầu (tên, nhóm, ngày, trưởng nhóm)
+• Chọn ""Tình hình hiện tại"" ở ô B3: Đúng tiến độ / Có rủi ro / Bị kẹt
+• Các chỉ số ở dưới sẽ tự động đếm từ các sheet khác (không cần điền tay)
+• Cập nhật trạng thái Sprint khi bắt đầu/kết thúc mỗi Sprint",,,
+2. Đường link quan trọng,"• Dán mọi link liên quan vào đúng phân loại
+• Khi thêm link mới, điền ngay ""Người quản lý"" để biết ai phụ trách
+• Xóa placeholder [Dán link vào đây] khi đã điền link thật",,,
+3. Thành viên nhóm,"• Điền đủ 4 thành viên với vai trò chính xác
+• Tham khảo bảng phân vai bên dưới để hiểu trách nhiệm mỗi vai
+• Cập nhật nếu có thay đổi nhân sự",,,
+4. Danh sách User Story,"• Viết theo cấu trúc: ""Với vai trò [X], tôi muốn [Y], để đạt được [Z]""
+• Chọn Mức ưu tiên từ dropdown: Bắt buộc / Nên có / Có thì tốt / Không làm
+• Mã US (US-001, US-002...) dùng để liên kết với Backlog và Đặc tả",,,
+5. Lộ trình,"• 8 mốc quan trọng đã được tạo sẵn theo quy trình 6 tuần
+• Cập nhật ngày cụ thể khi bắt đầu dự án
+• Chuyển trạng thái sang ""Hoàn thành"" ngay khi đạt được mốc",,,
+6. Backlog,"• Đây là sheet quan trọng nhất — Phân công và theo dõi mọi công việc
+• Mỗi việc phải có: Mã US liên quan, Người phụ trách, Hạn chót, Trạng thái
+• Ưu tiên P0 = phải làm ngay, P3 = làm nếu còn thời gian
+• Trạng thái sẽ tự đổi màu: Xanh = Hoàn thành, Vàng = Đang làm, Đỏ = Bị kẹt",,,
+7. Đặc tả tính năng,"• Viết đặc tả theo 3 phần: Động lực → Thiết kế → Kế hoạch
+• Mỗi tính năng quan trọng cần có 1 đặc tả riêng
+• Liên kết mã US và mã Task từ Backlog để dễ tra cứu",,,
+8. Theo dõi lỗi,"• Báo lỗi ngay khi phát hiện — không đợi
+• Điền đủ ""Cách tái hiện"" để người sửa hiểu rõ vấn đề
+• Chọn Mức nghiêm trọng phù hợp (xem thang đo ở cuối sheet)
+• Màu tự động hiện: Đỏ = Nghiêm trọng, Vàng = Trung bình, Xanh = Thấp",,,
+9. Tài liệu quan trọng,"• Lưu link mọi tài liệu dự án theo đúng phân loại
+• Cập nhật ""Cập nhật lần cuối"" mỗi khi sửa tài liệu
+• Đây là nơi duy nhất để tìm tài liệu — không để link rải rác ở Discord/Email",,,
+C. MẸO SỬ DỤNG HIỆU QUẢ,,,,
+Dropdown tự động,"Nhiều cột đã có sẵn danh sách chọn (Priority, Status, Severity). Nhấn vào ô và chọn từ dropdown — không gõ tay để tránh sai chính tả.",,,
+Màu sắc tự động,"Trạng thái sẽ tự đổi màu theo giá trị:
+• Xanh lá = Hoàn thành / Thấp
+• Vàng = Đang làm / Trung bình
+• Đỏ = Bị kẹt / Nghiêm trọng / P0",,,
+Công thức tự động,Một số ô ở sheet Tổng hợp sẽ tự động đếm số lượng từ các sheet khác. KHÔNG sửa các ô có công thức (bắt đầu bằng dấu =).,,,
+Liên kết giữa các sheet,"Mã User Story (US-001) xuất hiện ở 4 sheet: Danh sách US, Backlog, Đặc tả, và Theo dõi lỗi. Dùng mã này để tra cứu chéo.",,,
+Quy trình hàng ngày,"1. Sáng: Mở file, kiểm tra công việc hôm nay trong Backlog
+2. Trong ngày: Cập nhật trạng thái công việc khi thay đổi
+3. Chiều: Báo cáo standup dựa trên thông tin trong file
+4. Tối: Trưởng nhóm kiểm tra và tổng hợp",,,
+D. LƯU Ý QUAN TRỌNG,,,,
+Không xóa dòng có sẵn,"Các dòng đã có mã (US-001, T-001, BUG-001) được giữ sẵn để điền. Chỉ cần điền nội dung, không cần thêm dòng mới trừ khi hết chỗ.",,,
+Luôn lưu (Ctrl+S),"Nếu dùng Google Sheets, dữ liệu tự lưu. Nếu dùng Excel, nhớ lưu thường xuyên.",,,
+Bảo mật,Không chia sẻ file công khai. Chỉ chia sẻ cho thành viên nhóm và mentor.,,,

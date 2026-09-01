@@ -1,0 +1,12 @@
+﻿AGENT TOOLS — REGISTRY CÔNG CỤ CHUẨN HÓA CỦA TRỢ LÝ AI (P-074),,,,,
+Tập hợp 8 Tools backend chính thức — Nguồn chứng cứ dữ liệu duy nhất cho AI Agent,,,,,
+Tên Tool,Mục đích & Chức năng,Đầu vào bắt buộc,Đầu vào tùy chọn,Đầu ra chuẩn hóa,Cơ chế kiểm soát an toàn
+get_current_pm25,"Lấy chỉ số PM2.5, AQI và 4 thông số của trạm",station_id (str),None,"{""station_id"", ""pm25"", ""co2"", ""noise"", ""temp"", ""aqi"", ""status""}",Từ chối nếu trạm offline/stale >300s
+get_station_history,Lấy chuỗi thời gian lịch sử của trạm,station_id (str),hours (int = 24),"{""station_id"", ""measurements"": [...]}",Giới hạn tối đa 72 giờ lịch sử
+compare_stations,So sánh chất lượng không khí giữa các trạm,station_ids (list),metrics (list),"{""comparison"": [{""station"", ""aqi"", ""pm25"", ""rank""}]}",Sắp xếp trạm sạch nhất đến ô nhiễm nhất
+get_weather_context,"Lấy thông tin thời tiết vi mô (gió, nhiệt, ẩm)",None,station_id,"{""temperature"", ""humidity"", ""wind_speed"", ""wind_dir""}",Dữ liệu Open-Meteo kết hợp cảm biến
+get_pm25_forecast,Lấy dự báo xu hướng vi khí hậu 1-24 giờ tới,station_id (str),horizon_hours (int = 24),"{""station_id"", ""forecasts"": [{""hour"", ""pm25"", ""trend""}]}",Quality gate: Cần >=3 điểm đo hợp lệ
+get_active_alerts,Lấy danh sách các cảnh báo ô nhiễm đang kích hoạt,None,"severity, station_id","{""alerts"": [{""alert_id"", ""station"", ""severity"", ""msg""}]}",Chỉ trả về cảnh báo đang active
+get_user_profile,Lấy thông tin nhóm thể trạng sức khỏe người dùng,user_id / token,None,"{""user_id"", ""group"": ""sensitive""|""normal"", ""prefs""}",Bảo mật thông tin cá nhân
+recommend_running_route,Định tuyến đường chạy sạch khép kín 0% lặp,"start_point, target_km","user_group, activity_mode","{""route_id"", ""polyline"", ""total_km"", ""inhaled_dose_ug""}",Đồ thị đường thực OSM >10k cạnh
+create_warning_proposal,Tạo đề xuất can thiệp pending cho Manager duyệt,"station_id, evidence, reason",action_type,"{""proposal_id"", ""status"": ""pending"", ""created_at""}",AI không có quyền tự approve
