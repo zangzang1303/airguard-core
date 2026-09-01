@@ -41,7 +41,7 @@
   - [5.6 Quy Trình Phê Duyệt Cảnh Báo Human-in-the-Loop 1-Click (F-06)](#56-quy-trình-phê-duyệt-cảnh-báo-human-in-the-loop-1-click-f-06)
   - [5.7 Nhật Ký Kiểm Toán Bất Biến Append-Only & Tuân Thủ (F-07)](#57-nhật-ký-kiểm-toán-bất-biến-append-only--tuân-thủ-f-07)
   - [5.8 Cá Nhân Hóa Hồ Sơ Sức Khỏe & Nhóm Nhạy Cảm (F-08)](#58-cá-nhân-hóa-hồ-sơ-sức-khỏe--nhóm-nhạy-cảm-f-08)
-  - [5.9 Dự Báo Chất Lượng Không Khí Ngắn Hạn 1-3 Giờ (F-09)](#59-dự-báo-chất-lượng-không-khí-ngắn-hạn-1-3-giờ-f-09)
+  - [5.9 Dự Báo Chất Lượng Không Khí 1-24 Giờ (F-09)](#59-dự-báo-chất-lượng-không-khí-1-24-giờ-f-09)
   - [5.10 Tự Động Hóa Báo Cáo Môi Trường & Phát Hành Đa Kênh (F-10)](#510-tự-động-hóa-báo-cáo-môi-trường--phát-hành-đa-kênh-f-10)
 - [6. Thiết Kế UI/UX, Luồng Trải Nghiệm & Bản Vẽ Giao Diện (UI/UX Design)](#6-thiết-kế-uiux-luồng-trải-nghiệm--bản-vẽ-giao-diện-uiux-design)
   - [6.1 Luồng Trải Nghiệm Người Dùng (User Flows)](#61-luồng-trải-nghiệm-người-dùng-user-flows)
@@ -152,7 +152,7 @@ AirGuard AI được thiết kế theo kiến trúc Monorepo phân tán đa cont
 - **F-06**: Cổng phê duyệt Human-in-the-Loop (HITL) 1-click dành cho Quản trị viên.
 - **F-07**: Nhật ký kiểm toán bất biến (Append-Only Audit Logging) lưu vết 100% can thiệp.
 - **F-08**: Cá nhân hóa định tuyến an toàn theo nhóm sức khỏe người dùng (`normal`, `sensitive`, `outdoor_sport`).
-- **F-09**: Dự báo xu hướng chất lượng không khí ngắn hạn 1-3 giờ có cổng kiểm soát chất lượng (Quality Gate).
+- **F-09**: Dự báo xu hướng chất lượng không khí ngắn hạn 1-24 giờ có cổng kiểm soát chất lượng (Quality Gate).
 - **F-10**: Tự động tổng hợp báo cáo môi trường định kỳ và gửi thông báo đa kênh.
 
 ### 2.3 Chân dung người dùng & Đặc tính (User Classes & Personas)
@@ -174,7 +174,7 @@ Hệ thống AirGuard AI phân quyền người dùng thành **02 Vai trò cốt
      +----------------------------------+          +----------------------------------+
      | - Quan sát AQI, PM2.5, CO2, nhiệt|          | - Phê duyệt đề xuất AI (HITL)    |
      | - Bản đồ nhiệt IDW & trạm chi    |          | - Điều khiển máy lọc mô phỏng    |
-     |   tiết 24h/dự báo 1-3h           |          | - Truy vết nhật ký kiểm toán     |
+     |   tiết 24h/dự báo 1-24h           |          | - Truy vết nhật ký kiểm toán     |
      | - Hỏi đáp Trợ lý AI tiếng Việt   |          |   bất biến (Audit Log)           |
      | - Tìm đường chạy bộ sạch khép kín|          | - Xuất báo cáo môi trường & ESG  |
      | - Tùy biến cảnh báo cá nhân      |          | - Ghi đè kịch bản thử nghiệm     |
@@ -213,7 +213,7 @@ Hệ thống AirGuard AI phân quyền người dùng thành **02 Vai trò cốt
 
 ### 3.1 Giao diện người dùng tổng thể (User Interfaces)
 - `REQ-IF-UI-01`: Bản đồ GIS tương tác trung tâm hiển thị trực quan 5 trạm quan trắc (S01 KTX VinUni, S02 Biển Hồ, S03 San Hô, S04 Sao Biển, S05 Kỹ Thuật) với mã màu phân cấp chất lượng không khí chuẩn US EPA.
-- `REQ-IF-UI-02`: Bảng điều khiển phân tích chi tiết trạm (Station Metrics Drawer) trượt từ cạnh phải, hiển thị đồng thời 4 chỉ số đo lường (PM2.5, CO2, Tiếng ồn, Nhiệt độ), biểu đồ 24h và dự báo 1-3h.
+- `REQ-IF-UI-02`: Bảng điều khiển phân tích chi tiết trạm (Station Metrics Drawer) trượt từ cạnh phải, hiển thị đồng thời 4 chỉ số đo lường (PM2.5, CO2, Tiếng ồn, Nhiệt độ), biểu đồ 24h và dự báo 1-24h.
 - `REQ-IF-UI-03`: Ngăn hội thoại Trợ lý AI (AI Assistant Drawer) cho phép cư dân nhập câu hỏi tiếng Việt tự nhiên, có các thẻ gợi ý nhanh (Quick Prompts) và hiển thị kết quả phân tích kèm thao tác chiếu tuyến đường trực tiếp lên bản đồ.
 - `REQ-IF-UI-04`: Lớp hiển thị đường chạy sạch (Clean Route Layer) vẽ đường dẫn khép kín nổi bật, hiển thị cờ xuất phát Start/Finish, các trạm quan trắc đi qua, cự ly chuẩn hóa và ước tính lượng bụi hít vào ($\mu g$).
 - `REQ-IF-UI-05`: Cổng Quản trị Phê duyệt (HITL Approval Portal) dành riêng cho Manager để rà soát đề xuất, thẩm tra bằng chứng quan trắc và thực hiện duyệt/từ chối 1-click.
@@ -244,7 +244,7 @@ Hệ thống cung cấp chuẩn OpenAPI 3.1 qua tiền tố `/api/v1`:
 - `GET /api/v1/stations`: Danh mục 5 trạm quan trắc kèm trạng thái kết nối mới nhất.
 - `GET /api/v1/stations/{id}/current`: Dữ liệu vi khí hậu mới nhất và chỉ số AQI EPA.
 - `GET /api/v1/stations/{id}/history?hours=24`: Lịch sử quan trắc 24 giờ phục vụ vẽ biểu đồ xu hướng.
-- `GET /api/v1/stations/{id}/forecast`: Dự báo xu hướng chất lượng không khí trong 1-3 giờ tới.
+- `GET /api/v1/stations/{id}/forecast`: Dự báo xu hướng chất lượng không khí trong 1-24 giờ tới.
 - `POST /api/v1/agent/chat`: Xử lý hội thoại AI đa lượt, trích xuất intent và định tuyến lộ trình sạch.
 - `GET /api/v1/approvals`: Danh sách các đề xuất can thiệp đang chờ Quản lý xử lý.
 - `POST /api/v1/approvals/{id}/approve`: Phê duyệt đề xuất, phát lệnh MQTT và gửi email thông báo cư dân.
@@ -273,7 +273,7 @@ flowchart LR
 
     subgraph CoreDomain [Miền Chức Năng Cư Dân & Quan Sát]
         UC01(["UC-01: Giám Sát Bản Đồ Realtime & Heatmap IDW"])
-        UC02(["UC-02: Tra Cứu Chi Tiết Trạm, Lịch Sử 24h & Dự Báo 1-3h"])
+        UC02(["UC-02: Tra Cứu Chi Tiết Trạm, Lịch Sử 24h & Dự Báo 1-24h"])
         UC03(["UC-03: Tiếp Nhận Cảnh Báo Môi Trường & Cooldown"])
         UC04(["UC-04: Đàm Thoại Trợ Lý AI Tiếng Việt Grounded"])
         UC05(["UC-05: Định Tuyến Đường Chạy Sạch Khép Kín OSM"])
@@ -311,8 +311,8 @@ flowchart LR
 
 | Mã Use Case | Tên Use Case | Cư Dân Đô Thị (Resident) | Quản Lý Đô Thị (Urban Manager / BQL) | Mô tả quyền hạn & Ranh giới |
 |---|---|:---:|:---:|---|
-| **UC-01** | Giám Sát Bản Đồ Môi Trường Realtime & Heatmap IDW | ✔ Toàn quyền xem | ✔ Toàn quyền xem | Xem 5 trạm quan trắc, mã màu AQI EPA, lớp phủ nội suy không gian IDW và dự báo 0-3h. |
-| **UC-02** | Tra Cứu Chi Tiết Trạm, Lịch Sử 24h & Dự Báo 1-3h | ✔ Toàn quyền xem | ✔ Toàn quyền xem | Mở Station Drawer, xem 4 thông số (PM2.5, CO2, Noise, Temp), biểu đồ chuỗi thời gian 24h. |
+| **UC-01** | Giám Sát Bản Đồ Môi Trường Realtime & Heatmap IDW | ✔ Toàn quyền xem | ✔ Toàn quyền xem | Xem 5 trạm quan trắc, mã màu AQI EPA, lớp phủ nội suy không gian IDW và dự báo 0-24h. |
+| **UC-02** | Tra Cứu Chi Tiết Trạm, Lịch Sử 24h & Dự Báo 1-24h | ✔ Toàn quyền xem | ✔ Toàn quyền xem | Mở Station Drawer, xem 4 thông số (PM2.5, CO2, Noise, Temp), biểu đồ chuỗi thời gian 24h. |
 | **UC-03** | Tiếp Nhận Cảnh Báo Môi Trường Tự Động & Cooldown | ✔ Nhận cảnh báo | ✔ Nhận cảnh báo | Nhận thông báo vi phạm ngưỡng theo 4 cấp độ kèm khuyến nghị an toàn; tự động lọc chống spam. |
 | **UC-04** | Đàm Thoại Trợ Lý AI Tiếng Việt Grounded | ✔ Chat & Tương tác | ✔ Chat & Tương tác | Hỏi đáp tự nhiên tiếng Việt, AI kích hoạt Tool calling truy vấn DB SoR, cam kết Zero Hallucination. |
 | **UC-05** | Định Tuyến Tuyến Đường Chạy Sạch Khép Kín OSM | ✔ Tạo & Chọn lộ trình | ✔ Xem & Thử nghiệm | Sinh lộ trình thể thao $0\%$ trùng lặp ($1 \to 10\text{km}$), tính tích phân liều lượng bụi mịn hít vào ($\mu g$). |
@@ -344,16 +344,16 @@ flowchart LR
 
 ---
 
-#### Bảng UC-02: Tra Cứu Chi Tiết Trạm, Xu Hướng Lịch Sử 24h & Dự Báo 1-3 Giờ
+#### Bảng UC-02: Tra Cứu Chi Tiết Trạm, Xu Hướng Lịch Sử 24h & Dự Báo 1-24 Giờ
 | Thuộc tính | Nội dung đặc tả chi tiết |
 |---|---|
 | **Mã Use Case** | `UC-02` |
-| **Tên Use Case** | **Tra Cứu Chi Tiết Trạm, Xu Hướng Lịch Sử 24h & Dự Báo 1-3 Giờ** |
+| **Tên Use Case** | **Tra Cứu Chi Tiết Trạm, Xu Hướng Lịch Sử 24h & Dự Báo 1-24 Giờ** |
 | **Actor Chính** | Cư dân đô thị (Resident), Quản lý đô thị (Urban Manager) |
-| **Mục đích** | Cung cấp bảng điều khiển chi tiết về một trạm đo cụ thể gồm 4 chỉ số vi khí hậu thực tế, biểu đồ chuỗi thời gian 24 giờ qua và mô hình dự báo xu hướng 1-3 giờ tới. |
+| **Mục đích** | Cung cấp bảng điều khiển chi tiết về một trạm đo cụ thể gồm 4 chỉ số vi khí hậu thực tế, biểu đồ chuỗi thời gian 24 giờ qua và mô hình dự báo xu hướng 1-24 giờ tới. |
 | **Tiền điều kiện** | Trạm đo được chọn tồn tại trong hệ thống (S01 đến S05). |
 | **Kích hoạt** | Người dùng bấm vào marker trạm trên bản đồ hoặc chọn trạm từ danh sách giám sát. |
-| **Luồng sự kiện chính** | 1. Ngăn chi tiết trạm (Station Metrics Drawer) trượt ra từ cạnh phải màn hình.<br/>2. Hệ thống gọi đồng thời các API: `GET /stations/{id}/current`, `GET /stations/{id}/history?hours=24`, `GET /stations/{id}/forecast`.<br/>3. Hiển thị 4 thẻ thông số đo lường: Bụi mịn PM2.5 ($\mu g/m^3$), Khí CO2 ($ppm$), Tiếng ồn ($dB$), Nhiệt độ (°C) kèm nhãn đánh giá an toàn.<br/>4. Vẽ biểu đồ đường biểu diễn sự biến thiên nồng độ PM2.5 trong 24 giờ qua.<br/>5. Hiển thị khối dự báo 1-3 giờ kế tiếp với dự báo điểm, khoảng tin cậy và xu hướng (tăng/giảm/ổn định).<br/>6. Hiển thị nút bấm tiện ích "Hỏi AI về trạm này". |
+| **Luồng sự kiện chính** | 1. Ngăn chi tiết trạm (Station Metrics Drawer) trượt ra từ cạnh phải màn hình.<br/>2. Hệ thống gọi đồng thời các API: `GET /stations/{id}/current`, `GET /stations/{id}/history?hours=24`, `GET /stations/{id}/forecast`.<br/>3. Hiển thị 4 thẻ thông số đo lường: Bụi mịn PM2.5 ($\mu g/m^3$), Khí CO2 ($ppm$), Tiếng ồn ($dB$), Nhiệt độ (°C) kèm nhãn đánh giá an toàn.<br/>4. Vẽ biểu đồ đường biểu diễn sự biến thiên nồng độ PM2.5 trong 24 giờ qua.<br/>5. Hiển thị khối dự báo 1-24 giờ kế tiếp với dự báo điểm, khoảng tin cậy và xu hướng (tăng/giảm/ổn định).<br/>6. Hiển thị nút bấm tiện ích "Hỏi AI về trạm này". |
 | **Luồng thay thế** | **A1 - Chuyển tiếp ngữ cảnh sang Trợ lý AI**: Người dùng bấm "Hỏi AI về trạm này", hệ thống mở AI Drawer và tự động nạp toàn bộ số liệu của trạm vào ngữ cảnh hội thoại. |
 | **Luồng ngoại lệ** | **E1 - Không đủ dữ liệu lịch sử để dự báo**: Khối dự báo hiển thị thông báo "Đang tích lũy dữ liệu chuỗi thời gian (cần tối thiểu 3 chu kỳ đo hợp lệ)". |
 | **Hậu điều kiện** | Người dùng hiểu sâu diễn biến vi khí hậu tại khu vực sinh sống hoặc làm việc. |
@@ -455,7 +455,7 @@ flowchart LR
 | **Mục đích** | Cung cấp cổng thẩm định nghiêm ngặt có con người giám sát (Human-in-the-Loop) để Quản lý đô thị rà soát chứng cứ khoa học trước khi phê duyệt phát thông báo khẩn hoặc kích hoạt hệ thống thông gió/lọc khí, đảm bảo AI không bao giờ tự ý can thiệp nguy hiểm. |
 | **Tiền điều kiện** | AI Agent đã phát hiện chất lượng không khí suy giảm liên tục và tạo ra một đề xuất ở trạng thái `pending`. Quản lý đã đăng nhập quyền `manager`. |
 | **Kích hoạt** | Quản lý truy cập vào Cổng Phê Duyệt (`/approvals`). |
-| **Luồng sự kiện chính** | 1. Quản lý mở danh sách các đề xuất đang chờ xử lý (`pending`).<br/>2. Quản lý bấm vào đề xuất để xem thẻ thẩm định chứng cứ (Evidence Card): Nồng độ PM2.5/CO2, thời điểm đo, xu hướng dự báo 1-3h, trạm vi phạm và hành động đề xuất.<br/>3. Quản lý kiểm tra và bấm nút **[PHÊ DUYỆT (APPROVE)]**.<br/>4. Hệ thống hiển thị hộp thoại xác nhận 1-click.<br/>5. Server-side cập nhật trạng thái đề xuất thành `approved`, ghi nhận `approved_by` và thời gian duyệt.<br/>6. Server tự động kích hoạt: Phát lệnh MQTT điều khiển thiết bị lọc khí và/hoặc gửi email thông báo cư dân khu vực qua Resend API.<br/>7. Hệ thống tự động ghi nhật ký bất biến vào bảng `audit_logs`.<br/>8. Màn hình chuyển sang trạng thái thành công kèm mã tham chiếu kiểm toán. |
+| **Luồng sự kiện chính** | 1. Quản lý mở danh sách các đề xuất đang chờ xử lý (`pending`).<br/>2. Quản lý bấm vào đề xuất để xem thẻ thẩm định chứng cứ (Evidence Card): Nồng độ PM2.5/CO2, thời điểm đo, xu hướng dự báo 1-24h, trạm vi phạm và hành động đề xuất.<br/>3. Quản lý kiểm tra và bấm nút **[PHÊ DUYỆT (APPROVE)]**.<br/>4. Hệ thống hiển thị hộp thoại xác nhận 1-click.<br/>5. Server-side cập nhật trạng thái đề xuất thành `approved`, ghi nhận `approved_by` và thời gian duyệt.<br/>6. Server tự động kích hoạt: Phát lệnh MQTT điều khiển thiết bị lọc khí và/hoặc gửi email thông báo cư dân khu vực qua Resend API.<br/>7. Hệ thống tự động ghi nhật ký bất biến vào bảng `audit_logs`.<br/>8. Màn hình chuyển sang trạng thái thành công kèm mã tham chiếu kiểm toán. |
 | **Luồng thay thế** | **A1 - Quản lý Từ chối (Reject)**: Quản lý nhận thấy số liệu không thuyết phục hoặc trạm đang bảo trì. Quản lý bấm **[TỪ CHỐI (REJECT)]** $\to$ Bắt buộc nhập lý do từ chối $\to$ Trạng thái chuyển thành `rejected` $\to$ **Tuyệt đối không phát lệnh MQTT và không gửi email**. |
 | **Luồng ngoại lệ** | **E1 - Xung đột phê duyệt đồng thời (HTTP 409 Conflict)**: Một Quản lý khác đã xử lý đề xuất trước đó vài giây. Hệ thống thông báo xung đột và tự động làm mới danh sách. |
 | **Hậu điều kiện** | Đề xuất được giải quyết dứt điểm; can thiệp được thực thi có kiểm soát và lưu vết kiểm toán 100%. |
@@ -629,7 +629,7 @@ Cùng một mức chất lượng không khí (ví dụ $AQI = 110$), đối v�
 
 ---
 
-### 5.9 Dự Báo Chất Lượng Không Khí Ngắn Hạn 1-3 Giờ (F-09)
+### 5.9 Dự Báo Chất Lượng Không Khí 1-24 Giờ (F-09)
 
 #### 1. Vấn đề của Người dùng (User Pain Point)
 Chất lượng không khí biến động liên tục theo giờ trong ngày. Cư dân nhìn thấy hiện tại trời trong xanh nhưng không biết 1-2 tiếng nữa bụi mịn có tăng vọt hay không để kịp hoàn thành buổi tập thể dục ngoài trời.
@@ -678,7 +678,7 @@ sequenceDiagram
     User->>UI: Bấm "Xem chi tiết trạm"
     UI->>API: GET /stations/S02/current & /history & /forecast
     API-->>UI: Trả về bộ dữ liệu chi tiết
-    UI->>UI: Trượt mở Station Metrics Drawer (Biểu đồ 24h & Dự báo 1-3h)
+    UI->>UI: Trượt mở Station Metrics Drawer (Biểu đồ 24h & Dự báo 1-24h)
 ```
 
 ---
@@ -884,7 +884,7 @@ sequenceDiagram
 |    0 +-------------------------------------------------------->                                                         |
 |       12:00    16:00    20:00    00:00    04:00    08:00   12:00                                                        |
 +-------------------------------------------------------------------------------------------------------------------------+
-| DỰ BÁO XU HƯỚNG 1 - 3 GIỜ TIẾP THEO (Quality Gate Passed):                                                              |
+| DỰ BÁO XU HƯỚNG 1-24 GIỜ TIẾP THEO (Quality Gate Passed):                                                              |
 | - Sau 1 giờ (+1h): PM2.5 dự kiến ~ 16.5 ug/m3 (AQI ~ 45) -> Ổn định                                                     |
 | - Sau 2 giờ (+2h): PM2.5 dự kiến ~ 18.0 ug/m3 (AQI ~ 50) -> Tăng nhẹ do gió chuyển hướng                               |
 | - Sau 3 giờ (+3h): PM2.5 dự kiến ~ 15.0 ug/m3 (AQI ~ 42) -> Giảm trở lại                                                |
@@ -1095,7 +1095,7 @@ Toàn bộ các yêu cầu chức năng, thuật toán định tuyến và ca s�
 | `REQ-F-06` / `UC-08` | Phê duyệt cảnh báo & can thiệp HITL 1-Click | `backend/app/routes/proposals.py`, `main.py` | `test_manager_activity_log.py`, `test_person_b_api_security.py` | **100% PASS** |
 | `REQ-F-07` / `UC-09` | Nhật ký kiểm toán bất biến Append-Only | `backend/db/schema.sql`, `audit_service.py` | `test_manager_activity_log.py`, `test_report_api_security.py` | **100% PASS** |
 | `REQ-F-08` / `UC-06` | Cá nhân hóa hồ sơ sức khỏe & Nhóm nhạy cảm | `clean_running_route_service.py`, `user_service.py` | `test_running_route_engine.py::test_health_profile_sensitive_penalty` | **100% PASS** |
-| `REQ-F-09` / `UC-03` | Dự báo chất lượng không khí ngắn hạn 1-3h | `temporal_resolver.py`, `forecast_service.py` | `test_osm_routing_aqi_aware.py::test_forecast_horizon_quality_gate` | **100% PASS** |
+| `REQ-F-09` / `UC-03` | Dự báo chất lượng không khí ngắn hạn 1-24h | `temporal_resolver.py`, `forecast_service.py` | `test_osm_routing_aqi_aware.py::test_forecast_horizon_quality_gate` | **100% PASS** |
 | `REQ-F-10` | Báo cáo môi trường & gửi email Resend | `report_publication_service.py`, `resend_provider.py` | `test_report_generator.py`, `test_resend_provider.py` | **100% PASS** |
 | `REQ-AI-01` | Cổng kiểm soát chống ảo giác (Grounding Gate) | `src/agents/policies/grounding.py`, `response_composer.py` | `test_geospatial_agent.py`, `test_social_intent_and_fallback.py` | **100% PASS** |
 | **TỔNG HỢP** | **Toàn Bộ 10 Ca Sử Dụng & 10 Tính Năng Cốt Lõi** | **Hệ thống Full-Stack Monorepo AirGuard AI** | **153 Automated Test Cases** | **153/153 PASS (100%)** |
