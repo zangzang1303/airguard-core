@@ -657,7 +657,28 @@ Chất lượng không khí biến động liên tục theo giờ trong ngày. C
 
 ### 6.1 Luồng Trải Nghiệm Người Dùng (User Flows)
 
-#### User Flow 1: Cư Dân Tra Cứu AQI & Khám Phá Vi Khí Hậu Toàn Khu
+Hệ thống cung cấp **06 Luồng Trải Nghiệm Người Dùng Cốt Lõi (User Flows)**, ánh xạ hoàn chỉnh tới **10 Use Cases (UC-01 đến UC-10)** và **02 Vai Trò Người Dùng (Cư Dân Đô Thị & Quản Lý Đô Thị)**:
+
+```
+                  AIRGUARD AI - TỔNG QUAN 06 USER FLOWS
+   +-------------------------------------------------------------------+
+   |                    VAI TRÒ: CƯ DÂN ĐÔ THỊ (RESIDENT)              |
+   |                                                                   |
+   | [User Flow 1] Tra cứu AQI, Heatmap IDW & Chi tiết trạm (UC-01, 02)|
+   | [User Flow 2] Hỏi đáp Trợ lý AI & Định tuyến chạy sạch (UC-04, 05)|
+   | [User Flow 3] Cài đặt hồ sơ sức khỏe & Nhận cảnh báo (UC-03, 06)  |
+   +-------------------------------------------------------------------+
+   |                 VAI TRÒ: QUẢN LÝ ĐÔ THỊ (URBAN MANAGER)           |
+   |                                                                   |
+   | [User Flow 4] Điều khiển thủ công máy lọc không khí (UC-07)       |
+   | [User Flow 5] Thẩm định & Phê duyệt đề xuất HITL 1-click (UC-08)  |
+   | [User Flow 6] Truy vết kiểm toán & Xuất báo cáo ESG (UC-09, 10)   |
+   +-------------------------------------------------------------------+
+```
+
+---
+
+#### User Flow 1: Cư Dân Tra Cứu AQI, Xem Bản Đồ Nhiệt IDW & Chi Tiết Trạm (UC-01, UC-02)
 
 ```mermaid
 sequenceDiagram
@@ -669,76 +690,111 @@ sequenceDiagram
 
     User->>UI: Truy cập ứng dụng (/dashboard)
     UI->>API: GET /api/v1/stations
-    API->>DB: Truy vấn 5 trạm & đo lường mới nhất
-    DB-->>API: Danh sách trạm kèm PM2.5, AQI, status
-    API-->>UI: Trả về JSON 5 trạm
-    UI->>UI: Render bản đồ Leaflet & gắn 5 Marker mã màu EPA
-    User->>UI: Bấm vào Marker trạm S02 (Biển Hồ)
-    UI->>UI: Hiển thị Popup tóm tắt chỉ số & nhãn Simulator
-    User->>UI: Bấm "Xem chi tiết trạm"
-    UI->>API: GET /stations/S02/current & /history & /forecast
-    API-->>UI: Trả về bộ dữ liệu chi tiết
+    API->>DB: Truy vấn 5 trạm & số liệu vi khí hậu mới nhất
+    DB-->>API: Danh sách 5 trạm kèm PM2.5, CO2, noise, temp, AQI EPA
+    API-->>UI: Trả về JSON 5 trạm (S01 - S05)
+    UI->>UI: Kết xuất bản đồ GIS Leaflet & 5 Marker mã màu EPA
+    User->>UI: Bật lớp "Bản đồ nhiệt IDW" & kéo thanh thời gian dự báo
+    UI->>UI: Nội suy ma trận ô lưới 60x60, hiển thị Heatmap & viền hành lang sạch
+    User->>UI: Bấm vào Marker trạm S02 (Biển Hồ Nước Mặn)
+    UI->>UI: Hiển thị Popup tóm tắt chỉ số & nhãn minh bạch Simulator
+    User->>UI: Bấm nút "Xem chi tiết trạm"
+    UI->>API: GET /stations/S02/current & /history?hours=24 & /forecast
+    API-->>UI: Trả về dữ liệu 4 thông số, chuỗi thời gian 24h & dự báo 1-24h
     UI->>UI: Trượt mở Station Metrics Drawer (Biểu đồ 24h & Dự báo 1-24h)
 ```
 
 ---
 
-#### User Flow 2: Runner Yêu Cầu Trợ Lý AI Sinh Tuyến Đường Chạy Sạch Khép Kín
+#### User Flow 2: Cư Dân Hỏi Đáp Trợ Lý AI & Định Tuyến Đường Chạy Sạch Khép Kín (UC-04, UC-05)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Runner as 🏃 Vận Động Viên (Runner)
-    participant UI as 🖥️ AI Drawer & Map
-    participant Agent as 🤖 LangGraph Agent
+    actor Resident as 🏃 Cư Dân / Runner
+    participant UI as 🖥️ AI Drawer & Leaflet Map
+    participant Agent as 🤖 LangGraph AI Agent
     participant RouteService as 🧭 OSM Route Service
     participant DB as 🗄️ PostgreSQL SoR
 
-    Runner->>UI: Mở AI Assistant Drawer
-    Runner->>UI: Nhập: "Gợi ý đường chạy 5km quanh hồ sạch bụi"
-    UI->>Agent: POST /api/v1/agent/chat {query, user_group: "outdoor_sport"}
-    Agent->>Agent: Phân tích Intent: RouteRequest (distance=5km, mode=running)
-    Agent->>RouteService: Call Tool: clean_running_route(S, target=5km)
+    Resident->>UI: Mở AI Assistant Drawer
+    Resident->>UI: Nhập: "Gợi ý đường chạy 5km sạch bụi quanh hồ Ngọc Trai cho người nhạy cảm"
+    UI->>Agent: POST /api/v1/agent/chat {query, user_group: "sensitive"}
+    Agent->>Agent: Phân tích Intent: RouteRequest (distance=5km, group=sensitive)
+    Agent->>RouteService: Call Tool: recommend_running_route(S, target=5km, penalty=2.0x)
     RouteService->>DB: Lấy nồng độ PM2.5 mới nhất của 5 trạm
-    RouteService->>RouteService: 2-Leg Penalized Dijkstra trên đồ thị OSM (>10k cạnh)
+    RouteService->>RouteService: 2-Leg Penalized Dijkstra trên đồ thị đường thực OSM (>10k cạnh)
     RouteService->>RouteService: Khép kín chu kỳ S -> W -> S (0% trùng lặp)
-    RouteService->>RouteService: Tính Inhaled PM2.5 Dose (microgram)
+    RouteService->>RouteService: Tích phân liều lượng bụi mịn hít vào M_inhaled (microgram)
     RouteService-->>Agent: Trả về Polyline tọa độ & Thông số vận động
-    Agent->>Agent: Grounding Policy Gate thẩm định phản hồi
+    Agent->>Agent: Cổng kiểm soát căn cứ (Grounding Gate) thẩm định 100% số liệu
     Agent-->>UI: Phản hồi văn bản tiếng Việt + Thẻ Tuyến Đường (Route Card)
-    UI->>UI: Vẽ Polyline khép kín lên bản đồ Leaflet & Căn chỉnh fitBounds
-    UI->>UI: Hiển thị cờ Start/Finish & Thống kê an toàn hô hấp
+    UI->>UI: Vẽ Polyline khép kín lên bản đồ Leaflet & Căn chỉnh khung hình fitBounds
+    UI->>UI: Hiển thị cờ Start/Finish & Thẻ phân tích an toàn hô hấp
 ```
 
 ---
 
-#### User Flow 3: Tiếp Nhận Cảnh Báo & Điều Chỉnh Hồ Sơ Nhóm Nhạy Cảm
+#### User Flow 3: Cư Dân Thiết Lập Hồ Sơ Sức Khỏe & Nhận Cảnh Báo Ô Nhiễm (UC-03, UC-06)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Sensitive as 🧒 Cư Dân Nhạy Cảm
-    participant UI as 🖥️ Web App
+    actor Resident as 🧒 Cư Dân (Resident)
+    participant UI as 🖥️ Web Dashboard
     participant API as ⚙️ FastAPI Backend
+    participant AlertEngine as ⚡ Alert Evaluation Engine
     participant DB as 🗄️ PostgreSQL SoR
 
-    Note over API,DB: Trạm S04 vượt ngưỡng PM2.5 > 55.4 ug/m3
-    API->>DB: Tạo cảnh báo mới (Alert Engine Cooldown 15m)
+    Note over AlertEngine,DB: Sensor S04 đo PM2.5 > 50 ug/m3 (2 lần liên tiếp)
+    AlertEngine->>DB: Kiểm tra Cooldown 15m & Tạo cảnh báo mới (active)
     DB-->>UI: Đẩy thông báo Toast: "Cảnh báo chất lượng không khí Kém tại Sao Biển"
-    Sensitive->>UI: Bấm vào thông báo cảnh báo
-    UI->>UI: Focus bản đồ vào trạm S04 & mở khuyến nghị hô hấp
-    Sensitive->>UI: Truy cập Hồ sơ cá nhân (/profile)
-    Sensitive->>UI: Chuyển đổi nhóm sức khỏe sang "sensitive"
-    Sensitive->>UI: Bấm "Lưu thay đổi"
-    UI->>API: PATCH /api/v1/users/profile {group: "sensitive"}
-    API->>DB: Cập nhật cấu hình người dùng
+    Resident->>UI: Bấm vào thông báo cảnh báo
+    UI->>UI: Focus bản đồ vào trạm S04 & mở khuyến nghị an toàn hô hấp
+    Resident->>UI: Mở modal "Hồ Sơ Sức Khỏe" (/profile)
+    Resident->>UI: Chuyển đổi nhóm sức khỏe sang "sensitive" (Nhạy cảm hô hấp)
+    Resident->>UI: Bật nhận thông báo khẩn cấp & Bản tin thời tiết hàng ngày
+    Resident->>UI: Bấm "Lưu Thay Đổi"
+    UI->>API: PATCH /api/v1/users/profile {group: "sensitive", notify_email: true}
+    API->>DB: Cập nhật bảng resident_notification_preferences
     DB-->>UI: Lưu thành công
-    Note over Sensitive,UI: Kể từ đây, mọi tuyến đường được nhân đôi trọng số phạt ô nhiễm (2.0x)
+    Note over Resident,UI: Hệ thống tự động nhân đôi trọng số phạt ô nhiễm (2.0x) cho mọi tính toán định tuyến kế tiếp
 ```
 
 ---
 
-#### User Flow 4: Quản Lý Đô Thị Phê Duyệt Cảnh Báo & Kích Hoạt Thiết Bị (HITL Portal)
+#### User Flow 4: Quản Lý Đô Thị Điều Khiển Thủ Công Máy Lọc Không Khí & Nhận ACK Real-time (UC-07)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Manager as 👨‍💼 Quản Lý Đô Thị (Manager)
+    participant UI as 🖥️ Device Detail Drawer
+    participant API as ⚙️ FastAPI Backend
+    participant MQTT as 📡 Mosquitto Broker
+    participant Sim as 💧 Device Simulator (FILTER-S01)
+    participant DB as 🗄️ PostgreSQL SoR
+
+    Manager->>UI: Bấm vào icon máy lọc FILTER-S01 trên bản đồ
+    UI->>UI: Mở Device Detail Drawer (Trạng thái: STANDBY)
+    Manager->>UI: Bấm nút [+ Bật máy lọc] (gửi lệnh ventilation_boost)
+    UI->>UI: Nút chuyển sang "Đang bật..." & Kích hoạt Fast-Polling (800ms)
+    UI->>API: POST /api/v1/devices/FILTER-S01/manual-control {action: "ventilation_boost"}
+    API->>DB: Lưu command_intent & Ghi nhật ký audit_logs
+    API->>MQTT: Publish topic airguard/devices/FILTER-S01/command
+    MQTT->>Sim: Chuyển tiếp bản tin điều khiển
+    Sim->>Sim: Kích hoạt chế độ lọc tăng cường RUNNING_BOOST (45 phút, 80%)
+    Sim->>MQTT: Publish ACK status=succeeded -> airguard/devices/FILTER-S01/status
+    MQTT->>API: MQTT Consumer nhận ACK & Cập nhật PostgreSQL
+    UI->>API: Fast-Polling chu kỳ 800ms (lần 1)
+    API-->>UI: Trả về device_status: RUNNING_BOOST, ack_status: succeeded
+    UI->>UI: Giao diện lập tức chuyển sang "Đang lọc không khí tăng cường"
+    UI->>UI: Đồng hồ đếm ngược 45 phút chạy giật lùi & Đổi nút thành [Tắt máy lọc]
+```
+
+---
+
+#### User Flow 5: Quản Lý Đô Thị Thẩm Định & Phê Duyệt Đề Xuất Can Thiệp HITL 1-Click (UC-08)
 
 ```mermaid
 sequenceDiagram
@@ -747,35 +803,66 @@ sequenceDiagram
     participant UI as 🖥️ HITL Approval Portal
     participant API as ⚙️ FastAPI Backend
     participant DB as 🗄️ PostgreSQL SoR
-    participant Email as 📧 Resend API
-    participant Device as 💧 Device Simulator (MQTT)
+    participant Email as 📧 Resend Email API
+    participant MQTT as 📡 Mosquitto Broker
+    participant Device as 💧 Device Simulator
 
-    Note over API: AI phát hiện ô nhiễm nặng -> Tạo proposal "pending"
+    Note over API: AI phát hiện ô nhiễm kéo dài -> Tạo proposal "pending" (Không tự ý thực thi)
     Manager->>UI: Truy cập Cổng Phê Duyệt (/approvals)
-    UI->>API: GET /api/v1/proposals/pending
+    UI->>API: GET /api/v1/approvals?status=pending
     API->>DB: Lấy danh sách đề xuất kèm bằng chứng (Evidence)
     DB-->>UI: Hiển thị danh sách đề xuất
-    Manager->>UI: Bấm chọn đề xuất PROP-2026-0831
-    UI->>UI: Mở Thẻ Thẩm Định Bằng Chứng (PM2.5, Hướng gió, Dự báo)
+    Manager->>UI: Bấm chọn đề xuất PROP-2026-0901-S04
+    UI->>UI: Mở Thẻ Thẩm Định Chứng Cứ (PM2.5: 58.2 ug/m3, Gió, Dự báo 1-24h)
     Manager->>UI: Bấm nút [PHÊ DUYỆT (APPROVE)] 1-Click
-    UI->>API: POST /api/v1/proposals/PROP-2026-0831/approve
-    API->>DB: Kiểm tra quyền & Cập nhật trạng thái "approved"
-    API->>Email: Gửi email cảnh báo khẩn cấp tới cư dân
-    API->>Device: Phát lệnh MQTT kích hoạt hệ thống phun sương dập bụi
-    API->>DB: Ghi nhật ký bất biến vào bảng audit_logs
+    UI->>API: POST /api/v1/approvals/PROP-2026-0901-S04/approve
+    API->>DB: Xác thực quyền Manager & Cập nhật trạng thái "approved"
+    par Phát lệnh điều khiển & Gửi thông báo
+        API->>MQTT: Phát lệnh kích hoạt máy lọc FILTER-S04
+        MQTT->>Device: Kích hoạt hệ thống lọc khí tăng cường
+        API->>Email: Gửi email cảnh báo cư dân phân khu Sao Biển qua Resend API
+    end
+    API->>DB: Ghi nhật ký kiểm toán bất biến vào bảng audit_logs
     API-->>UI: Trả về kết quả phê duyệt thành công kèm mã Audit
     UI->>UI: Cập nhật giao diện sang trạng thái Đã Phê Duyệt (Read-Only)
 ```
 
 ---
 
+#### User Flow 6: Quản Lý Đô Thị Truy Vết Nhật Ký Kiểm Toán & Xuất Báo Cáo ESG (UC-09, UC-10)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Manager as 👨‍💼 Quản Lý Đô Thị (Manager)
+    participant UI as 🖥️ Audit & Report Center
+    participant API as ⚙️ FastAPI Backend
+    participant DB as 🗄️ PostgreSQL SoR
+
+    Manager->>UI: Mở trang Nhật Ký Kiểm Toán (/audit)
+    UI->>API: GET /api/v1/audit/logs?limit=50
+    API->>DB: Truy vấn bảng audit_logs (Append-Only)
+    DB-->>API: Danh sách bản ghi (actor, action, target, outcome, correlation_id)
+    API-->>UI: Hiển thị bảng kiểm toán minh bạch có phân trang
+    Manager->>UI: Lọc theo hành động "DEVICE_MANUAL_CONTROL" -> Xem chi tiết JSON payload
+    Manager->>UI: Chuyển sang tab "Báo Cáo Môi Trường & ESG" (/reports)
+    Manager->>UI: Chọn loại báo cáo: Báo cáo Tháng (Monthly ESG Report), Định dạng: PDF
+    UI->>API: GET /api/v1/reports/generate?type=monthly_esg&format=pdf
+    API->>DB: Tính toán Data Coverage (>=75%), Giờ không khí sạch, PM2.5 trung bình
+    API->>API: Render tài liệu đồ họa PDF chuẩn hóa kèm mã Checksum
+    API-->>UI: Trả về file stream PDF
+    UI->>UI: Kích hoạt trình tải xuống file báo cáo về máy tính Quản lý
+```
+
+---
+
 ### 6.2 Bản Vẽ Mockup / Wireframe Giao Diện Chi Tiết (UI Layouts)
 
-#### Mockup 1: Dashboard Bản Đồ GIS Trung Tâm & 5 Trạm Đo (Màn hình S02)
+#### Mockup 1: Dashboard Bản Đồ GIS Trung Tâm, 5 Trạm Đo & Heatmap IDW (UC-01)
 
 ```
 +-------------------------------------------------------------------------------------------------------------------------+
-| [LOGO] AirGuard AI  |  Vinhomes Ocean Park 1  |  [Dashboard]  [AI Trợ Lý]  [Cảnh Báo (1)]  [Phê Duyệt] [Admin]  [👤 Canh] |
+| [LOGO] AirGuard AI  |  Vinhomes Ocean Park 1  |  [Dashboard]  [AI Trợ Lý]  [Cảnh Báo (1)]  [Phê Duyệt HITL]    [👤 Canh] |
 +-------------------------------------------------------------------------------------------------------------------------+
 | [!] DỮ LIỆU MÔ PHỎNG CHO MVP - KHÔNG PHẢI QUAN TRẮC CHÍNH THỨC                   Cập nhật: 12:45:00 (Chu kỳ 30s) [🔄]   |
 +-------------------------------------------------------------------------------------+-----------------------------------+
@@ -792,13 +879,13 @@ sequenceDiagram
 |                      ~        [S02 - Biển Hồ] (AQI: 42)  ~                          | --------------------------------- |
 |                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                          | [● ONLINE] S03 - San Hô           |
 |                                     |                                               | AQI: 68 (Vừa) | PM2.5: 22.8 ug/m3 |
-|    [S01 - VinUni] (AQI: 35)         |           [S05 - Kỹ Thuật] (AQI: 55)          | 12:44:20 | Nguồn: Simulator [Chi tiết]
+|    [S01 - VinUni] (AQI: 35)         |           [S05 - Hải Âu] (AQI: 55)            | 12:44:20 | Nguồn: Simulator [Chi tiết]
 |          \                          |                    /                          | --------------------------------- |
 |           \     ========================================/                           | [▲ CẢNH BÁO] S04 - Sao Biển       |
 |            \    |        HỒ NGỌC TRAI (24.5 ha)        |                            | AQI: 112 (Kém)| PM2.5: 41.5 ug/m3 |
 |             \   |     [Hành lang không khí trong lành] |                            | 12:44:50 | Nguồn: Simulator [Chi tiết]
 |              \  ========================================                            | --------------------------------- |
-|               \                     /                                               | [● ONLINE] S05 - Kỹ Thuật         |
+|               \                     /                                               | [● ONLINE] S05 - Hải Âu           |
 |                \----[S03 - San Hô]-/ (AQI: 68)                                      | AQI: 55 (Vừa) | PM2.5: 18.0 ug/m3 |
 |                                                                                     | 12:44:15 | Nguồn: Simulator [Chi tiết]
 |                                                                                     +-----------------------------------+
@@ -810,44 +897,7 @@ sequenceDiagram
 
 ---
 
-#### Mockup 2: Ngăn Trợ Lý AI Hội Thoại & Thẻ Lộ Trình Chạy Sạch (Màn hình S05)
-
-```
-+-------------------------------------------------------------------------------------------------------------------------+
-| [LOGO] AirGuard AI  |  Vinhomes Ocean Park 1  |  [Dashboard]  [AI Trợ Lý (Active)]  [Cảnh Báo]  [Phê Duyệt]     [👤 Canh] |
-+-------------------------------------------------------------------------------------------------------------------------+
-| NỀN BẢN ĐỒ GIS (Thu nhỏ 60% bên trái)              | NGĂN TRỢ LÝ ẢO AI HỘI THOẠI ĐA LƯỢT (Chiếm 40% bên phải)           |
-|                                                    | +---------------------------------------------------------------+ |
-|                                                    | | 🤖 AirGuard AI Assistant (Tiếng Việt)         [🔄 Cuộc hội thoại mới] | |
-|                                                    | +---------------------------------------------------------------+ |
-|           [Start / Finish]                         | | 👤 Cư Dân:                                                    | |
-|                 O                                  | | Gợi ý cho tôi đường chạy 5km sạch bụi quanh hồ Ngọc Trai nhé. | |
-|               /   \                                | | ------------------------------------------------------------- | |
-|              /     \ (Chặng 1: Xanh)               | | 🤖 Trợ lý AirGuard:                                           | |
-|             v       \                              | | Chào bạn! Dựa trên số liệu quan trắc vi khí hậu thời gian     | |
-|     (Cung ven hồ)    Waypoint                      | | thực từ 5 trạm, tôi đã thiết kế cho bạn một cung đường chạy   | |
-|             \       / (W)                          | | 5km khép kín tuần hoàn lý tưởng:                              | |
-|              \     /                               | |                                                               | |
-|               v   v                                | | +--[ THẺ TUYẾN ĐƯỜNG CHẠY SẠCH KHÉP KÍN ]-------------------+ | |
-|            (Chặng 2: Nét đứt)                      | | | 🏃 Cự ly chuẩn hóa: 5.0 km (Khép kín 100% S -> W -> S)    | | |
-|                 O                                  | | | ⏱️ Thời gian ước tính: 28 - 32 phút (Pace 6:00)             | | |
-|                                                    | | | 🍃 PM2.5 trung bình: 14.2 ug/m3 (Mức Rất Tốt)             | | |
-|                                                    | | | 🫁 Lượng bụi hít vào ước tính: 4.8 ug (Cực kỳ an toàn)     | | |
-|  [!] Bản đồ đang chiếu tuyến đường chạy 5.0km      | | | 🚫 Trùng lặp đường cũ: 0.0% (Không chạy lùi đường cũ)     | | |
-|  [ Cờ xuất phát: KTX Đại học VinUni ]              | | | 📍 Đi qua: Đường Đại Dương -> Ven Hồ Ngọc Trai -> San Hô   | | |
-|                                                    | | +-----------------------------------------------------------+ | |
-|                                                    | | [📍 Chiếu Lên Bản Đồ]   [🔄 Đổi Sang 3km]   [📤 Chia Sẻ Tuyến] | |
-|                                                    | +---------------------------------------------------------------+ |
-|                                                    | GỢI Ý CÂU HỎI NHANH:                                              |
-|                                                    | [ "Trạm nào sạch nhất lúc này?" ] [ "Dự báo thời tiết 2h tới?" ] |
-|                                                    | +---------------------------------------------------------------+ |
-|                                                    | | Nhập câu hỏi về chất lượng không khí hoặc đường chạy...  [GỬI]| |
-+----------------------------------------------------+-------------------------------------------------------------------+
-```
-
----
-
-#### Mockup 3: Ngăn Chi Tiết Trạm Quan Trắc & Biểu Đồ 24h (Màn hình S03)
+#### Mockup 2: Ngăn Chi Tiết Trạm Quan Trắc, Lịch Sử 24h & Dự Báo 1-24h (UC-02)
 
 ```
 +-------------------------------------------------------------------------------------------------------------------------+
@@ -886,8 +936,8 @@ sequenceDiagram
 +-------------------------------------------------------------------------------------------------------------------------+
 | DỰ BÁO XU HƯỚNG 1-24 GIỜ TIẾP THEO (Quality Gate Passed):                                                              |
 | - Sau 1 giờ (+1h): PM2.5 dự kiến ~ 16.5 ug/m3 (AQI ~ 45) -> Ổn định                                                     |
-| - Sau 2 giờ (+2h): PM2.5 dự kiến ~ 18.0 ug/m3 (AQI ~ 50) -> Tăng nhẹ do gió chuyển hướng                               |
-| - Sau 3 giờ (+3h): PM2.5 dự kiến ~ 15.0 ug/m3 (AQI ~ 42) -> Giảm trở lại                                                |
+| - Sau 2 giờ (+2h): PM2.5 dự kiến ~ 18.0 ug/m3 (AQI ~ 50) -> Tăng nhẹ do hướng gió                                       |
+| - Sau 6-24 giờ: Nồng độ dao động an toàn trong ngưỡng 14 - 22 ug/m3 (AQI 40 - 65)                                       |
 +-------------------------------------------------------------------------------------------------------------------------+
 | [🤖 Hỏi Trợ Lý AI Về Trạm Này]                                                         [Đóng Ngăn Chi Tiết]             |
 +-------------------------------------------------------------------------------------------------------------------------+
@@ -895,69 +945,44 @@ sequenceDiagram
 
 ---
 
-#### Mockup 4: Cổng Quản Lý Phê Duyệt Cảnh Báo HITL Dành Cho Manager (Màn hình S07/S08)
+#### Mockup 3: Ngăn Trợ Lý AI Hội Thoại & Thẻ Tuyến Đường Thể Thao Sạch (UC-04, UC-05)
 
 ```
 +-------------------------------------------------------------------------------------------------------------------------+
-| [LOGO] AirGuard AI  |  CỔNG QUẢN TRỊ & PHÊ DUYỆT CẢNH BÁO (HITL PORTAL)                 [Vai trò: QUẢN LÝ ĐÔ THỊ (Manager)] |
+| [LOGO] AirGuard AI  |  Vinhomes Ocean Park 1  |  [Dashboard]  [AI Trợ Lý (Active)]  [Cảnh Báo]  [Phê Duyệt]     [👤 Canh] |
 +-------------------------------------------------------------------------------------------------------------------------+
-| TAB LÀM VIỆC:  [ (1) Đề Xuất Chờ Duyệt (Pending) ]    [ Lịch Sử Phê Duyệt (Approved) ]    [ Đề Xuất Từ Chối (Rejected) ] |
-+-------------------------------------------------------------------------------------------------------------------------+
-| DANH SÁCH ĐỀ XUẤT CAN THIỆP MÔI TRƯỜNG ĐANG CHỜ QUẢN LÝ THẨM ĐỊNH:                                                      |
-|                                                                                                                         |
-| +--[ ĐỀ XUẤT: PROP-2026-0831-S04 ]------------------------------------------------------------------------------------+ |
-| | Loại đề xuất: CẢNH BÁO Ô NHIỄM BỤI MỊN & PHUN SƯƠNG DẬP BỤI      | Trạng thái: ⏳ CHỜ PHÊ DUYỆT (PENDING)           | |
-| | Trạm phát hiện: S04 - Phân khu Sao Biển                          | Thời điểm tạo: 12:40:15 (Cách đây 5 phút)        | |
-| | Người tạo: AI Alert Engine (Tự động)                             | Nhóm ảnh hưởng: Nhóm nhạy cảm & Cư dân Sao Biển  | |
-| +--------------------------------------------------------------------------------------------------------------------+ |
-| | THẺ THẨM ĐỊNH BẰNG CHỨNG QUAN TRẮC THỰC TẾ (EVIDENCE CARD):                                                         | |
-| | - Nồng độ PM2.5 đo được: 58.2 ug/m3 (Vượt ngưỡng cảnh báo nguy hại 55.4 ug/m3 liên tục trong 2 chu kỳ đo).          | |
-| | - Chỉ số AQI tương ứng: 152 (Cấp độ ĐỎ - Nguy hại cho sức khỏe).                                                   | |
-| | - Bối cảnh thời tiết: Gió Đông Bắc 2.1 m/s; Nhiệt độ 32.5 °C; Độ ẩm 54%; Khả năng phát tán bụi kém.                 | |
-| | - So sánh trạm lân cận: S05 đo 28.0 ug/m3, S02 đo 15.1 ug/m3 (Điểm nóng ô nhiễm cục bộ tại trục đường Sao Biển).   | |
-| +--------------------------------------------------------------------------------------------------------------------+ |
-| | HÀNH ĐỘNG SẼ ĐƯỢC KÍCH HOẠT SAU KHI QUẢN LÝ DUYỆT:                                                                   | |
-| | 1. Phát email cảnh báo khẩn cấp tới 1,240 cư dân đăng ký khu vực Sao Biển qua Resend Email API.                     | |
-| | 2. Phát lệnh MQTT (QoS 1) kích hoạt hệ thống phun sương dập bụi dập bụi tự động tại trục đường Sao Biển (15 phút).  | |
-| | 3. Ghi vết kiểm toán bất biến vào bảng audit_logs kèm chữ ký số tài khoản của Manager.                                | |
-| +--------------------------------------------------------------------------------------------------------------------+ |
-| | Ghi chú phê duyệt (Không bắt buộc): [Đã xác nhận camera khu vực thi công gần Sao Biển gây bụi. Duyệt ngay.______]   | |
-| |                                                                                                                    | |
-| |   [ ✔ PHÊ DUYỆT 1-CLICK (APPROVE) ]        [ ✖ TỪ CHỐI ĐỀ XUẤT (REJECT) ]        [ 🔄 Tải Lại Dữ Liệu Server ]     | |
-| +--------------------------------------------------------------------------------------------------------------------+ |
-+-------------------------------------------------------------------------------------------------------------------------+
-| [!] NGUYÊN TẮC BẮT BUỘC: AI tuyệt đối không thể tự động duyệt lệnh. Mọi can thiệp bắt buộc có chữ ký duyệt của Quản lý. |
-+-------------------------------------------------------------------------------------------------------------------------+
-```
-
----
-
-#### Mockup 5: Nhật Ký Kiểm Toán Bất Biến Append-Only (Màn hình S10)
-
-```
-+-------------------------------------------------------------------------------------------------------------------------+
-| [LOGO] AirGuard AI  |  NHẬT KÝ KIỂM TOÁN HỆ THỐNG BẤT BIẾN (IMMUTABLE AUDIT LOGS)       [Quyền: Quản Lý & Kiểm Toán Viên]|
-+-------------------------------------------------------------------------------------------------------------------------+
-| Bộ lọc: [Thời gian: 24h qua v]  [Tác nhân: Tất cả v]  [Hành động: Tất cả v]  [Trạm: Tất cả v]   [ 🔍 Lọc ]  [ 📥 Xuất CSV ] |
-+-------------------------------------------------------------------------------------------------------------------------+
-| THỜI ĐIỂM (Asia/HN) | TÁC NHÂN (ACTOR)     | VAI TRÒ   | HÀNH ĐỘNG (ACTION)       | MỤC TIÊU      | KẾT QUẢ   | REQUEST ID  |
-+---------------------+----------------------+-----------+--------------------------+---------------+-----------+-------------+
-| 01/09 12:42:00.124  | manager@vinuni.edu.vn| Manager   | PROPOSAL_APPROVE         | PROP-0831-S04 | SUCCESS   | req-9a8b7c  |
-| 01/09 12:42:01.050  | system_dispatcher    | System    | DEVICE_COMMAND_DISPATCH  | DEV-MIST-S04  | DISPATCHED| req-9a8b7c  |
-| 01/09 12:42:01.890  | system_notifier      | System    | RESEND_EMAIL_BROADCAST   | 1240_RECIPIENT| DELIVERED | req-9a8b7c  |
-| 01/09 12:35:10.450  | alert_engine_worker  | System    | PROPOSAL_CREATE_PENDING  | PROP-0831-S04 | CREATED   | req-112233  |
-| 01/09 11:15:22.780  | manager@vinuni.edu.vn| Manager   | PROPOSAL_REJECT          | PROP-0831-S01 | REJECTED  | req-445566  |
-| 01/09 09:00:00.010  | scheduler_job        | System    | DAILY_REPORT_GENERATE    | REP-20260901  | PUBLISHED | req-778899  |
-+---------------------+----------------------+-----------+--------------------------+---------------+-----------+-------------+
-| Trang 1 / 14 (Tổng số: 138 sự kiện kiểm toán)                                               [< Trước]  [1]  [2]  [Tiếp >]   |
-+-------------------------------------------------------------------------------------------------------------------------+
-| BẢO ĐẢM TOÀN VẸN DỮ LIỆU: Bảng audit_logs là Append-Only (Chỉ ghi nối tiếp, không cung cấp API chỉnh sửa hoặc xóa).     |
-+-------------------------------------------------------------------------------------------------------------------------+
+| NỀN BẢN ĐỒ GIS (Thu nhỏ 60% bên trái)              | NGĂN TRỢ LÝ ẢO AI HỘI THOẠI ĐA LƯỢT (Chiếm 40% bên phải)           |
+|                                                    | +---------------------------------------------------------------+ |
+|                                                    | | 🤖 AirGuard AI Assistant (Tiếng Việt)         [🔄 Cuộc hội thoại mới] | |
+|                                                    | +---------------------------------------------------------------+ |
+|           [Start / Finish]                         | | 👤 Cư Dân:                                                    | |
+|                 O                                  | | Gợi ý cho tôi đường chạy 5km sạch bụi quanh hồ Ngọc Trai nhé. | |
+|               /   \                                | | ------------------------------------------------------------- | |
+|              /     \ (Chặng 1: Xanh)               | | 🤖 Trợ lý AirGuard:                                           | |
+|             v       \                              | | Chào bạn! Dựa trên số liệu quan trắc vi khí hậu thời gian     | |
+|     (Cung ven hồ)    Waypoint                      | | thực từ 5 trạm, tôi đã thiết kế cho bạn một cung đường chạy   | |
+|             \       / (W)                          | | 5km khép kín tuần hoàn lý tưởng:                              | |
+|              \     /                               | |                                                               | |
+|               v   v                                | | +--[ THẺ TUYẾN ĐƯỜNG CHẠY SẠCH KHÉP KÍN ]-------------------+ | |
+|            (Chặng 2: Nét đứt)                      | | | 🏃 Cự ly chuẩn hóa: 5.0 km (Khép kín 100% S -> W -> S)    | | |
+|                 O                                  | | | ⏱️ Thời gian ước tính: 28 - 32 phút (Pace 6:00)             | | |
+|                                                    | | | 🍃 PM2.5 trung bình: 14.2 ug/m3 (Mức Rất Tốt)             | | |
+|                                                    | | | 🫁 Lượng bụi hít vào ước tính: 4.8 ug (Cực kỳ an toàn)     | | |
+|                                                    | | | 🚫 Trùng lặp đường cũ: 0.0% (Không chạy lùi đường cũ)     | | |
+|  [!] Bản đồ đang chiếu tuyến đường chạy 5.0km      | | | 📍 Đi qua: Đường Đại Dương -> Ven Hồ Ngọc Trai -> San Hô   | | |
+|  [ Cờ xuất phát: KTX Đại học VinUni ]              | | +-----------------------------------------------------------+ | |
+|                                                    | | [📍 Chiếu Lên Bản Đồ]   [🔄 Đổi Sang 3km]   [📤 Chia Sẻ Tuyến] | |
+|                                                    | +---------------------------------------------------------------+ |
+|                                                    | GỢI Ý CÂU HỎI NHANH:                                              |
+|                                                    | [ "Trạm nào sạch nhất lúc này?" ] [ "Dự báo thời tiết 2h tới?" ] |
+|                                                    | +---------------------------------------------------------------+ |
+|                                                    | | Nhập câu hỏi về chất lượng không khí hoặc đường chạy...  [GỬI]| |
++----------------------------------------------------+-------------------------------------------------------------------+
 ```
 
 ---
 
-#### Mockup 6: Cài Đặt Hồ Sơ Sức Khỏe Người Dùng (Màn hình S11)
+#### Mockup 4: Cửa Sổ Thiết Lập Hồ Sơ Sức Khỏe Cá Nhân & Thông Báo (UC-06)
 
 ```
 +-------------------------------------------------------------------------------------------------------------------------+
@@ -979,11 +1004,104 @@ sequenceDiagram
 |  ( ) NGƯỜI TẬP THỂ THAO NGOÀI TRỜI (Athletes / Runners)                                                                 |
 |      Dành cho người thường xuyên chạy bộ, đạp xe đường dài. Ưu tiên tối đa các tuyến đường khép kín, cự ly chính xác.   |
 +-------------------------------------------------------------------------------------------------------------------------+
-| TÙY CHỌN VẬN ĐỘNG THỂ THAO:                                                                                             |
+| TÙY CHỌN VẬN ĐỘNG THỂ THAO & THÔNG BÁO:                                                                                 |
 | Cự ly chạy ưa thích: [ 5.0 km v ]           Tốc độ chạy trung bình (Pace): [ 6:00 min/km v ]                            |
-| Thông báo cảnh báo qua Email: [X] Bật thông báo khi phân khu của tôi có AQI > 100                                       |
+| Kênh thông báo: [X] Bật cảnh báo đẩy trên Web khi AQI > 100    [X] Nhận Bản tin thời tiết hàng ngày (Daily Digest)      |
 +-------------------------------------------------------------------------------------------------------------------------+
 |   [ 💾 LƯU THAY ĐỔI HỒ SƠ ]                                                                  [ Hủy Bỏ ]                 |
++-------------------------------------------------------------------------------------------------------------------------+
+```
+
+---
+
+#### Mockup 5: Ngăn Điều Khiển Thủ Công Máy Lọc Không Khí Mô Phỏng (UC-07 - Manager Role)
+
+```
++-------------------------------------------------------------------------------------------------------------------------+
+| CHI TIẾT THIẾT BỊ LỌC KHÔNG KHÍ (Device Detail Drawer - Role: Quản Lý Đô Thị)                                       [X] |
++-------------------------------------------------------------------------------------------------------------------------+
+| THIẾT BỊ: FILTER-S01 (Cụm máy lọc không khí phân khu KTX VinUni / Đa Tốn)                                               |
+| Loại thiết bị: Giàn lọc bụi tĩnh điện & Phun sương dập bụi vi mô             Trạng thái: [ ĐANG LỌC TĂNG CƯỜNG ]        |
++-------------------------------------------------------------------------------------------------------------------------+
+| TRẠNG THÁI VẬN HÀNH THỜI GIAN THỰC (Real-time ACK Tracking):                                                            |
+|                                                                                                                         |
+|   +---------------------------------------+   +---------------------------------------+                                 |
+|   | ⚡ CHẾ ĐỘ HOẠT ĐỘNG                   |   | ⏱️ THỜI GIAN CÒN LẠI                  |                                 |
+|   | RUNNING_BOOST (Công suất: 80%)        |   | 38 phút 15 giây (Chu kỳ 45 phút)      |                                 |
+|   +---------------------------------------+   +---------------------------------------+                                 |
+|   | 📡 PHẢN HỒI THIẾT BỊ (ACK)            |   | 🍃 HIỆU QUẢ SUY GIẢM BỤI DỰ KIẾN      |                                 |
+|   | succeeded (Thời gian phản hồi: 0.8s)  |   | PM2.5 giảm ~ 35% trong bán kính 200m  |                                 |
+|   +---------------------------------------+   +---------------------------------------+                                 |
++-------------------------------------------------------------------------------------------------------------------------+
+| BẢNG ĐIỀU KHIỂN TỨC THÌ (Fast-Polling Active 800ms):                                                                    |
+|                                                                                                                         |
+|   [ 🛑 TẮT MÁY LỌC (STANDBY) ]        [ 🔄 ĐẶT LẠI CHU KỲ (45 PHÚT) ]        [ 📋 XEM LỊCH SỬ LỆNH (AUDIT) ]            |
++-------------------------------------------------------------------------------------------------------------------------+
+| [!] Lưu ý an toàn: Thao tác điều khiển thiết bị được bảo vệ Idempotency và tự động ghi nhật ký kiểm toán bất biến.      |
++-------------------------------------------------------------------------------------------------------------------------+
+```
+
+---
+
+#### Mockup 6: Cổng Quản Trị Phê Duyệt Cảnh Báo HITL 1-Click (UC-08 - Manager Role)
+
+```
++-------------------------------------------------------------------------------------------------------------------------+
+| [LOGO] AirGuard AI  |  CỔNG QUẢN TRỊ & PHÊ DUYỆT CẢNH BÁO (HITL PORTAL)                 [Vai trò: QUẢN LÝ ĐÔ THỊ (Manager)] |
++-------------------------------------------------------------------------------------------------------------------------+
+| TAB LÀM VIỆC:  [ (1) Đề Xuất Chờ Duyệt (Pending) ]    [ Lịch Sử Phê Duyệt (Approved) ]    [ Đề Xuất Từ Chối (Rejected) ] |
++-------------------------------------------------------------------------------------------------------------------------+
+| DANH SÁCH ĐỀ XUẤT CAN THIỆP MÔI TRƯỜNG ĐANG CHỜ QUẢN LÝ THẨM ĐỊNH:                                                      |
+|                                                                                                                         |
+| +--[ ĐỀ XUẤT: PROP-2026-0901-S04 ]------------------------------------------------------------------------------------+ |
+| | Loại đề xuất: CẢNH BÁO Ô NHIỄM BỤI MỊN & BẬT MÁY LỌC KHÍ TĂNG CƯỜNG | Trạng thái: ⏳ CHỜ PHÊ DUYỆT (PENDING)           | |
+| | Trạm phát hiện: S04 - Phân khu Sao Biển                            | Thời điểm tạo: 12:40:15 (Cách đây 5 phút)        | |
+| | Người tạo: AI Alert Engine (Tự động)                               | Nhóm ảnh hưởng: Nhóm nhạy cảm & Cư dân Sao Biển  | |
+| +--------------------------------------------------------------------------------------------------------------------+ |
+| | THẺ THẨM ĐỊNH BẰNG CHỨNG QUAN TRẮC THỰC TẾ (EVIDENCE CARD):                                                         | |
+| | - Nồng độ PM2.5 đo được: 58.2 ug/m3 (Vượt ngưỡng cảnh báo nguy hại 55.4 ug/m3 liên tục trong 2 chu kỳ đo).          | |
+| | - Chỉ số AQI tương ứng: 152 (Cấp độ ĐỎ - Nguy hại cho sức khỏe).                                                   | |
+| | - Bối cảnh thời tiết: Gió Đông Bắc 2.1 m/s; Nhiệt độ 32.5 °C; Độ ẩm 54%; Dự báo 1-24h: Nguy cơ duy trì ô nhiễm cao.  | |
+| | - So sánh trạm lân cận: S05 đo 28.0 ug/m3, S02 đo 15.1 ug/m3 (Điểm nóng ô nhiễm cục bộ tại trục đường Sao Biển).   | |
+| +--------------------------------------------------------------------------------------------------------------------+ |
+| | HÀNH ĐỘNG SẼ ĐƯỢC KÍCH HOẠT SAU KHI QUẢN LÝ DUYỆT:                                                                   | |
+| | 1. Phát email cảnh báo khẩn cấp tới 1,240 cư dân đăng ký khu vực Sao Biển qua Resend Email API.                     | |
+| | 2. Phát lệnh MQTT kích hoạt máy lọc FILTER-S04 chế độ tăng cường (45 phút, 80% công suất).                           | |
+| | 3. Ghi vết kiểm toán bất biến vào bảng audit_logs kèm chữ ký số tài khoản của Manager.                                | |
+| +--------------------------------------------------------------------------------------------------------------------+ |
+| | Ghi chú phê duyệt: [Đã xác nhận camera khu vực thi công gần Sao Biển gây bụi. Duyệt ngay.________________________]   | |
+| |                                                                                                                    | |
+| |   [ ✔ PHÊ DUYỆT 1-CLICK (APPROVE) ]        [ ✖ TỪ CHỐI ĐỀ XUẤT (REJECT) ]        [ 🔄 Tải Lại Dữ Liệu Server ]     | |
+| +--------------------------------------------------------------------------------------------------------------------+ |
++-------------------------------------------------------------------------------------------------------------------------+
+| [!] NGUYÊN TẮC BẮT BUỘC: AI tuyệt đối không thể tự động duyệt lệnh. Mọi can thiệp bắt buộc có chữ ký duyệt của Quản lý. |
++-------------------------------------------------------------------------------------------------------------------------+
+```
+
+---
+
+#### Mockup 7: Nhật Ký Kiểm Toán Bất Biến & Xuất Báo Cáo ESG (UC-09, UC-10 - Manager Role)
+
+```
++-------------------------------------------------------------------------------------------------------------------------+
+| [LOGO] AirGuard AI  |  TRUNG TÂM KIỂM TOÁN VẬN HÀNH & BÁO CÁO ESG                       [Quyền: QUẢN LÝ ĐÔ THỊ (Manager)] |
++-------------------------------------------------------------------------------------------------------------------------+
+| CHỨC NĂNG:  [ (Tab 1) Nhật Ký Kiểm Toán Bất Biến (Audit Trail) ]     [ (Tab 2) Xuất Báo Cáo Môi Trường & ESG ]          |
++-------------------------------------------------------------------------------------------------------------------------+
+| Bộ lọc: [Thời gian: 24h qua v]  [Hành động: Tất cả v]  [Kết quả: Thành công v]       [ 🔍 Lọc ]  [ 📥 Xuất Nhật Ký CSV ] |
++-------------------------------------------------------------------------------------------------------------------------+
+| THỜI ĐIỂM (Asia/HN) | TÁC NHÂN (ACTOR)     | VAI TRÒ   | HÀNH ĐỘNG (ACTION)       | MỤC TIÊU      | KẾT QUẢ   | REQUEST ID  |
++---------------------+----------------------+-----------+--------------------------+---------------+-----------+-------------+
+| 01/09 12:42:00.124  | manager@vinuni.edu.vn| Manager   | PROPOSAL_APPROVE         | PROP-0901-S04 | SUCCESS   | req-9a8b7c  |
+| 01/09 12:42:01.050  | system_dispatcher    | System    | DEVICE_COMMAND_DISPATCH  | FILTER-S04    | DISPATCHED| req-9a8b7c  |
+| 01/09 12:42:01.890  | system_notifier      | System    | RESEND_EMAIL_BROADCAST   | 1240_RECIPIENT| DELIVERED | req-9a8b7c  |
+| 01/09 12:35:10.450  | alert_engine_worker  | System    | PROPOSAL_CREATE_PENDING  | PROP-0831-S04 | CREATED   | req-112233  |
+| 01/09 11:15:22.780  | manager@vinuni.edu.vn| Manager   | PROPOSAL_REJECT          | PROP-0831-S01 | REJECTED  | req-445566  |
+| 01/09 09:00:00.010  | scheduler_job        | System    | DAILY_REPORT_GENERATE    | REP-20260901  | PUBLISHED | req-778899  |
++---------------------+----------------------+-----------+--------------------------+---------------+-----------+-------------+
+| Trang 1 / 14 (Tổng số: 138 sự kiện kiểm toán)                                               [< Trước]  [1]  [2]  [Tiếp >]   |
++-------------------------------------------------------------------------------------------------------------------------+
+| BẢO ĐẢM TOÀN VẸN DỮ LIỆU: Bảng audit_logs là Append-Only (Chỉ ghi nối tiếp, không cung cấp API chỉnh sửa hoặc xóa).     |
 +-------------------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -1033,14 +1151,15 @@ Bảng màu tuân thủ tuyệt đối quy chuẩn y tế công cộng quốc t�
 
 ### 6.5 Đặc Tả Bàn Giao Thiết Kế Figma (Figma Handoff Specification)
 - **Tổ chức Frame & Luồng Thiết Kế**:
-  - Frame `S01`: Đăng nhập & Lựa chọn vai trò Demo (`Resident`, `Manager`, `Admin`).
-  - Frame `S02`: Dashboard Bản đồ GIS Toàn Khu (Bản đầy đủ các Layer, Trạng thái Trạm, Thanh đo AQI).
-  - Frame `S03`: Ngăn Chi Tiết Trạm Quan Trắc (Biểu đồ 24h Recharts, Thẻ đo lường vi khí hậu).
+  - Frame `S01`: Đăng nhập & Lựa chọn vai trò Demo (`Resident`, `Manager`).
+  - Frame `S02`: Dashboard Bản đồ GIS Toàn Khu (Bản đầy đủ các Layer, Trạng thái Trạm, Thanh đo AQI EPA).
+  - Frame `S03`: Ngăn Chi Tiết Trạm Quan Trắc (Biểu đồ 24h Recharts, Thẻ đo lường vi khí hậu 4 chỉ số, Dự báo 1-24h).
   - Frame `S04`: So Sánh Chất Lượng Không Khí Giữa Hai Phân Khu (San Hô vs Biển Hồ).
   - Frame `S05`: Trợ Lý AI Chat Đa Lượt & Thẻ Lộ Trình Chạy Bộ Tương Tác.
   - Frame `S06`: Danh Sách & Bộ Lọc Cảnh Báo Môi Trường Đa Tiêu Chí.
   - Frame `S07/S08`: Cổng Phê Duyệt HITL Dành Cho Manager & Thẻ Bằng Chứng Quan Trắc.
-  - Frame `S10`: Bảng Nhật Ký Kiểm Toán Bất Biến (Audit Trail) Kèm Phân Trang.
+  - Frame `S09`: Ngăn Điều Khiển Thủ Công Thiết Bị Lọc Không Khí & Theo Dõi ACK.
+  - Frame `S10`: Bảng Nhật Ký Kiểm Toán Bất Biến (Audit Trail) Kèm Phân Trang & Xuất Báo Cáo ESG.
   - Frame `S11`: Modal Thiết Lập Hồ Sơ Sức Khỏe & Tùy Chỉnh Nhóm Nhạy Cảm.
 - **Auto-Layout & Design Tokens**: 100% các thành phần UI trong Figma được cấu hình Auto-Layout linh hoạt, gắn liên kết Token màu (`colors/aqi/*`, `colors/brand/*`) và Token khoảng cách (`spacing/4`, `spacing/8`, `spacing/16`, `spacing/24`).
 
@@ -1059,7 +1178,7 @@ Bảng màu tuân thủ tuyệt đối quy chuẩn y tế công cộng quốc t�
 
 ### 7.3 Bảo mật & Quyền riêng tư (Security & Privacy)
 - `REQ-NF-06`: Mật khẩu người dùng **PHẢI** được băm bằng thuật toán mật mã mạnh Argon2id trước khi lưu trữ vào cơ sở dữ liệu.
-- `REQ-NF-07`: Hệ thống phân quyền chặt chẽ theo vai trò (Role-Based Access Control - RBAC). Cư dân thường tuyệt đối không thể truy cập hoặc gọi API phê duyệt HITL (`/proposals/{id}/approve`).
+- `REQ-NF-07`: Hệ thống phân quyền chặt chẽ theo vai trò (Role-Based Access Control - RBAC). Cư dân thường tuyệt đối không thể truy cập hoặc gọi API phê duyệt HITL (`/approvals/{id}/approve`) hoặc API điều khiển thiết bị (`/devices/{id}/manual-control`).
 - `REQ-NF-08`: Toàn bộ truy vấn cơ sở dữ liệu PostgreSQL **PHẢI** sử dụng Parameterized Query / ORM để ngăn chặn hoàn toàn tấn công SQL Injection.
 
 ### 7.4 Tính sẵn sàng & Dự phòng sự cố (Availability & Resilience)
@@ -1083,22 +1202,21 @@ Bảng màu tuân thủ tuyệt đối quy chuẩn y tế công cộng quốc t�
 
 ## 9. MA TRẬN TRUY XUẤT & KIỂM THỬ NGHIỆM THU (TRACEABILITY MATRIX)
 
-Toàn bộ các yêu cầu chức năng, thuật toán định tuyến và ca sử dụng của hệ thống đã được kiểm chứng tự động qua hệ thống **153 Unit & Integration Tests (100% Passed)**:
+Toàn bộ **10 Ca Sử Dụng (UC-01 đến UC-10)** và **10 Tính Năng Cốt Lõi (F-01 đến F-10)** của hệ thống đã được kiểm chứng tự động qua hệ thống **153 Unit & Integration Tests (100% Passed)**:
 
-| Mã Yêu Cầu | Tên Yêu Cầu / Ca Sử Dụng | Module Xử Lý Mã Nguồn | Bộ Test Tự Động Kiểm Chứng | Kết Quả Thực Tế |
-|---|---|---|---|:---:|
-| `REQ-F-01` / `UC-01` | Thu thập Telemetry & Tính toán AQI | `services/mqtt-consumer/`, `live_telemetry_engine.py` | `test_running_route_engine.py`, `test_vietnamese_station_alerts.py` | **100% PASS** |
-| `REQ-F-02` / `UC-02` | Bản đồ phân bố ô nhiễm không gian IDW | `spatial_idw_interpolator.py`, `spatial_registry.py` | `test_spatial_dispersion.py`, `test_osm_routing_aqi_aware.py` | **100% PASS** |
-| `REQ-F-03` / `UC-04` | Động cơ định tuyến chạy sạch khép kín OSM | `clean_running_route_service.py`, `road_graph_router.py` | `test_osm_routing_aqi_aware.py` (12/12), `test_running_route_engine.py` (20/20) | **100% PASS** |
-| `REQ-F-04` / `UC-05` | Trợ lý AI tiếng Việt Grounded Tool Calling | `geospatial_agent_service.py`, `src/agents/graph.py` | `test_geospatial_agent.py` (28/28), `test_contextual_geospatial_agent.py` (15/15) | **100% PASS** |
-| `REQ-F-05` / `UC-07` | Động cơ cảnh báo nguy hại & Cooldown | `live_telemetry_engine.py`, `alert_service.py` | `test_vietnamese_station_alerts.py`, `test_overview_and_correction.py` | **100% PASS** |
-| `REQ-F-06` / `UC-08` | Phê duyệt cảnh báo & can thiệp HITL 1-Click | `backend/app/routes/proposals.py`, `main.py` | `test_manager_activity_log.py`, `test_person_b_api_security.py` | **100% PASS** |
-| `REQ-F-07` / `UC-09` | Nhật ký kiểm toán bất biến Append-Only | `backend/db/schema.sql`, `audit_service.py` | `test_manager_activity_log.py`, `test_report_api_security.py` | **100% PASS** |
-| `REQ-F-08` / `UC-06` | Cá nhân hóa hồ sơ sức khỏe & Nhóm nhạy cảm | `clean_running_route_service.py`, `user_service.py` | `test_running_route_engine.py::test_health_profile_sensitive_penalty` | **100% PASS** |
-| `REQ-F-09` / `UC-03` | Dự báo chất lượng không khí ngắn hạn 1-24h | `temporal_resolver.py`, `forecast_service.py` | `test_osm_routing_aqi_aware.py::test_forecast_horizon_quality_gate` | **100% PASS** |
-| `REQ-F-10` | Báo cáo môi trường & gửi email Resend | `report_publication_service.py`, `resend_provider.py` | `test_report_generator.py`, `test_resend_provider.py` | **100% PASS** |
-| `REQ-AI-01` | Cổng kiểm soát chống ảo giác (Grounding Gate) | `src/agents/policies/grounding.py`, `response_composer.py` | `test_geospatial_agent.py`, `test_social_intent_and_fallback.py` | **100% PASS** |
-| **TỔNG HỢP** | **Toàn Bộ 10 Ca Sử Dụng & 10 Tính Năng Cốt Lõi** | **Hệ thống Full-Stack Monorepo AirGuard AI** | **153 Automated Test Cases** | **153/153 PASS (100%)** |
+| Mã Ca Sử Dụng | Mã Tính Năng | Tên Tính Năng / Ca Sử Dụng | Module Xử Lý Mã Nguồn | Bộ Test Tự Động Kiểm Chứng | Kết Quả Thực Tế |
+|:---:|:---:|---|---|---|:---:|
+| `UC-01` | `F-01` | Giám sát Bản đồ Realtime & Heatmap IDW | `services/mqtt-consumer/`, `live_telemetry_engine.py` | `test_running_route_engine.py`, `test_vietnamese_station_alerts.py` | **100% PASS** |
+| `UC-02` | `F-02` / `F-09` | Tra cứu Trạm Chi tiết, Lịch sử 24h & Dự báo 1-24h | `station_service.py`, `forecast_service.py` | `test_spatial_dispersion.py`, `test_osm_routing_aqi_aware.py` | **100% PASS** |
+| `UC-03` | `F-05` | Tiếp nhận Cảnh báo Tự động & Cooldown 15m | `live_telemetry_engine.py`, `alert_service.py` | `test_vietnamese_station_alerts.py`, `test_overview_and_correction.py` | **100% PASS** |
+| `UC-04` | `F-04` | Đàm thoại Trợ lý AI Tiếng Việt Grounded Zero-Hallucination | `geospatial_agent_service.py`, `src/agents/graph.py` | `test_geospatial_agent.py` (28/28), `test_contextual_geospatial_agent.py` (15/15) | **100% PASS** |
+| `UC-05` | `F-03` | Định tuyến Tuyến đường Chạy sạch Khép kín OSM (0% lặp) | `clean_running_route_service.py`, `road_graph_router.py` | `test_osm_routing_aqi_aware.py` (12/12), `test_running_route_engine.py` (20/20) | **100% PASS** |
+| `UC-06` | `F-08` | Quản lý Hồ sơ Sức khỏe Cá nhân & Tùy biến Thông báo | `clean_running_route_service.py`, `user_service.py` | `test_running_route_engine.py::test_health_profile_sensitive_penalty` | **100% PASS** |
+| `UC-07` | `F-07` | Điều khiển Thủ công Máy lọc Không khí Mô phỏng (ACK 0.8s)| `backend/app/routes/devices.py`, `device_simulator.py` | `test_manager_activity_log.py`, `test_device_simulator.py` | **100% PASS** |
+| `UC-08` | `F-06` | Phê duyệt Đề xuất Can thiệp HITL 1-Click (Manager Only) | `backend/app/routes/approvals.py`, `proposal_service.py` | `test_manager_activity_log.py`, `test_person_b_api_security.py` | **100% PASS** |
+| `UC-09` | `F-07` | Truy vết Nhật ký Kiểm toán Bất biến (Immutable Audit Trail)| `backend/db/schema.sql`, `audit_service.py` | `test_manager_activity_log.py`, `test_report_api_security.py` | **100% PASS** |
+| `UC-10` | `F-10` | Xuất Báo cáo Chất lượng Môi trường & Đánh giá ESG | `report_publication_service.py`, `resend_provider.py` | `test_report_generator.py`, `test_resend_provider.py` | **100% PASS** |
+| **TỔNG HỢP**| **F-01..10** | **Toàn Bộ 10 Ca Sử Dụng & 10 Tính Năng Cốt Lõi** | **Hệ thống Full-Stack Monorepo AirGuard AI** | **153 Automated Test Cases** | **153/153 PASS (100%)** |
 
 ---
 
@@ -1115,3 +1233,4 @@ Toàn bộ các yêu cầu chức năng, thuật toán định tuyến và ca s�
 
 ---
 *Tài liệu đặc tả yêu cầu phần mềm SRS AirGuard AI — Phiên bản 2.2.0 hoàn tất và có hiệu lực thi hành kể từ ngày 01/09/2026.*
+
