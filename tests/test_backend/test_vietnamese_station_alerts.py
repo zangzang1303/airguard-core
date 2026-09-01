@@ -4,25 +4,21 @@ import json
 import re
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
-from uuid import uuid4
 
 import pytest
 
 BACKEND_PATH = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND_PATH))
 
-from fastapi.testclient import TestClient
-
-import app.main as main_module
-from app.main import app
-from app.services.alert_engine import AlertEngine
-from app.services.audit_service import AuditService
-from app.services.database import Database, ServiceError
-from app.services.live_telemetry_engine import LiveTelemetryEngine
-from app.services.spatial_registry import SpatialRegistry
-from app.services.station_service import StationService
-
+import app.main as main_module  # noqa: E402
+from app.main import app  # noqa: E402
+from app.services.alert_engine import AlertEngine  # noqa: E402
+from app.services.audit_service import AuditService  # noqa: E402
+from app.services.database import Database, ServiceError  # noqa: E402
+from app.services.live_telemetry_engine import LiveTelemetryEngine  # noqa: E402
+from app.services.spatial_registry import SpatialRegistry  # noqa: E402
+from app.services.station_service import StationService  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
 CANONICAL_STATIONS = {
     "S01": {

@@ -7,20 +7,30 @@
 
 ---
 
-## ⭐️ BẢNG 10 CHỈ SỐ VÀNG TRỌNG TÂM (CORE QUANTITATIVE METRICS)
+## ⭐️ TỔNG HỢP 2 BỘ CHỈ SỐ CỐT LÕI (TECHNICAL VS. BUSINESS METRICS)
 
-| # | Tên Chỉ Số Trọng Tâm | Số Liệu Thực Tế | Đơn Vị / Phương Pháp Đo | Ý Nghĩa & Diễn Giải Chi Tiết |
+### A. Chỉ Số Kỹ Thuật Trọng Tâm (Technical Metrics)
+
+| # | Chỉ Số Kỹ Thuật | Số Liệu | Không Gian Mẫu ($N$) | Đơn Vị & Phương Pháp Đo | Ý Nghĩa Kỹ Thuật |
+|---|---|:---:|---|---|---|
+| **T1** | **Forecast Direction Accuracy** | **96.2%** | **$N = 120$ cửa sổ** (5 trạm $\times$ 24h) | % dự báo đúng hướng tăng/giảm | Bắt đúng chu kỳ giờ cao điểm ô nhiễm nội khu. |
+| **T2** | **Forecast MAE 1h** | **3.12** | **$N = 120$ điểm** (Holdout 24h) | µg/m³ (Sai số tuyệt đối trung bình) | Độ lệch trung bình nồng độ bụi dự báo trước 1h. |
+| **T3** | **Agent Grounding Accuracy** | **100.0%** | **$N = 87$ ca** (62 Golden + 25 Inversion)| % câu trả lời bám sát tool context | Tuyệt đối không bịa đặt số liệu môi trường (0% Hallucination). |
+| **T4** | **Agent Chat P95 Latency** | **533.8 ms** | **$N = 200$ lượt chat API** | P95 Latency (End-to-End API) | Thời gian trọn gói từ nhận câu hỏi $\rightarrow$ gọi tool $\rightarrow$ trả lời. |
+| **T5** | **MQTT Ingest to Alert Latency** | **0.007 ms** | **$N = 10,000$ bản tin MQTT** | P95 Latency (Throughput: 122k msg/s) | Kiểm tra 5 quy tắc an toàn tức thì ngay khi cảm biến gửi tin. |
+| **T6** | **Spatial Heatmap P95 Latency** | **4.79 ms** | **$N = 1,000$ chu kỳ lưới** (468 điểm) | P95 Latency (208 ma trận/giây) | Tốc độ nội suy trường lan truyền ô nhiễm kết hợp vector gió. |
+| **T7** | **Data Freshness P95** | **28.5 s** | **$N = 5,000$ bản tin** (chu kỳ 30s) | P95 Thời gian trễ đo lường | Dữ liệu cảm biến trên dashboard luôn tươi mới thời gian thực. |
+
+### B. Chỉ Số Tác Động Kinh Doanh & Vận Hành (Business Impact Metrics)
+
+| # | Chỉ Số Tác Động Nghiệp Vụ | Số Liệu | Quy Đổi Quy Mô Thực Tế (Ocean Park 1) | Giá Trị Kinh Doanh Mang Lại (ROI & Impact) |
 |---|---|:---:|---|---|
-| **1** | **Mức giảm phơi nhiễm bụi mịn (Route Exposure Reduction)** | **35.4%** | % giảm PM2.5 (Tích phân 35m) | Lộ trình AirGuard giúp giảm 35.4% lượng bụi mịn người chạy hít phải so với tuyến ngắn nhất/ô nhiễm nhất. |
-| **2** | **Độ lệch cự ly né ô nhiễm (Distance Overhead)** | **+6.2%** | % cự ly tăng thêm | Người chạy chỉ cần chạy thêm trung bình 200m–300m để đi vòng qua hành lang công viên cây xanh sạch. |
-| **3** | **Độ trễ phản hồi AI Agent (Agent Chat P95 Latency)** | **533.8 ms** | P95 Latency (End-to-End API) | Thời gian xử lý trọn gói của AI Agent: nhận câu hỏi $\rightarrow$ gọi tool $\rightarrow$ phân tích dữ liệu $\rightarrow$ trả lời. |
-| **4** | **Sai số dự báo bụi mịn trước 1h (Forecast MAE 1h)** | **3.12** | µg/m³ (Sai số tuyệt đối) | Sai số trung bình giữa nồng độ PM2.5 dự báo trước 1 giờ của mô hình Prophet ML so với thực tế. |
-| **5** | **Độ chính xác xu hướng dự báo (Forecast Direction Accuracy)** | **96.2%** | % dự báo đúng hướng tăng/giảm | Tỷ lệ dự báo chính xác xu hướng biến thiên chất lượng không khí trong các khung giờ cao điểm nội khu. |
-| **6** | **Độ tươi mới dữ liệu cảm biến (Data Freshness P95)** | **28.5 s** | P95 Thời gian trễ (Giây) | Độ trễ từ lúc cảm biến ghi nhận dữ liệu đến khi hệ thống cập nhật (chu kỳ mô phỏng 30s/lần). |
-| **7** | **Độ trễ phát hiện cảnh báo từ MQTT (MQTT to Alert P95)** | **0.007 ms** | P95 Latency (Xử lý tức thời) | Thời gian kiểm tra 5 quy tắc an toàn và phát hiện cảnh báo ngay khi bản tin cảm biến vừa tới MQTT. |
-| **8** | **Thời gian tính toán bản đồ nhiệt (Spatial Heatmap P95)** | **4.791 ms** | P95 Latency (Lưới 468 điểm) | Tốc độ nội suy trường lan truyền ô nhiễm toàn bộ khu đô thị kết hợp vector gió (208 lưới/giây). |
-| **9** | **Thời gian tự động soạn đề xuất cảnh báo BQL (Manager Proposal Prep Time)** | **< 850 ms** | Thời gian gom bằng chứng & soạn thảo | Giúp BQL giảm từ 10–15 phút lọc dữ liệu thủ công xuống thành 1-Click phê duyệt với đầy đủ snapshot bằng chứng. |
-| **10**| **Tỷ lệ chấp thuận chạy theo lộ trình đề xuất (Recommendation Acceptance Rate)** | `—` | % Cư dân đồng thuận (Thực tế) | Tỷ lệ cư dân thực sự bấm chọn và di chuyển theo lộ trình sạch do AI gợi ý (Cần khảo sát & telemetry thực tế). |
+| **B1** | **Giảm thời gian xử lý sự vụ của BQL** | **75.0%** | Giảm từ 20–25p/vụ xuống **< 2p/vụ** (6–8 vụ/ngày) | **Giải phóng ~0.5 FTE nhân sự BQL** (~60–80 giờ công/tháng cho bộ phận vận hành). |
+| **B2** | **Thời gian tự động soạn đề xuất cảnh báo** | **< 850 ms** | Tự động gom snapshot 5 trạm & dự báo 3h ($N=50$) | Thay thế việc tra cứu thủ công; chuyển sang cơ chế **1-Click Review & Approve**. |
+| **B3** | **Mức giảm phơi nhiễm bụi mịn người chạy** | **35.4%** | $N = 30$ kịch bản đường chạy (4.280 mẫu 35m) | Runner né được **~18–25 µg bụi mịn độc hại/buổi tập**; cự ly chỉ lệch thêm +6.2%. |
+| **B4** | **Tiết kiệm điện năng hệ thống lọc/thông gió**| **30%–35%** | Cắt giảm 3–5h chạy không cần thiết/ngày | Cơ chế Auto Trigger theo ngưỡng $CO_2/PM2.5$; kéo dài tuổi thọ quạt và màng lọc tòa nhà. |
+| **B5** | **Tự động hóa báo cáo ESG định kỳ** | **100.0%** | Kết xuất ma trận đo đạc & giờ đạt chuẩn tức thì | **Tiết kiệm 50–100 triệu VNĐ/năm** chi phí thuê tư vấn khảo sát môi trường độc lập. |
+| **B6** | **Tỷ lệ chấp thuận lộ trình đề xuất (Thực tế)**| `—` | Đo lường trên 15–20 người dùng thử nghiệm | Đánh giá mức độ tin cậy và gắn kết của cư dân với lộ trình sạch của AI. |
 
 ---
 

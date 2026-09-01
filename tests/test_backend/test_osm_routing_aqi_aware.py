@@ -18,6 +18,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+
 from backend.app.services.environmental_scoring import EnvironmentalScoringEngine
 from backend.app.services.geospatial_agent_service import GeospatialAgentService
 from backend.app.services.live_telemetry_engine import live_engine

@@ -733,6 +733,8 @@ const SuperAppMain: React.FC<{
               `device-${selectedVentilationDevice.device_id}-${action}-${Date.now()}`,
             );
             await Promise.all([loadVentilationDevices(), refreshData()]);
+            setTimeout(() => void loadVentilationDevices(), 1000);
+            setTimeout(() => void loadVentilationDevices(), 2500);
           }}
         />
       )}

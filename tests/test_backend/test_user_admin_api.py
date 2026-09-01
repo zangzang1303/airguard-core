@@ -11,7 +11,6 @@ sys.path.insert(0, str(BACKEND_PATH))
 import app.main as main_mod  # noqa: E402
 from app.dependencies.auth import require_admin  # noqa: E402
 
-
 ADMIN_ID = "00000000-0000-0000-0000-000000000003"
 TARGET_ID = "00000000-0000-0000-0000-000000000101"
 

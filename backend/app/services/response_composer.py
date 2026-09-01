@@ -273,7 +273,7 @@ class ResponseComposer:
             else f"{best_name} ({best_sensor})"
         )
 
-        headline = f"⚠️ **{worst_label} hiện là trạm có AQI cao nhất trong phạm vi AirGuard đang theo dõi.**"
+        headline = f"⚠️ **{worst_label} hiện là khu vực ô nhiễm nhất (AQI cao nhất) trong phạm vi AirGuard đang theo dõi.**"
 
         highlights_text = (
             f"- **AQI:** {worst_aqi} — {worst_cat}\n"

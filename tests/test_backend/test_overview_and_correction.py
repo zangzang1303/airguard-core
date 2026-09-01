@@ -12,10 +12,10 @@ Tests requirements from docs/AirGuard_Task_Fix_Overview_Intent_Context_Scope.md:
 """
 
 import pytest
+
 from backend.app.services.conversation_state_manager import conversation_state_manager
 from backend.app.services.geospatial_agent_service import GeospatialAgentService
 from backend.app.services.response_composer import ResponseValidator
-from backend.app.services.spatial_registry import spatial_registry
 
 
 @pytest.fixture
