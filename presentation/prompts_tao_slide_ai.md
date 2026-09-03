@@ -1,11 +1,11 @@
-# 🤖 PROMPT TỔNG THỂ TẠO BỘ SLIDE PITCHING AIRGUARD AI (ALL-IN-ONE MASTER PROMPT)
-> **Cách sử dụng**: Copy toàn bộ khối văn bản bên dưới và dán trực tiếp vào các công cụ AI tạo slide như **Gemini trong Google Workspace**, **Gamma.app**, **Tome.ai**, **Canva Magic Presentation**, **SlidesAI**, hoặc **Microsoft Copilot**.  
-> **Đặc biệt**: `Slide 4` đã được tối ưu hóa toàn bộ thành **sơ đồ luồng mũi tên (Flowchart Pipelines)** cực kỳ trực quan, ngắn gọn, dễ hiểu và không còn đoạn văn dài.
+# 🤖 PROMPT TỔNG THỂ TẠO BỘ SLIDE PITCHING AIRGUARD AI (9 SLIDE HOÀN CHỈNH)
+> **Cách sử dụng**: Copy toàn bộ khối văn bản bên dưới và dán trực tiếp vào **Gemini trong Google Slides**, **Gamma.app**, **Tome.ai**, **Canva Magic Presentation**, **SlidesAI**, hoặc **Microsoft Copilot**.  
+> **Cấu trúc 9 Slide**: `1. Hook` ➔ `2. Problem` ➔ `3. Solution` ➔ `4. Architecture & Flows` ➔ `5. Core Innovations` ➔ `6. Live Demo` ➔ `7. Biz & 3 Gold Metrics` ➔ `8. Team P-074` ➔ `9. Roadmap & Thank You (Q&A)`.
 
 ---
 
 ```text
-Hãy tạo một bài thuyết trình chuyên nghiệp (Pitch Deck) gồm đúng 8 slide theo phong cách Clean-Tech Dark Mode hiện đại (Nền xanh đen công nghệ #0B1120, màu nhấn Xanh lục bảo #10B981 và Xanh dương #0EA5E9, Glassmorphism, font chữ Inter/Outfit sắc nét, bố cục dạng Flowchart mũi tên và Card trực quan):
+Hãy tạo một bài thuyết trình chuyên nghiệp (Pitch Deck) gồm đúng 9 slide theo phong cách Clean-Tech Dark Mode hiện đại (Nền xanh đen công nghệ #0B1120, màu nhấn Xanh lục bảo #10B981 và Xanh dương #0EA5E9, Glassmorphism, font chữ Inter/Outfit sắc nét, bố cục dạng Flowchart mũi tên và Card trực quan):
 
 ---
 
@@ -85,25 +85,40 @@ SLIDE 6: KHOẢNH KHẮC TRẢI NGHIỆM THỰC TẾ (LIVE PRODUCT DEMO)
 ---
 
 SLIDE 7: TÁC ĐỘNG ĐỊNH LƯỢNG, NGHIỆM THU KỸ THUẬT & MÔ HÌNH KINH DOANH (BIZ & TRACTION)
-- Tiêu đề chính: Giá Trị Định Lượng, Độ Hoàn Thiện Kỹ Thuật 100% & Tiềm Năng Thương Mại
-- 3 Hộp Metric Số Liệu Lớn (Big Impact Numbers):
-  * [ -45% Liều Lượng Bụi PM2.5 Hít Vào Phổi (Bảo vệ runner & nhóm nhạy cảm hô hấp) ]
-  * [ -90% Thời Gian Phản Ứng Xử Lý Ô Nhiễm (Tự ngắt máy lọc sau 45 phút tiết kiệm điện) ]
-  * [ 153 / 153 Automated Test Cases Passed (100% PASS - Uptime 99.9% trên Azure VM) ]
-- Mô hình kinh doanh & Tín hiệu thị trường:
-  * B2B/B2G SaaS: Thu phí quản trị môi trường từ Ban Quản Lý đại đô thị ($2,000 - $5,000/tháng/khu đô thị), tự động xuất báo cáo ESG chuẩn quốc tế.
+- Tiêu đề chính: GIÁ TRỊ ĐỊNH LƯỢNG, ĐỘ HOÀN THIỆN KỸ THUẬT & TIỀM NĂNG THƯƠNG MẠI
+- 3 Hộp Metric Vàng Nổi Bật (3 Gold Impact Cards):
+  1. [ 🏃 0.0% TRÙNG LẶP & -45% BỤI HÍT VÀO ]
+     - Định tuyến tuần hoàn 2-Leg Dijkstra trên OSM >10,500 cạnh; né 18–25 µg bụi mịn độc hại/buổi chạy cho runner.
+  2. [ ⚡ GIẢM 90% THỜI GIAN & ACK 0.8 GIÂY ]
+     - Quy trình BQL từ 25 phút xuống < 2 phút qua Cổng HITL 1-click; nhận phản hồi điều khiển thiết bị qua MQTT trong 0.8s.
+  3. [ 🌱 TIẾT KIỆM 35% ĐIỆN & 100% BÁO CÁO ESG ]
+     - Tự động ngắt máy lọc sau 45m tiết kiệm ~118.800 kWh/tháng (~300 triệu VNĐ/tháng cho 66 tòa); tự động xuất báo cáo kiểm toán ESG định kỳ.
+- Dưới Cùng: [ Nghiệm Thu Kỹ Thuật: 153/153 Automated Tests Passed (100%) • Uptime 99.9% trên Azure VM ]
+- Mô hình kinh doanh & Thị trường:
+  * B2B/B2G SaaS: Thu phí quản trị môi trường từ Ban Quản Lý đại đô thị ($2,000 - $5,000/tháng/khu đô thị).
   * B2C Subscription: Gói cá nhân hóa cảnh báo và định tuyến thể thao cho hàng ngàn runner ($2/tháng).
 
 ---
 
-SLIDE 8: ĐỘI NGŨ THỰC HIỆN, TẦM NHÌN DÀI HẠN & PHIÊN HỎI ĐÁP (VISION, TEAM & ASK)
-- Tiêu đề chính: Đội Ngũ Nhóm P-074 (Tứ Kỵ Sĩ Khải Huyền) & Phiên Hỏi Đáp (Q&A)
-- Thẻ 4 Thành viên nòng cốt:
-  1. Lê Tuấn Cảnh — Team Lead / Backend & Cloud (Kiến trúc Monorepo, FastAPI, Postgres SoR, Azure VM).
-  2. Hán Vũ Long — Integration / IoT Pipeline (Tích hợp Mosquitto MQTT, Telemetry Ingestion, Forecast).
-  3. Hoàng Lê Minh — AI Engineer (LangGraph State Machine, Grounding Gate, 2-Leg OSM Router).
-  4. Phạm Thế Dũng — Frontend / QA Engineer (React 18 Leaflet GIS, Fast-Polling UI, Test Suite 153 Tests).
-- Lộ trình phát triển tương lai: Tích hợp phần cứng cảm biến LoRaWAN thực tế + Mạng nơ-ron đồ thị Spatio-Temporal GNN + Nhân rộng chuỗi Smart City toàn quốc.
-- The Ask: Kêu gọi kết nối, đầu tư mở rộng và cố vấn công nghệ.
-- Slogan & Kết luận: "AirGuard AI — Vì Một Đại Đô Thị Xanh, Thông Minh & Khỏe Mạnh! Sẵn sàng cho phiên Q&A!"
+SLIDE 8: ĐỘI NGŨ THỰC HIỆN DỰ ÁN (TEAM P-074 / TỨ KỴ SĨ KHẢI HUYỀN)
+- Tiêu đề chính: ĐỘI NGŨ PHÁT TRIỂN — NHÓM P-074 (TỨ KỴ SĨ KHẢI HUYỀN)
+- 4 Thẻ Thành Viên Chuyên Biệt (4 Specialized Roles):
+  1. Lê Tuấn Cảnh — Team Lead / Backend & Cloud (Kiến trúc Monorepo 5 lớp, FastAPI, Postgres SoR, Triển khai Azure VM).
+  2. Hán Vũ Long — Integration / IoT Pipeline (Tích hợp Mosquitto MQTT Broker, Telemetry Ingestion, Forecast Model).
+  3. Hoàng Lê Minh — AI Engineer (LangGraph State Machine, Grounding Policy Gate, Động cơ 2-Leg OSM Dijkstra).
+  4. Phạm Thế Dũng — Frontend / QA Engineer (React 18 Leaflet GIS, Fast-Polling UI, Bộ kiểm thử tự động 153 Tests).
+- Thông điệp: "Sự phối hợp kỷ luật và đồng bộ từ Phần cứng IoT, AI cốt lõi đến Trải nghiệm Người dùng."
+
+---
+
+SLIDE 9: ĐỊNH HƯỚNG PHÁT TRIỂN & LỜI CẢM ƠN (ROADMAP & THANK YOU / Q&A)
+- Tiêu đề chính: ĐỊNH HƯỚNG TƯƠNG LAI & LỜI CẢM ƠN (FUTURE ROADMAP & Q&A)
+- Lộ Trình 3 Giai Đoạn Phát Triển Hướng Tới Cư Dân (Resident-Centric Roadmap):
+  * Giai Đoạn 1 (Q4/2026): Ra mắt Ứng dụng Di Động (iOS / Android / Zalo Mini App) cho cư dân, nhận thông báo đẩy vi khí hậu theo vị trí GPS; đồng bộ tuyến chạy sạch 1-click lên Apple Watch, Garmin, Strava kèm cảnh báo rung an toàn.
+  * Giai Đoạn 2 (Q1/2027): Mở rộng Tiện ích Cư dân & Smart Home: Liên động căn hộ thông minh (nhắc đóng cửa sổ, tự bật máy lọc không khí); ra mắt tính năng Thử thách "Chạy Xanh Tích Điểm" đổi voucher tiện ích đô thị (vé bơi, phí gửi xe, cà phê ven hồ).
+  * Giai Đoạn 3 (2027+): Nhân rộng giải pháp ra toàn bộ hệ thống đại đô thị thông minh Vinhomes (Smart City, Grand Park), Ecopark và các đô thị lớn trên toàn quốc.
+- Hộp Callout Cảm Ơn Nổi Bật Ở Trung Tâm:
+  "AirGuard AI — Vì Một Đại Đô Thị Xanh, Thông Minh & Khỏe Mạnh!"
+  "Xin chân thành cảm ơn Ban Giám Khảo & Quý Hội Đồng! Sẵn sàng cho phiên Q&A!"
+- Mã QR & Link truy cập: [ QR Code Web Live ] • [ GitHub Repository P-074 ]
 ```

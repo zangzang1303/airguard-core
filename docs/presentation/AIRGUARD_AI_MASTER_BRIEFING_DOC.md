@@ -226,10 +226,15 @@ Khi chuyển sang **Slide 6 (Live Demo)**, bạn mở trình duyệt tại `http
 * **Mô hình B2C Subscription (Gia tăng giá trị cư dân):**
   - Gói tài khoản cá nhân hóa: **$2 / tháng** (hoặc 49,000 VNĐ/tháng) cho các runner và gia đình có con nhỏ.
   - Quyền lợi: Cảnh báo ô nhiễm theo bán kính nhà ở, đo lường liều lượng bụi tích lũy và đồng bộ đường chạy thông minh lên Strava/Garmin.
-* **Lộ trình 3 Giai đoạn (Roadmap):**
-  - **Q4/2026:** Thử nghiệm phần cứng cảm biến LoRaWAN thực địa kết nối trạm thời tiết vật lý.
-  - **Q1/2027:** Tích hợp mô hình lan truyền không - thời gian Spatio-Temporal GNN kết hợp Camera AI đếm mật độ giao thông.
-  - **2027+:** Mở rộng thành nền tảng giải pháp đô thị thông minh toàn diện trên toàn quốc.
+* **Lộ trình 3 Giai đoạn Phát triển Hướng Tới Cư Dân (Resident-Centric Roadmap):**
+  - **Giai đoạn 1 (Q4/2026) — Mobile App & Đồng bộ Thiết bị thông minh**:
+    * Phát hành ứng dụng di động **AirGuard Mobile (iOS, Android, Zalo Mini App)**: Cư dân nhận thông báo đẩy tức thì theo vị trí thời gian thực.
+    * Đồng bộ tuyến chạy sạch 1-click lên **Apple Watch, Garmin, Strava**: Rung phản hồi dẫn đường và cảnh báo an toàn khi runner tiếp cận vùng ô nhiễm cục bộ.
+  - **Giai đoạn 2 (Q1/2027) — Hệ sinh thái Cư dân & Smart Home**:
+    * **Liên động Căn Hộ Thông Minh (Smart Home Integration)**: Tự động nhắc nhở đóng cửa sổ, đồng bộ bật/tắt máy lọc không khí trong phòng theo nồng độ bụi ngoài trời.
+    * **Cộng đồng "Green Runner" & Tích Điểm Xanh (Loyalty Points)**: Thử thách thể thao sạch, tích lũy dặm chạy xanh đổi voucher tiện ích đại đô thị (vé bơi, phí gửi xe, cà phê ven hồ).
+  - **Giai đoạn 3 (2027+) — Mở rộng Hệ sinh thái Smart City Toàn Quốc**:
+    * Nhân rộng giải pháp ra toàn bộ hệ thống đại đô thị thông minh Vinhomes (Smart City Tây Mỗ, Grand Park Q9), Ecopark và các khu đô thị lớn tại Việt Nam.
 
 ---
 
