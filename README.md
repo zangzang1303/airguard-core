@@ -22,6 +22,7 @@
 >   * 🧪 [**Kế hoạch & Báo cáo Kiểm thử (Testing)**](./docs/testing/) — Test Plan, 153/153 Automated Test Cases Passed (100%).
 >   * 📅 [**Nhật ký Tiến độ Hàng tuần (Weekly Logs)**](./weekly-logs/) — Báo cáo chi tiết từ Tuần 01 đến Tuần 06 (Gate 2).
 >   * 🎤 [**Kịch bản Thuyết trình Pitching (Presentation)**](./presentation/airguard_ai_pitching_deck_script.md) — Kịch bản slide & Q&A.
+>   * 📘 [**Cẩm Nang Ôn Tập Trước Khi Pitching (Master Briefing Handbook)**](./presentation/AIRGUARD_AI_MASTER_BRIEFING_DOC.md) — Tài liệu đọc trọn gói toàn bộ dự án & 10 câu hỏi Q&A.
 
 > **Tuyên bố minh bạch:** Toàn bộ dữ liệu cảm biến trong MVP hiện tại đến từ hệ thống mô phỏng (`source=simulator`) phục vụ mục đích nghiên cứu, học tập và trình diễn công nghệ. Đây không phải hệ thống quan trắc môi trường chính thức được cấp phép. Không sử dụng dữ liệu này để chẩn đoán y tế chuyên sâu, ban bố tình trạng khẩn cấp hoặc ra các quyết định pháp lý.
 
